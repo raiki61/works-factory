@@ -3,12 +3,8 @@
 - render(node_id, values, when=None) -> {"prompt": 字, "system"?: 字}: 呼んだ script の在る block の prompts/<node_id>.md を読み、
   断片と段落を選び、差し込み口に値を入れた指示。prompts/<node_id>.system.md が在れば、同じ値と when で組んだ system prompt も返す
   （YAML の systemPrompt: に文を書かない。README の 13 章）。パスも文も受けない
-- compose(block, node_id, values, when=None, *, shared_root=None) -> render の返り: render と同じ組み立てを、根を受けて回す口。block は
-  block のフォルダ、shared_root は共通の断片の根（prompts/<name>.md を持つフォルダ。None なら pack の .shared）。render と emit も
-  この口を通る。値の記録から組み直す工場の外の物は今は無い（読み手だった見る道具のページは持ち主の決め run-trace-otlp の 6 で捨てた）
 - emit(node_id, values, when, n) -> render の返り: 組んだ物を place の <node_id>-prompt-<n>.md（と <node_id>-system-<n>.md）に書き、
-  prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ。
-  隣に <node_id>-viewer-values-<n>.json も書く（下の「見る道具のための値の記録」）
+  prep の返りの形で返す。AI の node の YAML は prompt: "$<prep>.output.prompt"（と systemPrompt: "$<prep>.output.system"）だけ
 - render_part(name, values, when=None) -> str: 呼んだ script の在る block の prompts/parts/<name>.md を、render と同じ決まり（断片・段落・
   差し込み口の数え・落ち方）で組んだ字。AI の node でない物（束ね役が起こす下請けが Read する指示のファイルなど）の指示を md から組む
 - render_shared(name, values, when=None) -> str: pack の .shared/prompts/<name>.md を、render と同じ決まりで組んだ字（呼んだ block を問わない）。
@@ -29,21 +25,10 @@ md の書き方:
 - 入れた値の中の字（{…}・$…）は読み直さない。Archon も prompt: の $<id>.output.prompt に入れた字を読み直さない（止めた版の
   executor-shared.ts の substituteWorkflowVariables が 1 回の走査で、入れた値を字のまま置く）
 
-見る道具のための値の記録（持ち主の決め prompt-values-for-viewer）:
-- emit が place に書く <node_id>-viewer-values-<n>.json は、工場の外の見る道具（run で LLM に入った英語の指示を、日本語の md の写しで
-  同じ形に組み直して人に見せる物）のために置いた記録で、工場の中では読まない。読む物は今は無い（読み手だった見る道具のページは持ち主の決め run-trace-otlp の 6 で捨てた）。
-  LLM に渡す指示の字は変えない（日本語は人が読む射影で、LLM には英語だけを渡す）
-- 形: {"node": node_id, "block": 呼んだ block のフォルダの名, "md": {"prompt": "prompts/<node_id>.md", "system"?: "prompts/<node_id>.system.md"}
-  （block からの相対パス。組んだ欄ごと）, "values": 差し込み口の値（字か整数）, "when": 段落の選び（when=None は {}）}。
-  この values と when で組み直すと、同じ <node_id>-prompt-<n>.md（と system）が字のまま組み上がる
-- run の置き場を使い直すと、前の試みの <node_id>-viewer-values-<n>.json が残りうる。今の run の記録は、同じ <n> の
-  <node_id>-prompt-<n>.md が在る物だけ。読む物は prompt の側から引く
-
 落ちる時（PromptError。ValueError の子）: md か断片が無い・断片が自分を差し込む・値の無い差し込み口が在る（選ばれない段落の中も、
 system の md の中も数える）・使われない値を渡された・when の名がどの md の if にも無い・md の if の名が when に無い・if と end が
 組にならない・値が字と整数の外。
 """
-import json
 import re
 from pathlib import Path
 
@@ -57,7 +42,6 @@ NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
 LANG_DEFAULT = "lang-default"   # 共通の断片の名（lib/rolekit.py の LANG_DEFAULT と同じ意味の英語の文）
 SYSTEM = ".system"
-VIEWER_VALUES = "viewer-values"   # 工場の外の見る道具のために置いた値の記録 <node_id>-viewer-values-<n>.json（工場の中では読まない。読む物は今は無い）
 
 
 class PromptError(ValueError):
@@ -80,9 +64,7 @@ def _unmarked(text: str) -> str:
     return REQUIRED_FOR.sub("", text + "\n", count=1).rstrip("\n")
 
 
-def _expand(text: str, block: Path, stack: tuple, in_shared: bool, shared_root: Path | None = None) -> str:
-    shared_root = ports.SHARED if shared_root is None else shared_root
-
+def _expand(text: str, block: Path, stack: tuple, in_shared: bool) -> str:
     def one(match: re.Match) -> str:
         kind, name = match.groups()
         if kind == "part" and in_shared:
@@ -90,10 +72,10 @@ def _expand(text: str, block: Path, stack: tuple, in_shared: bool, shared_root: 
         key = f"{kind}:{name}"
         if key in stack:
             raise PromptError(f"断片が自分を差し込む: {' → '.join(stack + (key,))}")
-        path = (shared_root / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
+        path = (ports.SHARED / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
         body = _read(path, "断片")
         body = _unmarked(body) if kind == "shared" else body
-        return _expand(body, block, stack + (key,), in_shared or kind == "shared", shared_root)
+        return _expand(body, block, stack + (key,), in_shared or kind == "shared")
     return FRAGMENT.sub(one, text)
 
 
@@ -125,20 +107,14 @@ def _select(text: str, when: dict) -> tuple[str, set]:
     return "\n".join(out), names
 
 
-def compose(block: Path, node_id: str, values: dict, when: dict | None = None, *, shared_root: Path | None = None) -> dict:
-    return _compose(block, node_id, values, when, shared_root=shared_root)
-
-
-def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False, shared: bool = False,
-             shared_root: Path | None = None) -> dict:
-    shared_root = ports.SHARED if shared_root is None else shared_root
+def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part: bool = False, shared: bool = False) -> dict:
     if not NODE_ID.fullmatch(node_id):
         raise PromptError(f"{'断片' if part or shared else 'node'} の id の形でない: {node_id!r}")
     when = dict(when or {})
     if not all(isinstance(v, bool) for v in when.values()):
         raise PromptError("when の値は真偽だけ")
     if shared:
-        files = {"prompt": shared_root / "prompts" / f"{node_id}.md"}
+        files = {"prompt": ports.SHARED / "prompts" / f"{node_id}.md"}
     else:
         files = {"prompt": block / "prompts" / ("parts" if part else "") / f"{node_id}.md"}
     if not (part or shared) and (system := block / "prompts" / f"{node_id}{SYSTEM}.md").is_file():
@@ -147,7 +123,7 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
     def read(path: Path) -> str:
         text = _read(path, "指示の md")
         return _unmarked(text) if shared else text
-    texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared, shared_root).replace("{{", OPEN).replace("}}", CLOSE)
+    texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared).replace("{{", OPEN).replace("}}", CLOSE)
              for key, path in files.items()}
     slots = {name for text in texts.values() for name in SLOT.findall(text)}
     missing, unused = sorted(slots - set(values)), sorted(set(values) - slots)
@@ -170,7 +146,7 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
 
 
 def render(node_id: str, values: dict, when: dict | None = None) -> dict:
-    return compose(ports.caller_block(), node_id, values, when)
+    return _compose(ports.caller_block(), node_id, values, when)
 
 
 def render_part(name: str, values: dict, when: dict | None = None) -> str:
@@ -182,14 +158,10 @@ def render_shared(name: str, values: dict, when: dict | None = None) -> str:
 
 
 def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:
-    block = ports.caller_block()
-    out = compose(block, node_id, values, when)
+    out = render(node_id, values, when)
     place = ports.place()
     for key, text in out.items():
         (place / f"{node_id}-{key}-{n}.md").write_text(text, encoding="utf-8")
-    md = {key: f"prompts/{node_id}{SYSTEM if key == 'system' else ''}.md" for key in out}
-    kept = {"node": node_id, "block": block.name, "md": md, "values": values, "when": dict(when or {})}
-    (place / f"{node_id}-{VIEWER_VALUES}-{n}.json").write_text(json.dumps(kept, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return out
 
 

@@ -3,7 +3,7 @@
 
 - 照らす字は 2 つの形だけ: フォルダのパス `viewer/`（前が語の字・`-` でない所。`../viewer/`・`./viewer/`・`{ROOT}/viewer/` も当てる。
   見る道具の試験のフォルダ `tests/viewer/` は当てない）と、行の頭の `import viewer`・`from viewer`。
-  語 viewer だけでは当てない（workflows/.shared/prompt.py の値の記録の名 VIEWER_VALUES = "viewer-values" が当たるため）。
+  語 viewer だけでは当てない（語は文や名の一部にも出て、見る道具への頼りでないため）。
 - 照らさない形（人が見る）: パスを部品で組む形（`ROOT / "viewer"`）と、名を字で渡す読み込み（`importlib.import_module("viewer...")`）。
 - 照らしから外すのは tests/layers/scan.py の ALLOWED["E25"] の行（この試験の小さな木の字）だけ。
 """
@@ -34,7 +34,7 @@ class ViewerApartTest(unittest.TestCase):
     def test_homes_and_documents_are_clean(self):
         files = {"viewer/runtrace.py": "from viewer.src import shape\n", "tests/viewer/test_a.py": "from viewer import runtrace\n",
                  "docs/design/viewer.md": "`viewer/`\n", "bin/AGENTS.md": "`viewer/` が読む口\n", "MISSION.md": "`viewer/`\n",
-                 "workflows/.shared/prompt.py": 'VIEWER_VALUES = "viewer-values"\n', "workflows/a/b.py": "# <node>-viewer-values-<n>.json\n",
+                 "workflows/.shared/x.py": 'VIEWER_ROWS = "viewer-rows"\n', "workflows/a/b.py": "# <node>-viewer-rows-<n>.json\n",
                  ".github/workflows/tests.yml": "run: python3 -m unittest discover -s tests/viewer/\n"}
         with tree(files) as root:
             self.assertEqual(scan.problems("E25", root), [])

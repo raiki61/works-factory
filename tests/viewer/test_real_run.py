@@ -67,7 +67,7 @@ nodes:
     depends_on: [rounds]
 """,
     "seen-leaf/scripts/step.py": HEAD + 'print("{}")\n',
-    # 指示を組む prep と同じ口（prompt.emit）で、include の中の place に指示と値の記録を書く
+    # 指示を組む prep と同じ口（prompt.emit）で、include の中の place に指示を書く
     "seen-leaf/scripts/talk.py": HEAD + """import json, sys
 from pathlib import Path
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared")]

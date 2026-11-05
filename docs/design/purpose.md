@@ -234,9 +234,10 @@ Each row of `constraints` has … (`実測` or `仮説`) …
 元の works の `works/blk-purpose/`（入力 `request`〔依頼のファイルのパス〕・`constraints_file`・`base_rev`・`pr_file`、出口 `ok`・`purpose_file`・`purpose_text`・`source` の独立したブロック）から、工場は判定のブロックの中に写した（#76。消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:31`・`:111`）。graphloops の同じ場面は `prompts/review-loop/p0.purpose.md`（`p0.purpose`。once の節）。
 
 - 独立したブロックの形と、出口の `purpose_text`・`source`: 工場は judge の返す節の pointer `purpose` だけにした（#76）。この block は元の形（入力だけで動き、文と出典の語を欄で返す）に戻し、`means` も欄で返す。
-- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:111`）は中身を (b) で lib の `judge_accept.py` へ置くと書いたが、今の `judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない（#76 で写さなかった。意図の記録は（未確認））。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
+- 入力の前提の実測を写しの型と post_check（`measured_needs_output`）に通す（元の intake の `check_constraints`）: 工場には無い。計画（消した計画（git の履歴。ab47a4d の版で読める）の `2026-10-12-blocks/judge.md:111`）は中身を (b) で lib の `judge_accept.py` へ置くと書いたが、今の `judge_accept.py` に無く、`git log -S "def check_constraints"` も工場の履歴に当たらない。#76 の本文は、元の目的の部品を写した時に外した関数の 1 つに `check_constraints` を挙げるだけで、訳を書いていない（同じ行に `_post_check`・`check_purpose` など、元の盤面の受け付けの口が並ぶ）。訳は履歴に残っていないが、照らしを戻すかはこの block の振る舞いで決まる: 持ち越しの行は `measured_output` を持たないので、戻すと前の run から運んだ制約を拒む。元の judge は前提の役の受け付けの後に持ち越しの行を足し（`judge_accept.py` の `with_carried`〔:1187-1192〕）、目的の役へ確かめずに貼った（:1274-1281）。持ち越しの行は `measured_output` を持たないので、この block も `実測` の行の欠けを拒まず、`constraints.schema.json` の形（知らない欄・空白だけの `measured_output`）だけを確かめる。役自身の返りの `measured_output` は前提の block が見る（[premises.md](premises.md) の 8 節の 3）。
 - 入力 `base_rev`（写しが無い時の HEAD の照らし）: 工場は写しを必ず取るので受けない（[premises.md](premises.md) の 2.7 と同じ。意図の記録は（未確認））。この block も写しを `intake` で必ず取る。
-- 依頼の `prior_failures` を外した写しを役に渡す（元の intake）: 工場も同じ（`carry.without_prior`。持ち主の決め `premises-purpose`）。この block も残す。
+- 役の返りの `known_weaknesses`（依頼や PR の説明が自覚済み・受容済みと書いた弱点。無ければ空の配列）: graphloops の `p0.purpose` と元の works の目的のブロックの返りの必須の欄で、工場も同じ。この block も `purpose.json` の必須の欄に残す（読み手は固めた目的を port `purpose` で受ける external-standards・purpose-review・diagnose）。
+- 依頼の `prior_failures` を外した写しを役に渡す（元の works の目的のブロックの intake が `carry.without_prior` で外した）: 組み込みの前の工場の judge も同じで、この block も残す（3.1 の 4 の `steps.request_copy`。持ち主の決め `premises-purpose` の「目的の役に前の run の判断を見せないことを機械で縛る」。照らしは `tests/blocks/purpose/test_purpose.py` の `test_request_copy_has_no_prior_failures`）。`without_prior` は欄 `prior_failures` が無い依頼に None を返すので、その時は依頼を字のまま渡す。
 - 目的の監査（`p0.purpose_review`）をブロックに入れない（元の YAML の頭の注）: 工場も入れていない。この block も入れない（素材の観点 purpose-review の block と line の物）。
 - graphloops の `p0.purpose` に無く工場が持つ物（元の works から）: 解き方を `means` に分ける（世界の解の入力。keep-essence の 12）・出典のファイルの正規形と版の照らし・作業ツリーの写しとの比べ・`目的不明` の時の書き方・対象の名前が要る調べの名指し。この block は全部残す。
 - graphloops の `p0.purpose` が持ち、工場が別の形で持つ物: 「別の context の inspector が狭めていないかを見る」（`③writer の要約` の時の監査）は、素材の観点 purpose-review の block が持つ（line が `source` で回すかを決める。1.6）。
@@ -416,4 +417,4 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 - 6 節の命令の正確な形（world.md と同じ）。
 - `ports.py` の口の名（`json`・`text`・`pointer`・`returns`・`place`）。土台の PR の名に合わせる。
-- 元の works の目的のブロックの intake が前提の実測を照らした `check_constraints` を、工場が #76 で写さなかった意図（2.7）。
+- 元の works の目的のブロックの intake が前提の実測を照らした `check_constraints` を、工場が #76 で写さなかった訳（2.7）。履歴には残っていない。振る舞いは 2.7 のとおり持ち越しの行を受ける形で決まっているので、訳が分からなくても設計は変わらない。

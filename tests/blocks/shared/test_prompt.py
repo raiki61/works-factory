@@ -1,6 +1,4 @@
 """workflows/.shared/prompt.py の口（docs/design/README.md の 5 節）: md に値を入れて指示を組み、md と値が食い違えば名指して落ちる"""
-import json
-import shutil
 import sys
 import unittest
 from unittest import mock
@@ -206,68 +204,18 @@ class SharedCase(Base):
         self.assertEqual(prompt.render_shared("brief-head", {"brief_rows": "- row"}).splitlines()[:3], ["## The requirement (briefs)", "", "- row"])
 
 
-def replayed(place, node_id: str, n: int, pack=kit.BLOCKS, shared_root=None) -> dict:
-    """place の <node>-viewer-values-<n>.json の値と段落の選びで、値の記録から組み直す口 prompt.compose（pack の中の block と、共通の断片の根
-    shared_root を受ける）で指示を組み直し、組んだ物と place の <node>-<key>-<n>.md の字の組を返す"""
-    kept = json.loads((place / f"{node_id}-viewer-values-{n}.json").read_text(encoding="utf-8"))
-    block = pack / kept["block"]
-    for key, rel in kept["md"].items():
-        assert (block / rel).is_file(), f"記録の md {rel} が block {kept['block']} に無い"
-    again = prompt.compose(block, kept["node"], kept["values"], kept["when"], shared_root=shared_root)
-    assert sorted(again) == sorted(kept["md"]), f"組み直しの欄 {sorted(again)} が記録の md {sorted(kept['md'])} と違う"
-    return {key: (text, (place / f"{node_id}-{key}-{n}.md").read_text(encoding="utf-8")) for key, text in again.items()}
-
-
-class ViewerValuesCase(Base):
-    def test_emit_keeps_values_that_rebuild_the_same_prompt(self):
-        """emit は組んだ指示の隣に <node>-viewer-values-<n>.json（値と段落の選び。今は読む物は無い）を書き、
-        その値と when で組み直すと、place の指示と system が字のまま同じになる"""
-        self.md("Hello {name}, {count} items.\n<!-- if web -->\nOn {name}\n<!-- end web -->\n{{literal}}\n")
+class EmitCase(Base):
+    def test_emit_writes_only_the_prompts_and_round_of_counts_them(self):
+        """emit は place に組んだ指示 <node>-prompt-<n>.md と <node>-system-<n>.md だけを書き（値の記録は書かない。
+        持ち主の決め prompt-values-for-viewer は外した）、round_of はその数 + 1"""
+        self.md("Hello {name}.\n")
         (self.block / "prompts" / "role.system.md").write_text("You are {name}.\n", encoding="utf-8")
-        place = self.block.parent / "artifacts"
-        with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}):
-            self.from_block("prompt.emit('role', {'name': 'x{y}$z', 'count': 3}, {'web': False}, 2)\n")
-        kept = json.loads((place / "role-viewer-values-2.json").read_text(encoding="utf-8"))
-        self.assertEqual(kept, {"node": "role", "block": "demo", "md": {"prompt": "prompts/role.md", "system": "prompts/role.system.md"},
-                                "values": {"name": "x{y}$z", "count": 3}, "when": {"web": False}})
-        for key, (again, written) in replayed(place, "role", 2, self.block.parent).items():
-            with self.subTest(key=key):
-                self.assertEqual(again, written)
-
-    def test_when_none_is_kept_as_empty(self):
-        self.md("Plain {name}\n")
-        place = self.block.parent / "artifacts"
-        with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}):
-            self.from_block("prompt.emit('role', {'name': 'a'}, None, 1)\n")
-        kept = json.loads((place / "role-viewer-values-1.json").read_text(encoding="utf-8"))
-        self.assertEqual((kept["md"], kept["when"]), ({"prompt": "prompts/role.md"}, {}))
-        for key, (again, written) in replayed(place, "role", 1, self.block.parent).items():
-            self.assertEqual(again, written)
-
-    def test_values_rebuild_the_same_prompt_from_a_copied_tree(self):
-        """block と共通の断片を別の根に写した木（run の写しや、見る道具が組む日本語の写しの木の形）でも、記録の値で同じ字に組み直せる。
-        共通の断片は渡した根から読み、pack の .shared は読まない"""
-        self.md("Head {name}\n{shared:inner}\n")
-        root = hermetic.tmpdir(self) / "shared"
-        (root / "prompts").mkdir(parents=True)
-        (root / "prompts" / "inner.md").write_text("Inner {name}.\n", encoding="utf-8")
-        place = self.block.parent / "artifacts"
-        with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}), mock.patch.object(prompt.ports, "SHARED", root):
-            self.from_block("prompt.emit('role', {'name': 'a'}, None, 1)\n")
-        copy = hermetic.tmpdir(self) / "copy"
-        shutil.copytree(self.block, copy / "demo")
-        shutil.copytree(root, copy / ".shared")
-        (root / "prompts" / "inner.md").write_text("Changed {name}.\n", encoding="utf-8")
-        for key, (again, written) in replayed(place, "role", 1, copy, copy / ".shared").items():
-            self.assertEqual(again, written)
-        self.assertEqual(written, "Head a\nInner a.\n")
-
-    def test_round_of_does_not_count_the_values_file(self):
-        self.md("Plain {name}\n")
         place = self.block.parent / "artifacts"
         with mock.patch.dict(prompt.ports.os.environ, {"ARTIFACTS_DIR": str(place)}):
             self.from_block("prompt.emit('role', {'name': 'a'}, None, 1)\n")
             self.assertEqual(self.from_block("n = prompt.round_of('role')\n")["n"], 2)
+        self.assertEqual(sorted(p.name for p in place.iterdir()), ["role-prompt-1.md", "role-system-1.md"])
+        self.assertEqual((place / "role-system-1.md").read_text(encoding="utf-8"), "You are a.\n")
 
 
 class CallerCase(Base):
@@ -283,9 +231,6 @@ class CallerCase(Base):
             steps.intake(run.artifacts, request='[{"where": "README", "text": "x"}]', purpose="", means="[]", web="on", lang="")
             got = steps.classes_prompt(run.artifacts)
         self.assertEqual((run.artifacts / "world-classes-prompt-1.md").read_text(encoding="utf-8"), got["prompt"])
-        for key, (again, written) in replayed(run.artifacts, "world-classes", 1).items():
-            with self.subTest(key=key):
-                self.assertEqual(again, written, "本物の block の指示も、残した値で字のまま組み直せる")
 
     def test_lang_default(self):
         self.assertEqual(prompt.lang(""), "the language of the request (the user's language)", "空なら共通の断片の文")

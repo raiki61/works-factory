@@ -25,7 +25,7 @@
    "fences": [
     {
      "what": "入口の生の入力（差分の根の名指し base・pr）を読む・渡す形",
-     "pattern": "_word\\(raw, [\\\"'](base|pr)[\\\"']\\)|\\bINPUTS_(BASE|PR)\\b|\\$INPUTS\\.(base|pr)\\b|\\bCHANGE_INPUT\\b|--(base|pr)\\b",
+     "pattern": "_word\\(raw, [\\\"'](base|pr)[\\\"']\\)|\\bINPUTS_PR\\b|\\$INPUTS\\.pr\\b|\\bCHANGE_INPUT\\b|--(base|pr)\\b",
      "allowed": [
       "lib/entryshape.py",
       "workflows/line/scripts/start.py",
@@ -75,7 +75,12 @@
      "allowed": [
       "lib/cite.py"
      ],
-     "known": {}
+     "known": {
+      "workflows/external-standards/src/rankings.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ]
+     }
     },
     {
      "what": "引用の照らしの式を住処の外で組む形（cite.fold で両側を畳んで部分文字列かを見る。照らしは quoted_in・missing_quotes を呼ぶ）",
@@ -112,17 +117,17 @@
       "workflows/report/works-factory-report.yaml"
      ],
      "known": {
-      "workflows/report/src/machine.py": [
+      "workflows/line/scripts/result.py": [
        1,
-       "報告の機械の部分が、止まった run の結末の並び STOP_OUTCOMES を字で持つ（語の正本は住処 report.py の OUTCOMES）"
+       "出力ノードは落ちないように lib を import せず、fixed を真にする結末の語を自分で持つ"
       ],
       "workflows/line/src/facts.py": [
        1,
        "メイングラフの事実の集めが、止まった run の結末の並び STOP_OUTCOMES を字で持つ（語の正本は住処 report.py の OUTCOMES）"
       ],
-      "workflows/line/scripts/result.py": [
+      "workflows/report/src/machine.py": [
        1,
-       "出力ノードは落ちないように lib を import せず、fixed を真にする結末の語を自分で持つ"
+       "報告の機械の部分が、止まった run の結末の並び STOP_OUTCOMES を字で持つ（語の正本は住処 report.py の OUTCOMES）"
       ]
      }
     }
@@ -133,17 +138,12 @@
    "fences": [
     {
      "what": "深さの控えと深さの口の名",
-     "pattern": "\"depth\\.json\"|\\bdepth\\.(unit_depth|run_depth|decide_doc|raise_doc)\\b",
+     "pattern": "\"depth\\.json\"|\\btiers\\.(unit_depth|run_depth|decide_doc|raise_doc)\\b",
      "allowed": [
       "workflows/line/src/tiers.py",
       "workflows/line/**"
      ],
-     "known": {
-      "lib/fixboard.py": [
-       4,
-       "修正のサブグラフの置き場が計画の出力の深さの写し depth.json を持ち、修正の後の上げ直し redepth が depth.raise_doc を呼ぶ（元はメイングラフの h-redepth）"
-      ]
-     }
+     "known": {}
     },
     {
      "what": "修正の後の上げ直しの控えの扱いの字（読めない控えで上げる信号 LATE_UNREAD と、無い控えの訳 NO_LATE_RECORD）",
@@ -154,8 +154,8 @@
      "known": {}
     },
     {
-     "what": "修正の後の上げ直しの数えの中身（数えの部品 run_paths・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ",
-     "pattern": "\\.(run_paths|outside_cited|late_signals|consulted_units)\\(|^\\s*from (depth|consult) import\\b[^#\\n]*\\b(run_paths|outside_cited|late_signals|consulted_units)\\b|触るファイル \\{[^}]*\\} 個（起点",
+     "what": "修正の後の上げ直しの数えの中身（数えの部品 run_paths・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は tiers.signals を呼ぶ",
+     "pattern": "\\.(run_paths|outside_cited|late_signals|consulted_units)\\(|^\\s*from (tiers|consult) import\\b[^#\\n]*\\b(run_paths|outside_cited|late_signals|consulted_units)\\b|触るファイル \\{[^}]*\\} 個（起点",
      "allowed": [
       "workflows/line/src/tiers.py"
      ],
@@ -175,17 +175,13 @@
       "workflows/line/scripts/start.py"
      ],
      "known": {
-      "workflows/line/src/tiers.py": [
-       1,
-       "メイングラフの段の切り替えが、事前審査の木の機能の語 review_tree を引く名 TREE_FEATURE を持つ"
-      ],
-      "lib/fixboard.py": [
-       1,
-       "修正のサブグラフが、組を並べるかを決める機能の語 fix_lanes・tdd_lanes を LANE_SWITCHES に持つ"
-      ],
       "workflows/line/src/deal.py": [
        3,
        "メイングラフの配る値の部品が、block に配る機能の語 review_tree・judge_verify・fix_lanes・tdd_lanes を自分の定数 REVIEW_TREE・JUDGE_VERIFY・LANES に字で持つ"
+      ],
+      "workflows/line/src/tiers.py": [
+       1,
+       "メイングラフの段の切り替えが、事前審査の木の機能の語 review_tree を引く名 TREE_FEATURE を持つ"
       ]
      }
     }
@@ -226,6 +222,30 @@
       "workflows/fix/**"
      ],
      "known": {
+      "lib/conflicts.schema.json": [
+       2,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "lib/querytest.py": [
+       1,
+       "docstring が try_query の照らしを申し出の欄 which_is_right で述べる"
+      ],
+      "workflows/.shared/prompts/brief.md": [
+       5,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/prompts/writer-rules.md": [
+       6,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/prompts/writer.md": [
+       8,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/schemas/writer-reply.schema.json": [
+       4,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
       "workflows/plan-review/src/material.py": [
        2,
        "案の直しの事前審査の材料に申し出の行を貼るため、申し出の欄の名を字で持つ"
@@ -234,9 +254,29 @@
        2,
        "案の直しの計画の指示の値に申し出の行を貼るため、申し出の欄の名を字で持つ"
       ],
-      "lib/querytest.py": [
-       1,
-       "docstring が try_query の照らしを申し出の欄 which_is_right で述べる"
+      "workflows/weapon-pin/works-factory-weapon-pin.yaml": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/weapon-remove/works-factory-weapon-remove.yaml": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/weapon-static/works-factory-weapon-static.yaml": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/weapon-tdd-close/works-factory-weapon-tdd-close.yaml": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/weapon-tidy/works-factory-weapon-tidy.yaml": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/weapon-variant/works-factory-weapon-variant.yaml": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     }
@@ -251,7 +291,12 @@
      "allowed": [
       "workflows/fix/src/lanes.py"
      ],
-     "known": {}
+     "known": {
+      "workflows/line/src/facts.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ]
+     }
     }
    ]
   },
@@ -262,7 +307,14 @@
      "what": "足し欄の共有ボードの控えの名",
      "pattern": "\"(gate-marks|plan-fields|delta-verdicts|query-examples|out-of-purpose|answer-ties|pr-excluded|report-terms|purpose-means|handoff)\\.json\"",
      "allowed": [
-      "lib/jsonfile.py"
+      "lib/jsonfile.py",
+      "lib/gatemarks.py",
+      "lib/planmarks.py",
+      "lib/querytest.py",
+      "lib/outpurpose.py",
+      "lib/worldmark.py",
+      "lib/handoff.py",
+      "workflows/parallel-pr/src/files.py"
      ],
      "known": {
       "workflows/diagnose/src/files.py": [
@@ -272,12 +324,16 @@
       "workflows/plan/src/files.py": [
        2,
        "計画の block の置き場の名の表が、控えの名 plan-fields.json・handoff.json を planmarks.FIELDS_FILE・handoff の名と同じ字で持ち直す"
+      ],
+      "workflows/purpose/src/steps.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     },
     {
      "what": "足し欄の控えの名の定数を住処を通さずにパスへ組む形",
-     "pattern": "(/\\s*|\\.work\\()(planmarks\\.FIELDS_FILE|deltamarks\\.VERDICTS_FILE|querytest\\.EXAMPLES_FILE|outpurpose\\.FILE|prcheck\\.EXCLUDED)\\b",
+     "pattern": "(/\\s*|\\.work\\()(planmarks\\.FIELDS_FILE|querytest\\.EXAMPLES_FILE|outpurpose\\.FILE)\\b",
      "allowed": [
       "lib/jsonfile.py"
      ],
@@ -308,17 +364,29 @@
       "lib/jsonfile.py"
      ],
      "known": {
-      "lib/fixboard.py": [
+      "lib/writes.py": [
+       1,
+       "手直しの役の申告 bash_writes（種 writes）を返答から外す（控えは書き込みの記録で、手順は住処に寄せていない）"
+      ],
+      "workflows/delta-review/src/verdicts.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/src/board.py": [
        2,
-       "修正の受け付けが修正役の欄 conflicts・consult を返答から手で外す（修正役の欄の手順は住処に寄せていない）"
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ],
       "workflows/parallel-pr/src/take.py": [
        1,
        "並行 PR の受け付けが外す hunk の欄を jsonfile.split を通さずに返答から外す"
       ],
-      "lib/writes.py": [
+      "workflows/plan/src/take.py": [
        1,
-       "手直しの役の申告 bash_writes（種 writes）を返答から外す（控えは書き込みの記録で、手順は住処に寄せていない）"
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/purpose/src/steps.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     }
@@ -333,7 +401,12 @@
      "allowed": [
       "lib/handoff.py"
      ],
-     "known": {},
+     "known": {
+      "workflows/.shared/schemas/handoff.schema.json": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ]
+     },
      "bound": [
       {
        "paths": [
@@ -490,7 +563,24 @@
       "lib/worldmark.py",
       "workflows/world/**"
      ],
-     "known": {}
+     "known": {
+      "lib/world-row.schema.json": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/diagnose/works-factory-diagnose.yaml": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/plan-review/works-factory-plan-review.yaml": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/plan/works-factory-plan.yaml": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ]
+     }
     }
    ]
   },
@@ -504,17 +594,33 @@
       "lib/stopby.py"
      ],
      "known": {
-      "workflows/judge/scripts/verdict.py": [
+      "workflows/judge/scripts/spec_in.py": [
        1,
-       "落ちない返しのノードが lib を読めない時の素の出力に止めの語 works:rejudge・works:judge を字で書く（works:judge は住処の表に無い語）"
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ],
-      "workflows/line/scripts/collect.py": [
+      "workflows/judge/src/fallback.py": [
        1,
-       "落ちない返しのノードが lib を読めない時のために script の例外の止めの語 works:line-script を字で持つ"
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ],
       "workflows/line/scripts/result.py": [
        1,
        "落ちない返しのノードが lib を読めない時のために script の例外の止めの語 works:line-script を字で持つ"
+      ],
+      "workflows/line/src/guard.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/stages.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/spec-driven/scripts/finish.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/spec/scripts/finish.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     },
@@ -528,6 +634,10 @@
       "lib/report.py": [
        1,
        "報告が人の止めの頭 stopby.HUMAN を自分の定数 HUMAN_BY に写す"
+      ],
+      "workflows/diagnose/src/files.py": [
+       2,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     }
@@ -543,12 +653,7 @@
       "workflows/line/src/startrec.py",
       "workflows/line/src/files.py"
      ],
-     "known": {
-      "workflows/line/scripts/ask_final.py": [
-       2,
-       "最後の承認ノードがポインタの先の始めの記録を読む包み start_doc を自分で持つ（中は startrec.load）"
-      ]
-     }
+     "known": {}
     }
    ]
   },
@@ -556,44 +661,177 @@
    "status": "住処あり",
    "fences": [
     {
-     "what": "人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない",
-     "pattern": "(?<!gatepolicy\\.)(\\bfinal_gate\\b|\\bFINAL_GATES\\b|\\bunattended\\b(?!\\.md)|\\bUNATTENDED(_WORDS)?\\b|\\bWORKS_USE_UNATTENDED\\b|\\b(when_needed|protected_only)\\b)",
+     "what": "人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gates.<名> は数えない",
+     "pattern": "(?<!gates\\.)(\\bfinal_gate\\b|\\bFINAL_GATES\\b|\\bunattended\\b(?!\\.md)|\\bUNATTENDED(_WORDS)?\\b|\\bWORKS_USE_UNATTENDED\\b|\\b(when_needed|protected_only)\\b)",
      "allowed": [
       "workflows/line/src/gates.py",
       "workflows/line/scripts/start.py",
       "workflows/chain/works-factory-chain.yaml"
      ],
      "known": {
+      "workflows/.shared/prompts/brief.md": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/prompts/recorded-policy.md": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/prompts/writer-rules.md": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/prompts/writer.md": [
+       4,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/.shared/writerblock.py": [
+       4,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/diagnose/src/inputs.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/prompts/parts/consult.md": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/prompts/parts/tdd.md": [
+       2,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/scripts/intake.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/src/board.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/src/intake.py": [
+       2,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/src/prompts.py": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/src/runvals.py": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/fix/works-factory-fix.yaml": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
       "workflows/line/scripts/ask_before_fix.py": [
-       6,
+       3,
        "修正前の承認ノードが無人かをメイングラフの入力 INPUTS_UNATTENDED から写して受け、始めの記録を住処の口で読まない"
       ],
       "workflows/line/scripts/ask_final.py": [
-       4,
+       3,
        "最後の承認ノードが開き方と無人かをメイングラフの入力 INPUTS_FINAL_GATE・INPUTS_UNATTENDED から写して受ける"
       ],
       "workflows/line/scripts/ask_replan.py": [
        5,
        "案の直しの承認ノードが無人かをメイングラフの入力 INPUTS_UNATTENDED から写して受け、始めの記録を住処の口で読まない"
       ],
-      "workflows/line/works-factory-line.yaml": [
+      "workflows/line/scripts/design_talk.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/scripts/eyes_in.py": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/scripts/plan_out.py": [
+       4,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/asking.py": [
+       4,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/deal.py": [
+       3,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/descend.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/facts.py": [
+       19,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/final.py": [
+       7,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/fixture.py": [
+       5,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/rounds.py": [
        10,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/src/talk.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/line/works-factory-line.yaml": [
+       12,
        "メイングラフの入力 final_gate・unattended の宣言と、始めのノード start の出口の同じ名の欄を後ろのノードへ写して渡す"
+      ],
+      "workflows/local-review/prompts/local-review.md": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/local-review/src/viewpoint.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/plan-review/prompts/parts/head.md": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/plan-review/src/material.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/plan/prompts/plan-writer.md": [
+       2,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/plan/src/brief.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/r4/prompts/r4-scope.md": [
+       2,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/report/prompts/write.md": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     },
     {
      "what": "住処の定数を別の名に写す",
-     "pattern": "^\\s*[A-Za-z_]\\w*\\s*=\\s*gatepolicy\\.[A-Z][A-Z0-9_]*\\s*(#|$)|^\\s*from gatepolicy import|^\\s*import gatepolicy as",
+     "pattern": "^\\s*[A-Za-z_]\\w*\\s*=\\s*gates\\.[A-Z][A-Z0-9_]*\\s*(#|$)|^\\s*from gates import|^\\s*import gates as",
      "allowed": [
       "workflows/line/src/gates.py"
      ],
      "known": {}
     },
     {
-     "what": "無人の run が承認ノードを推しで進むか止まるかを、住処の外で項目の推しの尾の読み（push_rec・row_push の呼び）から組む。推しの尾の字の形の持ち主 gatemarks は読みを gatepolicy.Push にして住処の口 passage・stuck_pushable に渡すだけ",
+     "what": "無人の run が承認ノードを推しで進むか止まるかを、住処の外で項目の推しの尾の読み（push_rec・row_push の呼び）から組む。推しの尾の字の形の持ち主 gatemarks は尾を読み戻す push_rec を持つだけで、その読みを Push にする row_push と推しで進むかの口 passage は住処 gates が持つ",
      "pattern": "\\b(push_rec|row_push)\\(",
      "allowed": [
+      "workflows/line/src/gates.py",
       "lib/gatemarks.py"
      ],
      "known": {}
@@ -610,9 +848,13 @@
       "workflows/test-gate/scripts/result.py"
      ],
      "known": {
-      "workflows/line/scripts/ask_final.py": [
+      "workflows/line/src/final.py": [
        1,
-       "別の文: 最後の承認ノードの文のログの行が同じ字の頭を持つ（中身は test-gate の出力の欄 log。証拠の文の行ではない）"
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
+      ],
+      "workflows/test-gate/src/certify.py": [
+       1,
+       "2026-11-05 の数え直しで表に載せた住処の外の当たり（#765 の組み込みで block に移った・足した所。本当の漏れか同じ字の別の物かは行ごとに見分けていない）"
       ]
      }
     }
@@ -668,12 +910,28 @@
        "散らばり（まとめる計画はまだ無い）: 宣言した確かめの段ごとの時間 wall_s を記録して要約に出す"
       ],
       "lib/eye.py": [
-       2,
+       1,
        "散らばり（まとめる計画はまだ無い）: 構造の目の時間の欄の名 WALL と目の控えの形"
       ],
       "lib/structmark.py": [
        2,
        "散らばり（まとめる計画はまだ無い）: 構造の目の控えの時間 wall_s を書いて報告の行に出す"
+      ],
+      "viewer/src/runread.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/.shared/schemas/structure-state.schema.json": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/structure/src/eye.py": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/structure/src/files.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ]
      }
     }
@@ -687,33 +945,201 @@
      "pattern": "\\ballowed_tools\\b|^\\s*(model|effort):\\s|\\bWORKS_DEV_MODEL\\b|\\bISOLATED_RUN_BY\\b|\"isolated\"",
      "allowed": [],
      "known": {
-      "workflows/eyes/works-factory-eyes.yaml": [
+      "viewer/src/shape.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/.shared/prompt.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/cold-read/works-factory-cold-read.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/consistency-bypass/works-factory-consistency-bypass.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/delta-review/works-factory-delta-review.yaml": [
+       8,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/diagnose/works-factory-diagnose.yaml": [
+       6,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/external-standards/works-factory-external-standards.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/fix/works-factory-fix.yaml": [
        10,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
-      "workflows/fix/works-factory-fix.yaml": [
-       14,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
+      "workflows/gate-efficacy/works-factory-gate-efficacy.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ],
-      "workflows/judge/works-factory-judge.yaml": [
-       23,
-       "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（同じ組はファイルの中のアンカーで寄せた。役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
+      "workflows/guidance-path/works-factory-guidance-path.yaml": [
+       4,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/head-depth/works-factory-head-depth.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/hygiene/works-factory-hygiene.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/independent-design/works-factory-independent-design.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/lens/works-factory-lens.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/local-review/works-factory-local-review.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/main-path-observation/works-factory-main-path-observation.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/parallel-pr/works-factory-parallel-pr.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ],
       "workflows/plan-review/works-factory-plan-review.yaml": [
-       4,
+       6,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
       "workflows/plan/works-factory-plan.yaml": [
        2,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
+      "workflows/premises/works-factory-premises.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/prior-decisions/works-factory-prior-decisions.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/procedure-trace/works-factory-procedure-trace.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/provenance/works-factory-provenance.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/purpose-review/works-factory-purpose-review.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/purpose/works-factory-purpose.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/r1/works-factory-r1.yaml": [
+       4,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/r2/works-factory-r2.yaml": [
+       4,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/r3/works-factory-r3.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/r4/works-factory-r4.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
       "workflows/report/works-factory-report.yaml": [
        4,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
       ],
+      "workflows/spec/works-factory-spec.yaml": [
+       4,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/structure/works-factory-structure.yaml": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/test-double-fidelity/works-factory-test-double-fidelity.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
       "workflows/test-gate/works-factory-test-gate.yaml": [
        2,
        "散らばり（まとめる計画はまだ無い）: グラフの YAML の AI ノードが模型（群の名 '@wf-<群>'。effort は書かない。模型と effort の既定は lib/launchgroups.py の群の表）・道具をそれぞれ書く（役の定義 lib/agents/*.md の前付けとは試験がノードごとの自分の表で群の既定を縛るだけで、源と結んでいない）"
+      ],
+      "workflows/theme/works-factory-theme.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/verify/works-factory-verify.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-pin/src/render.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-pin/works-factory-weapon-pin.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-remove/src/render.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-remove/works-factory-weapon-remove.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-static/src/render.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-static/works-factory-weapon-static.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-tdd-close/src/render.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-tdd-close/works-factory-weapon-tdd-close.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-tidy/src/render.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-tidy/works-factory-weapon-tidy.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-variant/src/render.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/weapon-variant/works-factory-weapon-variant.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/world/works-factory-world.yaml": [
+       6,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ]
      },
      "bound": [
@@ -737,32 +1163,8 @@
      "pattern": "機械が貼った",
      "allowed": [],
      "known": {
-      "lib/carry.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "lib/design.py": [
-       2,
-       "散らばり（まとめる計画はまだ無い）: 設計の役に貼る前提のセクションの見出しと、地図の文書の案内"
-      ],
-      "lib/gatemarks.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "lib/planmarks.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "lib/replan.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
-      "lib/structmark.py": [
-       1,
-       "散らばり（まとめる計画はまだ無い）: 役の支度のモジュールが指示書に貼るセクションの見出しを自分の定数で持ち、並べを自分で組む"
-      ],
       "workflows/line/scripts/ask_replan.py": [
-       1,
+       2,
        "散らばり（まとめる計画はまだ無い）: 案の直しの承認ノードが直した項目のセクションの見出しを自分の定数に写す（元 replan.NEW_HEAD）"
       ]
      }
@@ -781,9 +1183,21 @@
        1,
        "散らばり（数の歯止め。減らす向きだけ）: コード・殻のコメントや docstring が works-factory 自身の実装の言語を述べる"
       ],
+      "bin/_lib/nativewin.py": [
+       3,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
       "bin/_lib/no-post-bin/works-gh": [
        1,
        "散らばり（数の歯止め。減らす向きだけ）: コード・殻のコメントや docstring が works-factory 自身の実装の言語を述べる"
+      ],
+      "bin/_lib/spec-inputs.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "bin/_lib/specreviews.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ],
       "bin/apply": [
        2,
@@ -825,21 +1239,45 @@
        1,
        "散らばり（数の歯止め。減らす向きだけ）: 言語ごとの読み方（import の読み取り・ライブラリの文書・波及）を持つ（持ち主の決め lang-neutral の E13 の例外）"
       ],
-      "workflows/plan/src/ripple.py": [
-       1,
-       "散らばり（数の歯止め。減らす向きだけ）: 波及の照らしの docstring が、試験の関数の id の形を言語の名で述べる"
-      ],
       "lib/stopby.py": [
        1,
        "散らばり（数の歯止め。減らす向きだけ）: コード・殻のコメントや docstring が works-factory 自身の実装の言語を述べる"
+      ],
+      "workflows/.shared/prompts/writer-rules.md": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/diagnose/src/inputs.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ],
       "workflows/fix/src/common.py": [
        7,
        "散らばり（数の歯止め。減らす向きだけ）: TDD のループ・実行器の口が実行器の名を持つ"
       ],
+      "workflows/fix/src/facts.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
       "workflows/fix/src/tdd.py": [
        2,
        "散らばり（数の歯止め。減らす向きだけ）: TDD のループ・実行器の口が実行器の名を持つ"
+      ],
+      "workflows/plan-review/src/take.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/plan-review/src/textform.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/plan-review/src/themeform.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
+      ],
+      "workflows/plan/src/ripple.py": [
+       1,
+       "散らばり（数の歯止め。減らす向きだけ）: 波及の照らしの docstring が、試験の関数の id の形を言語の名で述べる"
       ],
       "workflows/premises/prompts/premises.md": [
        1,
@@ -867,6 +1305,40 @@
   "bound:ai-launch:AI の起こし方の語（ノードの模型と effort の行 model:・effort:、道具 allowed_tools、道具ゼロの隔離の旗 isolated と ISOLATED_RUN_BY、run の明示の模型 WORKS_DEV_MODEL）:workflows/structure/works-factory-structure.yaml:^ {10}(model: '@wf-plan-structure'|allowed_tools: \\[\\])$": "#560 で構造の目を plan から新しいサブグラフ structure に分けた。散らばりの柵は新しいファイルを既知の漏れに足せず、知ってよい所も空のままなので、移した 2 行（役の群と道具ゼロ）だけを結んだ写しとして数えずに置く。AI の起こし方の行は全体で増えていない（計画の YAML は 4 行から 2 行）",
   "exclude:blocks/**": "#765 の組み込みの前に 2 つ目の pack blocks/ を柵から外した行。入れ替え（git mv blocks workflows）で blocks/ は無くなり、この行は何にも当たらない。新しい pack の形は tests/layers/test_block_shape.py（docs/design/README.md の 7.1 の yes/no）が縛る",
   "exclude:workflows/.shared/prompts/REVIEW.md": "#765 の組み込みで lib に在った REVIEW.md（レビューの観点の文）を役の指示の共通の断片 workflows/.shared/prompts/REVIEW.md に移した（README の 9.3）。外す物は同じ文で、置き場だけが替わった",
-  "known:carry-over:#765": "#765 の組み込みで blocks が workflows/ に入り、前の失敗の port を読む block（diagnose・plan・line・report）の行が柵に入った。runreport と report の旧 script の 5 行は消えた"
+  "known:carry-over:#765": "#765 の組み込みで blocks が workflows/ に入り、前の失敗の port を読む block（diagnose・plan・line・report）の行が柵に入った。runreport と report の旧 script の 5 行は消えた",
+  "allowed:prompt-sections:指示書のセクションの宣言の型と宣言を並べる口の定義（住処の外に写さない）:workflows/.shared/prompt.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の promptsection.py を、中身の移り先 workflows/.shared/prompt.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:outcome:結末の語（ループの上限の入力の名 round_limit の欄の鍵と添字は別の語なので数えない）:workflows/report/src/outcome.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の outcome.py を、中身の移り先 workflows/report/src/outcome.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:depth:深さの控えと深さの口の名:workflows/line/src/tiers.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の depth.py を、中身の移り先 workflows/line/src/tiers.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:depth:修正の後の上げ直しの控えの扱いの字（読めない控えで上げる信号 LATE_UNREAD と、無い控えの訳 NO_LATE_RECORD）:workflows/line/src/tiers.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の latedepth.py を、中身の移り先 workflows/line/src/tiers.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:depth:修正の後の上げ直しの数えの中身（数えの部品 run_paths・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ:workflows/line/src/tiers.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の latedepth.py を、中身の移り先 workflows/line/src/tiers.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:conflict:食い違いの申し出の欄の名（why_both_cannot_hold・which_is_right）:workflows/fix/src/tdd.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py・lib の ruling.py を、中身の移り先 workflows/fix/src/tdd.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:conflict:食い違いの申し出の欄の名（why_both_cannot_hold・which_is_right）:workflows/fix/src/ruling.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py・lib の ruling.py を、中身の移り先 workflows/fix/src/ruling.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:lanes:並べの枝の仕組み（分け方の union-find・枝の数のループ・ノードの出口の鍵・単位の worktree の .git の 1 行・枝の数の値・順に当てるループ・締めの語・住処の口の定義とその包み）:workflows/fix/src/lanes.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の lanekit.py を、中身の移り先 workflows/fix/src/lanes.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/jsonfile.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の marks.py・lib の judgebeside.py を、中身の移り先 lib/jsonfile.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:marks:足し欄の控えの名の定数を住処を通さずにパスへ組む形:lib/jsonfile.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の marks.py を、中身の移り先 lib/jsonfile.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:marks:役の型に欄を手で足す・外す形:lib/jsonfile.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の marks.py を、中身の移り先 lib/jsonfile.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:marks:返答から欄を手で外す形:lib/jsonfile.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の marks.py を、中身の移り先 lib/jsonfile.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:test-files:テストのファイルの名の慣習を手で書く形（名の正規表現・名の型の字）:workflows/fix/src/common.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py を、中身の移り先 workflows/fix/src/common.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/src/common.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py・fix の commands の tdd.md を、中身の移り先 workflows/fix/src/common.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/src/tdd.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py・fix の commands の tdd.md を、中身の移り先 workflows/fix/src/tdd.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:red-check:赤の引用の欄の名（test の段の返答の欄と単位の記録の欄）:workflows/fix/prompts/parts/tdd.md": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py・fix の commands の tdd.md を、中身の移り先 workflows/fix/prompts/parts/tdd.md に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:red-check:赤の判定の正本 red_problems を呼ぶ式（赤の事実の判定は red_check だけが呼び、ループ・並べの締め・事後の関門は red_check を呼ぶ）:workflows/fix/src/common.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の tddloop.py を、中身の移り先 workflows/fix/src/common.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:world:世界の解の行のファイルと控えの名（world.jsonl・world-state.json）:workflows/world/**": "#983 で、#765 の組み込み（#794）で消えた住処 lib の worldblk.py・lib の judgebeside.py・judge の scripts の world_*.py を、中身の移り先 workflows/world/** に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない:workflows/line/src/gates.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の gatepolicy.py を、中身の移り先 workflows/line/src/gates.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "allowed:human-gates:住処の定数を別の名に写す:workflows/line/src/gates.py": "#983 で、#765 の組み込み（#794）で消えた住処 lib の gatepolicy.py を、中身の移り先 workflows/line/src/gates.py に掛け直した。住処の外を許す範囲は移る前と同じ（#983 では loosened の行を足していなかったので後から足した）",
+  "fence:human-gates:人の承認ノードの方針の語（最後の承認ノードの開き方 final_gate とその語 always 以外の when_needed・protected_only、無人の run の入力 unattended、語の表 FINAL_GATES・UNATTENDED）。住処の口を引く gatepolicy.<名> は数えない": "柵の what の住処の口の名を、#765 の組み込み（#794）で消えた gatepolicy から今の住処 workflows/line/src/gates.py の名 gates に直した（pattern の前の字の外しも gates. に直した）",
+  "fence:human-gates:無人の run が承認ノードを推しで進むか止まるかを、住処の外で項目の推しの尾の読み（push_rec・row_push の呼び）から組む。推しの尾の字の形の持ち主 gatemarks は読みを gatepolicy.Push にして住処の口 passage・stuck_pushable に渡すだけ": "推しの尾の無人の方針の読み row_push は #765 の組み込み（#794）で gatemarks から住処 workflows/line/src/gates.py へ移った。柵の what を今の持ち方に書き直し、allowed に住処を足した（gatemarks は push_rec の定義を持つので残す）",
+  "pattern:human-gates:住処の定数を別の名に写す": "住処の名を、#765 の組み込み（#794）で消えた gatepolicy から今の住処 workflows/line/src/gates.py の名 gates に直した",
+  "pattern:depth:深さの控えと深さの口の名": "口を引く名を、#765 の組み込み（#794）で消えた lib の depth から今の住処 workflows/line/src/tiers.py の名 tiers に直した",
+  "fence:depth:修正の後の上げ直しの数えの中身（数えの部品 run_paths・outside_cited・late_signals・consulted_units の呼び・import と、counted の「触るファイル {n} 個（起点: …）」の形）。呼び手は latedepth.signals を呼ぶ": "柵の what と pattern の部品の名を、#765 の組み込み（#794）で消えた latedepth・depth から今の住処 workflows/line/src/tiers.py の名 tiers に直した",
+  "pattern:marks:足し欄の控えの名の定数を住処を通さずにパスへ組む形": "#765 の組み込み（#794）で消えた deltamarks.VERDICTS_FILE と prcheck.EXCLUDED を語の形から外した（今の木に同じ名の定数は無い。並行 PR の控えの名は block の名の表 workflows/parallel-pr/src/files.py の EXCLUDED）",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/gatemarks.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/planmarks.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/querytest.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/outpurpose.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/worldmark.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "allowed:marks:足し欄の共有ボードの控えの名:lib/handoff.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "allowed:marks:足し欄の共有ボードの控えの名:workflows/parallel-pr/src/files.py": "地図の marks の「知ってよい所」のとおり、控えのファイルの名は欄を持つモジュールが自分の定数で持つ（#765 の組み込みで住処が lib/jsonfile.py になってから）。名を定義する持ち主を知ってよい所に足した。持ち主と同じ字を持ち直す block の写しは既知の漏れのまま",
+  "pattern:entry-kind:入口の生の入力（差分の根の名指し base・pr）を読む・渡す形": "#765 の組み込み（#794）で、block と graph が差分の根の commit を自分の入力 base（port）で受けるようになり、INPUTS_BASE・$INPUTS.base の字は入口の生の入力と字の形で分けられない（2026-11-05 の数え直しで 40 ほどの block の intake が当たった）。語の形から base の 2 つの形を外して pr の形だけを残した。入口の生の base の読みは _word(raw, \"base\") と --base の形で見る"
  }
 }

@@ -460,7 +460,7 @@ def _no_owner_env(root: Path) -> list[str]:
 
 
 # 見る道具の決まり E25 の 1（決まりの文は見る道具のフォルダの AGENTS.md）。名指しはフォルダのパスと import の 2 つの形だけで、語 viewer だけでは当てない
-# （workflows/.shared/prompt.py の VIEWER_VALUES = "viewer-values" は値の記録の名で、見る道具への頼りでない）。パスは前が `.`・`/` でも当てる
+# （語は文や名の一部にも出て、見る道具への頼りでない）。パスは前が `.`・`/` でも当てる
 # （相対のパスや、根を差し込んだ字）。外すのは見る道具の試験のフォルダだけ
 VIEWER = "viewer"
 VIEWER_NAMED = re.compile(rf"(?<![\w\-])(?<!tests/){VIEWER}/|^\s*(?:from|import)\s+{VIEWER}\b")

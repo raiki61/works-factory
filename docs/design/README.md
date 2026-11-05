@@ -88,7 +88,7 @@
 - 歩かせた物: `change-kinds.md` の 5 節の 12 件と、D の 3 件（`d337f840`・`99b3beef` と、D でいちばん大きい `e8385872`）の 15 件。中身は `git -C ~/src/works-factory show` の差分で確かめた。別々の直しを 1 つに束ねた commit（squash merge）は、直しごとに分けて歩かせた。
 - 場所の数え方: 場所 1 つは、block 1 つ（`blocks/<block>/`・`tests/blocks/<block>/`・`docs/design/<block>.md` の組。11.1 で PR 1 本が触る範囲）・graph 1 つ（block と同じく、フォルダ・試験・設計書の 3 つの組）・`lib/` のモジュール 1 つ・埋め 1 つ・起動の殻 `bin/_lib/`・block の外の文書 1 本（根の README・`docs/owner-decisions.md`・`docs/polyfills.md`）・`tests/calibration/`。試験は、試す物と同じ場所に数える。
 - 今の数も同じ数え方（lib のモジュール・サブグラフ・`bin/`・柵〔`tests/layers/` と `docs/concepts.json`・docs の `nodes.json` などの表〕・文書）。
-- 結果: 15 件のうち、1 か所で閉じる 6 件・2 か所（訳あり。2 か所に分かれる訳を形の上で書ける物）8 件・散る 1 件（`d337f840`。Archon がモデルを指す YAML の鍵 `model:` をノードごとに読むことによる 1 回きりの書き換えで、形の問題ではない）。これは下の「形の直し」8 つを当てた後の数。当てる前の形では 9 件が訳なく散った。
+- 結果: 15 件のうち、1 か所で閉じる 6 件（表の判定が「1 か所」の 4 件と、束ねた直しがどれも 1 か所で閉じる「1 か所ずつ」の 2 件）・2 か所（訳あり。2 か所に分かれる訳を形の上で書ける物。表の判定が「2 か所」の 8 件で、block の外の文書の 1 本を数える物を含む）8 件・散る 1 件（`d337f840`。Archon がモデルを指す YAML の鍵 `model:` をノードごとに読むことによる 1 回きりの書き換えで、形の問題ではない）。これは下の「形の直し」8 つを当てた後の数。当てる前の形では 9 件が訳なく散った。
 
 | commit | 種類 | 今（ファイル・場所） | 新しい形（場所） | 判定 |
 |---|---|---|---|---|
@@ -304,7 +304,6 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 - 口は次の時に落ちる: 値の無い `{name}` が在る（選ばれない段落の中の口も、system の md の口も数える。prep はいつも同じ組の値を渡す）・使われない値を渡された・`when` の名が md に無い・md の `if` に `when` の値が無い・`{shared:…}`・`{part:…}` の先が無い（5.1 の断片の差し込み。`{part:<name>}` は同じ block の `prompts/parts/<name>.md`、`{shared:<name>}` は `workflows/.shared/prompts/<name>.md` を差し込むので、その名のファイルが無ければ落ちる）。
 - 口は段落を選んだ後、値を入れる前に、3 つ以上続く改行を 2 つに畳む。だから空の値を入れた行は空行として残る（見た目だけ。消したい行は段落の `if` で選ぶ）。
 - 組んだ指示は place の `<node-id>-prompt-<n>.md` に書く（`<n>` はloop の何回目か）。prep の出力の欄 `prompt`（system prompt は `system`）で返す。
-- `prompt.emit` は隣に、組むのに使った値と段落の選び `<node-id>-viewer-values-<n>.json` も書く。工場の外の見る道具（run〔Archon の workflow の 1 回の実行〕で LLM に入った英語の指示を、日本語の md の写しで同じ形に組み直して人に見せる物）のために置いた記録で、工場の中では読まない。読む物は今は無い（読み手だった見る道具のページは持ち主の決め `run-trace-otlp` の 6 で捨てた）。LLM に渡す指示の字は変えない（持ち主の決め `prompt-values-for-viewer`）。形は `{"node", "block"（呼んだ block のフォルダの名）, "md"（組んだ欄ごとの block からの相対パス `{"prompt": "prompts/<node-id>.md", "system"?: "prompts/<node-id>.system.md"}`）, "values"（差し込み口の値。字か整数）, "when"（段落の選び。無ければ `{}`）}`。この `values` と `when` で組み直すと、同じ `<node-id>-prompt-<n>.md`（と system）が字のまま組み上がる（照らしは `tests/blocks/shared/test_prompt.py`）。run の置き場を使い直すと、前の試みの `<node-id>-viewer-values-<n>.json` が残りうる。今の run の記録は、同じ `<n>` の `<node-id>-prompt-<n>.md` が在る物だけなので、読む物は prompt の側から引く。
 - AI の node の YAML は `prompt: "$<prep の id>.output.prompt"` の 1 行だけにする（system prompt を持つ node は `systemPrompt: "$<prep の id>.output.system"` も）。`command:` は使わない。道具を持たない役（world-classes など）も、指示をファイルから Read せずに受け取れる。
 - 「Python は指示の文を持たない」は、この口の形で守る。AI に届く決まった文の在りかは md しか無く、審査は md を読めば済む。lib の Python の定数の長さを数える検査は置かない（持ち主の決め `shape-checks-only`）。
 
@@ -504,7 +503,7 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 - 残す表: 層の地図 `docs/layers.json`（scan の block の名と、lib が頼ってはならない層の頭を読む）・考えの住処の表 `docs/concepts.json`（run の中で構造の目が対象の表として読む。KEEP の `lib/tests/test_concept_fences.py` も読む）・scan の外しの表 `ALLOWED`（E2・E3・E13・E21 の照らしが使う）。どれも生きている照らしが使うので残す。層の地図の数の歯止め（既知の漏れの表 `known`・緩めの訳 `loosened`）と名の住処の表（`beside`・`homes`）は、照らす試験と一緒に組み込みで消した（済み。今の `docs/layers.json` の鍵は `about`・`layers`・`outside` の 3 つ）。
 - 能力の棚卸しの指しの照らし（`test_capability_pointers.py`）は、keep-essence の 12 だけを照らす yes/no の `tests/layers/test_keep_essence.py` に縮めて残す（10 節の「新しい守り」の `path::名`。integration.md の 4.2-1a）。
 - `tests/workflows/`: `test_prompt_contracts.py`・`prompt_contracts.json`（古い指示書の約束の表。組み立ての口の落ち方と指示の比べで替える）・`copied.py`・`copied_rewrites.json`（元の works の指示書の写しの台帳。指示は英語で書き直すので台帳を閉じる）・`test_reply_fields.py`（7.1 の 12 で替える。integration.md の 4.2-2）。
-- `lib/tests/`: `test_constants.py`（ファイル名の字の柵）・`test_cross_block_keys.py`（block をまたぐファイルの鍵。port で替える）・`test_promptsection.py`・`test_marks.py`・`test_concept_fences.py` の works-factory 自身の表の部分（道具の部分は `test_concept_change.py` に寄せる）。
+- `lib/tests/`: `test_constants.py`（ファイル名の字の柵）・`test_cross_block_keys.py`（block をまたぐファイルの鍵。port で替える）・`test_promptsection.py`・`test_marks.py`。同じ名の `lib/tests/test_concept_fences.py` は消さずに残した（考えの住処の柵の道具 `lib/conceptfence.py` の試験と、表 `docs/concepts.json` の住処の柵が本当に当たるかの照らし。上の「残す表」が読み手に挙げる物）。消したのは works-factory 自身の地図と表の全部を本物の木に当てる `tests/layers/` の同じ名の物（この節の 1 つ目の項）で、組み込みの #794 で消した。
 - `test_boundary.py`（`boundary.py` が消えるので、`ports.py` の試験 `tests/blocks/shared/test_ports.py` に替える）。
 - 古いサブグラフの試験（下の 9.5 の MOVE の元）は、組み込みで消す。
 
