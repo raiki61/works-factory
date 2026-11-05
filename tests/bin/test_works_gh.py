@@ -13,6 +13,9 @@
   位置の引数と数えると、-b o/r evil.example/o/r の o/r を照らし、gh は evil.example/o/r を読む
 - 読むホストは github.com・<名>.ghe.com・GH_HOST・GH_REPO のホストだけ（-R・--hostname・URL の引数。gh は GH_ENTERPRISE_TOKEN を
   github.com の外のどのホストにも付けるので、ほかのホストへトークンを送らない）
+- 口は本物の gh を子として起こして終わりを待ち、gh の終了コードを返す。gh が 0 でなく終われば、gh の出力の後ろに「単独の
+  1 コマンドで打ち直す」の 1 行（打ち直す字を含む）を足す（役がパイプや ; と組んで打つと sandbox の中で走り、gh の出す
+  x509 などの文は囲いのせいだと示さない）。0 で終われば何も足さない
 - 口は本物の gh を起こす前に WORKS_FACTORY_GH_ACTIVE を立て、それが立った env で口に入れば拒む（読む側と立てる側の名を
   1 つの試験で縛る。片側だけ名を替えると輪の断ち方が黙って外れる）
 
@@ -93,7 +96,8 @@ class WorksGhCase(unittest.TestCase):
         bindir = self.tmp / "bin"
         bindir.mkdir()
         gh = bindir / "gh"
-        gh.write_text(f'#!/bin/sh\nprintf \'%s|%s\\n\' "${{WORKS_FACTORY_GH_ACTIVE-(unset)}}" "$*" >> "{self.log}"\n',
+        gh.write_text(f'#!/bin/sh\nprintf \'%s|%s\\n\' "${{WORKS_FACTORY_GH_ACTIVE-(unset)}}" "$*" >> "{self.log}"\n'
+                      'if [ -n "$FAKE_GH_FAIL" ]; then echo "x509: certificate error" >&2; exit "$FAKE_GH_FAIL"; fi\n',
                       encoding="utf-8")
         gh.chmod(0o755)
         self.path = os.pathsep.join([str(WORKS_GH.parent), str(bindir), os.environ.get("PATH", "")])
@@ -112,7 +116,18 @@ class WorksGhCase(unittest.TestCase):
                 self.log.unlink(missing_ok=True)
                 r = self.run_gate(args)
                 self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(r.stderr, "")
                 self.assertEqual(self.gh_calls(), ["1|" + " ".join(args)])
+
+    def test_a_failing_gh_keeps_its_code_and_gets_the_retry_alone_line_after_its_output(self):
+        args = ["pr", "view", "-R", "o/r", "1", "--json", "title,body"]
+        r = self.run_gate(args, FAKE_GH_FAIL="4")
+        self.assertEqual(r.returncode, 4, r.stderr)
+        lines = r.stderr.splitlines()
+        self.assertEqual(lines[0], "x509: certificate error")
+        self.assertIn("単独の 1 コマンド", lines[-1])
+        self.assertIn("works-gh pr view -R o/r 1 --json title,body", lines[-1])
+        self.assertEqual(self.gh_calls(), ["1|" + " ".join(args)])
 
     def test_other_forms_and_web_are_refused_without_the_real_gh(self):
         for args in REFUSED:
