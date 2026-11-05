@@ -7,7 +7,7 @@
 この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer、Archon の YAML の鍵、form の書き方）。ほかに:
 
 - 形（form）: この block が 1 回の include で審査する物の形。`plan`（修正案の構造。計画の往復の 1 往復）・`replan`（承認済みの案を裁定で直した項目だけの審査。案の直しの後に 1 回）・`text`（方針の文だけ。入口の workflow policy-check のため）・`theme`（設計の案の md。設計の段の往復の 1 往復。19 章）の 4 つ。
-- 穴（face）: 審査の返答の `faces` の 1 行。`severity` が `block`（直しへ進めない穴）か `suggest`。`reach` は中央（`breaks_fix`・`loses_behavior`・`against_policy`・`forces_redesign`）か端（`peripheral`）。試験 1 本で守れる細部の穴は守る試験の欄 `guard` を添えて端にする（21 章）。
+- 穴（face）: 審査の返答の `faces` の 1 行。`severity` が `block`（直しへ進めない穴）か `suggest`。`reach` は、穴を直さずに直しへ進んだ時に会う害の届き方（`parts/checks.md` の「How to write the holes」）で、中央（`breaks_fix`・`loses_behavior`・`against_policy`・`forces_redesign`）か端（`peripheral`）。試験 1 本で守れる細部の穴は守る試験の欄 `guard` を添えて端にする（21 章）。
 - 往復（pass）: 計画の往復の 1 回（修正案 → 事前審査）。`k` 往復目。記録は line が持ち、この block は前の往復までの記録を port `prior` で受ける。
 - 往復の記録: 今の `lib/converge.py` の控え `plan-converge.json` の形（`{round, passes, plan, open, outcome}`。読み口は `converge.read`）。
 - 木（tree）: 項目ごとの下請けを束ね役が Agent の道具で並べて起こす審査の形。木にしない往復は審査役 1 つ。
@@ -1229,10 +1229,10 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 
 ### 21.2 試験 1 本で守れる細部（`guard-demotes`）
 
-1. 指示: 計画の形だけが入れる `parts/plan-checks.md`（`review.md` と、木の下請けと相乗りの指示 `item-brief.md`）の「How the checks above read the plan」の列に、害が 1 つの関数の中の細部（並べ方・上限の計算・同点の扱い）に収まり、受け入れの試験 1 本で縛れる `loses_behavior` の穴は、守る試験を `guard` に書いて端にする、と書く。設計の選び（どの部品・境目・道を使うか）の穴は下げない。2 往復目からの頼み（`rereview-ask.md`・`diff-ask.md`）にも、前の中央の block をこの形で下げてよいと 1 文足す（下げる時の訳を `why` の頭に書く今の決まり `converge.relabel_gaps` はそのまま）。形 text・theme の指示（`review-text.md`・`review-theme.md` は `parts/checks.md` を入れるが `parts/plan-checks.md` を入れない）は `guard` を語らず、その穴の型にも `guard` を足さない（運ぶ先が修正の段の `board.py` の計画の穴しか無いため）。
-2. 受け付け: `take.face_row_gaps` が、`guard` の在る穴の `reach` が端でなければ拒む（yes/no）。試験 1 本で守れる細部かは審査役が判じ、機械は照らさない（持ち主の決めの 1）。
-3. 運ぶ道: 端の block の今の道のまま（line の SETTLED で修正の段へ申し送る）。`review.json` の穴の行に `guard` が残り、修正の段の `workflows/fix/src/board.py` の `plan_faces_text`（修正役の指示の穴の行）と `declared_lines`（直さずに残した穴の行。直しの後の目 R4 が読む）が尾「（守る試験: …）」を付ける。修正役は今の決まり（`.shared/prompts/writer.md` の `plan_faces`）のまま、穴を取り込む（尾の試験を足す）か残す訳を答える。書き手の指示の字は付録 A の控え（`tests/workflows/writer-prompts-before.json`）が縛るので変えない。
-4. 決めた細目（窓口が決めきれない物でないので自分で決めた）: 守る試験は計画の項目の `tests` に機械が差し込まず、穴の行の欄に置く。計画の項目の行を機械が変えると、項目の hash が変わって閉じた項目と保留の決まり（`converge._item_states`）が崩れるため。修正役は穴の行を必ず答える（`plan_face_errors`）ので、試験は修正の段へ届く。
+1. 指示: 計画の形だけが入れる `parts/plan-checks.md`（`review.md` と、木の下請けと相乗りの指示 `item-brief.md`）の「How the checks above read the plan」の列に、害が 1 つの関数の中の細部（並べ方・上限の計算・同点の扱い）に収まり、受け入れの試験 1 本で縛れる穴（`reach` が `loses_behavior`〔今在る振る舞いが失われる〕に当たる穴）は、守る試験を `guard` に書いて端（`peripheral`）に下げる、と書く。設計の選び（どの部品・境目・道を使うか）の穴は下げない。2 往復目からの頼み（`rereview-ask.md`・`diff-ask.md`）にも、前の往復で `reach` が中央の値だった block の穴をこの形で端に下げてよいと 1 文足す（下げる時の訳を `why` の頭に書く今の決まり `converge.relabel_gaps` はそのまま）。形 text・theme の指示（`review-text.md`・`review-theme.md` は `parts/checks.md` を入れるが `parts/plan-checks.md` を入れない）は `guard` を語らず、その穴の型にも `guard` を足さない（運ぶ先が修正の段の `board.py` の計画の穴しか無いため）。
+2. 受け付け: `take.face_row_gaps` が、`guard` の在る穴の `reach` が端（`peripheral`）でなければ拒む（yes/no）。試験 1 本で守れる細部かは審査役が判じ、機械は照らさない（持ち主の決めの 1）。
+3. 運ぶ道: 端の block の穴（`severity` が `block` で `reach` が端の穴）の今の道のまま（計画の往復の記録と止め時を持つメイングラフ line が、中央の block の穴が無くなった時の抜け方 SETTLED で、端の block の穴を修正の段へ申し送る。`docs/design/line.md` の止め時）。`review.json` の穴の行に `guard` が残り、修正の段の `workflows/fix/src/board.py` の `plan_faces_text`（修正役の指示の穴の行）と `declared_lines`（直さずに残した穴の行。直しの後の目 R4 が読む）が尾「（守る試験: …）」を付ける。修正役は今の決まり（`.shared/prompts/writer.md` の `plan_faces`）のまま、穴を取り込む（尾の試験を足す）か残す訳を答える。書き手の指示の字は付録 A の控え（`tests/workflows/writer-prompts-before.json`）が縛るので変えない。
+4. 決めた細目（窓口〔持ち主に問いを出して答えを読んだ側。持ち主ではない〕が決めきれない物でないので自分で決めた）: 守る試験は計画の項目の `tests` に機械が差し込まず、穴の行の欄に置く。計画の項目の行を機械が変えると、項目の hash が変わって閉じた項目と保留の決まり（`converge._item_states`）が崩れるため。修正役は穴の行を必ず答える（`plan_face_errors`）ので、試験は修正の段へ届く。
 
 ### 21.3 前に閉じた穴の裏返し（`flip-asks`）
 
