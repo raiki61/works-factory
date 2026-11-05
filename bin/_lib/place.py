@@ -11,7 +11,8 @@
 Archon の家（$ARCHON_HOME）には、利用者が provider の同時数の上限を渡した時の $ARCHON_HOME/config.yaml の上限の鍵（write_provider_cap）のほかは
 何も書かない（$ARCHON_HOME/workflows など）。工場が決める値は、
 run のノードに渡す環境変数（launcher.run_env）・役の claude とその下請けの会話のキャッシュの寿命の既定（launcher.cache_ttl。--adopt の起動と、
-工場だけに効く層〔--config の env: か対象の .archon/config.yaml の env:〕で寿命が選ばれている起動では載せない）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
+工場だけに効く層〔--config の env: か対象の .archon/config.yaml の env:〕で寿命が選ばれている起動では載せない）・裏で走る下請けの進み具合の札を
+止める名（launcher.agent_summaries。載せない時は寿命の既定と同じ形）・AI ノードの群の別名（'@wf-<群>'）・使用枠の方針（QUOTA_POLICY）を新しい run に run 1 本ぶんの
 設定の層（run_config）で、既定の provider を Archon の環境変数（PROVIDER_ENV）で渡す。
 """
 import hashlib
@@ -104,7 +105,7 @@ def run_config(where: Path, env: Mapping[str, str], mine: dict | None = None, al
     """新しい run に --config で渡す、run 1 本ぶんの設定の層のファイル <where>/run-config/<中身の hash>.json を書いて返す。中身は利用者の
     --config の層 mine（read_run_config）に、環境変数 env を env: で、群の別名を aliases: で（aliases が偽なら足さない）、使用枠の方針
     QUOTA_POLICY を workflows: で重ねた物。env は script・bash のノードにも AI のノードの claude にも届く: script・bash のノードには
-    run の中の script が頼る値（launcher.run_env）、AI のノードの claude とその下請けには会話のキャッシュの寿命の値（launcher.cache_ttl。Archon は
+    run の中の script が頼る値（launcher.run_env）、AI のノードの claude とその下請けには会話のキャッシュの寿命の値（launcher.cache_ttl）と札を止める名（launcher.agent_summaries。Archon は
     起動の最初に CLAUDE_CODE_* を消し、この層はその後に重なるので、役に届くのはこの層だけ）として効く。env と群の別名は同じ名なら
     工場の値が勝ち（群の付け替えは --model だけ）、使用枠の方針は利用者の値が勝つ。起動の後はファイルは要らない。
 

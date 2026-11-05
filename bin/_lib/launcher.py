@@ -69,6 +69,10 @@ PROMPT_CACHE_TTL = {"CLAUDE_CODE_PROMPT_CACHE_TTL": "5m", "CLAUDE_CODE_SUBAGENT_
 # 設定の promptCacheTtl・subagentPromptCacheTtl と下請けの定義の frontmatter は 2 つ目と 3 つ目の間）。1 つ目と 3・4 つ目は両方の組に効く
 CHOSEN_TTL_ENVS = {name: ("FORCE_PROMPT_CACHING_5M", name, "ENABLE_PROMPT_CACHING_1H", "ENABLE_PROMPT_CACHING_1H_BEDROCK")
                    for name in PROMPT_CACHE_TTL}
+# 裏で走る下請けの進み具合の札（Claude Code が SDK の上で 30 秒ごとに下請けの会話を写して同じ模型に頼む呼び出し。会話の記録に残らず、
+# 工場の誰も読まない）を止める名と値（agent_summaries が run の設定の層の env で運ぶ）。名は Claude Code の公開の文書に無く、配布物の中にだけ
+# 在る（docs/design/archon.md の「裏で走る下請けの進み具合の札」）
+AGENT_SUMMARIES_OFF = {"CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES": "1"}
 # 対象の下の Archon の repo 設定の置き場（対象からの相対。packages/core/src/config/config-loader.ts の loadRepoConfig が読む場所の写しで、
 # tests/shared/test_archon_contract.py が照らす）
 REPO_CONFIG = (".archon", "config.yaml")
@@ -341,6 +345,13 @@ def cache_ttl(*carried: Mapping) -> dict[str, str]:
             if not any(chosen in env for env in carried for chosen in CHOSEN_TTL_ENVS[name])}
 
 
+def agent_summaries(*carried: Mapping) -> dict[str, str]:
+    """裏で走る下請けの進み具合の札を止める名（AGENT_SUMMARIES_OFF）を、run の設定の層の env に載せる {名: 値}。carried は cache_ttl と同じ
+    工場の run だけに効く層の env で、どれかがこの名を持てば載せない（その選びは Archon が運び、載せると潰す）。利用者の shell の env は
+    見ず、--adopt の起動では載せない（cache_ttl と同じ訳。持ち主の決め factory-no-agent-summaries）"""
+    return {name: value for name, value in AGENT_SUMMARIES_OFF.items() if not any(name in env for env in carried)}
+
+
 def repo_env(bun: str, source: Path, target: Path) -> Mapping | None:
     """対象の .archon/config.yaml の env:（Archon が AI のノードの env の一番下の層に重ねる物）。ファイルが無ければ bun を起こさず {}、env: が
     無い・object でなければ {}。読めなければ（Archon もこのファイルを読めずに止まる）訳を標準エラーに 1 行言って None"""
@@ -383,10 +394,11 @@ def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, fl
     持たないので取り置き cache に、利用者の層を合わせた物（env の秘密が入りうる）は対象の家 home（run_home。Archon の DB と封じた層を
     解く鍵の置き場）に置き、家と一緒に消える。
 
-    層の env には run のノードに渡す環境変数（run_env）に加え、役の claude とその下請けの会話のキャッシュの寿命の既定（cache_ttl）も載る。選びを
-    潰さないため、利用者の --config の env: と対象の .archon/config.yaml の env:（repo_env）を読んで cache_ttl に渡す。対象の config.yaml が
-    読めなければ寿命の既定を載せない。--adopt の起動は寿命の既定を載せず、対象の config.yaml も読まない: 引き継ぐ run は repo の config を
-    --cwd の物でなく、枝の写しか既存の作業ツリーから読むので、殻はそこに寿命の選びが在るか見られない（cache_ttl の docstring）"""
+    層の env には run のノードに渡す環境変数（run_env）に加え、役の claude とその下請けの会話のキャッシュの寿命の既定（cache_ttl）と、裏で走る
+    下請けの進み具合の札を止める名（agent_summaries）も載る。選びを潰さないため、利用者の --config の env: と対象の .archon/config.yaml の
+    env:（repo_env）を読んで両方に渡す。対象の config.yaml が読めなければ、どちらも載せない。--adopt の起動はどちらも載せず、対象の
+    config.yaml も読まない: 引き継ぐ run は repo の config を --cwd の物でなく、枝の写しか既存の作業ツリーから読むので、殻はそこに選びが在るか
+    見られない（cache_ttl の docstring）"""
     adopt = adopting(flags)
     env, aliases = {**run_env(home, target), **(extra or {})}, not adopt
     mine = (flag_values(flags, "--config") or [None])[-1]
@@ -397,14 +409,15 @@ def run_config(bun: str, source: Path, cache: Path, home: Path, target: Path, fl
         except RuntimeError as error:
             raise Stop(str(error)) from None
     repo = {} if adopt else repo_env(bun, source, target)
-    ttl = {} if adopt or repo is None else cache_ttl(layer.get("env", {}), repo)
+    carried = (layer.get("env", {}), repo)
+    defaults = {} if adopt or repo is None else {**cache_ttl(*carried), **agent_summaries(*carried)}
     if not mine:
-        return place.run_config(cache, {**ttl, **env}, aliases=aliases)
+        return place.run_config(cache, {**defaults, **env}, aliases=aliases)
     replaced = sorted(set(layer.get("aliases", {})) & set(launchgroups.GROUPS)) if aliases else []
     if replaced:
         print(f"{NAME}: --config の群の別名 {'・'.join(replaced)} は工場の値で上書きした。群の値の付け替えは --model @wf-<群>=<模型>",
               file=sys.stderr)
-    return place.run_config(home, {**ttl, **env}, layer, aliases=aliases)
+    return place.run_config(home, {**defaults, **env}, layer, aliases=aliases)
 
 
 def refuse_unknown_groups(flags: list[str]) -> None:
