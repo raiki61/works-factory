@@ -159,6 +159,7 @@ nodes:
       stop_reason: "$start.output.stop_reason"
       place: "gate-start"
       final: "false"
+      pushed: "null"
   # 2.5 仕様駆動の道の入口（docs/design/spec-driven.md の 6.2 の足す node の 1）。表の中身の確かめ（2.3 の 1〜5）を、AI の段を中に持つ
   # 試験の段より前にする。依頼の文の run は飛ぶ
   - id: spec-entry
