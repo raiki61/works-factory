@@ -196,6 +196,26 @@ class JudgeCase(unittest.TestCase):
         for bad in ("::test_x", "", "."):   # パスの部分が空の名指し（役が書いた id）は落ちずに当たりなし
             self.assertIsNone(baseline_red.match_case(bad, cases), bad)
 
+    def test_match_case_nested_groups_and_path_classname(self):
+        # classname にファイルのパス（実行器の根から・拡張子つき）を、name に入れ子の組の名を ' > ' で結んで入れる実行器の行。
+        # 名指しは対象の根からのパスと、組を `::` で区切っても ' > ' で結んでも当たる（#2469 の run で、根が下のフォルダの一式の
+        # 受け入れの試験が「一式の結末に居ない」とされた）
+        cases = [row("組 > 内の組 > 一致する", "failure", "testing/__tests__/gates.test.ts"),
+                 row("一致する", "failure", "testing/__tests__/gates.test.ts"),
+                 row("一致する", "failure", "gates.test.ts")]
+        for named in ("web/testing/__tests__/gates.test.ts::組::内の組::一致する",
+                      "web/testing/__tests__/gates.test.ts::組 > 内の組 > 一致する",
+                      "testing/__tests__/gates.test.ts::組::内の組 > 一致する"):
+            with self.subTest(named):
+                self.assertIs(baseline_red.match_case(named, cases), cases[0])
+        self.assertIs(baseline_red.match_case("web/testing/__tests__/gates.test.ts::一致する", cases), cases[1])
+        self.assertIs(baseline_red.match_case("gates.test.ts::一致する", cases[2:]), cases[2])   # 根の直下のファイル
+        for named in ("web/other/gates.test.ts::組::内の組::一致する",       # 別のフォルダ
+                      "web/testing/__tests__/gates.test.ts::別の組::内の組::一致する",
+                      "web/testing/__tests__/gates.test.ts::内の組::組::一致する"):
+            with self.subTest(named):
+                self.assertIsNone(baseline_red.match_case(named, cases[:1]))
+
     def test_red_problems(self):
         named = ["test_a.py::TestA::test_x"]
         self.assertEqual(baseline_red.red_problems(named, [row("test_x", "failure")], 1), [])
