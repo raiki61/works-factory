@@ -14,6 +14,7 @@ import contextlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -58,23 +59,43 @@ def parse_junit(text):
     return cases
 
 
+# 入れ子の組（クラスの中のクラス・組の中の組）の名を 1 つの name に結ぶ字。classname にファイルのパスを入れ、組とテストの名を
+# この字で結んで name に入れる実行器が在る。名指しの `::` の 1 段と同じに見る
+NEST = " > "
+
+
+def _tokens(path):
+    """ファイルのパス（拡張子を落とした物）か点で区切った classname → 段の並び。`/` と `.` の両方で切る（JUnit の classname は点で
+    区切るモジュールの名か、`/` で区切るパスのどちらか）"""
+    return [x for x in re.split(r"[/.]", str(path)) if x]
+
+
 def _id_parts(test_id):
     """『path/test_x.py::Class::test_y』→（[path, test_x, Class], test_y）。JUnit の classname は実行器の根で頭が変わるので、
-    後ろ側の一致で引く（元 works/.shared/core/graphloops/rules/review-loop-tdd.py:52-57）"""
+    後ろ側の一致で引く。`::` の後ろの各段は NEST でも切る（『a.ts::組 > 名』と『a.ts::組::名』を同じに見る）。3 つ目の返り値は
+    パスの拡張子（classname がパスで拡張子まで持つ時に落とすため）
+    （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:52-57。NEST と `.` の切りと拡張子は足した物）"""
     parts = test_id.split("::")
     path = pathlib.PurePosixPath(parts[0])
-    head = list((path.with_suffix("") if path.name else path).parts) + parts[1:-1]   # 空のパス（"::x"・"."）は頭なし
-    return head, parts[-1]
+    names = [n for p in parts[1:] for n in p.split(NEST)] or [""]
+    head = (_tokens(path.with_suffix("")) if path.name else []) + names[:-1]   # 空のパス（"::x"・"."）は頭なし
+    return head, names[-1], path.suffix if path.name else ""
 
 
 def match_case(test_id, cases):
-    """名指しの 1 件に当たる JUnit の行（無ければ None）。名前が同じで、classname と識別子の頭の短い方が長い方の末尾
+    """名指しの 1 件に当たる JUnit の行（無ければ None）。名前が同じで、classname と識別子の頭の短い方が長い方の末尾。
+    行の name が NEST で結んだ入れ子の名なら、最後の段を名前に、前の段を classname の後ろに足して比べる。classname が名指しの
+    パスの拡張子で終わる（classname がファイルのパス）なら、拡張子を落として比べる
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:60-68）"""
-    head, name = _id_parts(test_id)
+    head, name, suffix = _id_parts(test_id)
     for c in cases:
-        cls = [x for x in c["classname"].split(".") if x]
+        cls_name = c["classname"]
+        if suffix and cls_name.endswith(suffix):
+            cls_name = cls_name[:-len(suffix)]
+        *groups, last = c["name"].split(NEST)
+        cls = _tokens(cls_name) + groups
         n = min(len(cls), len(head))
-        if c["name"] == name and n and cls[-n:] == head[-n:]:
+        if last == name and n and cls[-n:] == head[-n:]:
             return c
     return None
 
