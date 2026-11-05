@@ -581,6 +581,20 @@ class CollectCase(FinishPlace):
         out = self.finish()
         self.assertEqual(out["plan_declared"], [f"stale-docstring-left: {why}（直す側の答え: 範囲の外のファイルなので直さずに残す）"])
 
+    def test_guard_of_a_demoted_block_reaches_the_fixer_and_the_declared_line(self):
+        """端に下げた穴の守る試験（欄 guard。持ち主の決め guard-demotes）は、修正役の指示の穴の行と、直さずに残した時の plan_declared の
+        行（直しの後の目 R4 が読む）の両方に字のまま載る"""
+        self.collect_place()
+        guard = "空の列の平均を断言する試験 1 本で分母の扱いを縛る"
+        write(self.place / self.board.PLAN_REVIEW_FILE, {"faces": [
+            {"key": "guarded-detail-0001", "severity": "block", "reach": "peripheral", "why": "並べ方の式の細部", "guard": guard}],
+            "shrink": []})
+        self.assertIn(f"（守る試験: {guard}）", self.board.plan_faces_text(self.place, None))
+        write(self.place / self.board.FIX_REPLY_FILE, {"changes": [], "not_done": [], "plan_faces": [
+            {"key": "guarded-detail-0001", "handled": "declared", "how": "組の範囲の外なので残す"}]})
+        self.assertEqual(self.finish()["plan_declared"],
+                         [f"guarded-detail-0001: 並べ方の式の細部（守る試験: {guard}）（直す側の答え: 組の範囲の外なので残す）"])
+
     def test_collect_diff_holds_every_returned_group(self):
         """F424: diff は run の始めの版（base-rev.json）から今の作業ツリーへの累積差分の pointer で、戻せた組の全部の直し（未追跡の
         新しいファイルも）が載り、.archon/ の下は載らない。途中で HEAD が進んでも始めの版から取る。差分が無ければ空の訳のファイル"""

@@ -133,6 +133,7 @@
               }
             }
           },
+          "flips": {"type": "object", "description": "採った前に閉じた block の裏返し {新しい block の key: 閉じた block の key}（lib/converge.py の FLIPS。持ち主の決め flip-asks）", "patternProperties": {"^.+$": {"type": "string"}}},
           "origins_claimed": {
             "type": "array",
             "items": {

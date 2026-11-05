@@ -7,7 +7,7 @@
 この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer、Archon の YAML の鍵、form の書き方）。ほかに:
 
 - 形（form）: この block が 1 回の include で審査する物の形。`plan`（修正案の構造。計画の往復の 1 往復）・`replan`（承認済みの案を裁定で直した項目だけの審査。案の直しの後に 1 回）・`text`（方針の文だけ。入口の workflow policy-check のため）・`theme`（設計の案の md。設計の段の往復の 1 往復。19 章）の 4 つ。
-- 穴（face）: 審査の返答の `faces` の 1 行。`severity` が `block`（直しへ進めない穴）か `suggest`。`reach` は中央（`breaks_fix`・`loses_behavior`・`against_policy`・`forces_redesign`）か端（`peripheral`）。
+- 穴（face）: 審査の返答の `faces` の 1 行。`severity` が `block`（直しへ進めない穴）か `suggest`。`reach` は中央（`breaks_fix`・`loses_behavior`・`against_policy`・`forces_redesign`）か端（`peripheral`）。試験 1 本で守れる細部の穴は守る試験の欄 `guard` を添えて端にする（21 章）。
 - 往復（pass）: 計画の往復の 1 回（修正案 → 事前審査）。`k` 往復目。記録は line が持ち、この block は前の往復までの記録を port `prior` で受ける。
 - 往復の記録: 今の `lib/converge.py` の控え `plan-converge.json` の形（`{round, passes, plan, open, outcome}`。読み口は `converge.read`）。
 - 木（tree）: 項目ごとの下請けを束ね役が Agent の道具で並べて起こす審査の形。木にしない往復は審査役 1 つ。
@@ -271,7 +271,7 @@ md の本文の正本は `workflows/plan-review/prompts/review.md` と断片。�
 今の `plan-review` の `output_format` のまま（`works-factory-plan-review.yaml:248-344`）。ただし `fences` の `uniqueItems` を外す（14 節の 12）。
 
 - 必須 `faces`・`shrink`・`reason`。任意 `faces_none`・`resolved`・`stuck_recommend`・`design_map`・`origins`。
-- `faces[]`: 必須 `key`（8 字以上）・`unit_keys`（1 つ以上の整数か字）・`kind`（`copy`・`entrance`・`contract_drift`・`dead_path`・`scope_creep`・`regression`・`policy`・`precedent`）・`where`・`why`（20 字以上）・`severity`（`block`・`suggest`）・`reach`（`converge.REACH_SCHEMA`）。任意 `no_add`・`decided_by`・`undecided_because`・`fences`（`external_write`・`irreversible`・`policy_doc`・`widen_protection`・`web_doubt`）・`world`・`recommend`（`{answer: continue|stop, note, why}`）・`no_narrow`（20 字以上）。
+- `faces[]`: 必須 `key`（8 字以上）・`unit_keys`（1 つ以上の整数か字）・`kind`（`copy`・`entrance`・`contract_drift`・`dead_path`・`scope_creep`・`regression`・`policy`・`precedent`）・`where`・`why`（20 字以上）・`severity`（`block`・`suggest`）・`reach`（`converge.REACH_SCHEMA`）。任意 `no_add`・`decided_by`・`undecided_because`・`fences`（`external_write`・`irreversible`・`policy_doc`・`widen_protection`・`web_doubt`）・`world`・`recommend`（`{answer: continue|stop, note, why}`）・`no_narrow`（20 字以上）・`guard`（20 字以上。端の穴だけ。21 章）。
 - `shrink[]`: `key`・`unit_keys`・`alternative`（20 字以上）・`why`（20 字以上）。
 - `design_map[]`: `converge.DESIGN_MAP_SCHEMA` の写し。`origins[]`: `converge.ORIGIN_SCHEMA` の写し。`stuck_recommend`: `recommend` と同じ形。
 
@@ -1216,3 +1216,31 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 6. 承認ノードの文の口（`gatemarks.means_depart_text`・`means_drift_text`・`means_rows`・`means_drift_rows`・`means_item`・`means_key`）は頼みの解き方の文を `{M<n>: 文}`（`worldmark.means_hints`）で受ける（`lib/gatemarks.py` は `worldmark` を import しない今の頼り方のまま）。
 7. 元の計画の試験の段の「通った答えが `p2.fix_plan.json` の `structure` に残る」は、欄が受け付けで控え `plan-fields.json` に分かれるので、控えの `structure` に残ることを照らす形にした。
 8. 修正の後の構造の目の控えの外れの行の形（`.shared/schemas/structure-after.schema.json` の `deviations`）にも欄 `means` を足した（`planmarks.deviations` が鍵 `means` の行を返すため）。
+
+## 21 試験 1 本で守れる細部と、前に閉じた穴の裏返し（持ち主の決め `guard-demotes`・`flip-asks`）
+
+受付 20261104-130449-e3ab7b の調べで、2 つの run が計画の段で止まった。2 回目の run の 3〜5 往復目の穴は、どれも 1 つの関数の中の検索語の並べ方と件数の上限の取り合いで、直しが前の往復で閉じた穴の裏返しを開く鎖だった。直しを 2 つ入れる。
+
+### 21.1 E11 の 3 つの答え
+
+1. Archon が持っているか: 持たない。Archon は往復の止め時も承認ノードの項目も決めない（`docs/design/archon.md`）。
+2. ASF が持っているか: 持たない。ASF の計画の審査は往復の止め時と穴の重さの札を持たない（`docs/asf-notes.md` に当たる型が無い）。型は設計の審査の世間の型（Rust の RFC の雛形の「実装で決める問い」で、実装の細部を後の段へ回す）と、工場の中の端の穴の申し送り（3.4 の `reach` と line の SETTLED）。
+3. 本当に要るか: keep-essence の「人に聞くのは答えで動きが変わる時だけ」（`docs/owner-decisions.md` の本質 6）と、決め `transition-not-count`（中央から端へ移れば抜ける）に当たる。細部の穴は試験 1 本で縛れるのに中央に数えられて往復を伸ばし、裏返しは人の優先の付け方で決まる問い（`settle-by-standard` の ②）なのに往復が詰め続けた。新しい仕組みは足さず、穴の行に任意の欄 1 つ、出自に語 1 つを足す。
+
+### 21.2 試験 1 本で守れる細部（`guard-demotes`）
+
+1. 指示: `parts/checks.md` の「How to write the holes」の `reach` の段落に、害が 1 つの関数の中の細部（並べ方・上限の計算・同点の扱い）に収まり、受け入れの試験 1 本で縛れる `loses_behavior` の穴は、守る試験を `guard` に書いて端にする、と書く。設計の選び（どの部品・境目・道を使うか）の穴は下げない。2 往復目からの頼み（`rereview-ask.md`・`diff-ask.md`）にも、前の中央の block をこの形で下げてよいと 1 文足す（下げる時の訳を `why` の頭に書く今の決まり `converge.relabel_gaps` はそのまま）。
+2. 受け付け: `take.face_row_gaps` が、`guard` の在る穴の `reach` が端でなければ拒む（yes/no）。試験 1 本で守れる細部かは審査役が判じ、機械は照らさない（持ち主の決めの 1）。
+3. 運ぶ道: 端の block の今の道のまま（line の SETTLED で修正の段へ申し送る）。`review.json` の穴の行に `guard` が残り、修正の段の `workflows/fix/src/board.py` の `plan_faces_text`（修正役の指示の穴の行）と `declared_lines`（直さずに残した穴の行。直しの後の目 R4 が読む）が尾「（守る試験: …）」を付ける。修正役は今の決まり（`.shared/prompts/writer.md` の `plan_faces`）のまま、穴を取り込む（尾の試験を足す）か残す訳を答える。書き手の指示の字は付録 A の控え（`tests/workflows/writer-prompts-before.json`）が縛るので変えない。
+4. 決めた細目（窓口が決めきれない物でないので自分で決めた）: 守る試験は計画の項目の `tests` に機械が差し込まず、穴の行の欄に置く。計画の項目の行を機械が変えると、項目の hash が変わって閉じた項目と保留の決まり（`converge._item_states`）が崩れるため。修正役は穴の行を必ず答える（`plan_face_errors`）ので、試験は修正の段へ届く。
+
+### 21.3 前に閉じた穴の裏返し（`flip-asks`）
+
+1. 指示: `parts/origin-ask.md` の出自の語に `flip`（直しが閉じた block の裏返しを開いた。`of` に閉じた block の key）を足し、`flip` の block には推し `recommend`（どちらを優先するか）を書けと言う。後の往復で挙げ直す時も推しを残す。
+2. 閉じた block: block に挙げた往復より後の往復（今の往復の `resolved` を含む）の `resolved` に入り、その後に block に挙げ直していない key（`converge.closed_keys`。#980 の守る決まりの `closed_faces` と同じ数え方で、開いた項目に絞らない）。
+3. 採る決まりの 1 か所: `converge.flip_claims`（`origin` が `flip`・key が今の往復の新しい block・`of` が閉じた block・同じ key の申告が 1 つ）。line の `rounds.add_pass` は `converge.take_flips` で往復の行の `origins` の語を `flip` にし、`flips`（`{key: of}`。`shared:plan-converge.schema.json`）を置く。
+4. 止め時: `converge.central_keys` は、どれかの往復の `flips` に在る key を札に依らず中央に数えない（`decide` の 2 つの道が引く）。`_item_states` も前の往復の裏返しで項目を保留にしない。裏返しのほかに中央の block が無ければ SETTLED で修正の前へ進む。
+5. 受け付け: `take.flip_gaps` が、`of` が閉じた block でない・key が新しい block でない申告と、裏返しの block（今の申告の物と前の往復で採った物の挙げ直し）に `recommend` の無い行を拒む（拒みの頭 `FLIP_REJECT`）。line が採らない申告を受けて、承認ノードの行と記録が食い違うのを防ぐ。
+6. 承認ノードの行: `gate.flips` が今の往復の裏返しの block（前の往復で採った物と、`pass.json` の申告を `flip_claims` で照らした物）を引き、`_face_rows` がその穴を kind に依らず種類 `gatemarks.FLIP_KIND`（`flip`）の行 1 つにする。文は「事前審査の穴 [flip] <key>（前に閉じた <of> の裏返し。…）: <why>」（`gatemarks.FACE_HEAD` が種類を読む形）。決め手の欄の `undecided_because` は `gatemarks.FLIP_WHY`（印 ②）にして、いつも人に聞く。推しは審査役の `recommend` で、無人の run は今の推しの道（line の `gates.passage`）で採る。
+7. 報告: line の往復の頭の行（`rounds._share_text`）は裏返しの数を出し、止めた全部のうちの割合の分母に入れる（直しが持ち込んだ穴なので）。
+

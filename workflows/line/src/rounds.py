@@ -28,9 +28,9 @@ import re
 import shutil
 
 import cite
-from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, OPEN, ORIGIN_INTRODUCED, ORIGIN_MISSED,
-                      ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH, SETTLED, STUCK, UNSETTLED,
-                      block_faces, central, central_keys, sentence_diff, sentences)
+from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, FLIPS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, OPEN, ORIGIN_FLIP, ORIGIN_INTRODUCED,
+                      ORIGIN_MISSED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH, SETTLED, STUCK,
+                      UNSETTLED, block_faces, central, central_keys, flipped, sentence_diff, sentences, take_flips)
 
 LIMIT = 20
 PLAN_ROLE = "plan"   # 修正案の役の拒否の行の role（元の planfile の ROLE）
@@ -46,7 +46,7 @@ LINE_HEAD = ("事前審査の壁打ち: {n} 往復・抜け方は{word}（記録
 # 1 回目の割合の分母に言い換えを入れないのは、言い換えが 1 回目の block の言い直しで新しい穴でないから。持ち込みを 1 回目の割合の
 # 分母に入れないのは、直しが後で作った穴が 1 回目の見つける力を下げて見せるから（止めた全部のうちの割合には入れる）
 LINE_SHARE = ("1 回目の block {first} 件・後の回の新しい block: 見落とし {missed}・持ち込み {introduced}・言い換え {rephrased}・"
-              "分けられない {unsplit}。1 回目に出た割合は {share}（後の回が審査した所の見落としだけを数えるので、閉じた項目の取りこぼしは"
+              "分けられない {unsplit}・前に閉じた穴の裏返し {flip}。1 回目に出た割合は {share}（後の回が審査した所の見落としだけを数えるので、閉じた項目の取りこぼしは"
               "数えない上限。run の後で見つかった穴は割合に入らない）、止めた全部のうちでは {total}")
 LINE_NO_BLOCK = "止めた block なし"
 LINE_PASS = ("  - {k} 往復目: block {keys}・答えの要る穴（block と suggest）への答え fixed {f} 件・disputed {d} 件・審査が消えたと言った key {resolved}"
@@ -169,11 +169,11 @@ def _quoted(quote: str, mine: list, before: dict, changed: set) -> str:
     return {(True, False, False): ORIGIN_MISSED, (False, True, False): ORIGIN_INTRODUCED}.get(tuple(hit), ORIGIN_UNSPLIT)
 
 
-def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set) -> list[dict]:
+def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set, soft=()) -> list[dict]:
     before = {it["id"]: it for it in prev}
     rows = [{"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
              "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
-    hard = {f.get("key") for f in faces if central(f)}
+    hard = {f.get("key") for f in faces if central(f)} - set(soft)   # soft: 前の往復で採った裏返し（保留にしない。converge.flipped）
     for f in faces:
         for i in _attributed(face_units.get(f.get("key")) or [], rows):
             rows[i]["blocks"].append(f.get("key"))
@@ -227,7 +227,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     if doc.get("plan"):
         row["face_units"] = {f.get("key"): [str(k) for k in f.get("unit_keys") or []] for f in faces}
         row["items"] = _item_states(doc["plan"], faces, row["face_units"],
-                                    list(_last_items(doc).values()), earlier)
+                                    list(_last_items(doc).values()), earlier, soft=flipped(passes))
         for it in row["items"]:
             if it["n"] in (hits or {}):
                 it["hits"] = copy.deepcopy(hits[it["n"]])
@@ -239,6 +239,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
         rows=row.get("items") or [], prev=list(_last_items(doc).values()), face_units=row.get("face_units") or {},
         earlier=earlier, earlier_units={key: units for p in passes for key, units in (p.get("face_units") or {}).items()},
         resolved=list(resolved))
+    take_flips(row, passes, origins, [key for key in blocks if key not in earlier] if passes else [])   # 裏返し（持ち主の決め flip-asks）
     passes.append(row)
     row["outcome"] = decide(passes)
     if at_cap and row["outcome"] == AGAIN:   # 輪がもう 1 周回せない: 抜けないと輪が尽きて節が落ちるので、ここで止める
@@ -375,11 +376,11 @@ def _share_text(passes: list) -> str:
     made = [w for p in passes[1:] for w in (p.get("origins") or {}).values()]
     n = {w: made.count(w) for w in ORIGIN_WORDS}
     seen = first + n[ORIGIN_MISSED] + n[ORIGIN_UNSPLIT]
-    total = seen + n[ORIGIN_INTRODUCED]
+    total = seen + n[ORIGIN_INTRODUCED] + n[ORIGIN_FLIP]   # 裏返しも直しが持ち込んだ穴
     if not total:
         return LINE_NO_BLOCK
     return LINE_SHARE.format(first=first, missed=n[ORIGIN_MISSED], introduced=n[ORIGIN_INTRODUCED],
-                             rephrased=n[ORIGIN_REPHRASED], unsplit=n[ORIGIN_UNSPLIT],
+                             rephrased=n[ORIGIN_REPHRASED], unsplit=n[ORIGIN_UNSPLIT], flip=n[ORIGIN_FLIP],
                              share=f"{first}/{seen}" if seen else NONE, total=f"{first}/{total}")
 
 

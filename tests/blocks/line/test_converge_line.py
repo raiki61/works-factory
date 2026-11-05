@@ -330,7 +330,7 @@ class TextCase(BoardCase):
         self.record(["key-alpha"])
         got = C.lines(self.b)
         path = self.b.work(C.PASS_DIR)
-        share = C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=0, unsplit=0, share="1/1", total="1/1")
+        share = C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=0, unsplit=0, flip=0, share="1/1", total="1/1")
         self.assertEqual(got[0], C.LINE_HEAD.format(n=2, word="同じ block が続いた", outcome="persisted",
                                                            persists="key-alpha", share=share, path=path))
         self.assertEqual(got[1:], [
@@ -525,7 +525,7 @@ class ItemsCase(BoardCase):
         self.assertEqual(got["origins"], {"key-b1": C.ORIGIN_INTRODUCED, "key-b2": C.ORIGIN_UNSPLIT,
                                           "key-c1": C.ORIGIN_INTRODUCED})
         self.assertEqual(got["origins_claimed"], [])
-        self.assertIn(C.LINE_SHARE.format(first=1, missed=0, introduced=2, rephrased=0, unsplit=1, share="1/2", total="1/4"),
+        self.assertIn(C.LINE_SHARE.format(first=1, missed=0, introduced=2, rephrased=0, unsplit=1, flip=0, share="1/2", total="1/4"),
                       C.lines(b)[0])
 
     def test_rephrased_block_is_not_counted_new(self):
@@ -533,7 +533,7 @@ class ItemsCase(BoardCase):
         claim = {"key": "key-a2", "origin": C.ORIGIN_REPHRASED, "of": "key-a1"}
         b, got = self.second_pass(2, [face("key-a2", units=["u1"])], origins=[claim])
         self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-a2": C.ORIGIN_REPHRASED}, []))
-        self.assertIn(C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=1, unsplit=0, share="1/1", total="1/1"),
+        self.assertIn(C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=1, unsplit=0, flip=0, share="1/1", total="1/1"),
                       C.lines(b)[0])
 
     def test_rephrased_without_resolved_prior_key_falls_back(self):
@@ -786,6 +786,35 @@ class PushableCase(unittest.TestCase):
         self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": False, "note": "key-a1"}, unattended=True, design_talk=False))
         self.assertFalse(rounds.stuck_pushable(self.doc(), {"go": True, "note": "引いていない"}, unattended=True, design_talk=False))
         self.assertFalse(rounds.stuck_pushable(self.doc(), None, unattended=True, design_talk=False))
+
+
+class FlipCase(BoardCase):
+    """前に閉じた block の裏返し（持ち主の決め flip-asks）を line の記録 src.rounds.add_pass が採る（lib の FlipCase と同じ場面）"""
+
+    def flip(self, key, of):
+        return {"key": key, "origin": C.ORIGIN_FLIP, "of": of}
+
+    def test_flip_of_a_closed_block_settles_and_is_kept_on_later_passes(self):
+        self.record(["key-a1"])
+        row = self.record(["key-b1", "key-c1"], resolved=["key-a1"], origins=[self.flip("key-b1", "key-a1")])
+        self.assertEqual((row[C.FLIPS], row["origins"]["key-b1"], row["outcome"]), ({"key-b1": "key-a1"}, C.ORIGIN_FLIP, C.AGAIN))
+        self.assertEqual(self.record(["key-b1"], resolved=["key-c1"])["outcome"], C.SETTLED)
+        share = C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=0, unsplit=1, flip=1, share="1/2", total="1/3")
+        self.assertIn(share, C.lines(self.b)[0], "頭の行は裏返しを数え、止めた全部のうちの分母に入れる")
+
+    def test_flip_of_an_open_block_is_not_taken(self):
+        self.record(["key-a1"])
+        row = self.record(["key-a1", "key-b1"], origins=[self.flip("key-b1", "key-a1")])
+        self.assertNotIn(C.FLIPS, row)
+        self.assertEqual(row["outcome"], C.PERSISTED)
+
+    def test_flip_raised_again_does_not_hold_its_item(self):
+        C.note_plan(self.b, [row("u"), row("v")])
+        self.record(["key-a1"])
+        self.record(["key-b1"], extra=[face("key-c1", units=("v",))], resolved=["key-a1"], origins=[self.flip("key-b1", "key-a1")])
+        got = self.record(["key-b1"], resolved=["key-c1"])
+        self.assertEqual([it["state"] for it in got["items"]], [C.OPEN, C.CLOSED])
+        self.assertEqual(got["outcome"], C.SETTLED)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ FENCES_TWICE = "faces[{j}]（{key}）: fences に同じ語が 2 つ（{words}）
 GIVEN_UP_FACES = steps.GIVEN_UP_FACES   # 諦めの返答の頭（出口が同じ字で読む。字の住処は src/steps.py）
 FACE_MARKS = files.FACE_MARKS   # 穴の行から外した決め手の欄（review.json の faces と同じ並び。src/gate.py が読む）
 MATERIAL_N = re.compile(r"review-material-(\d+)\.md")
+FLIP_REJECT = "前に閉じた block の裏返し（出自 flip）の申告に誤りが在る:"   # 持ち主の決め flip-asks
 MEANS_REJECT = "頼みの解き方の推し（means_departs）か食い違い（means_drifts）の行に欠けか誤りが在る:"
 # 往復をまたいで積む頼みの解き方の行の欄と、後勝ちに合わせる鍵（計画 means-answers の 3.2 の 6）
 MEANS_ROWS = {"means_drifts": ("item", "means", "plan_quote"), "means_departs": ("item", "means")}
@@ -118,7 +119,36 @@ def face_row_gaps(faces, rows) -> list[str]:
     faces = faces or []
     entrance = [f"faces[{j}]（{str(f.get('key'))[:40]}）: entrance に no_add（柵や入口を足さずに閉じる形。無理なら無理な理由）が無い"
                 for j, f in enumerate(faces) if isinstance(f, dict) and f.get("kind") == "entrance" and recount.blank(f.get("no_add"), 20)]
-    return policy.face_gaps(faces, rows) + entrance + planmarks.machine_face_gaps([f if isinstance(f, dict) else {} for f in faces])
+    guard = [f"faces[{j}]（{str(f.get('key'))[:40]}）: {converge.GUARD}（守る試験）は端（{converge.PERIPHERAL}）に下げた穴だけに書く"
+             f"（今の reach は {f.get(converge.REACH)}）"
+             for j, f in enumerate(faces) if isinstance(f, dict) and converge.GUARD in f and f.get(converge.REACH) != converge.PERIPHERAL]
+    return (policy.face_gaps(faces, rows) + entrance + guard
+            + planmarks.machine_face_gaps([f if isinstance(f, dict) else {} for f in faces]))
+
+
+def flip_gaps(b, faces, origins, resolved) -> list[str]:
+    """前に閉じた block の裏返しの申告（出自 flip。持ち主の決め flip-asks）の誤り: of が前の往復までに閉じた block（今の往復の resolved を
+    含む。converge.closed_keys）でない・key が今の往復の新しい block でない申告と、裏返しの block（今の申告の物と、前の往復で採った物を
+    挙げ直した物）に推し recommend が無い行。line の記録（converge.flip_claims）が採らない申告を受けて、承認ノードの行と記録が食い違う
+    のを防ぐ"""
+    passes = converge.read(b)["passes"]
+    earlier = {k for p in passes for k in p.get("blocks", [])}
+    blocks = {f.get("key"): f for f in converge.block_faces({"faces": faces})}
+    closed = converge.closed_keys(passes, resolved)
+    out = []
+    for c in origins or []:
+        if not isinstance(c, dict) or c.get("origin") != converge.ORIGIN_FLIP:
+            continue
+        key, of = str(c.get("key")), c.get("of")
+        if key not in blocks or key in earlier:
+            out.append(f"origins の {key}: flip は今の往復の新しい block（前のどの往復の block の key とも違う key）に書く")
+        if of not in closed:
+            out.append(f"origins の {key}: of の {of} は前の往復までに閉じた block でない（block に挙がり、後の往復の resolved に入った key を書く）")
+    flips = {**converge.flipped(passes), **{str(c.get("key")): c.get("of") for c in origins or []
+                                            if isinstance(c, dict) and c.get("origin") == converge.ORIGIN_FLIP}}
+    out += [f"{key}: 裏返しの block には {gatemarks.RECOMMEND}（どちらを優先するかの推し）を書く" for key in blocks
+            if key in flips and gatemarks.recommend_of(blocks[key]) is None]
+    return out
 
 
 def fences_twice(faces) -> list[str]:
@@ -302,6 +332,9 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
         gaps = converge.resolved_gaps(b, review.get("faces") or [], merged["resolved"])
         if gaps:
             raise Reject(_lines(RESOLVED_REJECT, gaps))
+        gaps = flip_gaps(b, review.get("faces") or [], merged["origins"], merged["resolved"])
+        if gaps:
+            raise Reject(_lines(FLIP_REJECT, gaps))
     view.plan_review_output(b, REVIEW_NODE, review, None)
     twice = fences_twice(review.get("faces"))
     if twice:

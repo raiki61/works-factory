@@ -133,7 +133,8 @@ nodes:
                             "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
                           }
                         },
-                        "no_narrow": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"}
+                        "no_narrow": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
+                        "guard": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"}
                       }
                     }
                   },
@@ -240,7 +241,7 @@ nodes:
                       "required": ["key", "origin"],
                       "properties": {
                         "key": {"type": "string"},
-                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased"]},
+                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased", "flip"]},
                         "of": {"type": "string"},
                         "quote": {"type": "string"}
                       }
@@ -314,7 +315,8 @@ nodes:
                             "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
                           }
                         },
-                        "no_narrow": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"}
+                        "no_narrow": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
+                        "guard": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"}
                       }
                     }
                   },
@@ -421,7 +423,7 @@ nodes:
                       "required": ["key", "origin"],
                       "properties": {
                         "key": {"type": "string"},
-                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased"]},
+                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased", "flip"]},
                         "of": {"type": "string"},
                         "quote": {"type": "string"}
                       }

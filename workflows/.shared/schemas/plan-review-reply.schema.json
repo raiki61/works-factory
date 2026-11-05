@@ -21,7 +21,8 @@
           "fences": {"type": "array", "items": {"type": "string"}},
           "world": {"type": "string"},
           "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}},
-          "no_narrow": {"type": "string"}
+          "no_narrow": {"type": "string"},
+          "guard": {"type": "string", "description": "端に下げた穴を守る試験（持ち主の決め guard-demotes。修正役と直しの後の目が読む）"}
         }
       }
     },
