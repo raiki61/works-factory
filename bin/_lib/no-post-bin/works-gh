@@ -18,12 +18,20 @@ api の外の形では `-w`・`--web`（ブラウザを開く）を拒む（短�
 それが利用者のログインを継ぐ口（bin/_lib/hostgh.py が書く）。本物の gh のパスを env に置かない・断りの文に出さない（役がその値で本物の gh を
 打つ道を作らない。事故の柵で、堅い境ではない）。
 
+本物の gh は子として起こして終わりを待ち、gh の終了コードを返す（子の出力は口を通らず、そのまま役へ流れる）。gh が 0 でなく
+終われば、gh の出力の後ろの標準エラーに「単独の 1 コマンドで打ち直す」の 1 行（打ち直す字を含む）を足す。役がパイプ・;・for と
+組んで打つと口は sandbox の中で走り、gh の出す文（x509 の証明書のエラーなど）は囲いのせいだと示さないので、役は同じ組んだ形で
+打ち直し続けた。照らしは起こす前に済むので、起こし方を替えても通す形は変わらない。
+
 今の works の包み（.shared/core/adapter.py）はこの口を PATH の頭に 2 つの名で置く（bin/ の起動の包みも同じ置き場を役の PATH の頭に置く）: `works-gh`（役が素の名で呼ぶ名。sandbox の除外に当たる。
 今の works の adapter の RO_GH）と `gh`
 （`command gh`・`xargs gh`・`sh -c "gh …"` など、permissions.deny の `Bash(gh:*)` の前方一致をすり抜ける呼び方の受け皿）。
 """
 import os
 import re
+import shlex
+import signal
+import subprocess
 import sys
 import urllib.parse
 
@@ -165,8 +173,15 @@ def main(argv):
     real = real_gh()
     if real is None:
         return refuse("本物の gh が PATH に無い")
-    os.environ["WORKS_FACTORY_GH_ACTIVE"] = "1"
-    os.execv(real, [real] + list(argv))
+    try:
+        code = subprocess.call([real] + list(argv), env={**os.environ, "WORKS_FACTORY_GH_ACTIVE": "1"})
+    except KeyboardInterrupt:
+        code = -signal.SIGINT
+    if code != 0:
+        sys.stderr.write(f"works-gh: gh が終了コード {code} で終わった。パイプ・;・&&・for・$( ) と組んで打つと sandbox の中で走り、"
+                         "ネットワークに届かない（x509 の証明書のエラーなどになる）。組んで打ったなら、単独の 1 コマンドで打ち直す: "
+                         f"works-gh {shlex.join(argv)}\n")
+    return code if code >= 0 else 128 - code
 
 
 if __name__ == "__main__":

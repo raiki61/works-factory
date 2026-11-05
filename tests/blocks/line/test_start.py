@@ -377,6 +377,17 @@ class StartCase(Seeded):
         self.assertEqual(got["ports"]["request_answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
 
+    def test_request_pr_alone_names_the_pr_input_in_the_refusal(self):
+        """依頼のファイルの pr だけ（{"pr": [N]}）は差分を名指さないので空の入力として断る。その断りの文は、依頼の pr が前の run から
+        持ち越す番号で差分を名指さないことと、PR の差分を名指す入力 pr=N を言う（手引きの形の行を読んだ頼み手が打ち直せるように）。
+        依頼の pr が無い断りは入力 pr の話を足さない"""
+        path = self.outside("pr_only.json", json.dumps({"pr": [2473]}))
+        reason = self.refused(request=str(path))
+        self.assertIn(entryshape.EMPTY_REFUSED, reason)
+        self.assertIn("pr=2473", reason)
+        rows = self.outside("answers_only.json", json.dumps({"answers": [{"question": "q1", "text": "a"}]}))
+        self.assertNotIn("pr=", self.refused(request=str(rows)))
+
     def test_request_with_empty_container_is_refused_at_entry(self):
         """{"findings": []} の形で、ほかの欄（pr・issue・answers・prior_failures・constraints・theme）も全部空なら、base で差分が在っても
         入口で断る（通すと判定が走り切ってから止まる）。findings を省いた形（test_request_without_findings_is_taken）は受ける"""

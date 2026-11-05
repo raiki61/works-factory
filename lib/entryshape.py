@@ -115,14 +115,18 @@ def measure(repo: pathlib.Path, base_rev: str) -> dict:
         raise Refused(f"差分を測れない: {e}") from None
 
 
-def refuse_empty(items: list, change, repo: pathlib.Path) -> None:
+def refuse_empty(items: list, change, repo: pathlib.Path, carried_pr=()) -> None:
     """依頼の行が空で、差分の根（名指しが無ければ HEAD）から作業ツリーまでの差分も空なら Refused（EMPTY_REFUSED で始まる 1 行）。
-    依頼の行が在れば git を測らない（盤面を作る前・CI の前に止める）"""
+    依頼の行が在れば git を測らない（盤面を作る前・CI の前に止める）。carried_pr（依頼のファイルの pr の番号）が在って差分の根の
+    名指しが無ければ、依頼の pr は差分を名指さないことと、差分を名指す入力 pr=<番号> を文に足す（依頼の形の pr を差分の名指しと
+    読んだ頼み手が打ち直せるように）"""
     if items:
         return
     if measure(repo, change["base_rev"] if change else _git(repo, "rev-parse", "HEAD"))["empty"]:
+        hint = (f"。依頼のファイルの pr {list(carried_pr)} は前の run から持ち越す番号で、差分を名指さない——PR の差分を見せるなら"
+                f"入力 pr={carried_pr[0]} で名指す") if carried_pr and not change else ""
         raise Refused(f"{EMPTY_REFUSED}——依頼（request）を名指すか、差分の在る base・PR を名指す（差分の根から作業ツリーまでが空で、"
-                      "依頼の行も無い）")
+                      f"依頼の行も無い）{hint}")
 
 
 def build(inp: dict, repo: pathlib.Path) -> dict:
