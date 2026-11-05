@@ -1,0 +1,40 @@
+:root {
+  --bgColor-default: #ffffff; --bgColor-muted: #f6f8fa; --bgColor-inset: #f6f8fa; --bgColor-neutral-muted: #818b981f;
+  --bgColor-accent-muted: #ddf4ff; --bgColor-accent-emphasis: #0969da;
+  --bgColor-success-muted: #dafbe1; --bgColor-success-emphasis: #1f883d;
+  --bgColor-danger-muted: #ffebe9; --bgColor-danger-emphasis: #cf222e;
+  --bgColor-severe-muted: #fff1e5; --bgColor-neutral-emphasis: #59636e;
+  --fgColor-default: #1f2328; --fgColor-muted: #59636e; --fgColor-accent: #0969da; --fgColor-onEmphasis: #ffffff;
+  --fgColor-success: #1a7f37; --fgColor-danger: #d1242f; --fgColor-severe: #bc4c00; --fgColor-done: #8250df;
+  --borderColor-default: #d1d9e0; --borderColor-muted: #d1d9e0b3; --borderColor-translucent: #1f232826;
+  --frame-bg: #f6f8fab3; --col-alt: #f6f8fa80; --col-late: #ffebe94d; --shadow: 0 1px 2px #1f23281a, 0 3px 8px #1f23280f;
+  --fontStack-system: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, "Hiragino Sans", "Noto Sans JP", "Meiryo", sans-serif;
+  --fontStack-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(:has(body.vscode-light)) {
+    --bgColor-default: #0d1117; --bgColor-muted: #151b23; --bgColor-inset: #010409; --bgColor-neutral-muted: #656c7633;
+    --bgColor-accent-muted: #388bfd1a; --bgColor-accent-emphasis: #1f6feb;
+    --bgColor-success-muted: #2ea04326; --bgColor-success-emphasis: #238636;
+    --bgColor-danger-muted: #f851491a; --bgColor-danger-emphasis: #da3633;
+    --bgColor-severe-muted: #db6d281a; --bgColor-neutral-emphasis: #656c76;
+    --fgColor-default: #f0f6fc; --fgColor-muted: #9198a1; --fgColor-accent: #4493f8; --fgColor-onEmphasis: #ffffff;
+    --fgColor-success: #3fb950; --fgColor-danger: #f85149; --fgColor-severe: #db6d28; --fgColor-done: #ab7df8;
+    --borderColor-default: #3d444d; --borderColor-muted: #3d444db3; --borderColor-translucent: #ffffff26;
+    --frame-bg: #151b23b3; --col-alt: #151b2380; --col-late: #f851490f; --shadow: 0 1px 2px #0006, 0 3px 8px #0004;
+    color-scheme: dark;
+  }
+}
+:root:has(body.vscode-dark) {
+  --bgColor-default: #0d1117; --bgColor-muted: #151b23; --bgColor-inset: #010409; --bgColor-neutral-muted: #656c7633;
+  --bgColor-accent-muted: #388bfd1a; --bgColor-accent-emphasis: #1f6feb;
+  --bgColor-success-muted: #2ea04326; --bgColor-success-emphasis: #238636;
+  --bgColor-danger-muted: #f851491a; --bgColor-danger-emphasis: #da3633;
+  --bgColor-severe-muted: #db6d281a; --bgColor-neutral-emphasis: #656c76;
+  --fgColor-default: #f0f6fc; --fgColor-muted: #9198a1; --fgColor-accent: #4493f8; --fgColor-onEmphasis: #ffffff;
+  --fgColor-success: #3fb950; --fgColor-danger: #f85149; --fgColor-severe: #db6d28; --fgColor-done: #ab7df8;
+  --borderColor-default: #3d444d; --borderColor-muted: #3d444db3; --borderColor-translucent: #ffffff26;
+  --frame-bg: #151b23b3; --col-alt: #151b2380; --col-late: #f851490f; --shadow: 0 1px 2px #0006, 0 3px 8px #0004;
+  color-scheme: dark;
+}
+

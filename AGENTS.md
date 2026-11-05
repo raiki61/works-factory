@@ -76,7 +76,7 @@ works-factory/
 │   ├── borrow/                  借りた superpowers の写しと固定（borrow.json）・継ぎ目の表（seams.json）・無人の読み替え（unattended.md）。読み口は lib/spseam.py
 │   ├── graphloops/engine/       元の graphloops の小道具のうち残る 3 つ（declared.py・schema.py・util.py）
 │   └── tests/                   lib/ の試験
-├── viewer/                      見る道具（AGENTS.md が E25）。run の記録をトレースにして利用者が手元に置いた画面（Phoenix など）へ送る物で、工場の中からは頼らない。入口 runtrace.py・読む部品とトレースの部品 src/（トレースは trace.py・sendto.py・otlp.py）・段の表 stages.json
+├── viewer/                      見る道具（AGENTS.md が E25）。run の記録をトレースにして利用者が手元に置いた画面（Phoenix など）へ送る物と、run を 1 枚の HTML にする物で、工場の中からは頼らない。入口 runtrace.py（トレース）と runpage.py（ページ）・読む部品とトレースとページの部品 src/（トレースは trace.py・sendto.py・otlp.py、ページは page.py・ioflow.py・fill.py）・ページの雛形と埋める物 page/・段の表 stages.json
 ├── tests/                       lib/ 以外の試験（AGENTS.md が試験の決まり）
 │   ├── layers/                  形と層の決まりの yes/no の試験（各決まりの「機械」の行）。block の形は test_block_shape.py
 │   ├── blocks/                  block の試験（tests/blocks/<block の名の - を _ にした物>/。助けは tests/blocks/kit.py）

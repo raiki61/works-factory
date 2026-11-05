@@ -159,6 +159,10 @@ Archon's cancel does not stop the processes of the AI nodes (each node's Claude 
 - Instead of `--endpoint` you can name the destination with the standard `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (used as is) or `OTEL_EXPORTER_OTLP_ENDPOINT` (`/v1/traces` is added). Headers (`OTEL_EXPORTER_OTLP_TRACES_HEADERS`, `OTEL_EXPORTER_OTLP_HEADERS`) are sent only to a destination named by those env variables. The only `OTEL_` settings the entry reads are the destination, the headers, and the protocol (anything other than `http/protobuf` is refused); it does not use any other `OTEL_` setting (certificates, client keys, timeouts, compression).
 - Sending the same run again does not duplicate it: span ids are fixed by the run, and Phoenix keeps the spans it already has and ignores the resent ones. To see changed records of a run you already sent, delete that trace in Phoenix first.
 
+### Seeing a run as one page
+
+`viewer/runpage.py` turns one run into a single self-contained HTML page: the run folded by the factory's own units (stages, blocks, loops, nodes), each block's inputs and returned fields, the branches with their `when` conditions evaluated on the recorded values, rejects, approval answers, and a draft command to rerun one block with the recorded inputs (the command is not tested). It reads the same records as `runtrace.py`, sends nothing, and writes no file: from the root of this clone, `uv run --isolated python3 viewer/runpage.py --target <target> [--run <run id or its first characters>] > <page>.html`, then open the page in a browser. The page loads no other file and nothing from the network.
+
 ### Request file
 
 `--input request=<path>` is the path of a JSON file describing what you want fixed. A relative path is read from the root of the run's worktree (laid out the same as the target's root). An uncommitted file placed inside the target also reaches the run's worktree through the wrapping described in "Worktree start point" below, but to keep the request out of the run's starting commit, it is better to put it outside the target and pass an absolute path.

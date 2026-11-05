@@ -4,7 +4,8 @@
 道具の出来事の型は、源の型の和の全部をここに持ち（読む型と読まない型）、源に在ってここに無い型も同じ試験が赤にする。知らない型の行は
 数えて返し、黙って落とさない。DB は読むだけで開く。
 
-- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・結果の語 result_word・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え）
+- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・結果の語 result_word・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え。
+  ページが読む run の入力 inputs・ノードの状態ごとの数 node_counts・置き場の根 output_root も）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
   ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
@@ -68,6 +69,10 @@ FAILED = "failed"
 # run の metadata の欄（子の run を起こしたノードは packages/workflows/src/run-admission.ts、費用は packages/workflows/src/schemas/run-usage.ts）
 PARENT_NODE = "parent_node_id"
 TOTAL_COST = "total_cost_usd"
+# run の metadata の入力（packages/workflows/src/schemas/run-metadata.ts の SUBRUN_METADATA_KEYS）と、終わりに書くノードの状態ごとの数
+# （packages/workflows/src/dag/run-terminal.ts）。ページ（src/page.py）だけが読む。ほかの欄（run_config など）は読まない
+INPUTS = "inputs"
+NODE_COUNTS = "node_counts"
 # DB のノードの終わりの出来事の欄（AI の呼び出しの費用と、その費用がノード自身の物か。packages/workflows/src/node-record-serialization.ts）。
 # run の費用 TOTAL_COST が空の run は、ノード自身の費用の和で代える（後から書く費用の出来事 DEFERRED_EVENT も同じファイル）
 NODE_COST = "cost_usd"
@@ -262,7 +267,13 @@ def run(db: Path, run_id: str) -> dict:
             "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
             "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
-            "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts}
+            "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts,
+            "inputs": _dict(meta.get(INPUTS)), "node_counts": _dict(meta.get(NODE_COUNTS)), "output_root": str(root) if root else ""}
+
+
+def _dict(value) -> dict:
+    """metadata の欄の object。形が違えば空（ページが読むだけの欄で、トレースの組みには渡らない）"""
+    return value if isinstance(value, dict) else {}
 
 
 def _cost(meta: dict, spent: dict, run_id: str) -> float | None:
