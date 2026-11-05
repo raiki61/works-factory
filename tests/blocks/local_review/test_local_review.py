@@ -267,6 +267,17 @@ class FlowCase(unittest.TestCase):
         self.intake()
         self.assertIn("The target repository's own review viewpoints:", self.prep()["prompt"])
 
+    def test_code_review_is_started_inside_an_agent_child(self):
+        """/code-review を役の会話の Skill で直に起こすと、fork が役の返答の道具 StructuredOutput を継いで所見をそこへ書き、本文が
+        届かない（実測 2026-11-05: guided-resolver の局所レビューの会話 15 本すべて）。general-purpose の子の中で Skill を起こすと、
+        子も孫の fork も返答の道具を持たず本文が返る（実測 4 本中 4 本）。指示がその道を役に渡すか"""
+        self.intake()
+        got = self.prep()["prompt"]
+        section = got[got.index("## How /code-review returns"):]
+        self.assertIn("Do not start `/code-review` with Skill in this conversation", section)
+        self.assertIn("general-purpose child", section)
+        self.assertNotIn("A lens whose name starts with `/` is a skill, started with Skill.", got)
+
     def test_lang_reaches_the_prompt(self):
         self.intake(lang="Japanese")
         self.assertIn("in Japanese.", self.prep()["prompt"])
