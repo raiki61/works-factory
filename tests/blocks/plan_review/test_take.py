@@ -748,6 +748,64 @@ class RereviewCase(FlowCase):
         self.assertTrue(f.accept(review(moved))["ok"])
 
 
+class FlipCase(FlowCase):
+    """前に閉じた block の裏返し（持ち主の決め flip-asks）: 2 往復目に閉じた block の裏返しを出自 flip で申告した新しい block は、推しと
+    閉じた key を照らして受け、修正の前の承認ノードに回しうる行（asks の種類 flip）になり、line の記録では中央に数えない"""
+
+    ANSWERS = RereviewCase.ANSWERS
+    second = RereviewCase.second
+    REC = {"answer": "continue", "note": "観点ごとの検索を先に並べ、渡された語は残りの枠に入れる", "why": "依頼の目的が観点ごとの網羅だから"}
+
+    def flipped(self, **extra):
+        new = face("item1-terms-starved-by-limit", kind="regression", reach="loses_behavior", undecided_because=CASE, **extra)
+        origin = {"key": new["key"], "origin": "flip", "of": MEAN_BLOCK["key"]}
+        return new, origin
+
+    def test_flip_needs_a_recommend_and_a_closed_key(self):
+        f = self.flow
+        self.second()
+        new, origin = self.flipped()
+        got = f.accept(review(new, resolved=[MEAN_BLOCK["key"]], origins=[origin]))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(self.take.FLIP_REJECT), got["reason"])
+        self.assertIn("recommend", got["reason"])
+        new, origin = self.flipped(recommend=self.REC)
+        got = f.accept(review(new, MEAN_BLOCK, origins=[origin]))
+        self.assertFalse(got["ok"], got)
+        self.assertIn(f"{MEAN_BLOCK['key']} は前の往復までに閉じた block でない", got["reason"])
+        self.assertTrue(f.accept(review(new, resolved=[MEAN_BLOCK["key"]], origins=[origin]))["ok"])
+
+    def test_flip_goes_to_the_gate_and_settles_the_rounds(self):
+        f = self.flow
+        self.second()
+        new, origin = self.flipped(recommend=self.REC)
+        self.assertTrue(f.accept(review(new, resolved=[MEAN_BLOCK["key"]], origins=[origin]))["ok"])
+        got = f.finish()
+        [row] = [a for a in got["asks"] if a["kind"] == "flip"]
+        self.assertTrue(row["text"].startswith(f"事前審査の穴 [flip] {new['key']}（前に閉じた {MEAN_BLOCK['key']} の裏返し"), row["text"])
+        self.assertFalse(row["decided"])
+        self.assertEqual(row["mark"]["recommend"], self.REC)
+        self.assertEqual([a for a in got["asks"] if a["kind"] == "regression"], [], "裏返しの穴は regression の行に重ねない")
+        line = f.carry()
+        self.assertEqual((line["flips"], line["outcome"]), ({new["key"]: MEAN_BLOCK["key"]}, "settled"))
+
+
+class GuardCase(FlowCase):
+    """試験 1 本で守れる細部の穴を端へ下げる（持ち主の決め guard-demotes）: 守る試験の欄 guard は端（peripheral）の穴だけに書く"""
+
+    GUARD = "test_stats の空の列の平均を断言する試験 1 本で分母の扱いを縛る"
+
+    def test_guard_only_on_peripheral(self):
+        self.flow.intake()
+        self.flow.prep()
+        got = self.flow.accept(review(face("item1-guarded-detail", reach="loses_behavior", guard=self.GUARD)))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(self.take.FACE_REJECT), got["reason"])
+        self.assertIn("guard", got["reason"])
+        self.assertTrue(self.flow.accept(review(face("item1-guarded-detail", reach="peripheral", guard=self.GUARD)))["ok"])
+        self.assertEqual(self.flow.read("review.json")["faces"][0]["guard"], self.GUARD, "修正の段が読む写しに守る試験が残る")
+
+
 class ReplanCase(FlowCase):
     """形 replan（案の直しの事前審査。port ruling が空でない。元 ReplanCase の受け付けの側）: 往復を足さず、pass.json を書かない"""
 

@@ -746,8 +746,18 @@ def closure_table(place) -> list:
     return querytest.closure_rows(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
 
 
+GUARD_TAIL = "（守る試験: {guard}）"   # 端に下げた穴の守る試験（事前審査の穴の欄 guard。持ち主の決め guard-demotes）の尾
+
+
+def _guard(face: dict) -> str:
+    """事前審査の穴の行の守る試験の尾（欄 guard の無い・空の行は空）"""
+    got = face.get("guard") if isinstance(face, dict) else None
+    return GUARD_TAIL.format(guard=oneline.one_line(got)) if isinstance(got, str) and got.strip() else ""
+
+
 def declared_lines(place) -> list:
-    """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の 1 件 1 行「key: why（直す側の答え: how）」。問いは
+    """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の 1 件 1 行「key: why（守る試験: guard）（直す側の答え: how）」
+    （守る試験の尾は欄 guard の在る穴だけ。直しの後の目が、残した穴を守る試験の字で見直す）。問いは
     置き場の事前審査の返答の写し PLAN_REVIEW_FILE の severity block の faces、答えは組の返答の和 FIX_REPLY_FILE（裁定の後の返答
     RULED_REPLY_FILE が同じ key に答えていればそちら）。写しが無ければ []（事前審査の無い run）"""
     p = pathlib.Path(place)
@@ -763,7 +773,7 @@ def declared_lines(place) -> list:
     for f in rv.get("faces") or []:
         a = said.get(f.get("key")) if isinstance(f, dict) and f.get("severity") == "block" else None
         if a is not None and a.get("handled") == "declared":
-            out.append(f"{f['key']}: {oneline.one_line(f.get('why') or '')}（直す側の答え: {oneline.one_line(a.get('how') or '')}）")
+            out.append(f"{f['key']}: {oneline.one_line(f.get('why') or '')}{_guard(f)}（直す側の答え: {oneline.one_line(a.get('how') or '')}）")
     return out
 
 
@@ -875,13 +885,14 @@ def plan_face_rows(place, units) -> list[tuple[str, dict]] | None:
 
 
 def plan_faces_text(place, units) -> str:
-    """修正役の指示の段落 faces に入れる行: plan_face_rows の key の全部を字のまま、要旨 1 行と並べる（見出しと頭の文は md）。
+    """修正役の指示の段落 faces に入れる行: plan_face_rows の key の全部を字のまま、要旨 1 行（穴は守る試験の尾 _guard つき）と並べる
+    （見出しと頭の文は md）。
     行が無ければ空"""
     lines = []
     for kind, r in plan_face_rows(place, units) or []:
         if kind == "faces":
             tag = "・".join(str(x) for x in ("穴", r.get("severity"), r.get("kind")) if x)
-            gist = r.get("why")
+            gist = (r.get("why") or "") + _guard(r)
         else:
             tag, gist = "別案", r.get("alternative")
         lines.append(f"- `{r.get('key')}`（{tag}）: {oneline.one_line(gist or '')}")

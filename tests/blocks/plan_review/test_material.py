@@ -668,6 +668,15 @@ class SplitCase(_Case):
             material.fragment_values(["node:review-tree"], self.r.artifacts, {"form": "text"}, self.r.repo)
         self.assertIn("subagent_type", str(got.exception))
 
+    def test_guard_is_asked_only_where_the_answer_type_carries_it(self):
+        """守る試験 guard を書けと頼むのは、穴の型に guard が在る計画の形（review と、木の下請け・相乗りの指示 item-brief）だけ。
+        形 text・theme の穴の型（additionalProperties: false）は guard を持たないので、その指示は段落の選びのどの枝でも guard を語らない"""
+        word = re.compile(r"\bguard\b")
+        for name in ("node:review", "part:item-brief"):
+            self.assertRegex(material._fragment_text(name), word, name)
+        for name in ("node:review-text", "node:review-theme", "node:review-theme-fix"):
+            self.assertNotRegex(material._fragment_text(name), word, name)
+
     def test_language_line_names_the_lang_port(self):
         """人に見せる欄の言語は port lang（空なら依頼の言語の既定の文）"""
         prompt, _ = self.texts()

@@ -118,6 +118,9 @@ REACH = "reach"
 CENTRAL = ("breaks_fix", "loses_behavior", "against_policy", "forces_redesign")
 PERIPHERAL = "peripheral"
 REACH_SCHEMA = {"type": "string", "enum": [*CENTRAL, PERIPHERAL]}
+# 端に下げた穴を守る試験（穴の行の任意の欄。持ち主の決め guard-demotes）: loses_behavior に当たる害が 1 つの関数の中の細部に収まり、
+# 試験 1 本で守れる穴は、審査役がその試験をここに書いて札を端にする。修正役と直しの後の目（R4）がこの字を読む
+GUARD = "guard"
 
 PERSISTED_WHY = ("事前審査（記録の名 p2.plan_review）の同じ block が、案を直した後も残った（{keys}。壁打ち {n} 往復。"
                  "往復ごとの案と審査: {path}）")
@@ -182,8 +185,12 @@ ORIGIN_MISSED = "missed"   # 出自の語（往復の行の origins の値）
 ORIGIN_INTRODUCED = "introduced"
 ORIGIN_REPHRASED = "rephrased"
 ORIGIN_UNSPLIT = "unsplit"
-ORIGIN_WORDS = (ORIGIN_MISSED, ORIGIN_INTRODUCED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT)
-CLAIMED = (ORIGIN_MISSED, ORIGIN_INTRODUCED, ORIGIN_REPHRASED)   # 審査が申告してよい語
+# 前に閉じた block の裏返し（持ち主の決め flip-asks）: 直しが閉じた block X の裏返し（両方は守れない取り合い）を開いた新しい block。of は X。
+# 採った裏返しは往復の行の FLIPS（{key: of}）に置き、止め時の中央に数えない（修正の前の承認ノードで「どちらを優先するか」を聞く）
+ORIGIN_FLIP = "flip"
+ORIGIN_WORDS = (ORIGIN_MISSED, ORIGIN_INTRODUCED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_FLIP)
+CLAIMED = (ORIGIN_MISSED, ORIGIN_INTRODUCED, ORIGIN_REPHRASED, ORIGIN_FLIP)   # 審査が申告してよい語
+FLIPS = "flips"
 QUOTE = "quote"   # 申告の欄: 穴が指す案の文の字のままの引用（欠けの穴は空。_origins が変わった項目の中の文で照らす）
 ORIGIN_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["key", "origin"],
@@ -225,9 +232,13 @@ def central(face) -> bool:
 
 def central_keys(passes: list[dict], keys) -> list:
     """keys のうち中央の key（出た順）。key ごとの札は、その key を最後に挙げた往復の faces の行から引き、faces に行の無い key
-    （faces の無い古い控えの行を含む）は中央と読む"""
+    （faces の無い古い控えの行を含む）は中央と読む。どれかの往復で採った裏返し（flipped）の key は、札に依らず中央に数えない
+    （往復で詰めず、修正の前の承認ノードで聞く）"""
     out = []
+    soft = flipped(passes)
     for key in keys:
+        if key in soft:
+            continue
         face = next((f for p in reversed(passes) for f in p.get("faces") or [] if f.get("key") == key), None)
         if face is None or central(face):
             out.append(key)
@@ -263,6 +274,52 @@ def _decide_items(passes: list[dict]) -> str:
     if len(passes) >= 2 and not central_keys(passes, _open_blocks(passes[-1])):
         return PERSISTED if HELD in states else SETTLED
     return AGAIN
+
+
+def flipped(passes: list[dict]) -> dict:
+    """どれかの往復で採った裏返し {key: of}（往復の行の FLIPS の和。後の往復の行が後勝ち）"""
+    out = {}
+    for p in passes:
+        got = p.get(FLIPS) if isinstance(p, dict) else None
+        out.update({k: v for k, v in (got or {}).items() if isinstance(k, str) and isinstance(v, str)})
+    return out
+
+
+def closed_keys(passes: list[dict], resolved=()) -> set:
+    """閉じた block の key: block に挙げた往復より後の往復の resolved（今の往復の resolved を渡せばそれも）に入り、その後に block に
+    挙げ直していない key（closed_faces と同じ数え方で、開いた項目に絞らない）"""
+    return set(_closed([*passes, {"resolved": list(resolved), "faces": []}])[1])
+
+
+def flip_claims(passes: list[dict], claimed, new, *, resolved=()) -> dict:
+    """出自の申告の行 claimed のうち、採る裏返し {key: of}: origin が ORIGIN_FLIP で、key が今の往復の新しい block（new）にあり、of が
+    前の往復までに閉じた block（closed_keys。今の往復の resolved を含む）の key。同じ key に違う申告が 2 つ以上在れば採らない
+    （_origins と同じ）。line の記録の add_pass と、事前審査の受け付けと承認ノードの行（plan-review の src/take.py・src/gate.py）が
+    同じ決まりで引く"""
+    said = {}
+    for c in claimed if isinstance(claimed, list) else []:
+        if isinstance(c, dict):
+            said.setdefault(c.get("key"), set()).add((c.get("origin"), c.get("of"), c.get(QUOTE) or ""))
+    closed = closed_keys(passes, resolved)
+    out = {}
+    for key in new:
+        got = said.get(key) or set()
+        if len(got) == 1:
+            origin, of, _ = next(iter(got))
+            if origin == ORIGIN_FLIP and of in closed:
+                out[key] = of
+    return out
+
+
+def take_flips(row: dict, passes: list[dict], claimed, new) -> None:
+    """往復の行 row（_origins を済ませた行）に採った裏返しを重ねる: FLIPS に {key: of} を置き、origins の語を ORIGIN_FLIP にし、採った
+    申告を origins_claimed から外す。採る物が無ければ行を変えない（古い行の形のまま）。lib の add_pass と line の写しが呼ぶ"""
+    got = flip_claims(passes, claimed, new, resolved=row.get("resolved") or [])
+    if not got:
+        return
+    row[FLIPS] = got
+    row["origins"].update({k: ORIGIN_FLIP for k in got})
+    row["origins_claimed"] = [c for c in row["origins_claimed"] if not (c.get("key") in got and c.get("origin") == ORIGIN_FLIP)]
 
 
 def item_id(unit_keys) -> str:
@@ -343,11 +400,11 @@ def _quoted(quote: str, mine: list, before: dict, changed: set) -> str:
     return {(True, False, False): ORIGIN_MISSED, (False, True, False): ORIGIN_INTRODUCED}.get(tuple(hit), ORIGIN_UNSPLIT)
 
 
-def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set) -> list[dict]:
+def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set, soft=()) -> list[dict]:
     before = {it["id"]: it for it in prev}
     rows = [{"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
              "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
-    hard = {f.get("key") for f in faces if central(f)}
+    hard = {f.get("key") for f in faces if central(f)} - set(soft)   # soft: 前の往復で採った裏返し（保留にしない）
     for f in faces:
         for i in _attributed(face_units.get(f.get("key")) or [], rows):
             rows[i]["blocks"].append(f.get("key"))
@@ -695,7 +752,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
     if doc.get("plan"):
         row["face_units"] = {f.get("key"): [str(k) for k in f.get("unit_keys") or []] for f in faces}
         row["items"] = _item_states(doc["plan"], faces, row["face_units"],
-                                    list(_last_items(doc).values()), earlier)
+                                    list(_last_items(doc).values()), earlier, soft=flipped(passes))
         for it in row["items"]:
             if it["n"] in (hits or {}):
                 it["hits"] = copy.deepcopy(hits[it["n"]])
@@ -707,6 +764,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
         rows=row.get("items") or [], prev=list(_last_items(doc).values()), face_units=row.get("face_units") or {},
         earlier=earlier, earlier_units={key: units for p in passes for key, units in (p.get("face_units") or {}).items()},
         resolved=list(resolved))
+    take_flips(row, passes, origins, [key for key in blocks if key not in earlier] if passes else [])
     passes.append(row)
     row["outcome"] = decide(passes)
     if at_cap and row["outcome"] == AGAIN:   # 輪がもう 1 周回せない: 抜けないと輪が尽きて節が落ちるので、ここで止める
@@ -847,18 +905,24 @@ def closed_faces(doc: dict) -> list[dict]:
     block に挙げた往復の番号、closed はその後に審査が resolved に入れた最後の往復の番号）。閉じたとは、block に挙げた往復より後の
     往復の resolved に key が在ること（後でまた block に挙げた key は開いた穴で、owed_faces が持つ）。owed_faces と同じ _open_scope で
     今の開いた項目に付く物だけに絞る。修正案の役が、直しで閉じた穴の裏返しを開かないための守る決まりの元。最後に閉じた順"""
-    raised: dict = {}
-    closed: dict = {}
-    for p in doc.get("passes") or []:
-        for key in p.get("resolved") or []:
-            if key in raised:
-                closed[key] = p["pass"]
-        for f in _pass_faces(p):
-            if f["severity"] == "block":
-                raised[f["key"]] = {**f, "raised": p["pass"]}
-                closed.pop(f["key"], None)
+    raised, closed = _closed(doc.get("passes") or [])
     in_open = _open_scope(doc)
     return [{**raised[key], "closed": n} for key, n in closed.items() if in_open(raised[key]["unit_keys"])]
+
+
+def _closed(passes: list[dict]) -> tuple[dict, dict]:
+    """（block に挙げた key → 最後に挙げた往復の穴の行と raised, 閉じた key → 閉じた最後の往復の番号）。closed_faces と closed_keys が引く"""
+    raised: dict = {}
+    closed: dict = {}
+    for p in passes:
+        for key in p.get("resolved") or []:
+            if key in raised:
+                closed[key] = p.get("pass")
+        for f in _pass_faces(p):
+            if f["severity"] == "block":
+                raised[f["key"]] = {**f, "raised": p.get("pass")}
+                closed.pop(f["key"], None)
+    return raised, closed
 
 
 def answer_gaps(doc: dict, answers) -> list[str]:

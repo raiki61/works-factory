@@ -557,7 +557,7 @@ class ItemsCase(BoardCase):
         _, got = self.second_pass(2, [face("key-b1", units=["u2"])])
         self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": converge.ORIGIN_MISSED}, []))
         self.assertEqual({w: self.traces[-1][w] for w in converge.ORIGIN_WORDS},
-                         {"missed": 1, "introduced": 0, "rephrased": 0, "unsplit": 0})   # trace の行に出自ごとの数が載る
+                         {"missed": 1, "introduced": 0, "rephrased": 0, "unsplit": 0, "flip": 0})   # trace の行に出自ごとの数が載る
         _, got = self.second_pass(3, [face("key-b1", units=["u2"])], origins=[claim])
         self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": converge.ORIGIN_MISSED}, [claim]))
 
@@ -899,6 +899,61 @@ class PlannedUnitsCase(unittest.TestCase):
         self.assertEqual(converge.planned_units(converge.plan_rows([row("u1", "u2"), row("u3")])), {"u1", "u2", "u3"})
         self.assertEqual(converge.planned_units([{"unit_keys": ["u1"]}, {"approach": "x"}, "broken"]), {"u1"})
         self.assertEqual(converge.planned_units(None), set())
+
+
+class FlipCase(BoardCase):
+    """前に閉じた block の裏返し（持ち主の決め flip-asks）: 審査役が出自 flip と閉じた key（of）を申告し、機械が of が閉じた block かを
+    照らして採る。採った裏返しは止め時の中央に数えず（往復で詰めない。修正の前の承認ノードで聞く）、後の往復で挙げ直しても裏返しのまま"""
+
+    def flip(self, key, of):
+        return {"key": key, "origin": converge.ORIGIN_FLIP, "of": of}
+
+    def test_flip_of_a_closed_block_settles_instead_of_going_again(self):
+        self.record(["key-a1"])
+        row = self.record(["key-b1"], resolved=["key-a1"], origins=[self.flip("key-b1", "key-a1")])
+        self.assertEqual(row[converge.FLIPS], {"key-b1": "key-a1"})
+        self.assertEqual(row["origins"], {"key-b1": converge.ORIGIN_FLIP})
+        self.assertEqual(row["origins_claimed"], [])
+        self.assertEqual(row["outcome"], converge.SETTLED)
+
+    def test_flip_of_a_block_that_is_not_closed_is_not_taken(self):
+        """of が前の往復の block でない・閉じていない（resolved に無い）申告は採らず、今どおり中央の新しい block として続ける"""
+        self.record(["key-a1"])
+        row = self.record(["key-a1", "key-b1"], origins=[self.flip("key-b1", "key-a1")])
+        self.assertNotIn(converge.FLIPS, row)
+        self.assertEqual(row["outcome"], converge.PERSISTED)
+        b = self.board(2)
+        self.b = b
+        self.record(["key-a1"])
+        row = self.record(["key-b1"], resolved=["key-a1"], origins=[self.flip("key-b1", "key-zz")])
+        self.assertNotIn(converge.FLIPS, row)
+        self.assertEqual(row["outcome"], converge.AGAIN)
+
+    def test_flip_raised_again_stays_a_flip(self):
+        """採った裏返しの key を後の往復で挙げ直しても PERSISTED にしない（中央の別の新しい block が並べば AGAIN）"""
+        self.record(["key-a1"])
+        self.record(["key-b1", "key-c1"], resolved=["key-a1"], origins=[self.flip("key-b1", "key-a1")])
+        self.assertEqual(converge.read(self.b)["outcome"], converge.AGAIN)
+        row = self.record(["key-b1"], resolved=["key-c1"])
+        self.assertEqual(row["outcome"], converge.SETTLED)
+
+    def test_flip_raised_again_does_not_hold_its_item(self):
+        """項目の往復でも、挙げ直した裏返しは項目を保留にしない"""
+        converge.note_plan(self.b, [{"unit_keys": ["u"], "approach": "案"}, {"unit_keys": ["v"], "approach": "案"}])
+        self.record(["key-a1"])
+        self.record(["key-b1"], extra=[face("key-c1", units=("v",))], resolved=["key-a1"], origins=[self.flip("key-b1", "key-a1")])
+        row = self.record(["key-b1"], resolved=["key-c1"])
+        self.assertEqual([it["state"] for it in row["items"]], [converge.OPEN, converge.CLOSED])
+        self.assertEqual(row["outcome"], converge.SETTLED)
+
+    def test_closed_keys_count_this_pass_resolved(self):
+        """閉じた block は、block に挙げた往復より後の往復（今の往復の resolved を含む）で resolved に入り、後で挙げ直していない key"""
+        passes = [{"pass": 1, "blocks": ["a", "b"], "faces": [face("a"), face("b")], "resolved": []},
+                  {"pass": 2, "blocks": ["b"], "faces": [face("b")], "resolved": ["a"]}]
+        self.assertEqual(converge.closed_keys(passes), {"a"})
+        self.assertEqual(converge.closed_keys(passes, ["b"]), {"a", "b"})
+        self.assertEqual(converge.central_keys([*passes, {"blocks": ["c"], "faces": [face("c")], converge.FLIPS: {"c": "a"}}],
+                                               ["b", "c"]), ["b"])
 
 
 if __name__ == "__main__":

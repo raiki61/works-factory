@@ -9,6 +9,7 @@ test_light_head_depth_keeps_one_reviewer_unless_named）は段 → on・off・au
 """
 import copy
 import json
+import re
 import unittest
 
 from tests.blocks import kit
@@ -137,7 +138,12 @@ class TreeCase(TreeBase):
         syn = self.flow.text("items/synergy.md")
         self.assertIn(str(self.tree.synergy_file(b)), syn)
         self.assertIn("test_clamp_above_range", self.item_text(2))
-        self.assertIn("stats.py: item 1, 2", syn)
+        cite = self.converge.ITEM_CITE.format
+        self.assertIn(f"stats.py: {cite(n=1)}, {cite(n=2)}", syn)
+        self.assertIn(f"- {cite(n=1)}（open）: ", syn)
+        for n in (1, 2):   # 材料の項目の字は converge.ITEM_CITE（止まった時の推しの note が写す字。英語の item に番号が続く字を残さない）
+            self.assertEqual(re.findall(r"(?i)\bitems? \d", self.item_text(n)), [], n)
+        self.assertEqual(re.findall(r"(?i)\bitems? \d", syn), [])
 
     def test_brief_carries_only_its_item_inline(self):
         """元 test_brief_carries_only_its_item_inline: 下請けの指示（items/brief.md）は審査の決まり・独立設計の節・Repository の行と、
@@ -1061,6 +1067,8 @@ class BriefCase(TreeBase):
             self.assertIn(label, brief)
         for label in ("item_plan", "ripple"):   # 下請けの指示が名指す材料の見出しは、材料の札と同じ字（項目は converge.ITEM_CITE）
             self.assertIn(f'"{self.material.LABELS[label].format(n="n").split(" (")[0]}"', brief, label)
+        for head in ("item", "units"):   # 項目の材料のファイルの見出しも同じ（受付 20261104-235145-99fe87 の「ついでに」）
+            self.assertIn(f'"{self.heads[head].format(n="n")}"', brief, head)
 
     def test_brief_carries_the_query_rule_without_spawns(self):
         """下請けの指示に外への検索の決まり（共通の断片 query-rule）が在る。下請けは下請けを起こさないので段落 spawns は無い。束ね役の

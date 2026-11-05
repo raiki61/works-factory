@@ -213,6 +213,9 @@ MEANS_KIND = "means"                  # 関所の項目の kinds と外れの行
 MEANS_WHY = "頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）"   # その項目の人に聞く訳（いつも人に聞く）
 MEANS_HEAD = re.compile(r"^修正案 (\d+) は頼みの解き方 (M[1-9][0-9]*)(?:「.*?」)?に従(わない|うが)")   # その項目の文の頭（means_key が鍵 (項目, M<n>, 向き) を引く）
 MEANS_WAYS = {"わない": "departs", "うが": "drifts"}   # 文の頭の向き → 鍵の向き（従わない・従うが独立設計と食い違う）
+FLIP_KIND = converge.ORIGIN_FLIP       # 関所の項目の kinds（前に閉じた block の裏返しの穴。持ち主の決め flip-asks。出自の語と同じ語）
+FLIP_WHY = (f"{ASK_CASES[1]} 前に閉じた穴と両方は守れず、どちらを優先するかは人の優先の付け方で決まる"
+            "（往復で詰めずに聞く。決め flip-asks）")   # その行の人に聞く訳（いつも人に聞く。無人の run は推しを採る）
 GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査の受け付けが諦めた・返す節が落ちた。案を審査できていない）
 SPEC_CHANGED_KIND = "spec_changed"    # 関所の項目の kinds（修正の後に承認済みの受け入れ条件のテストが変わった。承認し直すかを人に諮る）
 UNMEASURED = materialkit.UNMEASURED   # 素材の状態のうち今の周に測れていない物（integration.md 4.2-5）
@@ -263,6 +266,7 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               ASK_KINDS[1]: "人でないと決められない問い", DESIGN_ONLY_KIND: "修正に進まない行",
               DESIGN_KIND: "構造の目が決めきれなかった設計の問い", WORLD_KIND: "世界の解（定石）から外れる修正案の項目",
               MEANS_KIND: "頼みの解き方と独立の目が食い違う修正案の項目",
+              FLIP_KIND: "前に閉じた穴の裏返し（どちらを優先するか）",
               "spec_approval": "仕様（要件と受け入れ条件）の承認", SPEC_CHANGED_KIND: "承認の後に受け入れ条件のテストが変わった",
               GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
 SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"   # 承認し直すかの問いの文と下書きの source の頭

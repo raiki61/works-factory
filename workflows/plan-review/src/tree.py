@@ -40,9 +40,9 @@ BRIEF = "item-brief"           # 下請けの指示の断片の名（prompts/par
 SYNERGY_BRIEF = "synergy-brief"
 # 項目の材料のファイルの見出しと札（英語の短い札。指示の文は持たない。prompts/parts/item-brief.md がこの見出しを名指す）
 ITEM_HEADS = {
-    "item": "## This sub-agent's item: item {n}",
+    "item": f"## This sub-agent's item: {converge.ITEM_CITE}",   # 項目の字は材料の札と同じ converge.ITEM_CITE（推しの note が写す字）
     "answer": "Answer file: {path}",
-    "units": "### Units of item {n} (judgment)",
+    "units": f"### Units of {converge.ITEM_CITE} (judgment)",
     "precedents": "### Precedent sources of this item",
     "carried": "### Hits answered in a previous pass",
     "history": "### Previous passes' owed holes of this item",
@@ -424,9 +424,10 @@ def _item_material(b, n: int, it: dict, doc: dict, pre: list, errs: list) -> str
 
 def _synergy_material(b, rows: list, last: dict, doc: dict) -> str:
     """相乗りの材料（全部の項目の状態と行・重なりの行）"""
-    states = [f"- item {n}（{(last.get(n) or {}).get('state', converge.OPEN)}）: {json.dumps(it, ensure_ascii=False)}"
+    states = [f"- {converge.ITEM_CITE.format(n=n)}（{(last.get(n) or {}).get('state', converge.OPEN)}）: {json.dumps(it, ensure_ascii=False)}"
               for n, it in enumerate(rows, 1)]
-    over = "\n".join(f"- {o['at']}: item {', '.join(map(str, o['items']))}" for o in doc.get("overlaps") or []) or f"- {NONE_LABEL}"
+    over = "\n".join(f"- {o['at']}: {', '.join(converge.ITEM_CITE.format(n=i) for i in o['items'])}"
+                     for o in doc.get("overlaps") or []) or f"- {NONE_LABEL}"
     return "\n\n".join([ITEM_HEADS["synergy"], ITEM_HEADS["all_items"] + "\n\n" + "\n".join(states),
                         ITEM_HEADS["overlaps"] + "\n\n" + over]) + "\n"
 

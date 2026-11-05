@@ -55,17 +55,43 @@ def _board(place, intake: dict, review: dict | None):
 
 
 # ---------------------------------------------------------------- 行
+FLIP_TEXT = "事前審査の穴 [{kind}] {key}（前に閉じた {of} の裏返し。両方は守れないので、どちらを優先するかを答える）: {why}"
+
+
+def flips(place, intake: dict, review: dict) -> dict:
+    """今の往復の block のうち、前に閉じた block の裏返しの穴 {key: 閉じた key}（持ち主の決め flip-asks）: 前の往復で採った裏返し
+    （converge.flipped）と、今の往復の出自の申告のうち line の記録が採る物（converge.flip_claims。申告と resolved は受け付けが書いた
+    pass.json）。受け付けの照らし（take.flip_gaps）を通った申告だけが在る"""
+    passes = converge.read(_board(place, intake, review))["passes"]
+    got = jsonfile.read_or(pathlib.Path(place) / files.PASS)
+    got = got if isinstance(got, dict) else {}
+    earlier = {k for p in passes for k in p.get("blocks", [])}
+    keys = [f.get("key") for f in converge.block_faces(review or {})]
+    new = [k for k in keys if k not in earlier] if passes else []
+    taken = {**converge.flipped(passes), **converge.flip_claims(passes, got.get("origins"), new, resolved=got.get("resolved") or [])}
+    return {k: v for k, v in taken.items() if k in keys}
+
+
 def _face_rows(place, intake: dict, review: dict) -> list:
     """承認ノードの決め手の濾しに掛ける事前審査の穴の行 [(kind, 文, 決め手, 節, 単位の key の並び)]（人に回す種類の穴だけ。
     記録された方針の行を名指さない kind policy の穴（policy.unrecorded）と、機械が足した保留の block（converge.HELD_MARK）は行にしない。
-    単位は穴の unit_keys）。修正案の narrows の行は lib の gatemarks.narrow_asks が作る"""
+    単位は穴の unit_keys）。前に閉じた block の裏返しの穴（flips）は kind に依らず種類 gatemarks.FLIP_KIND の行 1 つにし、いつも人に
+    聞く（決め手の欄の undecided_because を gatemarks.FLIP_WHY にする。推しは審査役の recommend）。修正案の narrows の行は lib の
+    gatemarks.narrow_asks が作る"""
     rows = []
     saved = face_marks(place)
     recorded = intake.get(policy.RECORDED_KEY) or []
+    flipped = flips(place, intake, review)
     for j, f in enumerate((review or {}).get("faces") or []):
         if not isinstance(f, dict) or f.get(converge.HELD_MARK):
             continue
         m = gatemarks.mark_of(gatemarks.joined(f, gatemarks.at(saved, j)))
+        if f.get("severity") == "block" and f.get("key") in flipped:
+            rows.append((gatemarks.FLIP_KIND, FLIP_TEXT.format(kind=gatemarks.FLIP_KIND, key=f.get("key"), of=flipped[f["key"]],
+                                                               why=f.get("why")),
+                         {**m, "undecided_because": gatemarks.FLIP_WHY}, REVIEW_NODE,
+                         [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
+            continue
         if f.get("kind") in policy.HUMAN_FACE_KINDS and not policy.unrecorded(f, m, recorded):
             rows.append((f["kind"], f"事前審査の穴 [{f['kind']}] {f.get('key')}: {f.get('why')}", m, REVIEW_NODE,
                          [k for k in f.get("unit_keys") or [] if isinstance(k, str)]))
