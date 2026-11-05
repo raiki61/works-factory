@@ -1229,7 +1229,7 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 
 ### 21.2 試験 1 本で守れる細部（`guard-demotes`）
 
-1. 指示: `parts/checks.md` の「How to write the holes」の `reach` の段落に、害が 1 つの関数の中の細部（並べ方・上限の計算・同点の扱い）に収まり、受け入れの試験 1 本で縛れる `loses_behavior` の穴は、守る試験を `guard` に書いて端にする、と書く。設計の選び（どの部品・境目・道を使うか）の穴は下げない。2 往復目からの頼み（`rereview-ask.md`・`diff-ask.md`）にも、前の中央の block をこの形で下げてよいと 1 文足す（下げる時の訳を `why` の頭に書く今の決まり `converge.relabel_gaps` はそのまま）。
+1. 指示: 計画の形だけが入れる `parts/plan-checks.md`（`review.md` と、木の下請けと相乗りの指示 `item-brief.md`）の「How the checks above read the plan」の列に、害が 1 つの関数の中の細部（並べ方・上限の計算・同点の扱い）に収まり、受け入れの試験 1 本で縛れる `loses_behavior` の穴は、守る試験を `guard` に書いて端にする、と書く。設計の選び（どの部品・境目・道を使うか）の穴は下げない。2 往復目からの頼み（`rereview-ask.md`・`diff-ask.md`）にも、前の中央の block をこの形で下げてよいと 1 文足す（下げる時の訳を `why` の頭に書く今の決まり `converge.relabel_gaps` はそのまま）。形 text・theme の指示（`review-text.md`・`review-theme.md` は `parts/checks.md` を入れるが `parts/plan-checks.md` を入れない）は `guard` を語らず、その穴の型にも `guard` を足さない（運ぶ先が修正の段の `board.py` の計画の穴しか無いため）。
 2. 受け付け: `take.face_row_gaps` が、`guard` の在る穴の `reach` が端でなければ拒む（yes/no）。試験 1 本で守れる細部かは審査役が判じ、機械は照らさない（持ち主の決めの 1）。
 3. 運ぶ道: 端の block の今の道のまま（line の SETTLED で修正の段へ申し送る）。`review.json` の穴の行に `guard` が残り、修正の段の `workflows/fix/src/board.py` の `plan_faces_text`（修正役の指示の穴の行）と `declared_lines`（直さずに残した穴の行。直しの後の目 R4 が読む）が尾「（守る試験: …）」を付ける。修正役は今の決まり（`.shared/prompts/writer.md` の `plan_faces`）のまま、穴を取り込む（尾の試験を足す）か残す訳を答える。書き手の指示の字は付録 A の控え（`tests/workflows/writer-prompts-before.json`）が縛るので変えない。
 4. 決めた細目（窓口が決めきれない物でないので自分で決めた）: 守る試験は計画の項目の `tests` に機械が差し込まず、穴の行の欄に置く。計画の項目の行を機械が変えると、項目の hash が変わって閉じた項目と保留の決まり（`converge._item_states`）が崩れるため。修正役は穴の行を必ず答える（`plan_face_errors`）ので、試験は修正の段へ届く。
