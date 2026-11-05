@@ -231,6 +231,15 @@ class ApplyAnswerCase(unittest.TestCase):
             with self.subTest(answer=answer):
                 self.assertIn("最後の承認ノードで", refusal(answer=answer))
 
+    def test_a_pushed_pass_is_not_a_human_pass(self):
+        """無人の run が推しで通した答え（欄 pushed を持つ）は人の通しでないので、答えの無い run と同じく緑・目・指紋・守りのパスを照らす"""
+        pushed = {**PASS, "pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}
+        self.assertEqual(refusal(answer=pushed), "")
+        for over in ({"green_ok": False}, {"eyes_ok": False}, {"fingerprint_ok": False}, {"protected": ["lib/protect.py（+1 −0）: 規則"]}):
+            with self.subTest(over=over):
+                self.assertIn("人の通しの答えが無いのに", refusal(answer=pushed, **over))
+        self.assertIn("最後の承認ノードで stop と答えた", refusal(answer={**pushed, "decision": "stop"}))
+
     def test_request_stop_card_refuses(self):
         got = refusal(answer={"decision": "stop", "text": "request: 止めて"})
         self.assertIn("最後の承認ノードで stop と答えた", got)

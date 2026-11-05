@@ -554,12 +554,44 @@ class AskFinalCase(unittest.TestCase):
                 self.assertTrue(self.ask(got, mode=mode)["open"])
         self.assertIn(("頼みの解き方どおりの違いを独立の目が聞いている（1 件）", True), self.f.needs(got))
 
-    def test_means_questions_stop_an_unattended_run_even_with_a_continue_push(self):
-        """6.4: 無人の run は、推しが全部 continue でも最後の承認ノードで止まる（推しで進む道は持ち主に問い中なので足さない）"""
+    def test_means_questions_with_continue_pushes_pass_an_unattended_run(self):
+        """6.4（決め means-ask の 2）: 無人の run で開ける理由が頼みどおりの違いの問いだけで、どの問いも通す推しを持てば、開かずに推しで
+        進み、採った推しを pushed に返す（answer-final が gates/gate-final.json に残す）"""
+        two = [self.MEANS_Q, self.MEANS_Q.replace("M1", "M2")]
         for mode in ("when_needed", "protected_only"):
             with self.subTest(mode=mode):
-                out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode=mode, unattended=True)
-                self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, "works:needs-human"))
+                out = self.ask(final_got(self.f, means_questions=two), mode=mode, unattended=True)
+                self.assertEqual((out["open"], out["go"], out["stop_reason"], out["text"]), (False, True, "", ""))
+                self.assertEqual(out["pushed"]["decision"], "continue")
+                self.assertEqual([r["answer"] for r in out["pushed"]["pushed"]], ["continue", "continue"])
+                self.assertEqual(out["reasons"], ["頼みの解き方どおりの違いを独立の目が聞いている（2 件）"])
+
+    def test_unattended_means_questions_stop_without_a_continue_push_on_every_row(self):
+        """推しの無い問い（引用を照らせず尾を外した行）か止める推しが 1 つでも在れば、今どおり works:needs-human で止まる"""
+        bare = self.MEANS_Q.split("／推し:")[0] + "（引用を照らせなかった: 無い）"
+        halt = self.MEANS_Q.replace("通す（continue）", "止める（stop）")
+        for rows in ([bare], [self.MEANS_Q, bare], [self.MEANS_Q, halt]):
+            with self.subTest(rows=rows):
+                out = self.ask(final_got(self.f, means_questions=rows), mode="when_needed", unattended=True)
+                self.assertEqual((out["open"], out["go"], out["stop_reason"], out["pushed"]), (False, False, "works:needs-human", None))
+
+    def test_unattended_means_pushes_do_not_pass_other_reasons(self):
+        """開ける理由が問いのほかにも在る（守りのパス・緑でない・目が通さない・R4 の問いなど）か、開き方 always で問いが無くても開く時は、
+        推しが在っても今どおり止まる（開き方 protected_only で開かない理由も、推しで進む時は止める側に数える）"""
+        for over in ({"protected_hits": ["lib/protected.json"], "protected_count": 1}, {"tests_ok": False, "green": False},
+                     {"questions": ["R4 の問い"]}, {"sealed": False},
+                     {"eyes": {**final_got(self.f)["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}}):
+            for mode in ("when_needed", "protected_only"):
+                with self.subTest(over=over, mode=mode):
+                    out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q], **over), mode=mode, unattended=True)
+                    self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
+        out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="always", unattended=True)
+        self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
+
+    def test_attended_and_closed_returns_carry_no_push(self):
+        """人の居る run と開かない run の返りの pushed は null（answer-final は人の答えか前の決めだけを書く）"""
+        self.assertIsNone(self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="when_needed")["pushed"])
+        self.assertIsNone(self.ask(final_got(self.f), mode="when_needed", unattended=True)["pushed"])
 
     def test_means_questions_have_their_own_section(self):
         """6.3 の 3 の 1: R2 の行は R4 の問いの節に入れず別の節に並べ、continue / stop が答えになると書く。R2 が redesign-needed の
