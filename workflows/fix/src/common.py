@@ -897,6 +897,7 @@ def suite_made_all(board_dir) -> set:
 
 
 ACCEPT_RUN = "accept"   # 受け付けが走らせた回のログ・JUnit の名（suite-accept.log）
+WHOLE_RUN = "accept-whole"   # 選んだ試験の引数を実行器が受けず、受け付けが引数なしの一式で回し直した回の名（suite-accept-whole.log）
 
 
 NO_SELECTED = "変えたファイルに当たる試験が無い"
@@ -917,6 +918,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     """(赤の文の一覧, 知らせ)。選ぶのは変更に直に関わる試験と名指しの試験（_named_files）だけで、届くだけの先の試験は
     final_left に残す。実行器の後ろに足すのは、選んだ試験のうちこの run で変えた・足したファイルだけ（ADR 0071 の
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
+    実行器が選んだ試験の引数を受けず結末を返さない時は、引数なしの一式で 1 度回し直す（実行器の約束は受けられない引数を落とすこと）。
     実行器の無い run（状態が無い）・当たる試験が無い・実行器が走らない・選んだ試験が 1 件も走らなかった時は赤にせず知らせだけ。
     元の結末に無い試験の赤は、版の写しでその試験を名指しで回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
     受け付けの回をまたいで使い回す）。版の写しの結末に出ない（走らせられない・名指しを聞かない実行器）試験は比べられない:
@@ -959,21 +961,31 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     files = [f for f in sel["selected"] if f in changed]
     kexpr = "" if sel["run_all"] else " or ".join(sel["modules"])
     pre = snapshot(repo)
-    cases, code, why = run_suite(st["exe"], repo, work, ACCEPT_RUN, _args(repo, files, kexpr))
+    args, name = _args(repo, files, kexpr), ACCEPT_RUN
+    cases, code, why = run_suite(st["exe"], repo, work, name, args)
+    what = "一式（" + "・".join(sel["reasons"])[:200] + "）" if sel["run_all"] else \
+        f"選んだ試験（ファイル {', '.join(files)[:300]}・-k {kexpr[:300]}）"
+    if cases is None and args:
+        # 実行器の約束（.shared の runner-writer）は受けられない引数を落として一式を回すこと。約束を外れて引数ごと道具に渡し、
+        # 道具が断った（-k を知らない試験の道具）時は、元の結末を取れた引数なしの一式で回し直す
+        first = f"{what}は実行器が引数を受けず結末を返さない（{'; '.join(why)}。ログ {work / f'suite-{name}.log'}）"
+        name, files = WHOLE_RUN, []
+        cases, code, why = run_suite(st["exe"], repo, work, name, ())
+        what = f"引数なしの一式（{first}）"
+        kexpr = ""
+    log = work / f"suite-{name}.log"
     st["suite_made"] = sorted(set(st["suite_made"]) | set(touched(repo, pre, snapshot(repo))))
     st["ci_left"] = _left_to_ci(sel["selected"], files, cases)
     save()
     if seen is not None:
-        seen.update(cases=cases, why=list(why or []), log=str(work / f"suite-{ACCEPT_RUN}.log"))
-    what = "一式（" + "・".join(sel["reasons"])[:200] + "）" if sel["run_all"] else \
-        f"選んだ試験（ファイル {', '.join(files)[:300]}・-k {kexpr[:300]}）"
+        seen.update(cases=cases, why=list(why or []), log=str(log))
     ci = f"。手元で回さなかった {len(st['ci_left'])} 件（run はその緑を確かめない）: {', '.join(st['ci_left'])[:300]}" if st["ci_left"] else ""
     ci += final
     if cases is None:
         return [], f"{what}を走らせられない（{'; '.join(why)}）{ci}"
     if not cases:
         return [], (f"{what}が一式の結末に 0 件——選んだ試験が 1 件も走らなかった（-k が何にも当たらない・実行器が足した試験を"
-                    f"拾わない。ログ {work / f'suite-{ACCEPT_RUN}.log'}）。新しい赤が無いことは確かめていない{ci}")
+                    f"拾わない。ログ {log}）。新しい赤が無いことは確かめていない{ci}")
     reds = {_key(c): c for c in cases if c["outcome"] in ("failure", "error")
             and st["baseline"].get(_key(c)) not in ("failure", "error")}
     red = list(reds)
@@ -999,9 +1011,9 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
         return [], f"{what}: {len(cases)} 件で新しい赤なし{ci}{tail}"
     # 行はテストのファイルごと（修正の受け付けが最後の回にパスで単位に結ぶ）。頭に選んだファイルの一覧を置かない（ほかの
     # ファイルの赤の行がそのパスを名指して、関わらない単位に結ばないように）
-    label = "一式" if sel["run_all"] else f"選んだ試験（-k {kexpr[:300]}）"
+    label = "一式" if sel["run_all"] or not kexpr else f"選んだ試験（-k {kexpr[:300]}）"
     return [f"受け付けが走らせた{label}で、元で赤でなかった試験が赤{where}: {ids[:20]}（{len(ids)} 件。"
-            f"ログ {work / f'suite-{ACCEPT_RUN}.log'}{tail}）——直した単位のどこかを直して出し直せ"
+            f"ログ {log}{tail}）——直した単位のどこかを直して出し直せ"
             for where, ids in _by_test_file(repo, [reds[k] for k in red]).items()], ""
 
 

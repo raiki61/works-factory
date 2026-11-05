@@ -2940,6 +2940,25 @@ class TestAcceptOutsideTier(OutsideCase):
             self.assertFalse([a for a in argv if a.endswith(OUTSIDE)],
                              f"変えていない段の外の試験のファイルを受け付けが実行器の後ろに足した: {argv}")
 
+    def test_runner_refusing_the_selection_args_runs_the_whole_suite(self):
+        """選んだ試験の引数（-k・ファイル）を断って結末を返さない実行器（-k を知らない試験の道具の test_cmd をそのまま包んだ物）は、
+        引数なしの一式で回し直す（実行器の約束: 受けられない引数は落として一式を回す。一式でも確かめは同じ）。回し直しの結末で
+        新しい赤を拾い、走らせた回の結末を seen に置く（受け付けの止め no-suite に化けない）。引数なしでも返さなければ今どおり"""
+        refusing = "import sys\nif '-k' in sys.argv[2:]:\n    print(\"Bad command line option '-k'\")\n    sys.exit(1)\n" + RUNNER
+        state = self.begin(refusing)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        seen = {}
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD", seen=seen)
+        self.assertEqual(probs, [], note)
+        self.assertIn("新しい赤なし", note)
+        self.assertIn("引数なしの一式", note, "回し直したことを知らせに出す")
+        self.assertTrue(seen.get("cases"), "回し直しの結末を seen に置かない（受け付けが no-suite で止まる）")
+        p.write_text(p.read_text(encoding="utf-8").replace("    return x\n", "    return lo\n"), encoding="utf-8")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
+        self.assertTrue(probs, f"回し直しの一式の赤を拾わない（知らせ: {note}）")
+        self.assertIn("test_clamp_within_range", " ".join(probs))
+
     def test_tests_left_out_are_named_as_left_to_ci(self):
         # 手元で回さなかった試験は黙って減らさず、知らせと状態のファイルに『手元で回さなかった』として名前で残す
         self.write(OUTSIDE, OUTSIDE_TEST)

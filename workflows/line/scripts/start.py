@@ -313,7 +313,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
             ghreads.place(artifacts, reads)
         change = entryshape.change_base(raw, repo, reads)
         if not checked["spec_table"] and not theme_text:   # 仕様駆動の道の表とテーマは依頼の代わりの入口（依頼の行も差分も要らない）
-            entryshape.refuse_empty(asked["items"], change, repo)
+            entryshape.refuse_empty(asked["items"], change, repo, asked["parts"][carry.PR])
         inp = {"items": asked["items"], "request_file": asked["request_file"], "request_text": asked["request_text"],
                "base": change["base"] if change else None, "pr": change["pr"] if change else None,
                "spec": bool(checked["spec"])}
