@@ -154,6 +154,19 @@ class GateAnswerCase(ScriptRun):
     def test_unreadable_inputs_fall_to_the_line_script_word(self):
         self.assertEqual(self.take("null", go="yes"), {"go": False, "answer": None, "stop_reason": guard.LINE_SCRIPT})
 
+    def test_a_push_on_a_skipped_gate_is_recorded_as_the_answer(self):
+        """決め means-ask の 2: 無人の run で最後の承認ノードが推しで進んだ時（ask-final の pushed）は、その推しを答えとして
+        gates/gate-final.json に欄 answer.PUSHED つきで残す（報告が採った推しを並べ、R2 の問いを答え済みに数える）"""
+        rec = {"item": "R2: …", "answer": "continue", "note": "そのまま", "why": "頼みどおり"}
+        pushed = {"decision": "continue", "text": "そのまま", answer.PUSHED: [rec]}
+        got = self.run.script("gate_answer", gate="null", go="true", stop_reason="", place="gate-final", final="true",
+                              pushed=json.dumps(pushed))
+        self.assertEqual(got["go"], True)
+        self.assertEqual(got["answer"][answer.PUSHED], [rec])
+        kept = json.loads((self.run.artifacts / "gates" / "gate-final.json").read_text(encoding="utf-8"))
+        self.assertEqual(kept, got["answer"])
+        self.assertEqual(self.take("null", place="gate-start"), {"go": True, "answer": None, "stop_reason": ""})
+
 
 class ReturnedCase(ScriptRun):
     def test_whole_output_gives_the_declared_fields(self):

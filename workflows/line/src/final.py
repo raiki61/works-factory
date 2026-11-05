@@ -5,8 +5,9 @@
 修正の段の控えを読めない・承認の後に受け入れ条件のテストが変わった（spec の check の questions。照らせなかった時は「照らせなかった」）・
 読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）・
 R2 の頼みどおりの違いの問い（eyes の means_questions。docs/design/plan-review.md の 20 章の 6.3。continue / stop がそのまま答え）
-は開き方に依らず開く（must。通すのは人の答えだけ）。ほかは開き方 final_gate で開く（src.gates.opens）。無人の run で開くはずの時は
-開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。試験を求めなかった直し（untested）は節に分けて並べ、種類 code の
+は開き方に依らず開く（must。通すのは人の答え。R2 の問いだけは無人の run の推しも通す）。ほかは開き方 final_gate で開く（src.gates.opens）。
+無人の run で開くはずの時は開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。ただし開ける理由が R2 の頼みどおりの
+違いの問いだけで、どの問いも通す推しを持てば推しで進む（unattended_pass。plan-review の設計書の 20 章の 6.4・決め means-ask の 2）。試験を求めなかった直し（untested）は節に分けて並べ、種類 code の
 ファイルを触った時だけ開き方で開く理由にする。計画の依存で前に直すはずの単位が型の順で後に回った対（fixed の groups の unsatisfied）は「守れなかった依存」の節に名で並べ、止めず開ける理由にも数えない。判定の役が保留にしたままの問いは冒頭と本文に見せるが
 開ける理由に数えない（L-G36）。修正の後の並行 PR の確かめ直し（8.1）が重なりを見つけた・確かめ直せなかった時は、開き方で開く理由。
 
@@ -456,13 +457,27 @@ def final_text(got: dict, why: list, run_id: str) -> str:
 
 
 def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
+    """開くかと文。返り {open, go, stop_reason, text, reasons, pushed}。無人の run で開くはずの時は開かず、unattended_pass が推しで
+    進めれば go と採った推し pushed（answer-final が答えとして残す）、ほかは works:needs-human で止める"""
     why, must = final_needs(got), any(m for _, m in needs(got))
     opens = must or gates.opens(mode or gates.ALWAYS, reasons=why, guarded=bool(got["protected_hits"]))
     if not opens:
-        return {"open": False, "go": True, "stop_reason": "", "text": "", "reasons": why}
+        return {"open": False, "go": True, "stop_reason": "", "text": "", "reasons": why, "pushed": None}
     if unattended:
-        return {"open": False, "go": False, "stop_reason": stopby.NEEDS_HUMAN, "text": "", "reasons": why}
-    return {"open": True, "go": True, "stop_reason": "", "text": final_text(got, why, run_id), "reasons": why}
+        got_ = unattended_pass(got, mode=mode or gates.ALWAYS)
+        return {"open": False, "go": got_.go, "stop_reason": got_.stop_reason, "text": "", "reasons": why, "pushed": got_.pushed}
+    return {"open": True, "go": True, "stop_reason": "", "text": final_text(got, why, run_id), "reasons": why, "pushed": None}
+
+
+def unattended_pass(got: dict, *, mode: str) -> gates.Passage:
+    """無人の run で開くはずの最後の承認ノードの抜け方（docs/design/plan-review.md の 20 章の 6.4・決め means-ask の 2）。開ける理由が
+    R2 の頼みどおりの違いの問い（means_questions）だけの時は、その問いの行を gates.passage に掛ける（どの問いも通す推しを持つ時だけ推しで
+    進む。continue / stop がそのまま問いへの答えなので、推しの continue が答えになる）。ほかの開ける理由が 1 つでも在る（問いを除いた
+    材料の needs が空でない。開き方 protected_only で開かない理由も数える）か、開き方 always（問いが無くても開く）なら止める"""
+    others = needs({**got, "means_questions": []})
+    if mode == gates.ALWAYS or others or not got["means_questions"]:
+        return gates.Passage(False, stopby.NEEDS_HUMAN, [], None)
+    return gates.passage(got["means_questions"], gates.row_push)
 
 
 def keep(out: dict, place: Path) -> dict:

@@ -70,7 +70,7 @@ def compute() -> dict:
 def fallback(reason: str) -> dict:
     from src import guard
 
-    return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "text": "", "reasons": [reason], "sealed_hash": "",
+    return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "text": "", "reasons": [reason], "pushed": None, "sealed_hash": "",
             "fingerprint": None, "green_ok": False, "eyes_ok": False, "r2": None}
 
 

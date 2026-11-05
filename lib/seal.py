@@ -27,7 +27,7 @@ import re
 import subprocess
 
 import listcut
-from answer import GO_WORDS, STOP_WORDS
+from answer import GO_WORDS, STOP_WORDS, by_push
 
 REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める語（今の works の report.REQUEST_BY）
 # 目の状態の語の持ち主（ほかは写さずここを読む）。直しが要る（FIX_NEEDED）は、見つけた物がどれも零処方で閉じる札。作り直しが要る
@@ -167,9 +167,10 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
     2. current_hash が sealed_hash と違う
     3. 答え answer（{decision, text}）が在り、decision が通す語 GO_WORDS のどれでもない（止め札もここ）
     4. r2（None か {status, reason}）の status が REDESIGN（unverifiable は機械で拒まず人の答えに任せる）。人の通しの答えでも拒む（R2 が作り直しと言った run は部分を取り込まない）
-    5. 答えが無い（関所が開かなかった）のに、green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。
-       unknown_row の行は「確かめられない」として書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
-    答えが通す語なら、赤でも・R2 の作り直しのほかの目が通さなかった札（fix-needed を含む）でも置く"""
+    5. 人の答えが無い（関所が開かなかった。無人の run が推しで通した答え〔欄 pushed を持つ。answer.by_push〕も人の答えに数えない）のに、
+       green_ok・eyes_ok・fingerprint_ok のどれかが真でないか、protected（守りの当たりの行。unknown_row の行は「確かめられない」として
+       書き分けるが、当たりと同じく拒む）が空でない。守りのパスは人の通しの答えだけが通す
+    人の答えが通す語なら、赤でも・R2 の作り直しのほかの目が通さなかった札（fix-needed を含む）でも置く"""
     why = hash_refusal(sealed_hash, current_hash)
     if why:
         return why
@@ -179,7 +180,7 @@ def apply_refusal(*, sealed_hash, current_hash, answer, green_ok, eyes_ok, r2, f
             return why
     if isinstance(r2, dict) and r2.get("status") == REDESIGN:
         return f"R2 が作り直しと言った（部分を取り込まない）: {r2.get('reason') or '理由なし'}"
-    if answer is None:
+    if answer is None or by_push(answer):
         unchecked = [word for word, fact in (("緑でない", green_ok), ("目が通していない", eyes_ok),
                                              ("緑の認証の指紋が今の木と違う", fingerprint_ok)) if fact is not True]
         unknown = [row for row in protected if row.startswith(UNKNOWN_HEAD)]
