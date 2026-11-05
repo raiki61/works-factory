@@ -922,7 +922,7 @@
   2. 設計の大きな食い違い（どの部品・境目・道を使うか）は下げない。
   3. 下げた穴は端の穴の今の道で修正の段へ申し送る。修正役は `guard` の試験で閉じるか、残す訳を答える。残した穴は直しの後の目（R4）へ守る試験の字ごと申し送る。
 - 足す置き場（E10）: 足さない。穴の行に任意の欄 `guard` を 1 つ足す。
-- 当て方: 審査の指示 `workflows/plan-review/prompts/parts/checks.md` の `reach` の段落と、受け付け `workflows/plan-review/src/take.py` の `face_row_gaps`（`guard` の在る穴は端だけ）。修正の段の読み口 `workflows/fix/src/board.py` の `plan_faces_text`・`declared_lines`。
+- 当て方: 審査の指示 `workflows/plan-review/prompts/parts/plan-checks.md` の `guard` の段落（計画の形だけが入れる）と、受け付け `workflows/plan-review/src/take.py` の `face_row_gaps`（`guard` の在る穴は端だけ）。修正の段の読み口 `workflows/fix/src/board.py` の `plan_faces_text`・`declared_lines`。
 
 ### `flip-asks` 直しが前に閉じた穴の裏返しを開いたら、往復を続けず、修正の前の承認ノードで「どちらを優先するか」を聞く
 
