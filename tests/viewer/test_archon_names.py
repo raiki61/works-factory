@@ -40,6 +40,8 @@ WRITTEN = {
     f"DEFERRED_NODE_USAGE_EVENT_TYPE = '{runread.DEFERRED_EVENT}'": "packages/workflows/src/node-record-serialization.ts",
     f"parentNodeId: '{runread.PARENT_NODE}'": "packages/workflows/src/schemas/run-metadata.ts",
     f"cost: '{runread.TOTAL_COST}'": "packages/workflows/src/schemas/run-usage.ts",
+    f"inputs: '{runread.INPUTS}'": "packages/workflows/src/schemas/run-metadata.ts",
+    f"{runread.NODE_COUNTS}: nodeCounts": "packages/workflows/src/dag/run-terminal.ts",
     f"{runread.ATTEMPT_ID}:": "packages/workflows/src/schemas/provider-event.ts",
     **{f"kind: z.literal('{kind}')": f"packages/workflows/src/schemas/{schema}.ts"
        for kind, schema in zip((*runread.AI_KINDS, runread.WAIT_NODE, *runread.GROUP_KINDS),
