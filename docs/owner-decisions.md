@@ -727,6 +727,18 @@
 - 代償（E14）: shell の env で工場の寿命を 1 時間にしていた利用者は、`--config` の `env:` か対象の `.archon/config.yaml` の `env:` に `ENABLE_PROMPT_CACHING_1H: '1'` を書き直せば戻せる（両方の組が戻る）。API キー・Bedrock・Vertex の利用者は下請けがもともと 5 分なので変わらない。下請けの組を知らない Claude Code（v2.1.242 より古い物）は知らない env を無視する。
 - 当て方: `bin/_lib/launcher.py` の `cache_ttl`。設計は `docs/design/archon.md` の「役の claude の env の届き方」。機械は `tests/bin/test_launcher.py` の `test_run_layer_carries_the_prompt_cache_ttl`・`test_run_layer_carries_the_subagent_prompt_cache_ttl`。
 
+## 2026-11-05 の決め（裏で走る下請けの進み具合の札）
+
+出典: 持ち主の言葉（2026-11-05）と、受付 20261105-000102-c45372 の費用の調べ（run a474928e の 29.87 USD のうち約 2.06 USD〔7%〕が札の呼び出し）。上の `factory-cache-ttl` の続き。
+
+### `factory-no-agent-summaries` 工場の run では、裏で走る下請けの進み具合の札を作らせない
+
+- 持ち主の言葉（2026-11-05）: 「自明なものはきかないで」
+- 窓口の決めの訳: Claude Code は SDK の上で走る時、裏で走る下請け（subagent）1 つにつき 30 秒ごとに、下請けの会話を丸ごと写して同じ模型に「3〜5 語で今の動きを」と頼み、進み具合の札を作る。札は人が Claude Code の画面で下請けの進みを見るための物で、会話の記録にも Archon の記録にも残らず、無人の工場では誰も読まない。止めて失う物が誰も読まない札だけなので、持ち主に聞かずに止める。
+- 決め: 殻は新しい run の設定の層の env に `CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES=1` を載せる。載せないのは `factory-cache-ttl` と同じ形で、工場だけに効く層（利用者の `--config` の `env:`、対象の `.archon/config.yaml` の `env:`）がこの名を持つ時と、`--adopt` の起動と、対象の `.archon/config.yaml` が読めない時。利用者の shell の env のこの名は見ない。
+- 代償（E14）: API キー・ゲートウェイ（Bedrock・Vertex を含む）・サブスクリプションのどれでも、Claude Code の中の同じ分かれ道で効く。この名は Claude Code の公開の文書に無く配布物の中にだけ在るので、版が上がると黙って効かなくなりうるが、その時も壊れず札の費用が戻るだけ。名を知らない版の Claude Code は知らない env を無視する。札を見たい利用者は `--config` の `env:` にこの名を偽の値（`'0'` など）で書けば、工場は載せず、その値が届く（Claude Code 2.1.318 はこの名を真偽の値として読む）。
+- 当て方: `bin/_lib/launcher.py` の `AGENT_SUMMARIES_OFF`・`agent_summaries`。設計は `docs/design/archon.md` の「裏で走る下請けの進み具合の札」。機械は `tests/bin/test_launcher.py` の `test_run_layer_stops_agent_progress_summaries`。
+
 ## 2026-10-28 の決め（見る道具の置き場）
 
 出典: 持ち主と窓口（持ち主と部署の間で頼みを受け渡す会話）の会話（2026-10-28）。
