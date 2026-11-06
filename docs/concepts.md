@@ -255,7 +255,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 ### `ledger` 費用と時間の帳簿
 
 - 状態: 散らばり
-- 今: 時間 `wall_s` を、構造の目の控え（`lib/structmark.py`・`lib/eye.py`）・宣言した確かめの段（`lib/declared_checks.py`）がそれぞれの形で書いて読む。数の歯止めは表の `known` の 7 ファイル 11 行（2026-11-05 の数え直しで、構造の目の block `workflows/structure/src/` と形 `workflows/.shared/schemas/structure-state.schema.json`・見る道具の `viewer/src/runread.py` を載せた）
+- 今: 時間 `wall_s` を、構造の目の控え（`lib/structmark.py`・`lib/eye.py`）・宣言した確かめの段（`lib/declared_checks.py`）がそれぞれの形で書いて読む。数の歯止めは表の `known` の 7 ファイル 11 行（2026-11-05 の数え直しで、構造の目の block `workflows/structure/src/` と形 `workflows/.shared/schemas/structure-state.schema.json`・見る道具の `viewer/src/runread.py` を載せた）。費用とトークンの数え方の決まり（どの行を足し、何を足さないか）の正本は `docs/design/archon.md` の「使用量（トークンと費用）の数え方」の箇条
 - 計画: まだ無い
 
 ### `ai-launch` AI の起こし方（模型・effort・道具・隔離）
