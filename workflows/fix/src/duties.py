@@ -401,7 +401,8 @@ def accept_problems(place, repo, rev: str, reply, *, base=None, cases=None, reco
     型は注文の索引 orders.json の weapons（注文の無い置き場は照らさない）で、義務は単位の行の checked_as（裁定の後の直しの注文の、照らしに
     使う元の型。下書き 4.1 の 6）が在ればその型で引く（tdd から来た単位に variant の義務を当てない）。元の結末 base は呼び手が
     board.accept_base で選んだ base.json の中身を渡す（組の子は置き場、裁定の後は bases/<k>/。無ければ None）。ここでは置き場の
-    base.json を自分で読まない（読み口を 2 つにしない）。cases は受け付けが走らせた
+    base.json を自分で読まない（読み口を 2 つにしない）。裁定の後の段も bases/<k>/ の中身を受けるので、base を読む事実（no_tests・keep の
+    vanished・pin の twice）は組の子と同じに裁定の後の段でも効く。cases は受け付けが走らせた
     回の結末の行（keep の箱の居なくなった試験）。round_ は守りのテストを読む凍結した欄の周（今の board.accept_reply は渡さず、事後の関門
     gates.problems と同じ既定の 1）。変える段の単位の名指しは先に全部集め、起点の木の結末 before を gates.named_before の 1 回で引く
     （実行器を単位の数だけ起こさない）。結末を引けず、それが義務を決める単位（wants_before）は、義務の問題にせず保留の行

@@ -1798,7 +1798,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     （直しは作業ツリーに残す）写しの照らしを当て直し、受ければ trace に ABSORBED_OP。写しの拒否が残れば同じく結び、止める単位が
     残らなければ義務の残りを全部止めて通し直す（parking.park_owed。写しの拒否の時だけ）。それでも残れば受けずに諦める（NOT_SETTLED）。
     型の義務が保留にした単位（直す前の結末を引けない）は、結べない行の結び先と park_owed の義務の残りから除いて諦めに巻き込まず、
-    足跡を共にするだけで閉包に入った時は、何も戻さずに保留の止めで組を止める。
+    保留の単位が 1 つでも足跡を共にするだけで閉包に入った時は、何も戻さずに保留の止めで組を止める。
     owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、record は今の段の
     TDD の輪の記録のファイル（無ければ空。凍結・書き込み・範囲・返しの控え・足跡が読む。変更に当たる試験の選びは、輪が名指した試験を
     record か、record が空なら tests_record から読む）、tests_record は record が空の時に輪が名指した試験を読む輪の記録（裁定の後の段で
@@ -2008,8 +2008,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
             settled = parking.park_owed(texts, feet=feet, owed=set(duty) - held_keys, out_of_duty=out_of_duty, skip=tuple(skip))
     if not settled.park:
         return stop_held() if held else rejected(NOT_SETTLED)
-    dragged = held_keys & set(settled.park)   # 足跡を共にするだけで巻き込まれた保留の単位: ファイルは単位ごとに分けて戻せないので戻さずに止める
-    if dragged and all(parking.only_shared(settled.park[k]) for k in dragged):
+    dragged = held_keys & set(settled.park)   # 足跡を共にするだけで巻き込まれた保留の単位が 1 つでも在れば: ファイルは単位ごとに分けて戻せないので戻さずに止める
+    if any(parking.only_shared(settled.park[k]) for k in dragged):
         return stop_held(*(r for k in sorted(dragged) for r in settled.park[k]))
     now, _ = park_units(place, repo, settled, head or rev, iteration=iteration, pass_=pass_)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,

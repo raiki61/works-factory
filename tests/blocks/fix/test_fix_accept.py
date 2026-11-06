@@ -3075,12 +3075,16 @@ class FixAcceptSeamCase(SeamTemp):
     HELD = "型 variant の単位 alpha-unit の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）"
     OTHER = "型 variant の単位 beta-unit の義務: ほかの義務の行"
     UNBOUND = "どの単位の key もパスも名指さない拒みの行"
+    HELD_BETA = "型 variant の単位 beta-unit の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）"
 
-    def _last_turn_with_a_held_unit(self, *, files, other, dropped=None):
+    def _last_turn_with_a_held_unit(self, *, files, other, dropped=None, held=("alpha-unit",), extra=(), asks=(), copy_rows=()):
         """単位 alpha-unit（files[0] のファイルを書いた）は直す前の結末を引けず保留の行を返し、単位 beta-unit（files[1] のファイルを
-        書いた）には other の行（拒みの文。None なら結べない文の行）が並ぶ最後の回の受け付け。dropped {単位: 足跡のファイル} の単位は
-        前の回に諦めて義務の外に在り、輪の記録の足跡を持つ。返りは (受け付けの返り, 元の結末のパス)。
-        ほかの拒みの行は beta-unit の行が返答に在る間だけ返す"""
+        書いた）には other の行（拒みの文。None なら結べない文の行、False なら行を並べない）が並ぶ最後の回の受け付け。held は保留の行を
+        返す単位（beta-unit を入れると beta-unit も保留の行を返す）。dropped {単位: 足跡のファイル} の単位は前の回に諦めて義務の外に在り、
+        輪の記録の足跡を持つ。extra はいつも並べる型の義務の行 (単位の key か None, 文)。asks ははみ出しの頼み（gather_overflow の形）で、
+        頼みのパスが全部作業ツリーに在る間だけ、受け付けが頼みの文を型の義務の行に積み、はみ出しとして見つける。copy_rows は写しの照らし
+        （recount.accept_fix）が拒む文。返りは (受け付けの返り, 元の結末のパス)。保留の行とほかの拒みの行は、その単位の行が返答に在る
+        間だけ返す"""
         dropped = dropped or {}
         (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": "alpha-unit", "label": "block"},
                                                                         {"key": "beta-unit", "label": "block"}]}), encoding="utf-8")
@@ -3099,13 +3103,29 @@ class FixAcceptSeamCase(SeamTemp):
                  "interactions": [{"surface": files[0][0], "checked": "2 つの単位の足した物は別の物で、順序を入れ替えても結果が同じ"}]}
         base_file = self.place / "base.json"
         base_file.write_text(json.dumps({"exe": ""}), encoding="utf-8")
+        texts = {"alpha-unit": self.HELD, "beta-unit": self.HELD_BETA}
+
+        def live():
+            return [a for a in asks if all((self.repo / p).exists() for p in a["paths"])]
 
         def duties_run(place, repo, rev, reply, **kw):
-            kw["seen"]["no_before"] = {"texts": [self.HELD], "log": str(pathlib.Path(place) / "duties")}
-            beta = any(c.get("unit_key") == "beta-unit" for c in reply.get("changes") or [])
-            return [("alpha-unit", self.HELD)] + ([(None if other is None else "beta-unit", other or self.UNBOUND)] if beta else [])
-        with mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")), \
-                mock.patch.object(self.m.duties, "accept_problems", duties_run):
+            keys = {c.get("unit_key") for c in reply.get("changes") or []}
+            rows = [(k, texts[k]) for k in held if k in keys]
+            if rows:
+                kw["seen"]["no_before"] = {"texts": [t for _, t in rows], "log": str(pathlib.Path(place) / "duties")}
+            if "beta-unit" in keys and other is not False:
+                rows.append((None if other is None else "beta-unit", other or self.UNBOUND))
+            return rows + list(extra) + [("beta-unit", a["line"]) for a in live()]
+        patches = [mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")),
+                   mock.patch.object(self.m.duties, "accept_problems", duties_run)]
+        if asks:
+            patches.append(mock.patch.object(self.b, "gather_overflow", lambda *a, **k: live()))
+        if copy_rows:
+            import recount
+            patches.append(mock.patch.object(recount, "accept_fix", lambda *a, **k: {"ok": False, "problems": list(copy_rows)}))
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
             got = self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=3, owed=["alpha-unit", "beta-unit"],
                                       judged=[], head=head, skip=SKIP, parked=dict.fromkeys(dropped, "前の回に諦めた"))
         return got, base_file
@@ -3160,6 +3180,53 @@ class FixAcceptSeamCase(SeamTemp):
             self.assertIn(want, got["reason"])
         marked = json.loads((self.place / self.b.TDD_START_FILE).read_text(encoding="utf-8"))
         self.assertEqual((marked["no_suite"], marked["reason"]), (True, got["reason"]))
+
+    def test_a_held_unit_with_only_overflow_on_the_last_attempt_reverts_the_overflow_without_asking_and_stops(self):
+        """最後の回に、保留の行（alpha-unit）と範囲の外のはみ出しの行（beta-unit の c.txt）だけが並ぶと、はみ出しは相談に積まず聞かずに
+        戻して通し直し、残った保留の行で組を止める（相談の周へ回すと、保留の単位が在る回を止めずに次の周へ送る）"""
+        line = "承認済みの修正案の範囲の外: c.txt"
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt", "c.txt"]), other=False,
+                                                  asks=[{"line": line, "item": None, "paths": ["c.txt"], "tests": [], "new_tests": [],
+                                                         "ref": None}])
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertFalse(got.get("queued"), "保留の単位が在る最後の回は、はみ出しを相談に積まない")
+        self.assertFalse((self.repo / "c.txt").exists(), "はみ出しは聞かずに戻す")
+        for name in ("a.txt", "b.txt"):
+            self.assertTrue((self.repo / name).exists())
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_a_line_bound_only_to_a_unit_outside_the_duty_does_not_let_a_held_unit_be_accepted(self):
+        """最後の回に、保留の行（alpha-unit）と、前の回に諦めて義務の外に在る単位 x-unit の足跡 x.txt だけを名指す行が並ぶと、その行は
+        数えないが、保留の単位が残るので受けずに組を止める（受けると確かめていない直しを黙って通す）"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=False, dropped={"x-unit": ["x.txt"]},
+                                                  extra=[(None, "x.txt の行がまだ残る")])
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()},
+                         {"alpha-unit": "not_done", "beta-unit": "not_done", "x-unit": "given_up"}, got["units"])
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_a_copy_line_bound_only_outside_the_duty_gives_up_the_rest_but_not_the_held_unit(self):
+        """最後の回に、保留の行（alpha-unit）と、義務の外の単位 x-unit の足跡 x.txt だけを名指す写しの拒否の行が並ぶと、義務の残りを全部
+        止める道（parking.park_owed）は保留の単位を除いた beta-unit だけを戻して諦め、alpha-unit は戻さずに組を止める"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=False, dropped={"x-unit": ["x.txt"]},
+                                                  copy_rows=["写しの照らし: x.txt の数えが合わない"])
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()},
+                         {"alpha-unit": "not_done", "beta-unit": "given_up", "x-unit": "given_up"}, got["units"])
+        self.assertTrue((self.repo / "a.txt").exists(), "保留の単位の直しは義務の残りの全部止めで戻さない")
+        self.assertFalse((self.repo / "b.txt").exists())
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_one_held_unit_dragged_only_by_shared_files_stops_even_if_another_held_unit_is_rejected(self):
+        """保留の単位が 2 つ在り、beta-unit は保留の行のほかに自分を名指す拒みも受け、alpha-unit は beta-unit と shared.txt を共にするだけで
+        閉包に入る最後の回: 足跡を共にするだけで入った保留の単位が 1 つでも在れば、何も戻さず諦めずに組を止める"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["shared.txt"], ["shared.txt"]), other=self.OTHER,
+                                                  held=("alpha-unit", "beta-unit"))
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "not_done"}, got["units"])
+        self.assertTrue((self.repo / "shared.txt").exists(), "分けて戻せないファイルは戻さない")
+        for want in (self.HELD, self.HELD_BETA, self.OTHER, self.m.parking.SHARED):
+            self.assertIn(want, got["reason"])
 
     def test_accept_reply_saves_the_closure_table_it_recounted(self):
         """受けた返答は閉鎖の数え直し（closure_reply）を通り、単位ごとの表を置き場に置く（querytest.save_closure）"""
