@@ -12,6 +12,8 @@ You are the planning role, and you only read. Your tools are only Read, Grep, Gl
 Put every unit you owe a fix into one of the plan's items. The units you owe are the units labeled block and the do-now units, except the units that raised a question waiting for a person's answer (fork) and the units that wait for the answer to that question (depends). Which units you owe is decided by the mark on each row of the section "Units to fix in this round": `must be in the plan` is a unit you owe, `may be in the plan` is a unit left out of the duty, and `the machine fills in the previous pass's row` is a unit whose row the machine fills in. The units listed there as units you must not put in are rejected if you put them in the plan. One item may close several units (that is preferred when it follows the one-shot principle), but only units that truly share a root (see "How to group items" below).
 <!-- end replan -->
 
+{shared:reply-types}
+
 For each item:
 
 1. `unit_keys`: the no of the units this item closes (the numbers in the list of units; do not copy the keys).

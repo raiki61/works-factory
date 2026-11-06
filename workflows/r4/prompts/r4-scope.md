@@ -86,5 +86,7 @@ In this role, write each conflict with the policy as one row in `policy_conflict
 
 {shared:eye-recorded-policy}
 
+{shared:reply-types}
+
 Write `reason`, `lost`, `note`, `policy_conflicts`, the `text`, `mechanism`, `measured`, and `false_positive_if` of `surfaced`, `seen`, and `unseen` (and the `reason`, `seen`, and `unseen` of `r3`, if you write it) in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are. When you copy a row passed before the fix, do not change its text.
 Return only JSON that matches this node's output schema (JSON Schema).

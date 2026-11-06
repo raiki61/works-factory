@@ -6,3 +6,5 @@ How to write `material`: `status` is one of the following.
 - `not_run`: it should have been done, but you skipped it. Give `reason`.
 
 `carried_over` (reusing an earlier round) is written by the machine for viewpoints that did not run. You ran, so write what you found in this run; an answer that says `carried_over` is rejected.
+
+{shared:reply-types}

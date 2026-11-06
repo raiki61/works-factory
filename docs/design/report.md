@@ -254,7 +254,7 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
 8. `## Outline`（決まった文）と `{lang}` ← port `lang`（空なら `"the language of the request (the user's language)"`）、`{decisions_heading}` ← 「1. 人が決めること」、`{stop_heading}`。
 9. `## Format rules`（決まった文）と `{decisions_head}`、`{cell_limit}` ← `report_roles.CELL_LIMIT`（50）。
 10. 返す形の段（決まった文）。
-11. `{shared:handoff}`（引き継ぎのメモの頼みと、前の周のメモの節）。断片の中の `<!-- if handoff_rounds -->` — 条件: 今の回の前の周が 1 つ以上（`rolekit.attempt(place, "report") > 1`）。`{handoff_rounds}` ← `writer.handoff_rounds(place)`（1 周 1 行 `- r<k>: <パス>`。メモの無い周は `- r<k>: (no notes)`、読めない周は `- r<k>: (unreadable)`）。
+11. その直前に `{shared:reply-types}` を置く。`{shared:handoff}`（引き継ぎのメモの頼みと、前の周のメモの節）。断片の中の `<!-- if handoff_rounds -->` — 条件: 今の回の前の周が 1 つ以上（`rolekit.attempt(place, "report") > 1`）。`{handoff_rounds}` ← `writer.handoff_rounds(place)`（1 周 1 行 `- r<k>: <パス>`。メモの無い周は `- r<k>: (no notes)`、読めない周は `- r<k>: (unreadable)`）。
 
 md の本文（英語。この block の 2 つ目の commit でこのまま置く）:
 

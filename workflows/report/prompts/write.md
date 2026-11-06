@@ -62,4 +62,6 @@ Return only the JSON `{"text": "<the body of the report in Markdown>", "terms": 
 
 {shared:query-rule}
 
+{shared:reply-types}
+
 {shared:handoff}
