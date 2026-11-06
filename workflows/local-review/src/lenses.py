@@ -11,6 +11,10 @@ fork（下請けの会話）で走る。返答の道具 StructuredOutput を継�
 「所見なし」でなく「見ていない」と印を付けて受ける（mark_unseen。起こし直しても同じ形で落ちるので拒まない）。見ていない、は
 控え LENS_FILE に残し、出口の report の行にする（unseen_lines）。
 
+2026-11-05 の実測（guided-resolver の局所レビューの会話 15 本すべて）でも、役の会話から Skill で直に起こした fork は StructuredOutput
+へ所見を書いた。general-purpose の子（Agent）は返答の道具を持たないので、その中から起こした fork は本文で返す（実測 4 本中 4 本）。
+指示の md は /code-review を子の中から起こさせ、この印はそれでも本文が届かなかった時の受けとして残す。
+
 公開の名:
 - LENSES・SIMPLIFY_LENS・SECURITY_COND・SECURITY_WHY・applies・skills: レンズの宣言と、この run の評価を足した物
 - FORK_LENSES・UNSEEN_TAG・LENS_FILE・mark_unseen・unseen・unseen_lines: 見ていないレンズの印と控えと報告の行
