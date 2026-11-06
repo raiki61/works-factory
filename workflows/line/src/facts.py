@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import pathlib
 
+import stopby
 from src import stages as stageslib
 
 GATES = (("gate-start", "answer_start"), ("gate-before-fix", "answer_before_fix"), ("gate-replan", "answer_replan"),
@@ -49,6 +50,11 @@ PR_COMMITS = "PR の commit: "
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 UNNAMED_NODE = "名の訳が無いノード"
 UNKNOWN_STOP = "語の意味の記録が無い"
+NO_STOP_REASON = "訳の記録が無い"
+STOP_REASON_CAP = 120   # 頭の訳の行の長さの上限（名前と長い本文は頭の下の節へ回す）
+BASE_STOPPED = "直す前の試験の関門が止めた（判定は起こしていない）"
+# 止めの語 → 報告の頭の訳の行の尾に付ける「次にすること」の句（語が在る止めは、訳が空でも黙らない）
+HEAD_NEXT = {stopby.START_REFUSED: "訳が名指した入力を直して、run を起こし直す（AI は起こしておらず、対象には何も当てていない）"}
 UNPASSED_WHERE = "指摘の全文は報告の「2. 止めたか」の節"
 EYE_ASK_HEAD = "依頼の範囲を超えていないかを見る目の問い"   # gatemarks.EYES["R4"] の問い。頭の行に目の印 R4 を出さない
 MEANS_ASK_HEAD = "頼みの解き方どおりで独立設計と食い違う所"   # R2 の頼みどおりの違いの問い（計画 means-answers の 6.3 の 3。行の頭の R2: で目が分かる）
@@ -330,18 +336,22 @@ def gate_rows(gates: dict) -> list:
              "text": str(g.get("text") or "") if isinstance(g, dict) else ""} for at, g in gates.items()]
 
 
+def stop_returns(values: dict) -> list:
+    """止めた段の返り [(node, 止めの語, 訳)]（LINE_STOPS・BLOCK_STOPS の表の順）: 返りの stop_reason が空でない字の段だけ。訳は返りの reason
+    （空でない字ならその字、ほかは空）。node から返りを引く読みはここだけ"""
+    out = []
+    for node, name in (*LINE_STOPS, *BLOCK_STOPS):
+        got = as_dict(values.get(name))
+        word = got.get("stop_reason")
+        if isinstance(word, str) and word:
+            why = got.get("reason")
+            out.append((node, word, why if isinstance(why, str) and why.strip() else ""))
+    return out
+
+
 def stop_rows(values: dict, returns: dict) -> list:
     """止めの語 [{at, word}]: line の script の止めの語と、block の返りの stop_reason（judge・fix と refix・spec check の人待ちの語）"""
-    import stopby
-    out = []
-    for node, name in LINE_STOPS:
-        word = as_dict(values.get(name)).get("stop_reason")
-        if isinstance(word, str) and word:
-            out.append({"at": node, "word": word})
-    for node, name in BLOCK_STOPS:
-        word = as_dict(values.get(name)).get("stop_reason")
-        if isinstance(word, str) and word:
-            out.append({"at": node, "word": word})
+    out = [{"at": node, "word": word} for node, word, _ in stop_returns(values)]
     for n, s in enumerate(_list(as_dict(returns.get("fix")).get("stages")), 1):
         word = as_dict(as_dict(s).get("fix")).get("stop_reason")
         if isinstance(word, str) and word:
@@ -377,7 +387,6 @@ def review_fell(returns: dict) -> bool:
 
 def halt_rows(returns: dict) -> list:
     """line が返りの欄から読んだ止め: 往復が進まない（修正へ進まなかった run）・計画の諦め・封じと置きの ok でない"""
-    import stopby
     out = []
     plan = as_dict(returns.get("plan"))
     if (plan.get("stalled") is True or review_fell(returns)) and returns.get("fix") is None:
@@ -409,7 +418,6 @@ def means_questions(returns: dict, gates: dict) -> list:
 
 def wait_rows(values: dict, returns: dict) -> dict:
     """人待ち {conflicts, conflicts_if_closed, others}"""
-    import stopby
     asked = asked_conflicts(returns, closed=False)
     waiting = waiting_conflicts(returns)
     others = []
@@ -573,14 +581,8 @@ def script_fall_notes(values: dict) -> list:
     """line の script が落ちて（止めの語 works:line-script）返した訳の行。今は fix-in が reason を運ぶ（壊れた始めの記録 start.json の名など）。
     止めの語の行は語の意味しか言わないので、訳は problems に名指しで出す"""
     import oneline
-    import stopby
-    out = []
-    for node, name in LINE_STOPS:
-        got = as_dict(values.get(name))
-        why = got.get("reason")
-        if got.get("stop_reason") == stopby.LINE_SCRIPT and isinstance(why, str) and why.strip():
-            out.append(f"{node} の script が落ちた（{oneline.one_line(why)}）")
-    return out
+    return [f"{node} の script が落ちた（{oneline.one_line(why)}）" for node, word, why in stop_returns(values)
+            if word == stopby.LINE_SCRIPT and why]
 
 
 def node_names() -> dict:
@@ -602,7 +604,6 @@ def plain(at: str) -> str:
 def stop_words(stops: list) -> list:
     """止めの語ごとの 1 行（頭の行）: 人が読む言葉の node の名を並べ、語の意味を言う。node の id と止めの語の字は出さない（頭の外の
     stop_words_full の行に残る）"""
-    import stopby
     by_word = {}
     for s in stops:
         by_word.setdefault(str(s["word"]), []).append(plain(s["at"]))
@@ -612,7 +613,6 @@ def stop_words(stops: list) -> list:
 
 def stop_words_full(stops: list) -> list:
     """止めの語の行の全部（頭の外の節の行）: 「訳（node の id） が 止めの語（意味）」"""
-    import stopby
     return [f"{named(s['at'])} が {s['word']}（{stopby.REASONS.get(str(s['word']).removeprefix(stopby.HEAD), UNKNOWN_STOP)}）" for s in stops]
 
 
@@ -657,14 +657,33 @@ def ran_notes(returns: dict) -> list:
     return [note] if note else []
 
 
-def base_stop_notes(returns: dict) -> list:
-    """直す前の試験の関門が止めた（返りの ok が偽。試験のコマンドの最初の語を起こせない run など。持ち主の決め base-runs-nothing）時の
-    冒頭の句: 止めた訳（返りの reason）。止めていなければ空"""
+def spoken_stops(values: dict, returns: dict) -> list:
+    """頭で訳を言う止め [(意味, 訳, 次にすること)]: 止めの語を返した最初の段（stop_returns。入口が断ったように次にすることが決まっている
+    止め〔HEAD_NEXT〕は訳が空でも黙らず、訳の位置に記録が無いと言う）と、止めの語を持たずに ok を偽で返す直す前の試験の関門
+    （試験のコマンドの最初の語を起こせない run など）。訳は返りの reason を 1 行に畳むだけで言い換えない"""
     import oneline
+    out = []
+    for _, word, why in stop_returns(values):
+        if why or word in HEAD_NEXT:
+            out.append((stopby.REASONS.get(word.removeprefix(stopby.HEAD), UNKNOWN_STOP), oneline.one_line(why) if why else NO_STOP_REASON,
+                        HEAD_NEXT.get(word, "")))
+            break
     base = as_dict(returns.get("before-tests"))
-    if base.get("ok") is not False or not base.get("reason"):
-        return []
-    return [f"直す前の試験の関門が止めた（判定は起こしていない）: {oneline.one_line(base['reason'])}"]
+    if base.get("ok") is False and base.get("reason"):
+        out.append((BASE_STOPPED, oneline.one_line(base["reason"]), ""))
+    return out
+
+
+def stop_reason_notes(values: dict, returns: dict) -> list:
+    """止めた段の訳の冒頭の句「<止めの語の意味>: <訳>」。長い訳は STOP_REASON_CAP 字で切る（全文は stop_reason_full が注意の節へ）。
+    次にすることが決まっている止めは尾に「——次にすること: <句>」を付ける。node の id と止めの語の字は出さない（頭の外の節の行に残る）"""
+    return [f"{what}: {why if len(why) <= STOP_REASON_CAP else why[:STOP_REASON_CAP].rstrip() + '…'}{f'——次にすること: {nxt}' if nxt else ''}"
+            for what, why, nxt in spoken_stops(values, returns)]
+
+
+def stop_reason_full(values: dict, returns: dict) -> list:
+    """頭で切った訳の全文（注意の節の行）。切らなかった訳は頭に全文が在るので出さない"""
+    return [f"{what}（報告の頭では切った訳の全文）: {why}" for what, why, _ in spoken_stops(values, returns) if len(why) > STOP_REASON_CAP]
 
 
 def suite_broken_notes(values: dict) -> list:
@@ -774,7 +793,6 @@ def prior_failures(returns: dict, left: list, stops: list) -> list:
     import fixboard
     import oneline
     import report
-    import stopby
     rows = [{"where": f"{GAVE_UP_WHERE} {u.get('unit_id')}", "text": oneline.one_line(u.get("reason") or "理由の記録が無い")}
             for u in _list(as_dict(returns.get("fix")).get("units")) if isinstance(u, dict) and u.get("status") == fixboard.GIVEN_UP]
     gave_up = plan_gave_up(returns)
@@ -1183,9 +1201,10 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     ties_why = part("答えの結び", lambda: ties_note(returns), "", outcome=False)
     notes += [ties_why] if ties_why else []
     notes += [f"修正の控え: {x}" for x in got["unread"]]
+    notes += part("止めた訳の全文", lambda: stop_reason_full(values, returns), [], outcome=False)
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
-    after = [*part("直す前のテストの止めの句", lambda: base_stop_notes(returns), [], outcome=False),
+    after = [*part("止めた段の訳の句", lambda: stop_reason_notes(values, returns), [], outcome=False),
              *part("起動スクリプトの壊れの句", lambda: suite_broken_notes(values), [], outcome=False),
              *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),

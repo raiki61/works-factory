@@ -157,3 +157,58 @@ class BaseStopHeadCase(unittest.TestCase):
 
     def test_a_base_gate_that_went_on_says_nothing(self):
         self.assertFalse([x for x in self.after(base.passing()) if x.startswith("直す前の試験の関門が止めた")])
+
+
+class StopReasonHeadCase(unittest.TestCase):
+    """止めた段が返した訳は、どの段が止めても報告の冒頭の知らせの行に 1 本出る。入口が入力を断った時だけ、次にすることの句が尾に付く。
+    止めていない run には出さない"""
+    REFUSED = "PR の head が対象の HEAD と違う——PR の head を取り出した所で始める"
+    NEXT = "次にすること: 訳が名指した入力を直して、run を起こし直す"
+
+    def setUp(self):
+        self.f = kit.load(BLOCK, "facts")
+        self.run = kit.Run(self, BLOCK)
+        base.seed(self.run)
+
+    def after(self, values: dict) -> list:
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            return self.f.build(values, base.record())["head"]["after"]
+
+    def inner_names_in(self, text: str) -> list:
+        names = [n for n in self.f.node_names() if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text)]
+        return [*names, *[m.group(0) for p in INNER for m in re.finditer(p, text)]]
+
+    def test_every_stopping_node_puts_its_reason_in_the_head_once(self):
+        import stopby
+        cases = [(node, name, stopby.START_REFUSED if node == "start" else stopby.LINE_SCRIPT) for node, name in self.f.LINE_STOPS]
+        cases += [(node, name, stopby.PREMISES) for node, name in self.f.BLOCK_STOPS]
+        for node, name, word in cases:
+            with self.subTest(node=node):
+                v = base.passing()
+                v[name] = {**(v.get(name) or {}), "ok": False, "stop_reason": word, "reason": f"R-{node}"}
+                lines = [x for x in self.after(v) if f"R-{node}" in x]
+                self.assertEqual(len(lines), 1, lines)
+                self.assertEqual(self.inner_names_in(lines[0].replace(f"R-{node}", "")), [], lines[0])
+                self.assertEqual(self.NEXT in lines[0], node == "start", lines[0])
+        with self.subTest(node="test-gate-base"):
+            v = base.passing()
+            v["test_gate_base"] = {**v["test_gate_base"], "ok": False, "green": False, "reason": "R-test-gate-base"}
+            lines = [x for x in self.after(v) if "R-test-gate-base" in x]
+            self.assertEqual(len(lines), 1, lines)
+            self.assertEqual(self.inner_names_in(lines[0].replace("R-test-gate-base", "")), [], lines[0])
+            self.assertNotIn(self.NEXT, lines[0])
+        with self.subTest(node="none"):
+            after = self.after(base.passing())
+            self.assertFalse([x for x in after if "R-" in x or self.NEXT in x], after)
+
+    def test_the_refused_line_says_what_to_do_next_without_inner_names(self):
+        import stopby
+        v = {name: None for name in base.INPUTS} | {"notices": "", "optional": []}
+        v["start"] = {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": self.REFUSED, "record": None}
+        lines = [x for x in self.after(v) if x.startswith(stopby.REASONS["start-refused"])]
+        self.assertEqual(len(lines), 1, lines)
+        line = lines[0]
+        self.assertIn(self.REFUSED, line)
+        self.assertIn(self.NEXT, line)
+        self.assertLess(line.index(self.REFUSED), line.index(self.NEXT), "訳が先、次にすることが尾")
+        self.assertEqual(self.inner_names_in(line.replace(self.REFUSED, "")), [], line)
