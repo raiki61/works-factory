@@ -1,7 +1,7 @@
 """直し方の型の段 1（docs/plans/2026-10-24-fix-weapons.md の 4.4）の、型を問わない部品の試験。
 
 - route から型を引く表（src/route.weapon_of。4.1 の 3 の 5 行）と、振り分けの AI に渡す単位の集まり（route_keys）
-- 試験が無いかの印 no_tests の決め（src/basecase._no_tests。4.4 の作る物 12 の 5 つの場合と、宣言を読む木）。どの試験も対象の試験を
+- 試験が無いかの印 no_tests の決め（src/basecase._no_tests。4.4 の作る物 12 の 5 つの場合と、宣言を読む木。予約の 1 件だけの元の結末は 0 件）。どの試験も対象の試験を
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
 - 口の形（.shared/schemas/weapon-order.schema.json・schemas/weapon-return.schema.json）
@@ -137,6 +137,15 @@ class NoTestsCase(unittest.TestCase):
         repo = _repo(self.tmp, {"a.py": "x = 1\n", basecase.declared.DECL_NAME: _decl([])})
         rows, flag = self.decide(repo, [{"classname": "c", "name": "n", "outcome": "passed"}])
         self.assertEqual((rows["status"], flag), (basecase.LISTED, False))
+
+    def test_the_synthesized_case_alone_counts_as_zero_cases(self):
+        """元の結末が、試験の道具が結果を書く前に赤で終わった時の予約の 1 件だけなら、1 件ごとの結末が 0 件と同じに読む（真）。
+        1 件ごとの行が混じれば偽"""
+        repo = _repo(self.tmp, {"a.py": "x = 1\n", basecase.declared.DECL_NAME: _decl([])})
+        red = basecase.baseline_red
+        synth = {"classname": red.SYNTH_CLASSNAME, "name": red.SYNTH_NAME, "outcome": "error"}
+        self.assertEqual(self.decide(repo, [synth])[1], True)
+        self.assertEqual(self.decide(repo, [synth, {"classname": "c", "name": "n", "outcome": "passed"}])[1], False)
 
     def test_absent_and_failing_lists_do_not_decide(self):
         repo = _repo(self.tmp, {"a.py": "x = 1\n", basecase.declared.DECL_NAME: _decl(None)})

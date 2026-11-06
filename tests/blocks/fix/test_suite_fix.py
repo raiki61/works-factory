@@ -19,6 +19,7 @@ ROOT = kit.ROOT
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
+import baseline_red  # noqa: E402
 import stopby  # noqa: E402
 
 # 関わる試験を、試験の中身に届く前の読み込みの誤り（JUnit の error）で落とす壊れた起動スクリプト（run 96f35545 の形）
@@ -52,7 +53,7 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         if str(kit.SHARED) not in sys.path:
             sys.path.append(str(kit.SHARED))
         import prompt
-        return prompt.digest(prompt.RUNNER_WRITER)
+        return prompt.runner_stamp()
 
     def kept(self, cmd: str) -> pathlib.Path:
         return self.keep / f"{hashlib.sha256(cmd.encode('utf-8')).hexdigest()}.{self.stamp()}"
@@ -83,6 +84,23 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         self.assertIn(started["cmd_log"], started["reason"])
         self.assertEqual(self.run_script("route_go"), {"route": False, "stop": True})
         self.assertEqual({k: v for k, v in self.run_script("orders").items() if k != "reason"}, {"tdd": False, "writer": False, "stop": True})
+
+    def test_a_red_test_cmd_without_its_own_junit_goes_on_and_is_not_kept(self):
+        """試験の道具が結果を書く前に赤で終わり、実行器が予約の 1 件（error）だけを書いて 0 でない値で終わる組は、test_cmd の単体も
+        赤なら、no-suite で止まらずに輪へ進む。予約の 1 件は元の結末の鍵に入れず（元でも赤の材料にしない）、走ったのは 1 件ごとの
+        結果ではないので、その実行器は取り置かない"""
+        synth = (f"<testsuite><testcase classname='{baseline_red.SYNTH_CLASSNAME}' name='{baseline_red.SYNTH_NAME}'>"
+                 "<error message='exit 1'/></testcase></testsuite>")
+        self.put(self.runner, f"#!/bin/sh\nprintf '%s' \"{synth}\" > \"$1\"\nexit 1\n")
+        self.parent_inputs(str(self.runner), test_cmd="false", suite_made=True)
+        out = self.start()
+        self.assertEqual((out["tdd"], out["suite_broken"]), (True, False), out)
+        self.assertIsNot(self.started().get("no_suite"), True, self.started())
+        base = json.loads((self.place / "base.json").read_text(encoding="utf-8"))
+        self.assertIs(base["taken"], True)
+        self.assertNotIn(f"{baseline_red.SYNTH_CLASSNAME}::{baseline_red.SYNTH_NAME}", base["baseline"])
+        self.assertEqual([c["name"] for c in base["baseline_cases"]], [baseline_red.SYNTH_NAME], "取り置きの照らしが読む行は残す")
+        self.assertFalse(self.kept("false").exists(), "予約の 1 件だけの実行器を取り置いた")
 
     def test_a_runner_the_person_gave_is_not_called_broken(self):
         """人が渡した実行器（suite_made が偽）は書き直させない（今までどおり）"""

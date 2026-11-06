@@ -55,7 +55,7 @@
 - scoped(items): 範囲の欄の在る項目の並びか（217 番の形の控えは範囲の無い run と同じに扱う 1 つの決まり。
   修正の受け付けの範囲の照らしと差分の審査の準拠の受け付けが使う）
 
-写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と JSON の読み書き jsonfile・glob の読み globs だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
+写しの engine の型の検査と時刻（engine.schema・engine.util。L0 の写し）と JSON の読み書き jsonfile・glob の読み globs・判定の単位の行の形 judgmark（import を持たない）だけを使い、entry・conflict を import しない（conflict がこのモジュールを読むので、
 輪を作らない）。
 """
 from __future__ import annotations
@@ -80,6 +80,7 @@ from engine.schema import validate_schema  # noqa: E402
 from engine.util import now  # noqa: E402
 import globs  # noqa: E402
 import jsonfile  # noqa: E402
+import judgmark  # noqa: E402
 
 STEPS = ("plan", jsonfile.EACH)   # 返答の中の欄を持つ行（修正案の項目）の道
 NODE = "p2.fix_plan"   # 盤面の記録で修正案の返答を引く節（plan_items。前の marks の種 plan の節）
@@ -1069,17 +1070,19 @@ def structure_gaps(plan, tables, whole=None) -> list[str]:
 JUDGE_NODE = "p2.diagnose"   # 判定の節（単位の処方を持つ返答。写しの graph の writes は units に処方を写さない）
 
 
-def prescriptions(b) -> dict:
-    """{単位の key: [処方の文]}（判定の返答の最新の出力から。空の処方の単位は入れない。出力が無い・形が違えば {}）"""
-    out = b.latest_output(JUDGE_NODE)
-    units = out.get("units") if isinstance(out, dict) else None
+def judged_prescriptions(judgment) -> dict:
+    """{単位の key: [処方の文]}（判定の返答の dict から。空の処方の単位は入れない。dict でない・units の形が違えば {}。単位の行は judgmark.units_of）"""
     got = {}
-    for u in units if isinstance(units, list) else []:
-        if isinstance(u, dict) and isinstance(u.get("key"), str):
-            rx = [x for x in u.get("prescriptions") or [] if isinstance(x, str) and x.strip()]
-            if rx:
-                got[u["key"]] = rx
+    for key, u in judgmark.units_of(judgment).items():
+        rx = [x for x in u.get("prescriptions") or [] if isinstance(x, str) and x.strip()]
+        if rx:
+            got[key] = rx
     return got
+
+
+def prescriptions(b) -> dict:
+    """{単位の key: [処方の文]}（判定の節の最新の出力から。出力が無ければ {}）"""
+    return judged_prescriptions(b.latest_output(JUDGE_NODE))
 
 
 def answer_line(r: dict) -> str:

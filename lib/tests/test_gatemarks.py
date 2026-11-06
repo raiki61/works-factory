@@ -337,7 +337,7 @@ class MeansRowsCase(unittest.TestCase):
         self.assertTrue(r["text"].startswith("修正案 2 は頼みの解き方 M1「分母を len(xs) にする」に従わない——"), r["text"])
         self.assertEqual(r["mark"]["recommend"], self.REC)
         self.assertEqual(r["why"], [gatemarks.MEANS_WHY])
-        text = gatemarks.means_item(r)
+        text = gatemarks.depart_item(r)
         self.assertNotIn("世界の解:", text)
         self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
         self.assertEqual(gatemarks.means_key(text), (2, "M1", "departs"))
@@ -345,7 +345,8 @@ class MeansRowsCase(unittest.TestCase):
     def test_plan_row_without_departs_has_no_push(self):
         r = gatemarks.means_rows(self.FIELDS, self.SAID)[0]
         self.assertNotIn("recommend", r["mark"])
-        self.assertIsNone(gatemarks.push_rec(gatemarks.means_item(r)))
+        text = gatemarks.depart_item(r)
+        self.assertIsNone(gatemarks.push_rec(text))
 
     def test_drift_row(self):
         r = gatemarks.means_drift_rows([{"item": 1, "means": "M1", "design_quote": "設計の字", "plan_quote": "案の字",
@@ -354,6 +355,38 @@ class MeansRowsCase(unittest.TestCase):
         self.assertEqual(gatemarks.means_key(r["text"]), (1, "M1", "drifts"))
         self.assertIsNone(gatemarks.means_key("修正案 1 の世界の解の行"))
         self.assertEqual(gatemarks.means_key(gatemarks.means_depart_text(1, "M1", {}, "別の層")), (1, "M1", "departs"))
+
+
+class PrescriptionRowsCase(unittest.TestCase):
+    RX = {"U": ["分母を len(xs) にする", "上限の枝を hi にする"]}
+    REC = {"answer": "continue", "note": "計画のまま進める", "why": "リポジトリの決まりに合う"}
+    FIELDS = [{"structure": [{"prescription": "U", "follows": True}]},
+              {"structure": [{"prescription": "U", "deviation": "リポジトリの決まりが別の層に置くと決めている"},
+                             {"means": "M1", "deviation": "頼みの解き方の外れはこの行に入らない"}]}]
+
+    def test_plan_row_carries_the_departs_recommend(self):
+        rows = gatemarks.prescription_depart_rows(
+            self.FIELDS, self.RX, [{"item": 2, "prescription": "U", "why": "決まりに合う", "recommend": self.REC}])
+        self.assertEqual(len(rows), 1, rows)
+        r = rows[0]
+        self.assertEqual((r["source"], r["item"]), (gatemarks.PRESCRIPTION_KIND, 2))
+        self.assertTrue(r["text"].startswith("修正案 2 は単位 U の判定の処方「"), r["text"])
+        self.assertIn("1. 分母を len(xs) にする", r["text"])
+        self.assertIn("2. 上限の枝を hi にする", r["text"])
+        self.assertIn("に従わない——リポジトリの決まりが別の層に置くと決めている", r["text"])
+        self.assertNotIn(gatemarks.PRESCRIPTION_UNREAD, r["text"])
+        self.assertEqual(r["mark"]["recommend"], self.REC)
+        self.assertEqual(r["mark"]["decided_by"], "リポジトリの決まりが別の層に置くと決めている")
+        self.assertEqual(r["why"], [gatemarks.PRESCRIPTION_WHY])
+        self.assertTrue(gatemarks.PRESCRIPTION_WHY.startswith(gatemarks.ASK_CASES[0]), gatemarks.PRESCRIPTION_WHY)
+        text = gatemarks.depart_item(r)
+        self.assertNotIn("世界の解:", text)
+        self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
+        bare = gatemarks.prescription_depart_rows(self.FIELDS, self.RX)[0]
+        self.assertNotIn("recommend", bare["mark"])
+        self.assertIsNone(gatemarks.push_rec(gatemarks.depart_item(bare)), "推しの行を渡さなければ推しの尾は付かない")
+        unread = gatemarks.prescription_depart_rows(self.FIELDS, {})[0]
+        self.assertIn(gatemarks.PRESCRIPTION_UNREAD, unread["text"])
 
 
 if __name__ == "__main__":

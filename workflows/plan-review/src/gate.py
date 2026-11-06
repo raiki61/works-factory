@@ -11,7 +11,7 @@ narrows の行を作る芯と軸の訳の決まり（gatemarks.narrow_asks・ask
 
 - asks(place, intake, review) -> [{kind, node, text, units, mark, decided, why}]: 修正案の narrows の行と、事前審査の穴のうち人に回す
   種類（policy.HUMAN_FACE_KINDS）の行。why は {軸: [揃わない訳]}（揃う軸は載せない。空の dict は 4 つの軸が揃う）
-- deviations(place, intake, review) -> [{source: "world" | "means", item, text, mark, why} | {source: "design", key, kind, why}]
+- deviations(place, intake, review) -> [{source: "world" | "means" | "prescription", item, text, mark, why} | {source: "design", key, kind, why}]
 - replan(place, intake, review) -> [{item, units, contract_changed, human, widened}]（files.REPLAN にも同じ行を書く）
 
 決め手の欄は、narrows の行の分は intake.json の plan_marks（入口が外した物）、穴の行の分は受け付けが外した FACE_MARKS
@@ -211,6 +211,14 @@ def means_items(place, intake: dict, b, review: dict) -> list:
     return out
 
 
+def prescription_items(place, intake: dict, b, review: dict) -> list:
+    """判定の処方からの外れの行: 計画の structure の {prescription, deviation}（処方の文は置き場の判定の写しから、推しは積んだ
+    prescription_departs の同じ鍵の行）"""
+    judgment = jsonfile.read_or(pathlib.Path(place) / files.JUDGMENT)
+    return gatemarks.prescription_depart_rows(material._item_rows(b), planmarks.judged_prescriptions(judgment),
+                                              take.stacked(place, review, "prescription_departs"))
+
+
 # ---------------------------------------------------------------- 返す事実
 def asks(place, intake: dict, review: dict) -> list:
     """人に回しうる行（10.1）。修正案の narrows の行（lib の gatemarks.narrow_asks）と事前審査の人に回す種類の穴の行。形 plan も replan も
@@ -221,12 +229,13 @@ def asks(place, intake: dict, review: dict) -> list:
 
 
 def deviations(place, intake: dict, review: dict) -> list:
-    """外れの行（10.2）: 修正案の欄 structure が世界の解の行から外れると答えた行と決め手の照らし、独立設計との構造の食い違い・
-    対の無い仕組みの穴"""
+    """外れの行（10.2）: 修正案の欄 structure が世界の解の行から外れると答えた行と決め手の照らし、頼みの解き方・判定の処方から外れる
+    と答えた行、独立設計との構造の食い違い・対の無い仕組みの穴"""
     b = _board(place, intake, review)
     out = [{"source": "world", "item": n, "text": text, "mark": mark, "why": why}
            for n, text, mark, why in world_items(place, intake, b)]
     out += means_items(place, intake, b, review)
+    out += prescription_items(place, intake, b, review)
     heads = (design.DRIFT_HEAD, design.UNPAIRED_HEAD)
     out += [{"source": "design", "key": f.get("key"), "kind": f.get("kind"), "why": f.get("why")}
             for f in (review or {}).get("faces") or []

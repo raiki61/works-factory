@@ -611,6 +611,16 @@ class WorldGateRunCase(unittest.TestCase):
 
 
 class FinishCase(unittest.TestCase):
+    def test_every_structure_answer_key_has_a_deviation_source(self):
+        """structure の行が答える先の鍵のうち、構造の目の道が受ける row を除く全部が、出口の deviations の source の型に在る
+        （型に無い source の行は出口の返りの検査が拒む）"""
+        import yaml
+        planmarks = kit.load(BLOCK, "gate").planmarks
+        doc = yaml.safe_load((kit.BLOCKS / BLOCK / "works-factory-plan-review.yaml").read_text(encoding="utf-8"))
+        [finish] = [n for n in doc["nodes"] if n["id"] == "finish"]
+        enum = finish["output_format"]["properties"]["deviations"]["items"]["properties"]["source"]["enum"]
+        self.assertEqual(sorted(set(planmarks.ANSWER_KEYS) - {"row"} - set(enum)), [], enum)
+
     def test_asks_reach_the_finish_output(self):
         """出口の返りの asks（10.1）: 修正案の役の返答の narrows の行は入口が決め手の欄を外し（plan_marks）、出口がそれを行に重ねて返す。
         決め手の揃わない行は decided が偽で why に軸ごとの訳。揃う行は decided が真で why が空（元 GateFromPlanCase.

@@ -27,10 +27,40 @@ from leftovers import Unreadable, git
 if str(pathlib.Path(__file__).resolve().parent / "graphloops") not in sys.path:   # 写しの engine（形の照らし）
     sys.path.append(str(pathlib.Path(__file__).resolve().parent / "graphloops"))
 
+from engine import declared  # noqa: E402  （declared_checks は baseline_red を import するので、そこからは引かない）
+
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 # 元 works/blk-fix/lib/tddloop.py:142-144
 ONLY_ENV = "TDD_SUITE_ONLY"
+
+# 試験の道具が JUnit XML を書く前に赤で終わった時、実行器が書く 1 件の予約の classname と name。実行器の約束（workflows/.shared/
+# prompts/runner-writer.md）の差し込み口 {synth_classname}・{synth_name} に contract_values が渡す。この行は試験 1 件ごとの結末ではなく、
+# SYNTH_CAUSE という 1 件の知らせで、読む側は reported・synthesized でだけ見分ける
+SYNTH_CLASSNAME = "junit-synthesized"
+SYNTH_NAME = "suite-exited-without-junit"
+SYNTH_CAUSE = "試験の道具が 1 件ごとの結末を書く前に赤で終わった"   # 予約の 1 件の意味の文。読む側は字で写さずこの名で引く
+
+
+def contract_values() -> dict:
+    """実行器の約束の文（runner-writer.md）の差し込み値 {only_env, synth_classname, synth_name, decl_name}。書き手の指示を組む口と
+    実行器の取り置きの鍵（prompt.runner_stamp）はこれだけを引く"""
+    return {"only_env": ONLY_ENV, "synth_classname": SYNTH_CLASSNAME, "synth_name": SYNTH_NAME, "decl_name": declared.DECL_NAME}
+
+
+def _is_synth(c) -> bool:
+    return c.get("classname") == SYNTH_CLASSNAME and c.get("name") == SYNTH_NAME
+
+
+def reported(cases) -> list:
+    """結末の行のうち、試験 1 件ごとの事実の行（予約の行でない物）の並び"""
+    return [c for c in cases or [] if not _is_synth(c)]
+
+
+def synthesized(cases) -> bool:
+    """結末の回が予約の行だけか（行が在り、1 件ごとの行が 1 つも無い）。訳は SYNTH_CAUSE"""
+    return bool(cases) and not reported(cases)
+
 
 # 起こす子の優先度（実行器と run の test_cmd と test-gate の宣言の試験。同じ機械で別の run も動くので nice -n 19 と同じだけ下げる）。
 # 下げる口は lowered の 1 か所。元 works/blk-fix/lib/tddloop.py:307（実行器は argv の頭の nice）・works/.shared/core/entry.py:680
@@ -198,6 +228,8 @@ def exe_path(repo, suite: str) -> pathlib.Path:
 
 def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=None, note=None):
     """実行器を 1 回走らせる ——（結末の一覧, 終了コード, 問題）。結末が取れなければ一覧は None。相対の exe は repo の根から解く（exe_path）。
+    JUnit XML を書かずに終わった実行器の結末は取れない（None）。試験の道具が結果を書く前に赤で終わった時の予約の 1 件を書くのは実行器の
+    約束で（SYNTH_CLASSNAME・SYNTH_NAME）、ここで作らない。
     .py はこの Python で走らせる（写しの rules の run_suite と同じ）。出力は work/suite-<n>.log に丸ごと。
     args は JUnit の書き先の後ろに足す（段の外の試験のファイル・node id を絶対パスで・受け付けの -k。works/dev/tdd-suite.sh は
     試験の実行器に渡し、試験の根（conftest.py の置き場）が違う名指しは根ごとに別のプロセスで流して JUnit を 1 つに合わせる）。同じ鍵の行は 1 つにまとめる（段のファイルと足した node id が重なっても 1 件）。
@@ -294,18 +326,20 @@ def temp_tree(repo, rev: str):
 
 # ---------------------------------------------------------------- 元の結末のファイル
 def outcomes(cases) -> dict:
-    """結末の並び → {_key: outcome}（同じ鍵は最初の 1 つ）。red_problems・green_problems・_must_pass の baseline の形（新しい関数）"""
+    """結末の並び → {_key: outcome}（同じ鍵は最初の 1 つ。予約の行は 1 件ごとの事実でないので入れない）。red_problems・green_problems・
+    _must_pass の baseline の形（新しい関数）"""
     out = {}
-    for c in cases:
+    for c in reported(cases):
         out.setdefault(_key(c), c["outcome"])
     return out
 
 
 def test_outcomes(baseline_cases, cases) -> list:
     """テストごとの元の結末と今の結末 [{key, base, final, fail_message}]（元の結末の順、今にだけ居るテストはその後ろに今の順。片側に
-    居なければその側は ""。fail_message は今が赤なら今の物、でなければ元の物。新しい関数）"""
-    base = {_key(c): c for c in _unique(baseline_cases)}
-    now = {_key(c): c for c in _unique(cases)}
+    居なければその側は ""。fail_message は今が赤なら今の物、でなければ元の物。予約の行は試験 1 件ごとの事実でないので入れない。
+    新しい関数）"""
+    base = {_key(c): c for c in _unique(reported(baseline_cases))}
+    now = {_key(c): c for c in _unique(reported(cases))}
     rows = []
     for key in [*base, *(k for k in now if k not in base)]:
         b, f = base.get(key), now.get(key)

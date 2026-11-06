@@ -28,9 +28,9 @@ import re
 import shutil
 
 import cite
-from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, FLIPS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, OPEN, ORIGIN_FLIP, ORIGIN_INTRODUCED,
-                      ORIGIN_MISSED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH, SETTLED, STUCK,
-                      UNSETTLED, block_faces, central, central_keys, flipped, sentence_diff, sentences, take_flips)
+from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, FLIPS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, MEANS_AND_PRESCRIPTION_ROWS, OPEN, ORIGIN_FLIP,
+                      ORIGIN_INTRODUCED, ORIGIN_MISSED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH,
+                      SETTLED, STUCK, UNSETTLED, block_faces, central, central_keys, flipped, sentence_diff, sentences, take_flips)
 
 LIMIT = 20
 PLAN_ROLE = "plan"   # 修正案の役の拒否の行の role（元の planfile の ROLE）
@@ -193,9 +193,6 @@ def _last_items(doc: dict) -> dict:
     return {it["id"]: it for it in (doc["passes"][-1].get("items") or [])} if doc["passes"] else {}
 
 
-MEANS_ROWS = ("means_drifts", "means_departs")   # 往復の行に写す事前審査の返答の頼みの解き方の欄
-
-
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
              hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None,
              push=None, file_notes: dict | None = None) -> dict:
@@ -221,7 +218,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
            "origins": {}, "origins_claimed": [], "files": {}, "rejects": []}
     if push is not None:
         row["push"] = copy.deepcopy(push)
-    for name in MEANS_ROWS:   # 頼みの解き方の行（計画 means-answers の 3.2 の 6。事前審査が全部の往復の行を鍵で後勝ちに積んで読む）
+    for name in MEANS_AND_PRESCRIPTION_ROWS:
         got = [copy.deepcopy(r) for r in review.get(name) or [] if isinstance(r, dict)]
         if got:
             row[name] = got

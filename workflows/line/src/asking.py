@@ -2,7 +2,8 @@
 往復の末尾の設計の相談 design-talk（src/talk.py）が、同じ材料から同じ行を組むための 1 か所。行の決めは src.gates.before_fix。
 
 - materials(rounds, *, structure_raw, judge_raw, record_raw, dealt, unattended, place) -> dict: before_fix に渡す材料（ledger・design_rows_・
-  policy_row・stuck_reason・record_doc・answered・unread・pointed〔構造の目の控えの版に無い名指し〕・planned〔推しを数えた計画の止まった写しを人の居る run で続ける時の、推しの見え方の台帳。ほかは None〕）。読めない控えは unread に名指す（開ける理由）。rounds の agreed（設計の相談で
+  policy_row・stuck_reason・record_doc・answered・unread・pointed〔構造の目の控えの版に無い名指し〕・planned〔推しを数えた計画の止まった写しを人の居る run で続ける時の、推しの見え方の台帳。ほかは None〕と、
+  事前審査が諦めた・落ちた周だけ means・plan_fields・prescriptions〔判定の処方の文 {単位の key: [文]}〕）。読めない控えは unread に名指す（開ける理由）。rounds の agreed（設計の相談で
   合意した答え）は台帳の問いへの関所の答えとして読む（合意した問いを修正前に聞き直さない）。台帳の依頼の答えは dealt（src.descend.dealt の
   配る値。テーマの run は降りた依頼の答え）から読む
 - record_doc(ptr, unread) -> dict | None: 往復の記録の 1 つの読み口（src.rounds.read）。読めない記録は unread に名指して None
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import answer
 import gatemarks
+import planmarks
 import ports
 
 PREVIOUS = "gates/gate-before-fix.json"
@@ -45,11 +47,12 @@ def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, deal
              if rounds and rounds.get("stalled") and isinstance(rec_doc, dict) else "")
     agreed = (rounds or {}).get("agreed")   # 設計の相談で合意した答え（台帳の問いの答え・保留も一言に在る。ask-before-fix の rounds だけが持つ）
     agreed = agreed if isinstance(agreed, dict) and agreed.get("decision") in answer.GO_WORDS else None
-    ledger = planned = None
+    ledger = planned = judged = None
     if judge is not None and judge["judgment"] is not None:
         doc = gates.read_located(judge["judgment"], "判定", unread, lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))
         ties = gates.located(judge["answer_ties"], "答えの結び", unread, lambda raw: ports.file(raw, "json(shared:answer-ties.schema.json)"))
         found = gates.located(judge["materials"], "素材の状態", unread, lambda raw: ports.file(raw, "json(shared:materials-state.schema.json)"))
+        judged = doc
         if isinstance(doc, dict):
             ledger = gatemarks.ledger_files(doc, ties_file=ties or None, materials_file=found or None,
                                             answers=gates.request_answers(dealt), gate=agreed, takes_push=unattended)
@@ -65,12 +68,13 @@ def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, deal
     except ValueError as error:   # 控えが在るのに壊れている: 読めなかった控えとして承認ノードを開き、控えの名を見せる
         design_rows = []
         unread.append(str(error))
-    means, plan_fields = [], None
-    if rounds and gates.review_fell_row(rounds):   # 事前審査が諦めた・落ちた周: 頼みの解き方の外れを計画の欄から組む（計画 means-answers の 3.2 の 8）
+    means, plan_fields, prescriptions = [], None, {}
+    if rounds and gates.review_fell_row(rounds):   # 事前審査が諦めた・落ちた周: 頼みの解き方・判定の処方の外れを計画の欄から組む（計画 means-answers の 3.2 の 8）
+        prescriptions = planmarks.judged_prescriptions(judged)
         means = judge["means"] if judge is not None and isinstance(judge["means"], list) else []
         doc = gates.read_located(rounds.get("plan"), "修正案の欄の控え", unread,
                                  lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)")) if rounds.get("plan") else None
         plan_fields = doc.get("fields") if isinstance(doc, dict) else None
-    return {"means": means, "plan_fields": plan_fields, "ledger": ledger, "design_rows_": design_rows, "policy_row": gates.change_row(change) if change else "",
+    return {"means": means, "plan_fields": plan_fields, "prescriptions": prescriptions, "ledger": ledger, "design_rows_": design_rows, "policy_row": gates.change_row(change) if change else "",
             "stuck_reason": stuck, "record_doc": rec_doc, "answered": [previous] if isinstance(previous, dict) else [], "unread": unread,
             "pointed": gates.structure_pointed(structure), "planned": planned}

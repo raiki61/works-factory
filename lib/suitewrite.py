@@ -32,7 +32,8 @@
   （持ち主の決め base-runs-nothing）ので、照らすのは修正の段の TDD のループが最初に走らせた所。照らす前の実行器が無ければ印のまま
   {done: true, ok: <結んだか>, why}
 - keep_runner(keep, test_cmd, runner, *, stamp): 走らせて結末が取れた実行器を test_cmd の字と stamp で取り置く（同じ名の物は置き換える。
-  ほかの版の物は残す。TDD のループの頭が呼ぶ。取り置けたか）
+  ほかの版の物は残す。TDD のループの頭が呼ぶ。取り置けたか。試験の道具が結果を書く前に赤で終わった予約の 1 件だけの回は、呼び手が
+  取り置かない）
 - drop_runner(keep, test_cmd, runner, *, stamp): 壊れていた実行器と同じバイトの、同じ stamp の取り置きを捨てる（TDD のループの頭が
   書き直させる前に呼ぶ）
 - fence(text): text を囲むバッククォートの柵（3 つ以上で、text の中の最長の並びより 1 つ長い。書き手の指示に test_cmd や本文を貼る口）

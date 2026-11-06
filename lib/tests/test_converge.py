@@ -734,6 +734,16 @@ class AddPassCase(BoardCase):
                          ({"key-b1": converge.ORIGIN_MISSED}, True, converge.UNSETTLED))
         self.assertEqual(converge.read(self.b)["outcome"], doc["outcome"])
 
+    def test_add_pass_carries_the_recommendation_rows(self):
+        """事前審査の推しの行（頼みの解き方の means_drifts・means_departs と判定の処方の prescription_departs）を往復の行に写す（事前審査は
+        全部の往復の行を鍵で後勝ちに積んで読む。写さないと、2 往復目に差分だけを見る審査役が書き直さなかった推しが消える）。行の無い欄は置かない"""
+        rows = {name: [{"item": 1, "why": name}] for name in converge.MEANS_AND_PRESCRIPTION_ROWS}
+        self.assertIn("prescription_departs", rows)
+        got = converge.add_pass(converge.read(self.b), {"faces": [], **rows}, answers=[], resolved=[])
+        self.assertEqual({name: got.get(name) for name in rows}, rows)
+        bare = converge.add_pass(converge.read(self.b), {"faces": []}, answers=[], resolved=[])
+        self.assertEqual([name for name in rows if name in bare], [])
+
 
 COMPREHENSIONS = (ast.SetComp, ast.ListComp, ast.GeneratorExp, ast.DictComp)
 SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)

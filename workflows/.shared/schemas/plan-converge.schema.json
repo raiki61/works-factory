@@ -331,6 +331,11 @@
             "type": "array",
             "description": "この往復で受けた頼みの解き方の外れの推しの行（鍵 (item, means) で後勝ちに積む）",
             "items": {"type": "object", "properties": {"item": {"type": "integer"}, "means": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}
+          },
+          "prescription_departs": {
+            "type": "array",
+            "description": "この往復で受けた判定の処方からの外れの推しの行（鍵 (item, prescription) で後勝ちに積む）",
+            "items": {"type": "object", "properties": {"item": {"type": "integer"}, "prescription": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}
           }
         }
       }

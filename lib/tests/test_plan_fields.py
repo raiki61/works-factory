@@ -1,5 +1,5 @@
 """修正案の項目の works 側の欄（planmarks）。役の型への重ね・欠けと誤りの行・テストの定義の行の引き・欄を外す受け付けの口・
-盤面の控えの周つきの読み書きを、関数を直に呼んで見る（FAST。種は dev の target-seed を一時の置き場に写すだけ。git・盤面・
+判定の処方の読み（judged_prescriptions）・盤面の控えの周つきの読み書きを、関数を直に呼んで見る（FAST。種は dev の target-seed を一時の置き場に写すだけ。git・盤面・
 子のプロセスなし。writes.base_test_texts の試験だけは git の写しを使う）。test_stats.py の test_mean_of_three の定義は 8 行目、test_clamp_within_range は 11 行目"""
 import copy
 import json
@@ -1061,6 +1061,15 @@ class TestMeansAnswers(PlanFieldsCase):
     def test_answer_line_names_the_means(self):
         self.assertEqual(planmarks.answer_line({"item": 2, "means": "M1", "deviation": self.WHY}),
                          f"項目 2・頼みの解き方 M1から外れる——{self.WHY}")
+
+
+class TestJudgedPrescriptions(unittest.TestCase):
+    def test_judged_prescriptions_skip_blank(self):
+        judged = {"units": [{"key": MEAN, "label": "block", "disposition": "do-now",
+                             "prescriptions": ["分母を len(xs) にする", "  "]},
+                            {"key": "stats.py clamp: 上限の枝が違う", "label": "block", "disposition": "do-now"}]}
+        self.assertEqual(planmarks.judged_prescriptions(judged), {MEAN: ["分母を len(xs) にする"]})
+        self.assertEqual(planmarks.judged_prescriptions({"units": "x"}), {})
 
 
 if __name__ == "__main__":

@@ -349,9 +349,35 @@ PLANNED_PUSH = ("（計画はこの問いを無人の run の推し「{push}」�
 TALK_GATE = "gate-design"   # 設計の相談の承認ノードの id（対話モードの run の計画の往復の末尾。src/talk.py）。人がそこで止めた止めの理由の後ろ
 
 
+def _depart_items(deviations: list, answered, rnd: int, passes: list) -> tuple:
+    """外れの行（事前審査の deviations の行）から修正前の承認ノードの項目を引く 1 本の規則。(項目 [(種類, 文)], 聞く世界の解の行)。
+    source design は事前審査の穴の道で聞くので除く。world は why が在れば聞き、decided_by が揃えば聞かずに通して passes に足す。
+    ほかの種類（means・prescription・表に無い値）は、いつも gatemarks.depart_item の項目にして passes には入れない。前に continue で通した
+    同じ文は聞き直さない"""
+    items, kept = [], []
+    for d in sorted(deviations, key=lambda d: d.get("source") == gatemarks.WORLD_KIND):   # 世界の解の行は後に並べる
+        source = d.get("source")
+        mark = d.get("mark") if isinstance(d.get("mark"), dict) else {}
+        if source == gatemarks.DESIGN_DEVIATION:
+            continue
+        if source != gatemarks.WORLD_KIND:
+            text = gatemarks.depart_item(d)
+            if not _continued(answered, text):
+                items.append((source if source in gatemarks.DEPART_WHY else gatemarks.OTHER_DEPART_KIND, text))
+        elif d.get("why"):
+            text = f"{d.get('text')}（人に聞く訳: {' / '.join(d.get('why'))}）"
+            if not _continued(answered, text):
+                items.append((gatemarks.WORLD_KIND, text))
+                kept.append(d)
+        elif mark.get("decided_by"):
+            passes.append({"node": gatemarks.GATE_NODE, "round": rnd, "by": gatemarks.PASSED_BY, "item": str(d.get("text") or ""),
+                           "decided_by": str(mark.get("decided_by"))})
+    return items, kept
+
+
 def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledger=None, design_rows_=(), policy_row: str = "",
                stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=(), agreed: dict | None = None,
-               pointed=(), means=(), plan_fields=None, planned=None) -> dict:
+               pointed=(), means=(), plan_fields=None, prescriptions=None, planned=None) -> dict:
     """修正前の承認ノードの決め。rounds は計画の往復の受け皿の got（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の推しの尾を読む）、answered は
@@ -364,10 +390,11 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     止める語なら開かずに止め（止めの理由 human:gate-design）、通す語なら、その関所で見せた行（asked）を通した答えとして読み、設計だけの
     行を足さない（必ず開く役目は設計の相談の承認ノードが果たした。合意した同じ承認を聞き直さない）。止まった往復と方針の文書の変化に合意した
     答えは、修正へ進めて方針を固め直す（policy_changed）。合意の後に新しく出た行（読めない控え・変わった方針の文書など）は今どおり開く。
-    頼みの解き方の外れ（計画 means-answers の 3.3）: deviations の source means の行は、いつも種類 gatemarks.MEANS_KIND の項目にする
-    （文は gatemarks.means_item。世界の解の尾は付けず、推しの尾は事前審査の役が書いた物だけ。軸の行には足さない）。事前審査が諦めた・
-    落ちた周は事前審査の deviations が無いので、plan_fields（計画の項目の works の欄。読めた時だけ）の structure の {means, deviation} を
-    推しなしの項目にする（means は頼みの解き方の文の並び。無人の run なら止まる）。
+    外れの行（_depart_items）: deviations の頼みの解き方（source means）・判定の処方（source prescription）・表に無い source の行は、
+    いつも種類 gatemarks.MEANS_KIND・PRESCRIPTION_KIND・OTHER_DEPART_KIND の項目にする（文は gatemarks.depart_item。世界の解の尾は付けず、
+    推しの尾は事前審査の役が書いた物だけ。軸の行には足さない）。事前審査が諦めた・落ちた周は事前審査の deviations が無いので、
+    plan_fields（計画の項目の works の欄。読めた時だけ）の structure の {means, deviation}・{prescription, deviation} を推しなしの項目にする
+    （means は頼みの解き方の文の並び、prescriptions は {単位の key: [判定の処方の文]}。無人の run なら止まる）。
     planned は直す前で止まった無人の run の写しを人の居る run で続ける時の、写しの計画が数えた問いの台帳（takes_push の見え方。ほかは None）:
     計画が推しを答えに数えた問いの行に PLANNED_PUSH を足し、推しと違う答えなら止めて計画から回し直すと案内する（計画は推しを前提に組んで
     あり、続きの承認ノードの答えで組み直さない。答えは自由な一言なので推しと違うかを機械は読まず、人が stop で選ぶ）。
@@ -394,7 +421,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     if fell and not _continued(answered, fell):
         items.append((gatemarks.GIVEN_UP_KIND, fell))
     items += [(kind, text) for kind, text in unread_items(unread) if not _continued(answered, text)]
-    kept_asks, kept_devs = [], []   # 聞く行（前に continue で通した同じ文の行を除く）。軸の行はこの行だけから組む
+    kept_asks = []   # 聞く行（前に continue で通した同じ文の行を除く）。軸の行はこの行（と外れの行 kept_devs）だけから組む
     for a in asks:
         mark = a.get("mark") if isinstance(a.get("mark"), dict) else {}
         decided = bool(a.get("decided"))
@@ -409,25 +436,11 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
                            "decided_by": str(mark.get("decided_by") or "")})
     ups = design_items(list(design_rows_), answered)
     items += ups
-    means_rows = [d for d in deviations if d.get("source") == gatemarks.MEANS_KIND]
     if fell and isinstance(plan_fields, list):
-        means_rows += gatemarks.means_rows(plan_fields, worldmark.means_hints(means))
-    for d in means_rows:
-        text = gatemarks.means_item(d)
-        if not _continued(answered, text):
-            items.append((gatemarks.MEANS_KIND, text))
-    for d in deviations:
-        if d.get("source") != "world":
-            continue
-        mark = d.get("mark") if isinstance(d.get("mark"), dict) else {}
-        if d.get("why"):
-            text = f"{d.get('text')}（人に聞く訳: {' / '.join(d.get('why'))}）"
-            if not _continued(answered, text):
-                items.append((gatemarks.WORLD_KIND, text))
-                kept_devs.append(d)
-        elif mark.get("decided_by"):
-            passes.append({"node": gatemarks.GATE_NODE, "round": rnd, "by": gatemarks.PASSED_BY, "item": str(d.get("text") or ""),
-                           "decided_by": str(mark.get("decided_by"))})
+        deviations = [*deviations, *gatemarks.means_rows(plan_fields, worldmark.means_hints(means)),
+                      *gatemarks.prescription_depart_rows(plan_fields, prescriptions or {})]
+    departed, kept_devs = _depart_items(deviations, answered, rnd, passes)
+    items += departed
     if policy_row and not _continued(answered, policy_row):
         items.append((POLICY_CHANGED, policy_row))
     elsewhere, missing = ([], []) if unattended_run else pointed_items(

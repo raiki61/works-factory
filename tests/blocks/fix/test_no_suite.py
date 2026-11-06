@@ -8,6 +8,7 @@ stopby.NO_SUITE を名乗る。止める所は 4 つ: 組の頭（orders.no_suit
 巻き込まず、足跡を共にして分けて戻せない時は戻さずに止める）。static だけの組は止めない。下ごしらえ（pin）の設定のファイルの例外は、起点の版に無い物だけを通す（9.1 の 13）。
 報告の冒頭の句（line の facts.suite_broken_notes）は tests/blocks/line/test_head_plain.py。
 """
+import importlib
 import json
 import pathlib
 import sys
@@ -25,10 +26,22 @@ ROOT = kit.ROOT
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
 
+import baseline_red  # noqa: E402
 import stopby  # noqa: E402
 
 orders = kit.load("fix", "orders")
 from src import basecase, board, duties, gates, pin  # noqa: E402  （kit.load が fix の src を sys.path に入れる）
+for _name in ("basecase", "board", "duties", "gates", "pin", "writers", "common", "files"):
+    importlib.import_module(f"src.{_name}")   # no_suite_at_accept と based が遅れて読む src の名もこの block の物に揃える
+FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
+
+
+def pin_src():
+    """sys.modules の src をこの block の物に戻す（ほかの block の試験の kit.load が同じ過程で src を読み替えるので、board の関数の
+    中の遅れた import がこの block の物を引くように、各試験の前に置き直す。tests/blocks/fix/test_tdd.py と同じ形）"""
+    for name in [n for n in sys.modules if (n == "src" or n.startswith("src.")) and n not in FIX_SRC]:
+        del sys.modules[name]
+    sys.modules.update(FIX_SRC)
 
 # 対象のどれかの .py に NOXML の字が在れば JUnit XML を書かずに落ちる実行器（ほかは SUITE と同じ）。組の頭の元の結末は取れ、
 # 後の回で実行器が結末を返さない形を作る
@@ -190,6 +203,10 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
 class AcceptStopCase(unittest.TestCase):
     """受け付けの止め board.no_suite_at_accept の yes/no（seen は common.selected_problems が走らせた回の {cases, why, log}）"""
 
+    def run(self, result=None):
+        pin_src()
+        return super().run(result)
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -221,6 +238,17 @@ class AcceptStopCase(unittest.TestCase):
             with self.subTest(doc=doc):
                 self.based(**doc)
                 self.assertEqual(board.no_suite_at_accept(self.place, seen), "")
+
+    def test_synthesized_cases_alone_count_as_zero_cases(self):
+        """試験の道具が結果を書く前に赤で終わった時の予約の 1 件だけを返した回は、1 件ごとの結果が 0 件の回と同じに読み、試験の無い
+        対象で工場の書いた実行器なら一覧が 0 件の訳で止める。ほかの試験の行が混じれば止めない"""
+        synth = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        self.based()
+        got = board.no_suite_at_accept(self.place, {**self.seen, "cases": [synth]})
+        self.assertIn("一覧が 0 件", got)
+        self.assertIn("/p/suite-accept.log", got)
+        ran = {"classname": "t", "name": "a", "outcome": "passed"}
+        self.assertEqual(board.no_suite_at_accept(self.place, {**self.seen, "cases": [synth, ran]}), "")
 
     def test_the_ruled_accept_reads_the_base_it_runs_the_tests_from(self):
         """裁定の後の受け付けの置き場（親）は base.json を持たず、組の子から写した bases/<k>/base.json で試験を選ぶ（board.accept_base）。

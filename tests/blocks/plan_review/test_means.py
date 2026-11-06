@@ -7,7 +7,10 @@ means_drifts を照らし、往復をまたいで積み、外れの行 deviation
 - 指示: means_drifts の段（従うという答えの確かめも）は形 plan だけ、means_departs の段（means-ask）は両方の形と項目の下請けの指示
 """
 import json
+import tempfile
 import unittest
+
+import yaml
 
 from tests.blocks import kit
 from tests.blocks.plan_review.test_take import (DESIGN_TEXT, UNIT_CLAMP, UNIT_MEAN, Flow, answer, dump, face, fields, full_map, item,
@@ -72,6 +75,103 @@ class MeansCase(MeansBase):
         self.prepped()
         self.assertTrue(f.accept(review())["ok"])
         self.assertEqual(self.means_rows(f.finish()), [])
+
+
+class PrescriptionCase(unittest.TestCase):
+    """判定の処方からの外れ: 計画の structure の {prescription, deviation} の外れごとに推しの行 prescription_departs が要り、外れを指さない
+    行は拒む。行が在れば finish の deviations の source prescription の行になる"""
+    PRESCRIBED = ["分母を len(xs) にする", "上限の枝を hi にする"]
+
+    def setUp(self):
+        self.flow = Flow(self)
+        f = self.flow
+        f.units[0]["prescriptions"] = self.PRESCRIBED
+        f.judgment()
+        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[fields(UNIT_MEAN, structure=[{"prescription": UNIT_MEAN, "deviation": WHY}]),
+                           fields(UNIT_CLAMP, structure=[{"prescription": UNIT_MEAN, "follows": True}])])
+        f.intake()
+        f.prep()
+
+    @staticmethod
+    def depart(n=1, **kw):
+        return {"item": n, "prescription": UNIT_MEAN, "why": "決まりに合うので計画のまま進めてよい", "recommend": REC, **kw}
+
+    def test_the_prompt_asks_for_prescription_departs_only_when_the_plan_departs(self):
+        heading = "## Departures from the judgment's prescription"
+        self.assertIn(heading, self.flow.prompt())
+        f = self.flow
+        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[fields(UNIT_MEAN, structure=[{"prescription": UNIT_MEAN, "follows": True}]),
+                           fields(UNIT_CLAMP, structure=[{"prescription": UNIT_MEAN, "follows": True}])])
+        f.intake()
+        self.assertNotIn(heading, f.prompt())
+
+    def test_prescription_departure_needs_a_recommendation_and_becomes_a_prescription_row(self):
+        f = self.flow
+        got = f.accept(review())
+        self.assertFalse(got["ok"], "推しの行が無い返答は拒む")
+        self.assertIn("prescription_departs", got["reason"])
+        got = f.accept(review(prescription_departs=[self.depart(2)]))
+        self.assertFalse(got["ok"], "外れを指さない行は拒む")
+        self.assertIn("prescription_departs", got["reason"])
+        self.assertTrue(f.accept(review(prescription_departs=[self.depart()]))["ok"])
+        done = f.finish()
+        rows = [d for d in done["deviations"] if d.get("source") == "prescription"]
+        self.assertEqual(len(rows), 1, done["deviations"])
+        self.assertEqual(rows[0]["item"], 1)
+        self.assertTrue(rows[0]["text"].startswith("修正案 1 は単位"), rows[0]["text"])
+        self.assertIn(self.PRESCRIBED[0], rows[0]["text"])
+        self.assertEqual(rows[0]["mark"]["recommend"], REC)
+        self.assertTrue(rows[0]["why"][0].startswith("①"), rows[0]["why"])
+        from engine.schema import validate_schema
+        node = next(n for n in yaml.safe_load((kit.BLOCKS / BLOCK / "works-factory-plan-review.yaml").read_text(encoding="utf-8"))["nodes"]
+                    if n["id"] == "finish")
+        self.assertEqual(validate_schema(done, kit._gate()._expanded(node["output_format"], kit.BLOCKS / BLOCK)), [])
+
+    def test_the_material_lists_the_departure_with_the_unit_key_set_apart(self):
+        """材料の節「The judgment's prescriptions and the plan's answers」は頼みの解き方の節と同じ型で、外れた単位の key を札
+        prescription_key で区切って頭に置き（key は空白と「: 」を含む）、処方の文と項目ごとの答えを続ける。指示の md がその節と区切りを名指す"""
+        material = kit.load(BLOCK, "material")
+        head = material.MAT_HEADS["prescriptions"]
+        row = (f"- `{UNIT_MEAN}`: {' / '.join(self.PRESCRIBED)} — plan: departs (item 1) — {WHY}; follows (item 2)")
+        self.assertIn(f"{head}\n\n{row}\n", self.flow.text("review-material-1.md"))
+        prompt = self.flow.prompt()
+        self.assertIn(f'"{head[3:]}"', prompt)
+        self.assertIn("between backquotes", prompt)
+
+    def test_a_recommendation_of_an_earlier_pass_is_kept(self):
+        """2 往復目に差分だけを見る審査役が前の往復の推しを書き直さなくても、往復の記録（line の rounds.record_pass が写す行）に積んだ推しで
+        受け付けが通り、finish の行に推しが載る"""
+        f = self.flow
+        self.assertTrue(f.accept(review(prescription_departs=[self.depart()]))["ok"])
+        f.finish()
+        f.carry()
+        f.intake()
+        f.prep()
+        self.assertTrue(f.accept(review())["ok"], "前の往復の推しは書き直さなくてよい")
+        rows = [d for d in f.finish()["deviations"] if d.get("source") == "prescription"]
+        self.assertEqual([(r["item"], r["mark"]["recommend"]) for r in rows], [(1, REC)], rows)
+
+    def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
+        """木の往復（TreeMeansCase と同じ場面）: 項目の材料のファイルの末尾に処方の節が在り、項目の下請けの答えの prescription_departs が
+        tree_merge で返答に並び、受け付けを通り、finish の deviations の source prescription の行に推しが載る"""
+        tree = kit.load(BLOCK, "tree")
+        f = self.flow
+        f.intake(tree="on")
+        f.prep()
+        material = kit.load(BLOCK, "material")
+        self.assertIn(material.MAT_HEADS["prescriptions"], f.text("items/item-1.md"))
+        b = f.view()
+        for n, row in {1: answer(1, prescription_departs=[self.depart()]), 2: answer(2)}.items():
+            path = tree.answer_file(b, n)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(dump(row), encoding="utf-8")
+        tree.synergy_file(b).write_text(dump(synergy()), encoding="utf-8")
+        got = f.accept(tree=summary({1: [], 2: []}))
+        self.assertTrue(got["ok"], got)
+        rows = [d for d in f.finish()["deviations"] if d.get("source") == "prescription"]
+        self.assertEqual([(r["item"], r["mark"]["recommend"]) for r in rows], [(1, REC)], rows)
 
 
 class DriftBase(MeansBase):
@@ -174,7 +274,7 @@ class TreeMeansCase(DriftBase):
 
     def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
         """木の往復: 項目の下請けの答えの means_departs が tree_merge で返答に並び、受け付けを通り、finish の deviations の source means の
-        行に推しが載る（tree_merge が take.MEANS_ROWS を並べないと、推しの行が無いと拒まれる）"""
+        行に推しが載る（tree_merge が converge.MEANS_AND_PRESCRIPTION_ROWS を並べないと、推しの行が無いと拒まれる）"""
         tree = kit.load(BLOCK, "tree")
         f = self.flow
         f.intake(tree="on")
@@ -191,6 +291,29 @@ class TreeMeansCase(DriftBase):
         self.assertTrue(got["ok"], got)
         rows = self.means_rows(f.finish())
         self.assertEqual([(r["item"], r["mark"].get("recommend")) for r in rows], [(1, REC)], rows)
+
+
+class LatestWinsCase(unittest.TestCase):
+    """take.stacked は欄ごとの後勝ちの鍵で行を合わせる。欄と鍵の結びは converge の組の並びで位置に決まるので、並べ替えで鍵が別の欄に
+    付けば、鍵の最後の欄だけ違う 2 行が 1 行に潰れる"""
+
+    def stacked(self, name, rows):
+        take = kit.load(BLOCK, "take")
+        with tempfile.TemporaryDirectory() as place:
+            return take.stacked(place, {name: rows}, name)
+
+    def test_each_column_keeps_its_own_latest_wins_key(self):
+        one, two = "first why", "second why"
+        self.assertEqual(self.stacked("means_drifts", [drift(plan_quote="a"), drift(plan_quote="b")]),
+                         [drift(plan_quote="a"), drift(plan_quote="b")])
+        self.assertEqual(self.stacked("means_departs", [depart(means="M1"), depart(means="M2")]),
+                         [depart(means="M1"), depart(means="M2")])
+        self.assertEqual(self.stacked("means_departs", [depart(why=one), depart(why=two)]), [depart(why=two)])
+        rx = {"item": 1, "why": one, "recommend": REC}
+        self.assertEqual(self.stacked("prescription_departs", [{**rx, "prescription": "p1"}, {**rx, "prescription": "p2"}]),
+                         [{**rx, "prescription": "p1"}, {**rx, "prescription": "p2"}])
+        self.assertEqual(self.stacked("prescription_departs", [{**rx, "prescription": "p1"}, {**rx, "prescription": "p1", "why": two}]),
+                         [{**rx, "prescription": "p1", "why": two}])
 
 
 if __name__ == "__main__":

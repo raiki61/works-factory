@@ -42,6 +42,7 @@
     "resolved": {"type": "array", "items": {"type": "string"}},
     "stuck_recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}},
     "means_drifts": {"type": "array", "description": "頼みの解き方に従う所の独立設計との食い違い（計画 means-answers。修正の前の承認ノードで人が答える）", "items": {"type": "object", "properties": {"item": {"type": "integer"}, "means": {"type": "string"}, "design_quote": {"type": "string"}, "plan_quote": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}},
-    "means_departs": {"type": "array", "description": "修正案の頼みの解き方からの外れごとの事前審査の推し（計画 means-answers）", "items": {"type": "object", "properties": {"item": {"type": "integer"}, "means": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}}
+    "means_departs": {"type": "array", "description": "修正案の頼みの解き方からの外れごとの事前審査の推し（計画 means-answers）", "items": {"type": "object", "properties": {"item": {"type": "integer"}, "means": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}},
+    "prescription_departs": {"type": "array", "description": "修正案の判定の処方からの外れごとの事前審査の推し", "items": {"type": "object", "properties": {"item": {"type": "integer"}, "prescription": {"type": "string"}, "why": {"type": "string"}, "recommend": {"type": "object", "properties": {"answer": {"type": "string"}, "note": {"type": "string"}, "why": {"type": "string"}}}}}}
   }
 }

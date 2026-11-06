@@ -8,7 +8,9 @@
   （関わる試験が引ければそれだけ・引けなければ一式・関わる試験が 0 本なら走らせずに []。持ち主の決め related-tests-only）
 - read(place) / path(place): base.json の読み口
 - no_tests の決め（_no_tests）: 起点の木に試験らしい名のファイルが 1 本も無い時だけ、試験を走らせずに対象の宣言の一覧 list を
-  起点の木の宣言（git show <rev>:.review-checks.json）から読んで走らせ、一覧が 0 件で元の結末も 0 件の時だけ真（持ち主の答え 9.1 の 12）
+  起点の木の宣言（git show <rev>:.review-checks.json）から読んで走らせ、一覧が 0 件で元の結末も 0 件の時だけ真（持ち主の答え 9.1 の 12）。
+  元の結末の件数は 1 件ごとの行（baseline_red.reported）で数え、試験の道具が結果を書く前に赤で終わった時の予約の 1 件は 0 件と同じに読む
+- baseline（鍵 → 結末）は baseline_red.outcomes で組む。予約の 1 件は入れない（元でも赤の材料にしない）。baseline_cases には残す
 - suite_made_all(place): 置き場の base.json・accept.json、写した bases/<k>/、returns/ の全部と、輪の状態の suite_made の和
 
 base.json の欄は今の輪の状態のうち受け付けが元の結末として読む欄と同じ名と形（work・exe・suite・baseline・baseline_exit・
@@ -21,6 +23,7 @@ import os
 import pathlib
 import subprocess
 
+import baseline_red      # lib/
 import conflict          # lib/
 import impact            # lib/
 import jsonfile          # lib/
@@ -104,7 +107,7 @@ def take(place, repo, values: dict, keys: list, reuse, *, words: dict, rev: str,
         return {**out, "reason": NO_CASES.format(why="; ".join(why))}
     jsonfile.write(place / conflict.BROKEN_TESTS_FILE, {"tests": broken_related(place, repo, keys, round_, work, cases, picked)})
     gate, gate_note, gate_made = _test_cmd_gate(exe, test_cmd, repo, work / "test-cmd-0.log", reuse=reuse)
-    doc.update(taken=True, baseline={common._key(c): c["outcome"] for c in cases}, baseline_exit=code, baseline_cases=cases,
+    doc.update(taken=True, baseline=baseline_red.outcomes(cases), baseline_exit=code, baseline_cases=cases,
                suite_made=gate_made, test_cmd_gate=gate, test_cmd_note=gate_note,
                reused={"suite": t} if (t := tree_run.reused_text(note)) else {},
                related={"applied": True, **picked} if picked is not None else {"applied": False})
@@ -134,7 +137,7 @@ def _declared(place, keys, round_: int) -> set:
 
 def _no_tests(place, repo, rev: str, keys, round_: int, cases) -> tuple[dict, bool]:
     """（一覧の控え test_list, 印 no_tests）。(1) 起点の木に試験のファイル（impact.is_test_file）が 1 本も無い (2) 対象の宣言の一覧が
-    0 件 (3) 元の結末が 0 件 の 3 つが全部の時だけ真。(1) が偽なら一覧を走らせない（skipped）。宣言は起点の木（rev）の物だけを読み
+    0 件 (3) 元の結末が 0 件（1 件ごとの行が無い。予約の 1 件だけの回も 0 件）の 3 つが全部の時だけ真。(1) が偽なら一覧を走らせない（skipped）。宣言は起点の木（rev）の物だけを読み
     （写した木の宣言は読まない。前の組・前の段の型が書いた list で決めが組の順で変わらないように）、走らせる所は写した木。
     起点の木の宣言に setup が無ければ setup=[] を渡す（None を渡すと写した木の宣言の setup が走る）"""
     rows = {"status": SKIPPED, "argv": [], "count": 0, "why": "", "log": ""}
@@ -161,7 +164,7 @@ def _no_tests(place, repo, rev: str, keys, round_: int, cases) -> tuple[dict, bo
             return {**rows, "status": FAILED, "argv": argvs, "why": why, "log": str(log)}, False
         count += got
     listed = {**rows, "status": LISTED, "argv": argvs, "count": count, "log": str(log)}
-    return listed, count == 0 and not cases
+    return listed, count == 0 and not baseline_red.reported(cases)
 
 
 def _list_run(argv, repo, log: pathlib.Path, setup) -> tuple[int | None, str]:

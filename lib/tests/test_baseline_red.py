@@ -110,6 +110,25 @@ class RunSuiteSeedCase(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertEqual(why, [f"テストの実行器が JUnit XML を書かなかった（exit 3。ログ {self.work / 'suite-none.log'}）"])
 
+    def test_a_runner_that_writes_the_reserved_case_gives_rows_the_machine_reads_as_synthesized(self):
+        synth = (f"<testcase classname='{baseline_red.SYNTH_CLASSNAME}' name='{baseline_red.SYNTH_NAME}'>"
+                 f"<error message='exit 1'>ログ</error></testcase>")
+        alone = self.runner(f"printf '%s' \"<testsuite>{synth}</testsuite>\" > \"$1\"\nexit 1\n")
+        cases, code, why = baseline_red.run_suite(alone, self.repo, self.work, "synth")
+        self.assertEqual((code, why), (1, []))
+        self.assertEqual([(c["classname"], c["name"], c["outcome"]) for c in cases],
+                         [(baseline_red.SYNTH_CLASSNAME, baseline_red.SYNTH_NAME, "error")])
+        self.assertTrue(baseline_red.synthesized(cases))
+        self.assertEqual(baseline_red.reported(cases), [])
+        self.assertEqual(baseline_red.outcomes(cases), {})
+        self.assertFalse(baseline_red.synthesized([]), "結末が 0 件の回は合成でない")
+        mixed = self.runner(f"printf '%s' \"<testsuite>{synth}<testcase classname='a' name='t'/></testsuite>\" > \"$1\"\nexit 1\n",
+                            name="mixed.sh")
+        cases, _, _ = baseline_red.run_suite(mixed, self.repo, self.work, "mixed")
+        self.assertFalse(baseline_red.synthesized(cases))
+        self.assertEqual([(c["classname"], c["name"]) for c in baseline_red.reported(cases)], [("a", "t")])
+        self.assertEqual(baseline_red.outcomes(cases), {"a::t": "passed"})
+
     def test_broken_xml_is_a_problem(self):
         exe = self.runner("printf '%s' '<testsuite><testcase' > \"$1\"\nexit 1\n")
         cases, code, why = baseline_red.run_suite(exe, self.repo, self.work, "bad")
@@ -290,6 +309,13 @@ class TestOutcomesCase(unittest.TestCase):
                           {"key": "test_a.TestA::still", "base": "failure", "final": "failure", "fail_message": "new"},
                           {"key": "test_a.TestA::gone", "base": "error", "final": "", "fail_message": ""},
                           {"key": "test_a.TestA::new", "base": "", "final": "passed", "fail_message": ""}])
+
+    def test_the_reserved_case_is_not_a_test_row(self):
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error",
+                    "fail_message": "exit 1"}
+        rows = baseline_red.test_outcomes([reserved, row("t", "failure")], [reserved, row("t", "passed")])
+        self.assertEqual([(r["key"], r["base"], r["final"]) for r in rows], [("test_a.TestA::t", "failure", "passed")])
+        self.assertEqual(baseline_red.test_outcomes([reserved], [reserved]), [])
 
 
 BASE = {"suite": "/home/x/suite.sh", "test_cmd": "make check", "rev": "a" * 40, "exit": 1,

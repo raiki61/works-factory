@@ -416,12 +416,7 @@ class ReplanErrorsCase(PlaceCase):
 
 
 class PrescriptionCase(PlaceCase):
-    """元 planmarks.prescriptions（判定の返答の単位ごとの処方。空の処方は入れない）と planblk.prescription_section（今は brief の
-    prescription_rows の行と、判定の記録のパスの値。見出しと頼みの文は md が持つ）"""
-
-    def test_prescriptions_skip_blank(self):
-        self.assertEqual(steps.prescriptions(judgment()), {MEAN: ["分母を len(xs) にする"]})
-        self.assertEqual(steps.prescriptions({"units": "x"}), {})
+    """brief.prescription_rows の行と、判定の記録のパスの値（見出しと頼みの文は md が持つ）"""
 
     def test_rows_list_units_that_may_be_in_the_plan_only(self):
         """処方の行は案に入れてよい単位（必ず入れる物を含む）の物だけ。開いていない単位の処方は貼らない"""
