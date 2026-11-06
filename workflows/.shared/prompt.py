@@ -10,10 +10,12 @@
 - render_shared(name, values, when=None) -> str: pack の .shared/prompts/<name>.md を、render と同じ決まりで組んだ字（呼んだ block を問わない）。
   2 つ以上の block が使う、AI の node でない物の指示を md から組む（書き手の型の block 全部が起こす下請けのファイルなど。本体 writerblock が呼ぶ）。
   共通の断片は {part:…} を持たない。頭の印 <!-- required-for-tools: … -->・<!-- required-for-fields: … --> は差し込む時と同じく落とす
-- digest(name) -> str: 共通の断片 .shared/prompts/<name>.md と、それを取り込む指示の版の値（sha256 の 16 進）。断片（頭の印を落とし、中の
-  {shared:…} を展開した字）と、pack の各 block の prompts/ の下の md（parts と .system.md を含む）のうち展開の中で {shared:<name>} に届く
-  物を、その block で展開した字（パスの行つき）を入力にする。断片も、それを取り込む指示も、字が変われば値が変わる。無い断片は PromptError。
-  定数 RUNNER_WRITER は実行器の契約と書き方の断片の名（取り置いた実行器が、今の書き方の指示で書いた物かを見分ける版の値に使う）
+- digest(name, values) -> str: 共通の断片 .shared/prompts/<name>.md と、それを取り込む指示の版の値（sha256 の 16 進）。断片（頭の印を
+  落とし、中の {shared:…} を展開した字）と、差し込み値の組 values（省略できない。鍵で並べた JSON）と、pack の各 block の prompts/ の下の
+  md（parts と .system.md を含む）のうち展開の中で {shared:<name>} に届く物を、その block で展開した字（パスの行つき）を入力にする。
+  断片も、それを取り込む指示も、値の組も、変われば値が変わる。無い断片は PromptError
+- runner_stamp() -> str: 実行器の契約と書き方の断片 RUNNER_WRITER と、その差し込み値の組 baseline_red.contract_values() の版の値（取り置いた
+  実行器が、今の約束で書いた物かを見分ける鍵に使う）。断片と値の組の結びはこの関数だけが知る
 - round_of(node_id) -> int: place に在る <node_id>-prompt-<n>.md の数 + 1（emit に渡す、輪の何回目か）
 - lang(raw) -> str: 人に見せる欄の言語の値（port lang。空なら共通の断片 .shared/prompts/lang-default.md の文）
 
@@ -34,6 +36,7 @@ system の md の中も数える）・使われない値を渡された・when �
 組にならない・値が字と整数の外。
 """
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -165,13 +168,15 @@ def render_shared(name: str, values: dict, when: dict | None = None) -> str:
     return _compose(ports.SHARED, name, values, when, shared=True)["prompt"]
 
 
-def digest(name: str) -> str:
-    """共通の断片 name と、それを取り込む指示の版の値。入力は、断片を展開した字と、pack の各 block の prompts/ の下の md のうち展開の中で
-    {shared:<name>} に届く物を、その block で展開した字（pack からの相対パスの行つき。パスの順）。取り込む md の一覧は持たない"""
+def digest(name: str, values: dict) -> str:
+    """共通の断片 name と、それを取り込む指示の版の値。入力は、断片を展開した字と、差し込み値の組 values（鍵で並べた JSON）と、
+    pack の各 block の prompts/ の下の md のうち展開の中で {shared:<name>} に届く物を、その block で展開した字（pack からの相対パスの
+    行つき。パスの順）。取り込む md の一覧は持たない"""
     pack = ports.SHARED.parent
     head = _expand(_unmarked(_read(ports.SHARED / "prompts" / f"{name}.md", "断片")), ports.SHARED, (f"shared:{name}",), True)
     hasher = hashlib.sha256()
     hasher.update(f"shared:{name}\n{head}\n".encode("utf-8"))
+    hasher.update(f"values:{json.dumps(values, sort_keys=True, ensure_ascii=False)}\n".encode("utf-8"))
     for path in sorted(pack.glob("*/prompts/**/*.md")):
         block = pack / path.relative_to(pack).parts[0]
         if block == ports.SHARED:
@@ -181,6 +186,13 @@ def digest(name: str) -> str:
         if name in reached:
             hasher.update(f"{path.relative_to(pack).as_posix()}\n{text}\n".encode("utf-8"))
     return hasher.hexdigest()
+
+
+def runner_stamp() -> str:
+    """実行器の約束の断片 RUNNER_WRITER と、その差し込み値の組 baseline_red.contract_values() の版の値。取り置いた実行器が今の約束で
+    書いた物かを見分ける鍵で、断片と値の組の結びを知るのはこの関数だけ"""
+    import baseline_red
+    return digest(RUNNER_WRITER, baseline_red.contract_values())
 
 
 def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:

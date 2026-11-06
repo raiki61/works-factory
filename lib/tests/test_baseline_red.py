@@ -111,9 +111,6 @@ class RunSuiteSeedCase(unittest.TestCase):
         self.assertEqual(why, [f"テストの実行器が JUnit XML を書かなかった（exit 3。ログ {self.work / 'suite-none.log'}）"])
 
     def test_a_runner_that_writes_the_reserved_case_gives_rows_the_machine_reads_as_synthesized(self):
-        """試験の道具が JUnit を書く前に赤で終わった時に実行器が書く予約の 1 件（error・exit 1）は、run_suite が結末の行と終了コードで
-        返し、synthesized がその行だけの回を合成と読み、reported は空、outcomes は 1 件ごとの事実に入れない。ほかの試験の行が 1 件でも
-        混じれば合成と読まず、reported はその行だけを返す"""
         synth = (f"<testcase classname='{baseline_red.SYNTH_CLASSNAME}' name='{baseline_red.SYNTH_NAME}'>"
                  f"<error message='exit 1'>ログ</error></testcase>")
         alone = self.runner(f"printf '%s' \"<testsuite>{synth}</testsuite>\" > \"$1\"\nexit 1\n")
@@ -314,7 +311,6 @@ class TestOutcomesCase(unittest.TestCase):
                           {"key": "test_a.TestA::new", "base": "", "final": "passed", "fail_message": ""}])
 
     def test_the_reserved_case_is_not_a_test_row(self):
-        """試験の道具が 1 件ごとの結末を書く前に赤で終わった時の予約の 1 件は、元でも今でも試験 1 件の行にしない"""
         reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error",
                     "fail_message": "exit 1"}
         rows = baseline_red.test_outcomes([reserved, row("t", "failure")], [reserved, row("t", "passed")])

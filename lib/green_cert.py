@@ -110,8 +110,8 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran,
        走った赤の段が在れば 4.〜6. で分け、走らなかった段は summary に添える
     4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red._must_pass）が在る → introduced
     5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在って junit_unran に無い → inherited
-    6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None・落ちた物が試験の道具が 1 件ごとの結末を書く前に赤で
-       終わった時の予約の行（baseline_red.reported に入らない行）だけ）→ ""（原因の無い赤）。試験に入ったかの証拠が無いので、
+    6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None・落ちた物が予約の行（baseline_red.reported に入らない行。
+       baseline_red.synthesized の回）だけ）→ ""（原因の無い赤）。試験に入ったかの証拠が無いので、
        ran_note は走らなかったと言い切らず UNVERIFIED_RUN と読む（直す前と同じログの赤も、試験が同じに落ちたのと見分けられない）。
        予約の行は元の結末にも今の結末にも 1 件ごとの事実として数えない（受け継いだ赤とも持ち込んだ赤とも読まない）
     baseline_cases は元の結末の cases。呼び手は、元の結末の exit が None の時と、1 件ごとの結末の出どころが無い時に None を渡す。

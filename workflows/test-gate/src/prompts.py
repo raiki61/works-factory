@@ -19,7 +19,7 @@ def suite_write(place, intake: dict) -> dict:
     """TDD の実行器の書き手の指示。材料（対象の根・宣言が在るか・test_cmd）は指示に直に入れる"""
     root = pathlib.Path.cwd().resolve()
     test_cmd = suite.load(place).get("test_cmd") or ""
-    values = {"root": str(root), "decl_name": declared_checks.DECL_NAME, "test_cmd": test_cmd, "fence": suitewrite.fence(test_cmd),
+    values = {"root": str(root), "test_cmd": test_cmd, "fence": suitewrite.fence(test_cmd),
               **baseline_red.contract_values(), "lang": prompt.lang(intake["lang"])}
     when = {"declared": (root / declared_checks.DECL_NAME).is_file(), "test_cmd": bool(test_cmd.strip()), "spawns": False}
     return prompt.emit("suite-write", values, when, prompt.round_of("suite-write"))

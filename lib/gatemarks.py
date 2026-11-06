@@ -216,17 +216,17 @@ DESIGN_KIND = "design"                # 関所の項目の kinds（構造の目�
 DESIGN_HEAD = "構造の目が決めきれない設計の問い"   # その行の頭
 WORLD_KIND = "world"                  # 関所の項目の kinds（世界の解から外れた修正案の項目。worldmark.ANSWER_KEY と同じ語）
 MEANS_KIND = "means"                  # 関所の項目の kinds と外れの行の source（頼みの解き方と独立の目が食い違う修正案の項目。worldmark.MEANS と同じ語）
-MEANS_WHY = "頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）"   # その項目の人に聞く訳（いつも人に聞く）
+MEANS_WHY = "頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）"
 MEANS_HEAD = re.compile(r"^修正案 (\d+) は頼みの解き方 (M[1-9][0-9]*)(?:「.*?」)?に従(わない|うが)")   # その項目の文の頭（means_key が鍵 (項目, M<n>, 向き) を引く）
 MEANS_WAYS = {"わない": "departs", "うが": "drifts"}   # 文の頭の向き → 鍵の向き（従わない・従うが独立設計と食い違う）
 PRESCRIPTION_KIND = "prescription"    # 関所の項目の kinds と外れの行の source（判定の処方から外れた修正案の項目。planmarks.ANSWER_KEYS の語と同じ）
 PRESCRIPTION_WHY = (f"{ASK_CASES[0]} 判定の処方と計画の決め手が別の答えを指す"
-                    "（どちらも自動では優先しない。判定の処方は直す側が覆せない）")   # その項目の人に聞く訳（いつも人に聞く）
-PRESCRIPTION_UNREAD = "判定の処方の文を読めていない"   # 処方の文を引けなかった外れの行の文が名乗る印
+                    "（どちらも自動では優先しない。判定の処方は直す側が覆せない）")
+PRESCRIPTION_UNREAD = "判定の処方の文を読めていない"
 DESIGN_DEVIATION = "design"           # 外れの行の source（独立設計との構造の食い違い。事前審査の穴の道で聞くので項目にしない）
-OTHER_DEPART_KIND = "other_depart"    # 関所の項目の kinds（種類の表に無い source の外れの行）
+OTHER_DEPART_KIND = "other_depart"
 OTHER_DEPART_WHY = "外れの行の種類が表に無い（読めない行は聞く側に倒す）"
-DEPART_WHY = {MEANS_KIND: MEANS_WHY, PRESCRIPTION_KIND: PRESCRIPTION_WHY}   # 外れの行の種類 → その項目の人に聞く訳の既定
+DEPART_WHY = {MEANS_KIND: MEANS_WHY, PRESCRIPTION_KIND: PRESCRIPTION_WHY}
 FLIP_KIND = converge.ORIGIN_FLIP       # 関所の項目の kinds（前に閉じた block の裏返しの穴。持ち主の決め flip-asks。出自の語と同じ語）
 FLIP_WHY = (f"{ASK_CASES[1]} 前に閉じた穴と両方は守れず、どちらを優先するかは人の優先の付け方で決まる"
             "（往復で詰めずに聞く。決め flip-asks）")   # その行の人に聞く訳（いつも人に聞く。無人の run は推しを採る）

@@ -50,9 +50,8 @@ MATERIAL_N = re.compile(r"review-material-(\d+)\.md")
 FLIP_REJECT = "前に閉じた block の裏返し（出自 flip）の申告に誤りが在る:"   # 持ち主の決め flip-asks
 MEANS_REJECT = "頼みの解き方の推し（means_departs）か食い違い（means_drifts）の行に欠けか誤りが在る:"
 PRESCRIPTION_REJECT = "判定の処方からの外れの推し（prescription_departs）の行に欠けか誤りが在る:"
-# 往復をまたいで積む頼みの解き方・判定の処方の行の欄と、後勝ちに合わせる鍵（計画 means-answers の 3.2 の 6）
-MEANS_ROWS = {"means_drifts": ("item", "means", "plan_quote"), "means_departs": ("item", "means"),
-              "prescription_departs": ("item", "prescription")}
+_drifts, _departs, _prescribed = converge.MEANS_AND_PRESCRIPTION_ROWS
+LATEST_WINS_KEYS = {_drifts: ("item", "means", "plan_quote"), _departs: ("item", "means"), _prescribed: ("item", "prescription")}
 
 
 # ---------------------------------------------------------------- 単位の名（unit_name・_names・_map_rows・kept_keys・_later・_map_items・
@@ -167,7 +166,7 @@ def fences_twice(faces) -> list[str]:
 
 # ---------------------------------------------------------------- 頼みの解き方（計画 means-answers の 3.2 の 2・5・6）
 def stacked(place, review, name: str) -> list:
-    """往復の記録の作業の写しの全部の往復の行 name と、今の返答 review の行を、鍵 MEANS_ROWS[name] で後勝ちに合わせた並び
+    """往復の記録の作業の写しの全部の往復の行 name と、今の返答 review の行を、鍵 LATEST_WINS_KEYS[name] で後勝ちに合わせた並び
     （2 往復目から差分だけを見る審査役が書き直さなかった行・木の形で閉じた項目の行を持ち越す）"""
     record = jsonfile.read_or(pathlib.Path(place) / files.CONVERGE)
     passes = record.get("passes") if isinstance(record, dict) and isinstance(record.get("passes"), list) else []
@@ -175,7 +174,7 @@ def stacked(place, review, name: str) -> list:
     for rows in [*(p.get(name) for p in passes if isinstance(p, dict)), (review or {}).get(name)]:
         for r in rows if isinstance(rows, list) else []:
             if isinstance(r, dict):
-                key = tuple(r.get(k) for k in MEANS_ROWS[name])
+                key = tuple(r.get(k) for k in LATEST_WINS_KEYS[name])
                 got.pop(key, None)
                 got[key] = r
     return list(got.values())

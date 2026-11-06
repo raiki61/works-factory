@@ -337,7 +337,7 @@ class MeansRowsCase(unittest.TestCase):
         self.assertTrue(r["text"].startswith("修正案 2 は頼みの解き方 M1「分母を len(xs) にする」に従わない——"), r["text"])
         self.assertEqual(r["mark"]["recommend"], self.REC)
         self.assertEqual(r["why"], [gatemarks.MEANS_WHY])
-        text = gatemarks.depart_item(r)   # 種類を問わない 1 つの口で組む
+        text = gatemarks.depart_item(r)
         self.assertNotIn("世界の解:", text)
         self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
         self.assertEqual(gatemarks.means_key(text), (2, "M1", "departs"))
@@ -345,7 +345,7 @@ class MeansRowsCase(unittest.TestCase):
     def test_plan_row_without_departs_has_no_push(self):
         r = gatemarks.means_rows(self.FIELDS, self.SAID)[0]
         self.assertNotIn("recommend", r["mark"])
-        text = gatemarks.depart_item(r)   # 種類を問わない 1 つの口で組む
+        text = gatemarks.depart_item(r)
         self.assertIsNone(gatemarks.push_rec(text))
 
     def test_drift_row(self):
@@ -358,7 +358,6 @@ class MeansRowsCase(unittest.TestCase):
 
 
 class PrescriptionRowsCase(unittest.TestCase):
-    """判定の処方からの外れの行: 文の頭・処方の文・推しの尾。推しは渡した行の物だけ。処方の文を読めない単位は読めていないと名乗る"""
     RX = {"U": ["分母を len(xs) にする", "上限の枝を hi にする"]}
     REC = {"answer": "continue", "note": "計画のまま進める", "why": "リポジトリの決まりに合う"}
     FIELDS = [{"structure": [{"prescription": "U", "follows": True}]},

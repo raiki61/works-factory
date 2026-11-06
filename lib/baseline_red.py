@@ -27,6 +27,8 @@ from leftovers import Unreadable, git
 if str(pathlib.Path(__file__).resolve().parent / "graphloops") not in sys.path:   # 写しの engine（形の照らし）
     sys.path.append(str(pathlib.Path(__file__).resolve().parent / "graphloops"))
 
+from engine import declared  # noqa: E402  （declared_checks は baseline_red を import するので、そこからは引かない）
+
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
 # 元 works/blk-fix/lib/tddloop.py:142-144
@@ -34,14 +36,16 @@ ONLY_ENV = "TDD_SUITE_ONLY"
 
 # 試験の道具が JUnit XML を書く前に赤で終わった時、実行器が書く 1 件の予約の classname と name。実行器の約束（workflows/.shared/
 # prompts/runner-writer.md）の差し込み口 {synth_classname}・{synth_name} に contract_values が渡す。この行は試験 1 件ごとの結末ではなく、
-# 「試験の道具が 1 件ごとの結末を書く前に赤で終わった」という 1 件の知らせで、読む側は reported・synthesized でだけ見分ける
+# SYNTH_CAUSE という 1 件の知らせで、読む側は reported・synthesized でだけ見分ける
 SYNTH_CLASSNAME = "junit-synthesized"
 SYNTH_NAME = "suite-exited-without-junit"
+SYNTH_CAUSE = "試験の道具が 1 件ごとの結末を書く前に赤で終わった"   # 予約の 1 件の意味の文。読む側は字で写さずこの名で引く
 
 
 def contract_values() -> dict:
-    """実行器の約束の文（runner-writer.md）の差し込み値 {only_env, synth_classname, synth_name}。書き手の指示を組む口はこれを流す"""
-    return {"only_env": ONLY_ENV, "synth_classname": SYNTH_CLASSNAME, "synth_name": SYNTH_NAME}
+    """実行器の約束の文（runner-writer.md）の差し込み値 {only_env, synth_classname, synth_name, decl_name}。書き手の指示を組む口と
+    実行器の取り置きの鍵（prompt.runner_stamp）はこれだけを引く"""
+    return {"only_env": ONLY_ENV, "synth_classname": SYNTH_CLASSNAME, "synth_name": SYNTH_NAME, "decl_name": declared.DECL_NAME}
 
 
 def _is_synth(c) -> bool:
@@ -54,7 +58,7 @@ def reported(cases) -> list:
 
 
 def synthesized(cases) -> bool:
-    """結末の回が予約の行だけか（行が在り、1 件ごとの行が 1 つも無い）。試験の道具が 1 件ごとの結末を書く前に赤で終わった回"""
+    """結末の回が予約の行だけか（行が在り、1 件ごとの行が 1 つも無い）。訳は SYNTH_CAUSE"""
     return bool(cases) and not reported(cases)
 
 

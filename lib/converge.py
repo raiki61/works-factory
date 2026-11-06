@@ -730,7 +730,7 @@ def fixed_unchanged(doc: dict, rows: list, answers) -> list[str]:
     return out
 
 
-MEANS_ROWS = ("means_drifts", "means_departs", "prescription_departs")   # 往復の行に写す事前審査の返答の頼みの解き方・判定の処方の欄
+MEANS_AND_PRESCRIPTION_ROWS = ("means_drifts", "means_departs", "prescription_departs")
 
 
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
@@ -757,7 +757,7 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
            "origins": {}, "origins_claimed": [], "files": {}, "rejects": []}
     if push is not None:
         row["push"] = copy.deepcopy(push)
-    for name in MEANS_ROWS:   # 頼みの解き方の行（計画 means-answers の 3.2 の 6。事前審査が全部の往復の行を鍵で後勝ちに積んで読む）
+    for name in MEANS_AND_PRESCRIPTION_ROWS:
         got = [copy.deepcopy(r) for r in review.get(name) or [] if isinstance(r, dict)]
         if got:
             row[name] = got

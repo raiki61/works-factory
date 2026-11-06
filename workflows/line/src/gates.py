@@ -436,7 +436,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
                            "decided_by": str(mark.get("decided_by") or "")})
     ups = design_items(list(design_rows_), answered)
     items += ups
-    if fell and isinstance(plan_fields, list):   # 事前審査が無い周: 計画の欄の外れを推しなしの行にする
+    if fell and isinstance(plan_fields, list):
         deviations = [*deviations, *gatemarks.means_rows(plan_fields, worldmark.means_hints(means)),
                       *gatemarks.prescription_depart_rows(plan_fields, prescriptions or {})]
     departed, kept_devs = _depart_items(deviations, answered, rnd, passes)

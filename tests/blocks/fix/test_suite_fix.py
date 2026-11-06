@@ -53,7 +53,7 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         if str(kit.SHARED) not in sys.path:
             sys.path.append(str(kit.SHARED))
         import prompt
-        return prompt.digest(prompt.RUNNER_WRITER)
+        return prompt.runner_stamp()
 
     def kept(self, cmd: str) -> pathlib.Path:
         return self.keep / f"{hashlib.sha256(cmd.encode('utf-8')).hexdigest()}.{self.stamp()}"

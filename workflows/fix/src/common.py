@@ -931,10 +931,10 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     """(赤の文の一覧, 知らせ)。選ぶのは変更に直に関わる試験と名指しの試験（_named_files）だけで、届くだけの先の試験は
     final_left に残す。実行器の後ろに足すのは、選んだ試験のうちこの run で変えた・足したファイルだけ（ADR 0071 の
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
-    実行器が選んだ試験の引数を受けず結末を返さない時と、試験の道具が 1 件ごとの結末を書く前に赤で終わって予約の 1 件だけを返した時
-    （baseline_red.synthesized）は、引数なしの一式で 1 度回し直す（実行器の約束は受けられない引数を落とすこと）。
+    実行器が選んだ試験の引数を受けず結末を返さない時と、予約の 1 件だけを返した時（baseline_red.synthesized）は、引数なしの一式で
+    1 度回し直す（実行器の約束は受けられない引数を落とすこと）。
     赤は 1 件ごとの行（baseline_red.reported）だけで数える。予約の 1 件は元の結末の鍵に無く版の姿と比べられないので、いつも
-    比べられない赤として扱う（下の uncompared の決めと同じ。訳は SYNTH_CAUSE）。
+    比べられない赤として扱う（下の uncompared の決めと同じ。訳は baseline_red.SYNTH_CAUSE）。
     実行器の無い run（状態が無い）・当たる試験が無い・実行器が走らない・選んだ試験が 1 件も走らなかった時は赤にせず知らせだけ。
     元の結末に無い試験の赤は、版の写しでその試験を名指しで回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
     受け付けの回をまたいで使い回す）。版の写しの結末に出ない（走らせられない・名指しを聞かない実行器）試験は比べられない:
@@ -983,10 +983,10 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
         f"選んだ試験（ファイル {', '.join(files)[:300]}・-k {kexpr[:300]}）"
     if (cases is None or baseline_red.synthesized(cases)) and args:
         # 実行器の約束（.shared の runner-writer）は受けられない引数を落として一式を回すこと。約束を外れて引数ごと道具に渡し、
-        # 道具が断った（-k を知らない試験の道具）時は、元の結末を取れた引数なしの一式で回し直す。道具が結果を書く前に赤で終わった
-        # 回（予約の 1 件だけ）も、引数を断られたのかもしれないので同じに回し直す
+        # 道具が断った（-k を知らない試験の道具）時は、元の結末を取れた引数なしの一式で回し直す。予約の 1 件だけの回
+        # （baseline_red.synthesized）も、引数を断られたのかもしれないので同じに回し直す
         first = (f"{what}は実行器が引数を受けず結末を返さない（{'; '.join(why)}。ログ {work / f'suite-{name}.log'}）" if cases is None else
-                 f"{what}は試験の道具が 1 件ごとの結末を書く前に赤で終わった（ログ {work / f'suite-{name}.log'}）")
+                 f"{what}は{baseline_red.SYNTH_CAUSE}（ログ {work / f'suite-{name}.log'}）")
         name, files = WHOLE_RUN, []
         cases, code, why = run_suite(st["exe"], repo, work, name, ())
         what = f"引数なしの一式（{first}）"
@@ -1009,7 +1009,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
             and st["baseline"].get(_key(c)) not in ("failure", "error")}
     red = list(reds)
     fresh = [k for k in red if k not in st["baseline"]]
-    # 試験の道具が 1 件ごとの結末を書く前に赤で終わった時の予約の行は、版の姿で名指しで回しても比べられない赤（元の結末にも入れない）
+    # 予約の行（baseline_red.synthesized の回の行）は、版の姿で名指しで回しても比べられない赤（元の結末にも入れない）
     synth_rows = {_key(c): c for c in cases if c not in rows and c["outcome"] in ("failure", "error")}
     tail = ""
     if fresh:
@@ -1024,7 +1024,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
             if uncompared is not None:
                 red = [k for k in red if k not in unknown]
     if synth_rows:
-        tail += _unknown_tail(list(synth_rows), SYNTH_CAUSE, uncompared)
+        tail += _unknown_tail(list(synth_rows), baseline_red.SYNTH_CAUSE, uncompared)
         if uncompared is None:
             reds.update(synth_rows)
             red += list(synth_rows)
@@ -1036,9 +1036,6 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     return [f"受け付けが走らせた{label}で、元で赤でなかった試験が赤{where}: {ids[:20]}（{len(ids)} 件。"
             f"ログ {log}{tail}）——直した単位のどこかを直して出し直せ"
             for where, ids in _by_test_file(repo, [reds[k] for k in red]).items()], ""
-
-
-SYNTH_CAUSE = "試験の道具が 1 件ごとの結末を書く前に赤で終わった"
 
 
 def _unknown_tail(keys, cause, uncompared) -> str:

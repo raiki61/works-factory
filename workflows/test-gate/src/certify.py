@@ -54,8 +54,8 @@ def suite_exit(run: dict):
 
 def test_outcomes(base, run: dict) -> tuple:
     """(赤の原因の照らしに渡す元の 1 件ごとの結末か None, 返りの欄 test_outcomes {rows, unmeasured})。元の結末と今の結末を比べて
-    よいのは、元の結末が 1 件ごとの結末を取り（exit が None でない）、今の一式も取れた（suite_exit）時だけ。元か今が試験の道具が
-    1 件ごとの結末を書く前に赤で終わった回（baseline_red.synthesized）でも比べない。比べない時は rows を空にして訳を unmeasured に書く"""
+    よいのは、元の結末が 1 件ごとの結末を取り（exit が None でない）、今の一式も取れた（suite_exit）時だけ。元か今が予約の 1 件だけの回
+    （baseline_red.synthesized）でも比べない。比べない時は rows を空にして訳を unmeasured に書く"""
     import baseline_red
     if base is None:
         why = "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"
@@ -64,7 +64,7 @@ def test_outcomes(base, run: dict) -> tuple:
     elif suite_exit(run) is None:
         why = "最後のテストは 1 件ごとの結末を取っていない"
     elif baseline_red.synthesized(base["cases"]) or baseline_red.synthesized(run["cases"]):
-        why = "試験の道具が 1 件ごとの結末を書く前に赤で終わった回があり、元と今を試験ごとに比べられない"
+        why = f"{baseline_red.SYNTH_CAUSE}回があり、元と今を試験ごとに比べられない"
     else:
         return base["cases"], {"rows": baseline_red.test_outcomes(base["cases"], run["cases"]), "unmeasured": ""}
     return None, {"rows": [], "unmeasured": why}
@@ -112,8 +112,8 @@ def _brief_rerun(rerun: dict) -> dict:
 
 def runner_material(mode: str, run: dict) -> dict:
     """by role_needed の run の素材（機械が実行器の結果から組む）。実行器が走って結末が取れた（suite_exit が None でない）なら、終了コード
-    0 は clean、ほかは found（count は落ちた件数、最低 1。試験の件数は 1 件ごとの行 baseline_red.reported で数え、試験の道具が
-    結果を書く前に赤で終わった予約の 1 件だけの回は試験を走らせた件数に数えず、その旨を detail に書く）。変更に関わる試験が無く走らせなかったなら not_applicable。実行器が無い・走らな
+    0 は clean、ほかは found（count は落ちた件数、最低 1。試験の件数は 1 件ごとの行 baseline_red.reported で数え、予約の 1 件だけの回
+    （baseline_red.synthesized）は試験を走らせた件数に数えず、その旨を detail に書く）。変更に関わる試験が無く走らせなかったなら not_applicable。実行器が無い・走らな
     かった・結末が取れないなら、base は awaiting_human、final は not_run（緑を仮定しない）"""
     import baseline_red
     code = suite_exit(run)
@@ -124,7 +124,7 @@ def runner_material(mode: str, run: dict) -> dict:
             return {"status": "clean", "checked": f"AI が書いた実行器が試験 {len(cases)} 件を走らせた（終了コード 0）"}
         if baseline_red.synthesized(all_cases):
             return {"status": "found", "count": 1,
-                    "detail": f"AI が書いた実行器の試験の道具が 1 件ごとの結末を書く前に赤で終わった（終了コード {code}）"}
+                    "detail": f"AI が書いた実行器の{baseline_red.SYNTH_CAUSE}（終了コード {code}）"}
         failed = sum(1 for c in cases if c.get("outcome") in baseline_red.FAILED)
         return {"status": "found", "count": max(failed, 1), "detail": f"AI が書いた実行器が試験 {len(cases)} 件を走らせ、終了コード {code}"}
     related = run.get("related") or {}

@@ -1,4 +1,4 @@
-"""plan の block の中身のうち、入口（周を開く）・直す義務の数え・案に入れてよい単位・判定の処方・波及の一覧・出口（docs/design/plan.md の 4 節）。
+"""plan の block の中身のうち、入口（周を開く）・直す義務の数え・案に入れてよい単位・波及の一覧・出口（docs/design/plan.md の 4 節）。
 元の planfile と元の planblk の修正案の役の部分を、port の値で受ける形に写した物。指示の文は prompts/ の md が持ち、ここは値と、
 受け付けが拒否に使う日本語の理由（README の 5.3）だけを組む。
 
@@ -404,12 +404,6 @@ def round_slots(folder, judgment) -> list:
     """形 plan の周の、案に入れてよい単位の名の並び（no は 1 始まりの位置）。周の slots.json が読めなければ判定から組む"""
     got = jsonfile.read_or(pathlib.Path(folder) / files.SLOTS)
     return got if isinstance(got, list) else slots(judgment)
-
-
-# ---------------------------------------------------------------- 判定の処方
-def prescriptions(judgment) -> dict:
-    """{単位の key: [処方の文]}（判定の返答から。空の処方の単位は入れない。読みは planmarks.judged_prescriptions）"""
-    return planmarks.judged_prescriptions(judgment)
 
 
 # ---------------------------------------------------------------- 作業ツリーの姿

@@ -7,6 +7,7 @@ means_drifts を照らし、往復をまたいで積み、外れの行 deviation
 - 指示: means_drifts の段（従うという答えの確かめも）は形 plan だけ、means_departs の段（means-ask）は両方の形と項目の下請けの指示
 """
 import json
+import tempfile
 import unittest
 
 import yaml
@@ -229,7 +230,7 @@ class TreeMeansCase(DriftBase):
 
     def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
         """木の往復: 項目の下請けの答えの means_departs が tree_merge で返答に並び、受け付けを通り、finish の deviations の source means の
-        行に推しが載る（tree_merge が take.MEANS_ROWS を並べないと、推しの行が無いと拒まれる）"""
+        行に推しが載る（tree_merge が converge.MEANS_AND_PRESCRIPTION_ROWS を並べないと、推しの行が無いと拒まれる）"""
         tree = kit.load(BLOCK, "tree")
         f = self.flow
         f.intake(tree="on")
@@ -246,6 +247,29 @@ class TreeMeansCase(DriftBase):
         self.assertTrue(got["ok"], got)
         rows = self.means_rows(f.finish())
         self.assertEqual([(r["item"], r["mark"].get("recommend")) for r in rows], [(1, REC)], rows)
+
+
+class LatestWinsCase(unittest.TestCase):
+    """take.stacked は欄ごとの後勝ちの鍵で行を合わせる。欄と鍵の結びは converge の組の並びで位置に決まるので、並べ替えで鍵が別の欄に
+    付けば、鍵の最後の欄だけ違う 2 行が 1 行に潰れる"""
+
+    def stacked(self, name, rows):
+        take = kit.load(BLOCK, "take")
+        with tempfile.TemporaryDirectory() as place:
+            return take.stacked(place, {name: rows}, name)
+
+    def test_each_column_keeps_its_own_latest_wins_key(self):
+        one, two = "first why", "second why"
+        self.assertEqual(self.stacked("means_drifts", [drift(plan_quote="a"), drift(plan_quote="b")]),
+                         [drift(plan_quote="a"), drift(plan_quote="b")])
+        self.assertEqual(self.stacked("means_departs", [depart(means="M1"), depart(means="M2")]),
+                         [depart(means="M1"), depart(means="M2")])
+        self.assertEqual(self.stacked("means_departs", [depart(why=one), depart(why=two)]), [depart(why=two)])
+        rx = {"item": 1, "why": one, "recommend": REC}
+        self.assertEqual(self.stacked("prescription_departs", [{**rx, "prescription": "p1"}, {**rx, "prescription": "p2"}]),
+                         [{**rx, "prescription": "p1"}, {**rx, "prescription": "p2"}])
+        self.assertEqual(self.stacked("prescription_departs", [{**rx, "prescription": "p1"}, {**rx, "prescription": "p1", "why": two}]),
+                         [{**rx, "prescription": "p1", "why": two}])
 
 
 if __name__ == "__main__":

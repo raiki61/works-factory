@@ -2973,7 +2973,6 @@ DIFF_ONLY_RUNNER = DIFF_RUNNER.replace("out, rest = sys.argv[1], sys.argv[2:]",
                                        "out, rest = sys.argv[1], (sys.argv[2:] if TIER else [])")
 
 
-# 試験の道具が結果を書く前に赤で終わった時に実行器が書く予約の 1 件（error）と、それをいつも書いて 1 で終わる実行器
 SYNTH_XML = (f"<testsuite><testcase classname='{baseline_red.SYNTH_CLASSNAME}' name='{baseline_red.SYNTH_NAME}'>"
              "<error message='exit 1'/></testcase></testsuite>")
 SYNTH_RUNNER = f"import sys\nopen(sys.argv[1], 'w').write({SYNTH_XML!r})\nsys.exit(1)\n"

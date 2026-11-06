@@ -22,6 +22,7 @@ import jsonfile   # lib/
 import libdocs    # lib/
 import oneline    # lib/
 import planbrief  # lib/
+import planmarks  # lib/
 import policy     # lib/
 import rolekit    # lib/
 import structmark  # lib/
@@ -83,7 +84,7 @@ def units_rows(judgment: dict, catalog, filled) -> tuple:
 def prescription_rows(judgment: dict) -> str:
     """案に入れる単位ごとの `### <key>` と番号つきの処方"""
     owed, opened, _ = steps.plan_slots(judgment)
-    given = steps.prescriptions(judgment)
+    given = planmarks.judged_prescriptions(judgment)
     keys = [k for k in steps.slots(judgment) if k in owed | opened]
     return "\n\n".join(f"### {k}\n\n" + "\n".join(f"{i}. {x}" for i, x in enumerate(given[k], 1)) for k in keys if k in given)
 

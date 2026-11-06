@@ -1007,7 +1007,7 @@ class SuiteLoopCase(ScriptCase):
         if str(kit.SHARED) not in sys.path:
             sys.path.append(str(kit.SHARED))
         import prompt
-        return prompt.digest(prompt.RUNNER_WRITER)
+        return prompt.runner_stamp()
 
     def kept(self, stamp: str | None = "") -> pathlib.Path:
         """取り置きの名 <sha256(test_cmd)>.<版>（stamp が空なら今の版、None なら版の無い前の形の名）"""
@@ -1090,6 +1090,16 @@ class SuiteLoopCase(ScriptCase):
         self.assertEqual(self.state()[suitewrite.KEY]["from"], suitewrite.FROM_AI)
         self.assertTrue(self.kept(None).is_file() and self.kept("another").is_file())
         self.assertFalse(self.kept().exists())
+
+    def test_a_runner_kept_for_other_reserved_names_is_written_again(self):
+        """取り置きの鍵は予約の名の値も入力にする: 予約の名を別の値にした間の版で置いた実行器は、本当の名の run では使わず書き手を起こす"""
+        with mock.patch.object(baseline_red, "SYNTH_NAME", "another-reserved-name"):
+            self.put_kept(self.RED)
+        self.assertFalse(self.kept().exists())
+        self.ok("run", "base")
+        prep = self.ok("suite_prep", "base")
+        self.assertTrue(prep["write"])
+        self.assertEqual(self.state()[suitewrite.KEY]["from"], suitewrite.FROM_AI)
 
     def test_a_runner_is_bound_without_running_it_before_the_fix(self):
         """直す前の版では試験を走らせない（持ち主の決め base-runs-nothing）: 試験を 1 件も書かない実行器も、直す前は走らせずに結ぶ。
