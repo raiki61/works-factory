@@ -1160,7 +1160,7 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
    1. `final.py:376`（R4 の問いの節の「この承認ノードの答えはこの問いに答えない」）: R4 の節は今のまま。R2 の行は別の節「頼みの解き方どおりで独立設計と食い違う所（R2）」に並べ、その節の尾は「この承認ノードの continue は頼みどおりの差分を当てる答え、stop は止める答えになる」と書く。R2 が `redesign-needed` の run では、尾を `R2_KEEPS_OUT`（continue でも当たらない）にする（6.2 の 7）。
    2. `facts.py:53` の `EYE_ASK_HEAD`（報告の問いの見出し。R4 の問い）: R2 の行はこの見出しの下に入れず、別の見出し（例 `MEANS_ASK_HEAD = "頼みの解き方どおりで独立設計と食い違う所"`）の下に並べる（`facts.py:930` の `questions` の並びに 1 組足す）。
    3. `facts.py:405-406` の人待ちの語 `r4-ask`: R4 の問いだけを数える今のまま。R2 の行は、最後の承認ノードが答えを得た run（continue か stop。R2 が `redesign-needed` の run を除く）では人待ちに数えない。答えを得なかった run（無人の run で止まった・人が答えなかった）と、R2 が `redesign-needed` の run では、別の語 `r2-means-ask`（`facts.MEANS_WAIT`）で数える（6.8 の 2）。
-   4. `facts.py:997-1003` の次の run の答えの下書き（`answer_drafts` の `asked = eye_questions(returns)`）: `eye_questions` は R4 の欄だけを読む今のまま。R2 の行は、最後の承認ノードの答えが continue か stop の run（R2 が `redesign-needed` の run を除く）では載せない（答えた行）。答えが無い run と、R2 が `redesign-needed` の run だけ、今の R4 の行と同じ `gatemarks._gate_draft` の形で載せる（行の頭の `R2:` で目が分かる）。
+   4. `facts.py:997-1003` の次の run の答えの下書き（`answer_drafts` の `asked = eye_questions(returns)`）: `eye_questions` は R4 の欄だけを読む今のまま。R2 の行は、最後の承認ノードの答えが continue か stop の run（R2 が `redesign-needed` の run を除く）では載せない（答えた行）。答えが無い run と、R2 が `redesign-needed` の run だけ、今の R4 の行と同じ `gatemarks._gate_draft` の形で載せる（行の頭の `R2:` で目が分かる）。ただし R4 の行は役の文なので推しの尾を読まない（`read_tail=False`。下書きの text は空）。ほかの出どころ（R2 の行・載せなかった修正前の項目）は今どおり尾を読む。
 4. 開ける理由（`final.py` の `needs`）に「頼みの解き方どおりの違いを独立の目が聞いている（n 件）」を、開き方に依らず開く理由（must）として足す（6.5 の 5）。今の「人に聞いている問いが在る」（must でない）は R4 の問いだけを数える今のまま。
 
 #### 6.4 無人の run（最後の承認ノード）
