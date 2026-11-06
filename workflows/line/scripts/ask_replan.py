@@ -7,19 +7,21 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 
 直した項目ごとの事実は案の直しの事前審査の出力 replan の行 {item, units, contract_changed, human, widened}（plan-review の設計書の
 10.3）。聞くかは line が決める（src.gates.replan_asks: (contract_changed かつ 無人の run で widened でない) か human が在る。読めない
-行は聞く側に倒す）。直した項目の頼みの解き方の外れ（事前審査の deviations の source means）は推しの尾つきで聞く（means_rows）。修正前の承認ノードの答えで通した穴の行（事前審査の穴 [kind] key の頭で始まる asked の行）は聞き直さない
+行は聞く側に倒す）。直した項目の頼みの解き方と判定の処方の外れ（事前審査の deviations の source means・prescription）は推しの尾つきで聞く
+（depart_rows）。修正前の承認ノードの答えで通した穴の行（事前審査の穴 [kind] key の頭で始まる asked の行）は聞き直さない
 （L-D26・S22）。無人の run で範囲を広げるだけの直しは聞かずに通し、足した・外した glob を widened で返す（L-G45）。無人の run で聞く
 はずの時は gates.passage（約束の欄が変わった項目の行は推しを持たないので止まる。L-D30）。
 案の直しが計画を作れなかった（replan の ok が偽）時は開かず進めない（fixed が held にする）。事前審査が諦めた・落ちた時は、その訳を
-聞く行にする（案を審査できていない）。その時の頼みの解き方の外れは、直した項目の計画の {means, deviation} を推しなしで並べる
-（修正前の承認ノードと同じ。無人の run なら止まる）。
+聞く行にする（案を審査できていない）。その時の外れは、直した項目の計画の {means, deviation}・{prescription, deviation} を推しなしで並べる
+（修正前の承認ノードと同じ。無人の run なら止まる。判定の処方の文は入力 judgment の判定から引き、読めなければ読めていないと名乗る）。
 文は聞く項目ごとの節（約束の欄の変化・人に聞く穴・その項目を誤りとした申し出の文と裁定の文〔fix の conflicts。字のまま〕・前と後の
 項目の JSON）。asked は承認ノードに見せた項目の行（「項目 <id>: …」と事前審査の問いの行。answer-replan が答えの asked にする）。
 
 入力（with:）: replan（replan-out の got）・review（replan-review-out の got か null）・old_plan（承認済みの案の欄の pointer）・
 items（直す計画の項目の番号）・conflicts（1 回目の修正の申し出と裁定の pointer か null）・before_fix（修正前の承認ノードの答え）・
 record（始めの記録の pointer。方針の文書が固めた版から変わっていれば、その行を聞く項目に足す）・ports（start の配る値）・
-means（依頼が示した解き方の文の並びか null。外れの行の M<n> に文を添える）
+means（依頼が示した解き方の文の並びか null。外れの行の M<n> に文を添える）・
+judgment（判定の pointer か null。事前審査が落ちた時に、外れの行へ判定の処方の文を添える）
 """
 import json
 import os
@@ -96,23 +98,31 @@ def passed_before(before_fix, face: dict) -> bool:
     return any(isinstance(a, str) and a.startswith(head) for a in before_fix.get("asked") or [])
 
 
-def means_rows(deviations, ids: list, before_fix) -> list:
-    """案の直しの事前審査の外れの行のうち、直した項目（ids）の頼みの解き方の行の項目の文（gatemarks.means_item。推しの尾つき。計画
-    means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行と同じ鍵 (項目, M<n>, 向き) の行は、推しの文が書き直されて
-    いても聞き直さない（鍵は聞いた文の頭 gatemarks.means_key から引く）。直さない項目の行は修正前の承認ノードで答え済みなので足さない。
-    事前審査が諦めた・落ちた時は、deviations に直した案の計画の外れの行（gatemarks.means_rows。推しなし）を渡す"""
+def depart_rows(deviations, ids: list, before_fix) -> list:
+    """案の直しの事前審査の外れの行のうち、直した項目（ids）の頼みの解き方と判定の処方の行の項目の文（gatemarks.depart_item。推しの尾つき。
+    計画 means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行は、推しの文が書き直されていても聞き直さない: 頼みの解き方は
+    聞いた文の頭の鍵 (項目, M<n>, 向き)（gatemarks.means_key）、判定の処方は推しの尾を外した文（gatemarks.depart_key）で比べる
+    （同じ項目・同じ単位・同じ外れの訳なら同じ行。外れの訳を変えた行は聞く）。直さない項目の行は修正前の承認ノードで答え済みなので
+    足さない。事前審査が諦めた・落ちた時は、deviations に直した案の計画の外れの行（gatemarks.means_rows・prescription_depart_rows。
+    推しなし）を渡す"""
     import answer
     import gatemarks
     revised = {int(i) for i in ids if str(i).isdigit()}
-    passed = set()
+    asked = []
     if isinstance(before_fix, dict) and before_fix.get("decision") in answer.GO_WORDS:
-        passed = {k for a in before_fix.get("asked") or [] if (k := gatemarks.means_key(a)) is not None}
+        asked = [a for a in before_fix.get("asked") or [] if isinstance(a, str)]
+    passed_means = {k for a in asked if (k := gatemarks.means_key(a)) is not None}
+    passed_text = {gatemarks.depart_key(a) for a in asked}
     out = []
     for d in deviations if isinstance(deviations, list) else []:
-        if not (isinstance(d, dict) and d.get("source") == gatemarks.MEANS_KIND and d.get("item") in revised):
+        if not (isinstance(d, dict) and d.get("source") in (gatemarks.MEANS_KIND, gatemarks.PRESCRIPTION_KIND) and d.get("item") in revised):
             continue
-        text = gatemarks.means_item(d)
-        if gatemarks.means_key(text) not in passed:
+        text = gatemarks.depart_item(d)
+        if d["source"] == gatemarks.MEANS_KIND:
+            again = gatemarks.means_key(text) in passed_means
+        else:
+            again = gatemarks.depart_key(text) in passed_text
+        if not again:
             out.append(text)
     return list(dict.fromkeys(out))
 
@@ -129,9 +139,10 @@ def policy_row(record: dict, folder: Path, answered: list) -> str:
 
 
 def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before_fix, *, unattended: bool, run_id: str,
-        policy: str = "", missing=(), means=()) -> dict:
+        policy: str = "", missing=(), means=(), judgment=None) -> dict:
     import answer
     import gatemarks
+    import planmarks
     import replan
     import worldmark
     from src import gates
@@ -148,10 +159,12 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         why = "出力が無い" if review_got is None else (review_got["reason"] or review_got["status"])
         rows.append(REVIEW_FELL.format(why=why))
         facts = [{"item": i} for i in ids]
-        rows += means_rows(gatemarks.means_rows(new_fields, worldmark.means_hints(means)), ids, before_fix)
+        judged = gates.read_located(judgment, "判定", missing, lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))
+        rows += depart_rows([*gatemarks.means_rows(new_fields, worldmark.means_hints(means)),
+                             *gatemarks.prescription_depart_rows(new_fields, planmarks.judged_prescriptions(judged))], ids, before_fix)
     else:
         facts = [r for r in review_got["replan"] or []]
-        rows += means_rows(review_got["deviations"] or [], ids, before_fix)
+        rows += depart_rows(review_got["deviations"] or [], ids, before_fix)
     for r in gates.replan_asks(facts, unattended_run=unattended) if facts else []:
         ident = r.get("item") if isinstance(r, dict) else None
         old, new = item(old_fields, ident), item(new_fields, ident)
@@ -192,7 +205,8 @@ def compute() -> dict:
     raw = {"replan": os.environ.get("INPUTS_REPLAN"), "review": os.environ.get("INPUTS_REVIEW"),
            "old_plan": os.environ.get("INPUTS_OLD_PLAN"), "items": os.environ.get("INPUTS_ITEMS"),
            "conflicts": os.environ.get("INPUTS_CONFLICTS"), "before_fix": os.environ.get("INPUTS_BEFORE_FIX"),
-           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"), "means": os.environ.get("INPUTS_MEANS")}
+           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"), "means": os.environ.get("INPUTS_MEANS"),
+           "judgment": os.environ.get("INPUTS_JUDGMENT")}
     from src import gates, startrec
 
     given = ports.parsed(raw["ports"]) or {}
@@ -209,7 +223,7 @@ def compute() -> dict:
     return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW, optional=REVIEW_OPTIONAL), old_plan,
                [str(x) for x in ids] if isinstance(ids, list) else [], conflicts, before_fix,
                unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing,
-               means=means if isinstance(means, list) else [])
+               means=means if isinstance(means, list) else [], judgment=raw["judgment"])
 
 
 def fallback(reason: str) -> dict:

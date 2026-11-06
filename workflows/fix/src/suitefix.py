@@ -46,7 +46,9 @@ def settle_kept(place, values: dict, repo, out: dict) -> None:
     """工場の書いた実行器の取り置き: 輪の頭で結末が取れたら（base.json の taken）test_cmd の字と実行器を書く指示の版
     （prompt.digest(prompt.RUNNER_WRITER)）で取り置き、壊れていたら同じ版の同じバイトの取り置きを捨てる（人が渡した実行器は
     触らない。直す前には走らせないので、取り置くのはここ。static だけの組は走らせずに base.json を書くので取り置かない。
-    持ち主の決め suite-by-ai）"""
+    持ち主の決め suite-by-ai）。元の結末が試験の道具が 1 件ごとの結末を書く前に赤で終わった予約の 1 件だけの回
+    （baseline_red.synthesized）も取り置かない——試験に入ったと確かめられていない実行器を、JUnit XML ができ試験が 1 件以上という
+    照らしに通さない"""
     if values["suite_made"] is not True or not out.get("suite"):
         return
     import prompt
@@ -54,8 +56,14 @@ def settle_kept(place, values: dict, repo, out: dict) -> None:
     stamp = prompt.digest(prompt.RUNNER_WRITER)
     if out.get("suite_broken") is True:
         suitewrite.drop_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe, stamp=stamp)
-    elif taken(place):
+    elif taken(place) and not baseline_red.synthesized(_base_cases(place)):
         suitewrite.keep_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe, stamp=stamp)
+
+
+def _base_cases(place) -> list:
+    """組の頭が取った元の結末の行（base.json の baseline_cases。予約の行も含む）"""
+    from src import basecase
+    return list((basecase.read(place) or {}).get("baseline_cases") or [])
 
 
 def taken(place) -> bool:
@@ -99,7 +107,7 @@ def prompt_values(place, repo, values: dict, started: dict) -> tuple[dict, dict]
     vals = {"root": str(root), "decl_name": declared_checks.DECL_NAME, "test_cmd": test_cmd, "fence": suitewrite.fence(test_cmd),
             "cmd_log": str(started.get("cmd_log") or ""), "old_body": old.rstrip("\n"), "body_fence": suitewrite.fence(old),
             "runner_log": str(started.get("runner_log") or ""), "log_tail": log_tail.rstrip("\n"), "log_fence": suitewrite.fence(log_tail),
-            "only_env": baseline_red.ONLY_ENV, "lang": prompt.lang(values["lang"])}
+            **baseline_red.contract_values(), "lang": prompt.lang(values["lang"])}
     return vals, {"declared": (root / declared_checks.DECL_NAME).is_file(), "spawns": False}
 
 

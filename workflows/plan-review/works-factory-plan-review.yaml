@@ -233,6 +233,29 @@ nodes:
                       }
                     }
                   },
+                  "prescription_departs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "prescription", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "prescription": {"type": "string", "minLength": 1, "pattern": "\\S"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
                   "origins": {
                     "type": "array",
                     "items": {
@@ -401,6 +424,29 @@ nodes:
                       "properties": {
                         "item": {"type": "integer", "minimum": 1},
                         "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
+                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                        "recommend": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["answer", "note", "why"],
+                          "properties": {
+                            "answer": {"type": "string", "enum": ["continue", "stop"]},
+                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
+                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "prescription_departs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["item", "prescription", "why", "recommend"],
+                      "properties": {
+                        "item": {"type": "integer", "minimum": 1},
+                        "prescription": {"type": "string", "minLength": 1, "pattern": "\\S"},
                         "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
                         "recommend": {
                           "type": "object",
@@ -884,7 +930,7 @@ nodes:
             properties:
               source:
                 type: string
-                enum: [world, design, means]
+                enum: [world, design, means, prescription]
         replan:
           type: array
           items:

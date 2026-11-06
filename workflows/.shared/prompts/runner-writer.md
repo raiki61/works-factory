@@ -1,9 +1,15 @@
 ## The runner's contract
 
 - It is started with the target root as its working directory.
-- Its first argument is where to write the JUnit XML (an absolute path). It writes each test's outcome there as JUnit XML.
+- Its first argument is where to write the JUnit XML (an absolute path). It writes each test's outcome there as JUnit XML (the one case where the test tool exits red before it writes any is under the next heading).
 - It exits with the test tool's exit code as it is (non-zero if any test is red). When the test_cmd is a chain of commands joined only by `&&`, it exits with the value the chain itself would return: the first non-zero exit code among the parts, or 0 if every part exits 0.
 - Arguments may follow the first argument (test files, test names, filter expressions), and the environment variable `{only_env}=1` may be set. When the person gave no test command and the root has no run declaration, the machine runs only the tests related to the change by passing their file paths here, so pass them to the tool as they are whenever it can take them (that is what keeps the run short). If the tool cannot take them, drop them and run the whole suite (running the whole suite checks the same thing).
+
+## When the test tool exits red without writing its report
+
+- If the test tool exits with a non-zero code and the first argument has no JUnit XML file (the tool failed before it wrote one), the runner writes that file itself before it exits: one `testcase` with `classname="{synth_classname}"` and `name="{synth_name}"`, holding an `error` element whose `message` says `exit <n>` (`<n>` is the tool's exit code) and whose body says where the tool's log is. The machine reads that one testcase as "the tool exited red before it wrote any per-test outcome", not as a test result. The exit code stays the tool's exit code as it is.
+- Do not write it when the tool's exit code is 126 or 127 (the command was not found or could not be executed). The machine reads those two as "the tool could not be run" and stops there. A JUnit XML file the tool did write is left as it is.
+- When the test_cmd is written part by part (a chain joined only by `&&`, step 1 below), do not write this testcase: the runner always writes the gathered file, and a part that wrote nothing gets its own `<error>` testcase as step 1 says.
 
 ## How to write it
 
@@ -18,8 +24,9 @@
      - Pass the test-file arguments only to the parts that can take them. If you cannot decide which parts can, run every part as a whole suite.
      - Exit with the first non-zero exit code among the parts, or 0 if all are 0 (the value the `&&` chain itself returns).
 2. If there is no test_cmd, decide the command that runs the tests from the CI definitions and `{decl_name}`. If the target has no tests yet, you may write a runner that runs the place where the target's conventions put tests and, when it finds none, writes a JUnit XML with zero tests.
-3. Make the first line of the body a `#!` line (the machine does not place a body that does not start with `#!`).
-4. If you cannot decide how to make it write JUnit XML, or what to run, do not return a body for form's sake: set `made` to false and write in `why`, in one line, what you read and what was missing. Do not assume green.
+3. Write the report for a red exit without JUnit XML as the section above says (a failure of the tool before it wrote its report is a red exit, not a runner that cannot run).
+4. Make the first line of the body a `#!` line (the machine does not place a body that does not start with `#!`).
+5. If you cannot decide how to make it write JUnit XML, or what to run, do not return a body for form's sake: set `made` to false and write in `why`, in one line, what you read and what was missing. Do not assume green.
 
 ## How to answer
 

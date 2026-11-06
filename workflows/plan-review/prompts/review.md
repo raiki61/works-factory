@@ -41,6 +41,10 @@ Some inputs were read with defaults: the section "Inputs read with defaults" of 
 {part:means-ask}
 <!-- end means_ask -->
 
+<!-- if prescription_ask -->
+{part:prescription-ask}
+<!-- end prescription_ask -->
+
 <!-- if design_diff -->
 From the second pass on, compare with the design only the sentences the diffs added and removed, and the keys in the key list of the section "Items that write design_map". The machine carries over the comparison of unchanged rows from the earlier pass (do not write rows for keys not in the list).
 <!-- end design_diff -->

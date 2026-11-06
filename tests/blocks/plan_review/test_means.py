@@ -9,6 +9,8 @@ means_drifts を照らし、往復をまたいで積み、外れの行 deviation
 import json
 import unittest
 
+import yaml
+
 from tests.blocks import kit
 from tests.blocks.plan_review.test_take import (DESIGN_TEXT, UNIT_CLAMP, UNIT_MEAN, Flow, answer, dump, face, fields, full_map, item,
                                                 review, summary, synergy)
@@ -72,6 +74,59 @@ class MeansCase(MeansBase):
         self.prepped()
         self.assertTrue(f.accept(review())["ok"])
         self.assertEqual(self.means_rows(f.finish()), [])
+
+
+class PrescriptionCase(unittest.TestCase):
+    """判定の処方からの外れ: 計画の structure の {prescription, deviation} の外れごとに推しの行 prescription_departs が要り、外れを指さない
+    行は拒む。行が在れば finish の deviations の source prescription の行になる"""
+    PRESCRIBED = ["分母を len(xs) にする", "上限の枝を hi にする"]
+
+    def setUp(self):
+        self.flow = Flow(self)
+        f = self.flow
+        f.units[0]["prescriptions"] = self.PRESCRIBED
+        f.judgment()
+        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[fields(UNIT_MEAN, structure=[{"prescription": UNIT_MEAN, "deviation": WHY}]),
+                           fields(UNIT_CLAMP, structure=[{"prescription": UNIT_MEAN, "follows": True}])])
+        f.intake()
+        f.prep()
+
+    @staticmethod
+    def depart(n=1, **kw):
+        return {"item": n, "prescription": UNIT_MEAN, "why": "決まりに合うので計画のまま進めてよい", "recommend": REC, **kw}
+
+    def test_the_prompt_asks_for_prescription_departs_only_when_the_plan_departs(self):
+        heading = "## Departures from the judgment's prescription"
+        self.assertIn(heading, self.flow.prompt())
+        f = self.flow
+        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
+               field_rows=[fields(UNIT_MEAN, structure=[{"prescription": UNIT_MEAN, "follows": True}]),
+                           fields(UNIT_CLAMP, structure=[{"prescription": UNIT_MEAN, "follows": True}])])
+        f.intake()
+        self.assertNotIn(heading, f.prompt())
+
+    def test_prescription_departure_needs_a_recommendation_and_becomes_a_prescription_row(self):
+        f = self.flow
+        got = f.accept(review())
+        self.assertFalse(got["ok"], "推しの行が無い返答は拒む")
+        self.assertIn("prescription_departs", got["reason"])
+        got = f.accept(review(prescription_departs=[self.depart(2)]))
+        self.assertFalse(got["ok"], "外れを指さない行は拒む")
+        self.assertIn("prescription_departs", got["reason"])
+        self.assertTrue(f.accept(review(prescription_departs=[self.depart()]))["ok"])
+        done = f.finish()
+        rows = [d for d in done["deviations"] if d.get("source") == "prescription"]
+        self.assertEqual(len(rows), 1, done["deviations"])
+        self.assertEqual(rows[0]["item"], 1)
+        self.assertTrue(rows[0]["text"].startswith("修正案 1 は単位"), rows[0]["text"])
+        self.assertIn(self.PRESCRIBED[0], rows[0]["text"])
+        self.assertEqual(rows[0]["mark"]["recommend"], REC)
+        self.assertTrue(rows[0]["why"][0].startswith("①"), rows[0]["why"])
+        from engine.schema import validate_schema
+        node = next(n for n in yaml.safe_load((kit.BLOCKS / BLOCK / "works-factory-plan-review.yaml").read_text(encoding="utf-8"))["nodes"]
+                    if n["id"] == "finish")
+        self.assertEqual(validate_schema(done, kit._gate()._expanded(node["output_format"], kit.BLOCKS / BLOCK)), [])
 
 
 class DriftBase(MeansBase):

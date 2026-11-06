@@ -1443,6 +1443,7 @@ nodes:
       record: "$start.output.record"
       ports: "$start.output.ports"
       means: "$fix-in.output.means"
+      judgment: "$fix-in.output.judgment"
     output_format:
       type: object
       additionalProperties: false

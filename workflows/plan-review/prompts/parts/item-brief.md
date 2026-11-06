@@ -43,6 +43,12 @@ Your item file has the section "## Items that write design_map" (the machine mad
 The section "The request's means and the plan's answers" is at the end of your item file. Write rows of `means_departs` (your recommendation on a departure from a means) and `means_drifts` (a disagreement between a follows answer and the independent design) only for your item (the acceptance check rejects a row whose `item` is another item's number).
 <!-- end means_ask -->
 
+<!-- if prescription_ask -->
+{part:prescription-ask}
+
+Write rows of `prescription_departs` only for your item (the acceptance check rejects a row whose `item` is another item's number).
+<!-- end prescription_ask -->
+
 <!-- if design_diff -->
 From the second pass on, compare with the design only the sentences the diff added and removed, and the keys in the key list of your item file. The machine carries over the comparison of unchanged rows from the earlier pass (do not write rows for keys not in the list).
 <!-- end design_diff -->

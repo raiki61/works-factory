@@ -20,6 +20,6 @@ def suite_write(place, intake: dict) -> dict:
     root = pathlib.Path.cwd().resolve()
     test_cmd = suite.load(place).get("test_cmd") or ""
     values = {"root": str(root), "decl_name": declared_checks.DECL_NAME, "test_cmd": test_cmd, "fence": suitewrite.fence(test_cmd),
-              "only_env": baseline_red.ONLY_ENV, "lang": prompt.lang(intake["lang"])}
+              **baseline_red.contract_values(), "lang": prompt.lang(intake["lang"])}
     when = {"declared": (root / declared_checks.DECL_NAME).is_file(), "test_cmd": bool(test_cmd.strip()), "spawns": False}
     return prompt.emit("suite-write", values, when, prompt.round_of("suite-write"))

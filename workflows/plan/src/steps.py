@@ -408,14 +408,8 @@ def round_slots(folder, judgment) -> list:
 
 # ---------------------------------------------------------------- 判定の処方
 def prescriptions(judgment) -> dict:
-    """{単位の key: [処方の文]}（判定の返答から。空の処方の単位は入れない）"""
-    got = {}
-    for u in rows_of(judgment, "units"):
-        if isinstance(u.get("key"), str):
-            rx = [x for x in u.get("prescriptions") or [] if isinstance(x, str) and x.strip()]
-            if rx:
-                got[u["key"]] = rx
-    return got
+    """{単位の key: [処方の文]}（判定の返答から。空の処方の単位は入れない。読みは planmarks.judged_prescriptions）"""
+    return planmarks.judged_prescriptions(judgment)
 
 
 # ---------------------------------------------------------------- 作業ツリーの姿

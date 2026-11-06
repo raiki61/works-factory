@@ -13,7 +13,8 @@
 - 実行器が工場の書いた物（values の suite_made）なら、元の結末の回で起動スクリプトの壊れを確かめる（basecase.take の suite_made。
   docs/design/fix.md の 19 節）。壊れていれば取り置きから捨て（suitewrite.drop_runner）、返りの suite_broken を真にして、後ろの
   suite-fix-prep・suite-fix・suite-fix-try が書き直させる。壊れていなければ、走らせて結末が取れた実行器を test_cmd の字と実行器を書く指示の版で取り置く
-  （suitewrite.keep_runner。直す前には走らせないので、取り置くのはここ）
+  （suitewrite.keep_runner。直す前には走らせないので、取り置くのはここ。試験の道具が結果を書く前に赤で終わって予約の 1 件だけを書いた
+  回は、試験に入ったと確かめられていないので取り置かない）
 - 実行器が無い・走らない組で、計画の語が static でない単位が在れば、返りの no_suite を真にして組を止める（orders.no_suite_why。
   下書き docs/plans/2026-10-24-fix-weapons.md の 3.9。route-go と orders が tdd-start.json の no_suite を読む。static だけの組は止めない）
 返り {tdd（元の結末が取れた）, units, reason, suite_broken, no_suite}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""

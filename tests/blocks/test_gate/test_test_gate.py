@@ -204,6 +204,26 @@ class EvidenceRowsCase(unittest.TestCase):
             with self.subTest(rel):
                 self.assertEqual([p for p in prefixes if p in text], [])
 
+    def test_a_run_of_only_the_reserved_case_is_a_red_without_outcomes(self):
+        """試験の道具が 1 件ごとの結末を書く前に赤で終わった回（予約の 1 件だけ）は、試験 1 件を走らせた回と書かず、元と今を試験ごとに比べない"""
+        certify = kit.load("test-gate", "certify")
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error",
+                    "fail_message": "exit 1"}
+        run = {"suite": {"exit": 1, "problems": []}, "cases": [reserved], "runs": [], "junit_steps": [], "junit_unran": []}
+        material = certify.runner_material("final", run)
+        self.assertEqual((material["status"], material["count"]), ("found", 1))
+        self.assertNotIn("試験 1 件を走らせ", material["detail"])
+        self.assertIn("終了コード 1", material["detail"])
+        passed = {"classname": "t", "name": "a", "outcome": "passed"}
+        real = certify.runner_material("final", {**run, "cases": [passed, {**passed, "name": "b", "outcome": "failure"}]})
+        self.assertIn("試験 2 件を走らせ", real["detail"])
+        for base_cases, now_cases in (([reserved], [passed]), ([passed], [reserved]), ([reserved], [reserved])):
+            with self.subTest(base=base_cases, now=now_cases):
+                got, out = certify.test_outcomes({"exit": 1, "cases": base_cases}, {**run, "cases": now_cases})
+                self.assertIsNone(got)
+                self.assertEqual(out["rows"], [])
+                self.assertNotEqual(out["unmeasured"], "")
+
     def test_e2e_evidence_rows_start_with_the_prefixes(self):
         certify = kit.load("test-gate", "certify")
         rows = json.loads((ROOT / "tests" / "e2e" / "evidence.json").read_text(encoding="utf-8"))
@@ -1408,6 +1428,17 @@ class PromptCase(ScriptCase):
         self.assertIn("a part to which you added the JUnit option", text)
         self.assertIn("first non-zero", text)
         self.assertIn("The machine treats a runner that contains the test_cmd as typed as the same thing as the test_cmd", text)
+
+    def test_suite_write_prompt_names_the_reserved_case_for_a_red_without_junit(self):
+        """試験の道具が JUnit XML を書かずに 0 でない値で終わった時に、予約の classname と name の testcase に error を 1 件書く決まりと、
+        道具が見つからない・実行できない（126・127）時は書かない決まりが、書き手の指示に入る"""
+        text = self.write_prompt()
+        self.assertIn(baseline_red.SYNTH_CLASSNAME, text)
+        self.assertIn(baseline_red.SYNTH_NAME, text)
+        self.assertIn("126", text)
+        self.assertIn("127", text)
+        self.assertNotIn("{synth_classname}", text)
+        self.assertNotIn("{synth_name}", text)
 
     def test_suite_write_lang(self):
         self.assertIn("in Japanese.", self.write_prompt(lang="Japanese"))

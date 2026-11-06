@@ -238,6 +238,8 @@ def prove_launchable(argv, cwd=None, env=None, halted=lambda: False):
 def launch_kind(code) -> str:
     """段の終了コードの分類: "clean"（0）・"red"（走って落ちた。126・127 もプログラム自身の終了コードとして読む）・"broken"（起こせない。
     exit None。bash -c の先頭の語が prove_launchable の証明を通らなかった回もここ）。
+    実行器の中で動く試験の道具は起こす前の証明を通らず、起こせなかった印が 126・127 でしか残らないので、実行器の約束（runner-writer.md）だけは
+    126・127 を「道具を起こせない」と読み、その時は予約の 1 件を書かない。
     broken は engine の checks_reply の broken（exit is None）と同じ規則"""
     if code is None:
         return "broken"

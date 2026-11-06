@@ -69,7 +69,7 @@
 - `blocks`: 字の配列。`holes` の block の穴の key（`converge.block_faces` の順）。
 - `pass`: pointer（`pass.json`。往復の記録に足す行の材料。9.3）か null（形 plan で通った時だけ在る）。
 - `asks`: 人に回しうる行の配列 `[{kind, node, text, units, mark, decided, why}]`（10.1。形 plan と replan で通った時。ほかは空の配列）。
-- `deviations`: 外れの行の配列（10.2）。`{source: "world", item, text, mark, why}`（修正案の欄 `structure` が世界の解の行から外れると答えた行と、その決め手の照らし）と `{source: "design", key, kind, why}`（独立設計との構造の食い違い・対の無い仕組みの穴）と `{source: "means", item, text, mark, why}`（頼みの解き方の外れと、頼みどおりの所の独立設計との食い違い。20 章）。
+- `deviations`: 外れの行の配列（10.2）。`{source: "world", item, text, mark, why}`（修正案の欄 `structure` が世界の解の行から外れると答えた行と、その決め手の照らし）と `{source: "design", key, kind, why}`（独立設計との構造の食い違い・対の無い仕組みの穴）と `{source: "means", item, text, mark, why}`（頼みの解き方の外れと、頼みどおりの所の独立設計との食い違い。20 章）と `{source: "prescription", item, text, mark, why}`（計画が判定の処方から外れた行。10.2）。
 - `replan`: 形 replan の直した項目ごとの事実の配列 `[{item, units, contract_changed, human, widened}]`（10.3）。ほかの形は空の配列。
 - `gave_up`: 形 replan で受け付けが諦めた時の、裁かれた項目ごとの諦めの行 `[{item, why, ruling}]`。ほかは null。
 - `reads`: pointer（この回の審査〔line などがこの block を `include:` で 1 回呼んだ分〕で、審査の役が渡された材料のファイルを読んだ証拠 `reads-<役>.json`）か null（証拠を集めていない・集める node が落ちた）。審査の返答を受け付けるかの条件にしない（14 節の 36「読んだ証拠を残す」）。
@@ -732,6 +732,8 @@ Return only JSON that matches the output schema.
 ### 10.2 外れ `deviations`
 
 - `source: "world"`: 今の `gatemarks.world_items`（:641-657）の写し。世界の解の行の在る run で、修正案の欄 `structure` の答えのうち `follows` が真でない行ごとに `{item, text: "修正案 <n> の<gate_line>", mark: {decided_by: <deviation>, world: <gate_line>}, why: <worldmark.world_ok が揃わないと言った訳の並び（揃えば空）>}`。依頼のファイルと依頼が示した解き方を出どころにした外れは `why` を持つ（keep-essence の 12。line が人に回す）。
+- `source: "means"`: 頼みの解き方の外れ（20 章）。
+- `source: "prescription"`: 修正案の欄 `structure` の `{prescription: <単位の key>, deviation}`（`planmarks.deviations` が拾う。計画の役は判定の処方を採らない時にこの行を書く）ごとに `{item, text, mark, why}`。文は `修正案 <n> は単位 <key> の判定の処方「1. … / 2. …」に従わない——<deviation>`（処方の文は置き場の判定の写し `judgment.json` から `planmarks.judged_prescriptions` で読む。単位が無ければ `gatemarks.PRESCRIPTION_UNREAD` を添える）。`mark` は `{decided_by: <deviation>, recommend: <積んだ prescription_departs の同じ鍵 (item, prescription) の行の recommend>}`、`why` は `gatemarks.PRESCRIPTION_WHY`（人に聞く場合の ① で始まる）。判定の処方（直す側が覆せない）と計画の決め手が別の答えを指すので、決め手が書いてあっても聞かずに通す道は無い。推しは事前審査の役が `prescription_departs {item, prescription, why, recommend}` に外れごとに書き（形は `means_departs` と同じ。受け付け `take.prescription_gaps` が外れごとの行を求める）、機械は作らない。
 - `source: "design"`: `review.json` の穴のうち `why` が `design.DRIFT_HEAD` か `design.UNPAIRED_HEAD` で始まる行の `{key, kind, why}`。
 
 ### 10.3 案の直しの事実 `replan`
@@ -911,7 +913,7 @@ line の試験へ（今の分類の B）: `ConvergeCase` の止め時の 11 本�
 - 12（世界の解に照らす）: 読み手。修正案の欄 `structure` の外れの決め手を照らし、依頼と依頼の解き方を出どころにした外れに `why` を付けて返す（`test_gate.py` の `WorldGateCase` と `WorldGateRunCase` の写し）。人に回すのは line の修正前の承認ノード。
 - 8（食い違いの申し出と裁定）: 読み手。形 replan で申し出と裁定の行を材料に貼り、直した形が裁定の文の指摘を直したかを審査する（`test_material.py` の `ReplanCase`・`test_take.py` の `ReplanItemsCase`）。
 - e2e の `tests/e2e/evidence.json` の事前審査の行（node の id と place のパス `plan-review/pass-<k>/review.json`）は、組み込みの PR で新しい物（`<include の道>/review.json`）に合わせる。
-- `tests/blocks/plan_review/test_means.py`: 頼みの解き方の推し `means_departs` と食い違い `means_drifts`（20 章）。外れの行ごとの推しの要りと指さない行の拒み・食い違いの照らし（follows で答えていない・番号・引用・穴との重ね）・往復をまたぐ積みと落とし（`plan_quote` が消えた行・項目が従わなくなった行）・形ごとの指示の段・木の形の `item_schema` と項目の限り。
+- `tests/blocks/plan_review/test_means.py`: 頼みの解き方の推し `means_departs` と食い違い `means_drifts`（20 章）と、判定の処方からの外れの推し `prescription_departs`（`PrescriptionCase`。推しの要りと指さない行の拒み・finish の deviations の source prescription の行）。外れの行ごとの推しの要りと指さない行の拒み・食い違いの照らし（follows で答えていない・番号・引用・穴との重ね）・往復をまたぐ積みと落とし（`plan_quote` が消えた行・項目が従わなくなった行）・形ごとの指示の段・木の形の `item_schema` と項目の限り。
 
 ## 16 単独で呼ぶ
 
@@ -1216,9 +1218,10 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 3. 木の形の `check_item` は行の `item` がその下請けの項目に限ることだけを照らし、3.2 の 5 の中身の照らしは受け付けが `tree_merge` の後の合わせた返答に 1 度当てる（全部の外れの行に推しが在るかは、全部の項目の答えを合わせないと数えられないため）。
 4. 材料の節「The request's means and the plan's answers」は、means が在れば形 plan の全部の往復と形 replan に出す（2 往復目からも答えが変わりうる）。木の形では項目の材料のファイルの末尾にも同じ節を置く（下請けは指示のファイルと自分の項目のファイルだけを読む）。
 5. 事前審査が諦めた・落ちた周（3.2 の 8）の計画の外れは、line の `src/asking.py` の `materials` が判定のまとめの `means` と `plan-out` の `plan`（`plan-fields.json` の pointer）を読み、`before_fix` の引数 `means`・`plan_fields` に渡す。
-6. 承認ノードの文の口（`gatemarks.means_depart_text`・`means_drift_text`・`means_rows`・`means_drift_rows`・`means_item`・`means_key`）は頼みの解き方の文を `{M<n>: 文}`（`worldmark.means_hints`）で受ける（`lib/gatemarks.py` は `worldmark` を import しない今の頼り方のまま）。
+6. 承認ノードの文の口（`gatemarks.means_depart_text`・`means_drift_text`・`means_rows`・`means_drift_rows`・`means_key`）は頼みの解き方の文を `{M<n>: 文}`（`worldmark.means_hints`）で受ける（`lib/gatemarks.py` は `worldmark` を import しない今の頼り方のまま）。
 7. 元の計画の試験の段の「通った答えが `p2.fix_plan.json` の `structure` に残る」は、欄が受け付けで控え `plan-fields.json` に分かれるので、控えの `structure` に残ることを照らす形にした。
-8. 修正の後の構造の目の控えの外れの行の形（`.shared/schemas/structure-after.schema.json` の `deviations`）にも欄 `means` を足した（`planmarks.deviations` が鍵 `means` の行を返すため）。
+8. 外れの行の項目の文の口は、頼みの解き方の外れだけの `means_item` から、種類を問わない `gatemarks.depart_item` に替えた（判定の処方の外れと表に無い種類の行も同じ口で組む。既定の人に聞く訳は `gatemarks.DEPART_WHY`）。受け付けの推しの照らしも、`means_departs` と `prescription_departs` で `take._departs_gaps`（欄の名と `structure` の鍵を引数に取る）の 1 つにまとめた。
+9. 修正の後の構造の目の控えの外れの行の形（`.shared/schemas/structure-after.schema.json` の `deviations`）にも欄 `means` を足した（`planmarks.deviations` が鍵 `means` の行を返すため）。
 
 ## 21 試験 1 本で守れる細部と、前に閉じた穴の裏返し（持ち主の決め `guard-demotes`・`flip-asks`）
 

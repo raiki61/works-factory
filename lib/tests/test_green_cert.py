@@ -20,6 +20,7 @@ SEED = LIB.parent / "tests" / "e2e" / "target-seed"
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
@@ -261,6 +262,14 @@ class ClassifyCase(unittest.TestCase):
     def test_red_step_without_junit_is_not_inherited(self):
         cause, summary = classify("found", [RED_UNIT, {"name": "shell", "exit": 2}], [case("t", "failure")],
                                   [case("t", "failure")], ["unit"])
+        self.assertEqual(cause, "")
+        self.assertIn(gatemarks.BASELINE_UNVERIFIED, summary)
+
+    def test_synthesized_case_is_not_inherited(self):
+        """元の結末にも今の結末にも、試験の道具が結果を書く前に赤で終わった時の予約の 1 件（error）しか無い赤は、1 件ごとの事実が
+        無いので、受け継いだ赤とも持ち込んだ赤とも言わず、原因の無い赤にする"""
+        synth = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        cause, summary = classify("found", [RED_UNIT], [synth], [synth], ["unit"])
         self.assertEqual(cause, "")
         self.assertIn(gatemarks.BASELINE_UNVERIFIED, summary)
 

@@ -38,6 +38,7 @@ for _name in ("files", "rules", "runvals", "carry", "lanes", "intake", "scope", 
 FIX_SRC = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
 
 from graphloops.engine.schema import validate_schema  # noqa: E402  （lib）
+import baseline_red  # noqa: E402  （lib）
 import conflict  # noqa: E402  （lib）
 import planbrief  # noqa: E402  （lib）
 import planmarks  # noqa: E402  （lib）
@@ -2972,6 +2973,12 @@ DIFF_ONLY_RUNNER = DIFF_RUNNER.replace("out, rest = sys.argv[1], sys.argv[2:]",
                                        "out, rest = sys.argv[1], (sys.argv[2:] if TIER else [])")
 
 
+# 試験の道具が結果を書く前に赤で終わった時に実行器が書く予約の 1 件（error）と、それをいつも書いて 1 で終わる実行器
+SYNTH_XML = (f"<testsuite><testcase classname='{baseline_red.SYNTH_CLASSNAME}' name='{baseline_red.SYNTH_NAME}'>"
+             "<error message='exit 1'/></testcase></testsuite>")
+SYNTH_RUNNER = f"import sys\nopen(sys.argv[1], 'w').write({SYNTH_XML!r})\nsys.exit(1)\n"
+
+
 class OutsideCase(Case):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -3249,6 +3256,36 @@ class TestAcceptOutsideTier(OutsideCase):
         probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
         self.assertTrue(probs, f"回し直しの一式の赤を拾わない（知らせ: {note}）")
         self.assertIn("test_clamp_within_range", " ".join(probs))
+
+    def test_a_synthesized_case_is_red_even_when_the_baseline_was_synthesized(self):
+        """試験の道具が結果を書く前に赤で終わった時の予約の 1 件（error）は、1 件ごとの事実でないので、元の結末も受け付けの回も同じ
+        1 件でも『元でも赤』とは読まない。新しい赤なしにせず、版の姿と比べられない赤の行を返す。比べられなかった物の受け口
+        uncompared を渡す呼びは赤に数えず、その鍵を受け口に足す"""
+        key = f"{baseline_red.SYNTH_CLASSNAME}::{baseline_red.SYNTH_NAME}"
+        state = self.begin(SYNTH_RUNNER)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD")
+        self.assertTrue(probs, f"合成の 1 件を元でも赤と読んで新しい赤なしにした（知らせ: {note}）")
+        self.assertIn("比べられず", probs[0])
+        left = []
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD", uncompared=left)
+        self.assertEqual(probs, [], note)
+        self.assertIn(key, left)
+
+    def test_runner_refusing_the_selection_args_with_a_synthesized_case_runs_the_whole_suite(self):
+        """選んだ試験の引数（-k）を受けると予約の 1 件だけ書いて赤で終わる実行器も、結末を返さない実行器と同じく引数なしの一式で
+        回し直す。回し直しの結末で新しい赤を拾い、seen には合成でない行が載る"""
+        refusing = ("import sys\nif '-k' in sys.argv[2:]:\n    open(sys.argv[1], 'w').write(%r)\n    sys.exit(1)\n" % SYNTH_XML) + RUNNER
+        state = self.begin(refusing)
+        p = self.repo / "stats.py"
+        p.write_text(p.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        seen = {}
+        probs, note = common.selected_problems(self.base(state), self.repo, "HEAD", seen=seen)
+        self.assertEqual(probs, [], note)
+        self.assertIn("引数なしの一式", note, "回し直したことを知らせに出す")
+        self.assertTrue(baseline_red.reported(seen.get("cases")), "回し直しの結末に 1 件ごとの行が無い")
+        self.assertFalse(baseline_red.synthesized(seen.get("cases")))
 
     def test_tests_left_out_are_named_as_left_to_ci(self):
         # 手元で回さなかった試験は黙って減らさず、知らせと状態のファイルに『手元で回さなかった』として名前で残す

@@ -108,7 +108,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `tests/blocks/test_gate/__init__.py`・`test_test_gate.py`・`test_prompt_compare.py`（12 節）。
 - 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す）: `workflows/.shared/prompts/resubmit.md`（3 節。拒まれた後に同じ会話の続きで拒まれた欄だけを返させる役の全部が使う）。
 
-使う `lib/`（どれも README 9.3 の KEEP）: `declared_checks`（`run_ci`・`role_material_problems`・`suites_line`・`baseline_line`・`gate_values`・`run_how`・`drop_copy`・`CI_ROLE`・`COPY_PREFIX`・`DECL_NAME`・`MODES`・`ROLE_NEEDED`・`RUN_FILE`・`NO_ADAPTER_NOTE`・`SELF_REPORTED_NOTE`・`STATUSES`・`CiRefused`）・`green_cert`（`fingerprint`・`classify`・`certify`・`ran_steps`・`RED_CAUSES`・`RAN_BY_CAUSE` ほか）・`baseline_red`（`run_suite`・`write_baseline`・`read_baseline`・`test_outcomes`・`OUTCOMES`・`ONLY_ENV`）・`suitewrite`（`need`・`prepare`・`place`・`pending`・`settle`・`head_note`）・`tree_run`（`reuse_place`・`RERUN_ENV`・`Stopped`）・`checkscope`（`request_files`・`Unreadable`）・`accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_KEYS`・`touched_files`・`Reject`）・`rolekit`（`accept_round`・`round_outcome`・`resubmitted`・`merge_fields`・`resubmitting`・`rejected`・`rejects_text`・`candidate_path`・`attempt`・`given_up_reason`・`GIVE_UP_AFTER`・`LANG_DEFAULT`）・`graphloops/engine/util.py`（`repo_root`・`copy_worktree`）・`gatemarks`（`BASELINE_NOT_RUN`・`MATERIAL_WORDS`。報告の行）・`oneline`・`jsonfile`。`lib/carry.py` は import しない（始めの記録を読まない。依頼の容器の読みは土台の `shared:request.schema.json` の形と `requestrows.findings`・`src/scope.py` で替える）。lib の `startrec.py`（#765 の組み込みで line の block の `workflows/line/src/startrec.py` へ移った）は `src/suite.py` が `suite-state.json` の読み書き（`load`・`save`）にだけ import する。根拠: `lib/suitewrite.py` を変えずに使うため、控えを始めの記録と同じ口で読み書きする（11 節の 2。`load`・`save` は形を問わない JSON の読み書きで、始めの記録そのものは読まない）。
+使う `lib/`（どれも README 9.3 の KEEP）: `declared_checks`（`run_ci`・`role_material_problems`・`suites_line`・`baseline_line`・`gate_values`・`run_how`・`drop_copy`・`CI_ROLE`・`COPY_PREFIX`・`DECL_NAME`・`MODES`・`ROLE_NEEDED`・`RUN_FILE`・`NO_ADAPTER_NOTE`・`SELF_REPORTED_NOTE`・`STATUSES`・`CiRefused`）・`green_cert`（`fingerprint`・`classify`・`certify`・`ran_steps`・`RED_CAUSES`・`RAN_BY_CAUSE` ほか）・`baseline_red`（`run_suite`・`write_baseline`・`read_baseline`・`test_outcomes`・`OUTCOMES`・`ONLY_ENV`・`contract_values`・`reported`・`synthesized`）・`suitewrite`（`need`・`prepare`・`place`・`pending`・`settle`・`head_note`）・`tree_run`（`reuse_place`・`RERUN_ENV`・`Stopped`）・`checkscope`（`request_files`・`Unreadable`）・`accept`（`tree_state`・`tree_moved`・`status_keys`・`TREE_KEYS`・`touched_files`・`Reject`）・`rolekit`（`accept_round`・`round_outcome`・`resubmitted`・`merge_fields`・`resubmitting`・`rejected`・`rejects_text`・`candidate_path`・`attempt`・`given_up_reason`・`GIVE_UP_AFTER`・`LANG_DEFAULT`）・`graphloops/engine/util.py`（`repo_root`・`copy_worktree`）・`gatemarks`（`BASELINE_NOT_RUN`・`MATERIAL_WORDS`。報告の行）・`oneline`・`jsonfile`。`lib/carry.py` は import しない（始めの記録を読まない。依頼の容器の読みは土台の `shared:request.schema.json` の形と `requestrows.findings`・`src/scope.py` で替える）。lib の `startrec.py`（#765 の組み込みで line の block の `workflows/line/src/startrec.py` へ移った）は `src/suite.py` が `suite-state.json` の読み書き（`load`・`save`）にだけ import する。根拠: `lib/suitewrite.py` を変えずに使うため、控えを始めの記録と同じ口で読み書きする（11 節の 2。`load`・`save` は形を問わない JSON の読み書きで、始めの記録そのものは読まない）。
 
 埋め: この block は埋めを import しない（`fence` を読んでいた `ci-prep`・`ci-accept` は 14 節で外した。11 節の 6 は外す前の決め）。
 
@@ -146,11 +146,12 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 3. `<!-- if test_cmd -->` 囲いの中の `{test_cmd}`（囲いの字 `{fence}`）`<!-- end test_cmd -->` と `<!-- if not test_cmd -->` 渡されていない 1 行 `<!-- end test_cmd -->` — 条件: `test_cmd` の前後の空白を除いた字が空でない。
 4. 読んでよい物と、してはいけない事（決まった文）。
 5. `## The runner's contract`（決まった文）と `{only_env}`。
-6. `## How to write it`（決まった文）。
-7. `## How to answer`（決まった文）と `{lang}`。
-8. 結びの 1 文。
+6. `## When the test tool exits red without writing its report`（決まった文）と `{synth_classname}`・`{synth_name}`。
+7. `## How to write it`（決まった文）。
+8. `## How to answer`（決まった文）と `{lang}`。
+9. 結びの 1 文。
 
-差し込み口の一覧（値の出どころ）: `{root}` ← 作業ツリーの根（`Path.cwd()` の解いた絶対パス。今の `suitewrite._brief` と同じ）・`{decl_name}` ← `declared_checks.DECL_NAME`・`{test_cmd}` ← port `test_cmd`（字のまま）・`{fence}` ← `` "`" * max(3, <test_cmd の中の ` の最長の並び> + 1) ``（今の `suitewrite._brief` の囲いの決め）・`{only_env}` ← `baseline_red.ONLY_ENV`・`{lang}` ← port `lang`（空なら 2.3 と同じ文）。差し込むかを選ぶ名: `declared`・`test_cmd`。
+差し込み口の一覧（値の出どころ）: `{root}` ← 作業ツリーの根（`Path.cwd()` の解いた絶対パス。今の `suitewrite._brief` と同じ）・`{decl_name}` ← `declared_checks.DECL_NAME`・`{test_cmd}` ← port `test_cmd`（字のまま）・`{fence}` ← `` "`" * max(3, <test_cmd の中の ` の最長の並び> + 1) ``（今の `suitewrite._brief` の囲いの決め）・`{only_env}`・`{synth_classname}`・`{synth_name}` ← `baseline_red.contract_values()`（`ONLY_ENV`・`SYNTH_CLASSNAME`・`SYNTH_NAME`。書き直しの役 `suite-fix` の指示も同じ口から流す）・`{lang}` ← port `lang`（空なら 2.3 と同じ文）。差し込むかを選ぶ名: `declared`・`test_cmd`。
 
 md の本文（英語）:
 
@@ -412,11 +413,11 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 ### 14.5 任せ先の CI の役の輪を外した後の (3) の道
 
 - 素材（`material`）は機械が実行器の結果から組む（`src/certify.py` の `runner_material`）:
-  - 実行器が走り、結末が取れた: 終了コード 0 なら `clean`（`checked` に走らせた試験の数）、そうでなければ `found`（`count` は落ちた件数）。
+  - 実行器が走り、結末が取れた: 終了コード 0 なら `clean`（`checked` に走らせた試験の数）、そうでなければ `found`（`count` は落ちた件数、最低 1）。試験の数は 1 件ごとの行（`baseline_red.reported`）で数え、予約の 1 件だけの回は「試験の道具が 1 件ごとの結末を書く前に赤で終わった」と `detail` に書いて試験を走らせた件数に数えない。
   - 関わる試験が無く走らせなかった: `not_applicable`（`reason`: 変更に関わる試験が無い。全体の試験は CI と人に任せる）。
   - 実行器が無い・走らなかった・結末が取れない: base は `awaiting_human`、final は `not_run`。`reason` に訳（実行器を作れなかった理由は `suite_note`）。base を `awaiting_human` にするのは、任せ先の役が走らせられなかった時の base と同じ扱い（鎖を止めず、判定の台帳に載せる）。
 - 認証: (3) の道の final は、緑（`clean`）でも認証しない（`green_cert.certify` の `held_reason`。訳は「AI が書いた実行器が、関わる試験だけを走らせた緑——機械は実行器の中身を照らしていない」）。今までの「任せ先の自己申告の緑を認証しない」を、任せ先の役が無くなっても緩めない。認証するかは持ち主の選び（納品の残った疑問）。
-- 赤の原因の分け（`classify`）と `test_outcomes` は、実行器の 1 件ごとの結末で今までどおり。ただし直す前の結果が関わる試験だけ（`baseline.json` の `narrow`）の時は、直す前の結果に無い試験の赤を `introduced` と読まず、比べる事実が無い赤（`red_cause` 空）にする。合格と確定しないのは同じ。直す前が全部の試験（宣言の在る対象と test_cmd の対象）の時は今までどおり。(3) の道の `ran_steps` は `{ran: ["関わる試験の実行器"], unran: []}`（走らなかった時は `unran` に入れる）。`by` は `role_needed` のまま（語は変えない。意味は「走らせ方が決まらず、AI が書いた実行器で関わる試験を走らせる道」）。
+- 赤の原因の分け（`classify`）と `test_outcomes` は、実行器の 1 件ごとの結末で今までどおり。試験の道具が結果を書く前に赤で終わった時に実行器が書く予約の 1 件（`baseline_red.SYNTH_CLASSNAME`・`SYNTH_NAME`）は 1 件ごとの結末でないので、元の結末にも今の結末にも数えず（`baseline_red.reported`）、それだけの赤は受け継いだ赤とも持ち込んだ赤とも読まずに比べる事実が無い赤（`red_cause` 空）にする（`classify` の 6.）。`test_outcomes` も、元か今が予約の 1 件だけの回なら比べず `unmeasured` に訳を書き、予約の行を試験の行（`rows`）にしない。ただし直す前の結果が関わる試験だけ（`baseline.json` の `narrow`）の時は、直す前の結果に無い試験の赤を `introduced` と読まず、比べる事実が無い赤（`red_cause` 空）にする。合格と確定しないのは同じ。直す前が全部の試験（宣言の在る対象と test_cmd の対象）の時は今までどおり。(3) の道の `ran_steps` は `{ran: ["関わる試験の実行器"], unran: []}`（走らなかった時は `unran` に入れる）。`by` は `role_needed` のまま（語は変えない。意味は「走らせ方が決まらず、AI が書いた実行器で関わる試験を走らせる道」）。
 - 止め方は変わらない: 実行器が作れなかった base は止めず（`awaiting_human`）、判定の台帳の問いに載る。final は `not_run`・`incomplete` で認証せず、最後の承認ノードが人に回す。
 
 ### 14.6 報告

@@ -93,7 +93,10 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 頼みの解き方の外れ（計画 means-answers）: 修正案の欄 structure の {means: M<n>, deviation} と、事前審査の means_drifts（計画が従うのに
 独立設計と食い違う所）は、いつも修正前の関所の項目（種類 MEANS_KIND。人に聞く訳 MEANS_WHY）になる。推しは事前審査の役が書いた物だけ
 （means_departs・means_drifts の recommend）で、機械は推しを作らない。文の組み立て means_depart_text・means_drift_text・means_rows・
-means_drift_rows・means_item と鍵の読み戻し means_key は事前審査の block と line が使う。
+means_drift_rows と鍵の読み戻し means_key は事前審査の block と line が使う。
+判定の処方からの外れ: 修正案の欄 structure の {prescription: <単位の key>, deviation} も、いつも修正前の関所の項目（種類 PRESCRIPTION_KIND。人に
+聞く訳 PRESCRIPTION_WHY）になる。文は prescription_depart_text、行は prescription_depart_rows（推しは事前審査の prescription_departs の行だけ）。
+外れの行の項目の文の口は、種類を問わない depart_item の 1 つ（既定の訳は種類ごとの表 DEPART_WHY）。案の直しの承認ノードが前に通した同じ外れを聞き直さないための鍵は、推しの尾を外した文 depart_key。
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
 標準ライブラリと core の answer（L1。答えの行）・carry（L1。下書きの印の付け方）・cite（L1。出どころの照らし）・jsonfile・materialkit（素材の状態の表）・
@@ -216,6 +219,14 @@ MEANS_KIND = "means"                  # 関所の項目の kinds と外れの行
 MEANS_WHY = "頼みの解き方と独立の目の食い違い（どちらも自動では優先しない。決め means-ask）"   # その項目の人に聞く訳（いつも人に聞く）
 MEANS_HEAD = re.compile(r"^修正案 (\d+) は頼みの解き方 (M[1-9][0-9]*)(?:「.*?」)?に従(わない|うが)")   # その項目の文の頭（means_key が鍵 (項目, M<n>, 向き) を引く）
 MEANS_WAYS = {"わない": "departs", "うが": "drifts"}   # 文の頭の向き → 鍵の向き（従わない・従うが独立設計と食い違う）
+PRESCRIPTION_KIND = "prescription"    # 関所の項目の kinds と外れの行の source（判定の処方から外れた修正案の項目。planmarks.ANSWER_KEYS の語と同じ）
+PRESCRIPTION_WHY = (f"{ASK_CASES[0]} 判定の処方と計画の決め手が別の答えを指す"
+                    "（どちらも自動では優先しない。判定の処方は直す側が覆せない）")   # その項目の人に聞く訳（いつも人に聞く）
+PRESCRIPTION_UNREAD = "判定の処方の文を読めていない"   # 処方の文を引けなかった外れの行の文が名乗る印
+DESIGN_DEVIATION = "design"           # 外れの行の source（独立設計との構造の食い違い。事前審査の穴の道で聞くので項目にしない）
+OTHER_DEPART_KIND = "other_depart"    # 関所の項目の kinds（種類の表に無い source の外れの行）
+OTHER_DEPART_WHY = "外れの行の種類が表に無い（読めない行は聞く側に倒す）"
+DEPART_WHY = {MEANS_KIND: MEANS_WHY, PRESCRIPTION_KIND: PRESCRIPTION_WHY}   # 外れの行の種類 → その項目の人に聞く訳の既定
 FLIP_KIND = converge.ORIGIN_FLIP       # 関所の項目の kinds（前に閉じた block の裏返しの穴。持ち主の決め flip-asks。出自の語と同じ語）
 FLIP_WHY = (f"{ASK_CASES[1]} 前に閉じた穴と両方は守れず、どちらを優先するかは人の優先の付け方で決まる"
             "（往復で詰めずに聞く。決め flip-asks）")   # その行の人に聞く訳（いつも人に聞く。無人の run は推しを採る）
@@ -271,6 +282,7 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               ASK_KINDS[1]: "人でないと決められない問い", DESIGN_ONLY_KIND: "修正に進まない行",
               DESIGN_KIND: "構造の目が決めきれなかった設計の問い", WORLD_KIND: "世界の解（定石）から外れる修正案の項目",
               MEANS_KIND: "頼みの解き方と独立の目が食い違う修正案の項目",
+              PRESCRIPTION_KIND: "判定の処方から外れる修正案の項目", OTHER_DEPART_KIND: "種類の表に無い外れの修正案の項目",
               FLIP_KIND: "前に閉じた穴の裏返し（どちらを優先するか）",
               "spec_approval": "仕様（要件と受け入れ条件）の承認", SPEC_CHANGED_KIND: "承認の後に受け入れ条件のテストが変わった",
               GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
@@ -605,10 +617,39 @@ def means_drift_rows(drifts, said: dict) -> list:
             for d in drifts or [] if isinstance(d, dict) and isinstance(d.get(MEANS_KIND), str)]
 
 
-def means_item(row: dict) -> str:
-    """外れの行（source が MEANS_KIND）の関所の項目の文: 文・人に聞く訳・推しの尾（世界の解の尾は付けない）"""
+def prescription_depart_text(item: int, key: str, rx: dict, deviation) -> str:
+    """計画の判定の処方からの外れの行の文。rx は {単位の key: [処方の文]}（planmarks.judged_prescriptions）。単位が無ければ読めていないと名乗る"""
+    said = [s for s in (rx.get(key) if isinstance(rx, dict) else None) or [] if isinstance(s, str) and s.strip()]
+    if said:
+        body = f"「{' / '.join(f'{i}. {_squeeze(s)}' for i, s in enumerate(said, 1))}」"
+    else:
+        body = f"（{PRESCRIPTION_UNREAD}（判定の記録の単位 {_squeeze(key)} を見よ））"
+    return f"修正案 {item} は単位 {_squeeze(key)} の判定の処方{body}に従わない——{_squeeze(deviation)}"
+
+
+def prescription_depart_rows(fields, rx: dict, departs=()) -> list:
+    """修正案の欄 structure（項目の並び。1 始まりの番号）の判定の処方からの外れの行 [{source, item, text, mark, why}]。rx は
+    {単位の key: [処方の文]}。departs は事前審査の prescription_departs の行 {item, prescription, why, recommend}（鍵 (item, prescription)
+    の推しを mark に載せる。無ければ推しなし）。頼みの解き方・世界の解の外れの行は拾わない"""
+    rec = {(d.get("item"), d.get(PRESCRIPTION_KIND)): d.get(RECOMMEND) for d in departs or [] if isinstance(d, dict)}
+    out = []
+    for d in planmarks.deviations(fields):
+        key = d.get(PRESCRIPTION_KIND)
+        if not isinstance(key, str):
+            continue
+        mark = {"decided_by": _squeeze(d["deviation"])}
+        if rec.get((d["item"], key)) is not None:
+            mark[RECOMMEND] = rec[(d["item"], key)]
+        out.append({"source": PRESCRIPTION_KIND, "item": d["item"], "text": prescription_depart_text(d["item"], key, rx, d["deviation"]),
+                    "mark": mark, "why": [PRESCRIPTION_WHY]})
+    return out
+
+
+def depart_item(row: dict) -> str:
+    """外れの行（頼みの解き方・判定の処方・表に無い種類）の関所の項目の文: 文・人に聞く訳・推しの尾（世界の解の尾は付けない）。
+    訳が行に無ければ種類ごとの既定 DEPART_WHY"""
     mark = row.get("mark") if isinstance(row.get("mark"), dict) else {}
-    why = [w for w in row.get("why") or [] if isinstance(w, str)] or [MEANS_WHY]
+    why = [w for w in row.get("why") or [] if isinstance(w, str)] or [DEPART_WHY.get(row.get("source"), OTHER_DEPART_WHY)]
     return f"{row.get('text')}（人に聞く訳: {' / '.join(why)}）{_push(mark)}"
 
 
@@ -629,6 +670,13 @@ def push_rec(text) -> dict | None:
         return None
     return {"item": str(text)[:got.start()], RECOMMEND_KEYS[0]: got.group(2), RECOMMEND_KEYS[1]: got.group(3),
             RECOMMEND_KEYS[2]: got.group(4)}
+
+
+def depart_key(text) -> str:
+    """外れの行の項目の文から推しの尾（_push の形）を外した文。推しの文が書き直されただけの同じ外れは同じ文になる（判定の処方の行の
+    聞き直しの鍵。尾が無い・形でなければ文のまま）"""
+    rec = push_rec(text)
+    return rec["item"] if rec is not None else str(text or "")
 
 
 AXES = ("obvious", "world", "clean", "not_overkill")

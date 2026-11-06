@@ -666,6 +666,13 @@ SLOTS = {
     "request_file": lambda c: str(c.intake.get("request_file") or ""),
     "defaults_rows": lambda c: "\n".join(f"- {x}" for x in c.intake.get("defaults") or [] if str(x).strip()),
 }
+def _departs_from_prescription(b) -> bool:
+    """今の案の欄 structure に、判定の処方から外れる行（{prescription, deviation}）が在るか。控えは planmarks.frozen で読む
+    （控えが無ければ外れは無い。凍結の印と食い違えば FieldsBroken を上げ、処方の問いを黙って落とさない）"""
+    fields = planmarks.frozen(b)
+    return any(isinstance(d.get("prescription"), str) for d in planmarks.deviations(fields))
+
+
 # 段落の名 → 作り手
 WHEN = {
     "rejected": lambda c: bool(rolekit.rejected(c.place, c.node)),
@@ -678,6 +685,7 @@ WHEN = {
     "design_none": lambda c: c.stands() == "none",
     "design_diff": lambda c: c.stands() == "stands" and c.later(),
     "means_ask": lambda c: c.intake.get("form") in ("plan", "replan") and bool(worldmark.means_hints(c.intake.get("means"))),
+    "prescription_ask": lambda c: c.intake.get("form") in ("plan", "replan") and _departs_from_prescription(c.b),
     "means_drift": lambda c: (c.stands() == "stands" and c.intake.get("form") == "plan"
                               and bool(worldmark.means_hints(c.intake.get("means")))),
     "map_items": lambda c: c.stands() == "stands" and not c.intake.get("tree"),

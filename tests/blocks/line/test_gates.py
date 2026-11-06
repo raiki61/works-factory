@@ -129,6 +129,65 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertNotIn(self.gm.MEANS_KIND, [k for k, _ in self.ask(rounds(), plan_fields=fields, means=["x"])["items"]],
                          "事前審査が通った周は計画の欄から組まない（事前審査の deviations が持つ）")
 
+    RX = {"u1": ["分母を len(xs) にする", "上限の枝を hi にする"]}
+
+    def prescription_row(self, rec=REC, item=1):
+        """plan-review の出力 deviations の判定の処方からの外れの行"""
+        mark = {"decided_by": "リポジトリの決まりが別の層に置く"}
+        if rec is not None:
+            mark["recommend"] = rec
+        return {"source": "prescription", "item": item, "why": ["判定の処方と計画の決め手が別の答えを指す"], "mark": mark,
+                "text": f"修正案 {item} は単位 u1 の判定の処方「1. 分母を len(xs) にする / 2. 上限の枝を hi にする」に従わない——"
+                        "リポジトリの決まりが別の層に置く"}
+
+    def test_prescription_row_is_always_asked_with_its_push(self):
+        """source prescription の行は、決め手 decided_by が在っても passes に入らず、種類 prescription の項目になる。項目の文は判定の処方の
+        文を含み、世界の解の尾を付けない。無人の run は continue の推しで進み、stop の推しか推しが無ければ止まる。前に continue で通した
+        同じ文は聞き直さない"""
+        out = self.ask(rounds(deviations=[self.prescription_row()]))
+        self.assertTrue(out["open"], out)
+        self.assertEqual(out["passes"], [])
+        self.assertEqual(out["items"][0][0], "prescription")
+        self.assertEqual(out["items"][0][0], self.gm.PRESCRIPTION_KIND)
+        self.assertIn("1. 分母を len(xs) にする", out["asked"][0])
+        self.assertNotIn("世界の解:", out["asked"][0])
+        got = self.ask(rounds(deviations=[self.prescription_row()]), unattended=True)
+        self.assertTrue(got["go"])
+        self.assertEqual(got["pushed"]["pushed"][0]["answer"], "continue")
+        for rec in (STOP_REC, None):
+            with self.subTest(rec=rec):
+                self.assertFalse(self.ask(rounds(deviations=[self.prescription_row(rec)]), unattended=True)["go"])
+        again = self.ask(rounds(deviations=[self.prescription_row()]), answered=[{"decision": "continue", "asked": out["asked"]}])
+        self.assertFalse(again["open"])
+
+    def test_prescription_departure_is_asked_when_the_review_fell(self):
+        """事前審査が諦めた・落ちた周も、計画の {prescription, deviation} は推しなしの項目として出る。文は引数 prescriptions の処方の文を
+        含み、引数に単位が無ければ読めていないと名乗る。無人の run は止まる。事前審査が通った周は計画の欄から組まない"""
+        fields = [{"structure": [{"prescription": "u1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]
+        got = rounds(review_status="gave_up", review_reason="受け付けが諦めた")
+        self.assertIn("prescription", [k for k, _ in self.ask(got, plan_fields=fields)["items"]], "処方の文を渡さなくても項目は出る")
+        out = self.ask(got, plan_fields=fields, prescriptions=self.RX)
+        text = dict(out["items"]).get("prescription", "")
+        self.assertIn("1. 分母を len(xs) にする", text, out["items"])
+        self.assertTrue(text.startswith("修正案 1 は単位 u1 の判定の処方"), text)
+        self.assertIsNone(self.gm.push_rec(text))
+        self.assertFalse(self.ask(got, plan_fields=fields, prescriptions=self.RX, unattended=True)["go"])
+        unread = dict(self.ask(got, plan_fields=fields, prescriptions={})["items"]).get("prescription", "")
+        self.assertIn("判定の処方の文を読めていない", unread)
+        self.assertNotIn("prescription", [k for k, _ in self.ask(rounds(), plan_fields=fields, prescriptions=self.RX)["items"]],
+                         "事前審査が通った周は計画の欄から組まない（事前審査の deviations が持つ）")
+
+    def test_deviation_of_an_unknown_source_is_asked(self):
+        """表に無い source の外れの行は黙って捨てずに承認ノードの項目になる。source design の行は事前審査の穴の道で聞くので項目にしない"""
+        odd = {**self.prescription_row(), "source": "elsewhere", "text": "修正案 1 は知らない種類の外れ"}
+        out = self.ask(rounds(deviations=[odd]))
+        self.assertTrue(out["open"], out)
+        self.assertEqual(out["passes"], [])
+        self.assertIn("修正案 1 は知らない種類の外れ", out["asked"][0])
+        self.assertEqual(out["items"][0][0], self.gm.OTHER_DEPART_KIND)
+        design = {"source": "design", "key": "d1", "kind": "contract_drift", "why": "独立設計との構造の食い違い: x"}
+        self.assertFalse(self.ask(rounds(deviations=[design]))["open"])
+
     def test_route_up_rows_of_the_structure_eye_are_asked(self):
         row = {"unit_id": "u1", "route": "人に上げる", "undecided_because": "2 つの形が割れる", "chosen": "A"}
         out = self.ask(design_rows_=[row])
@@ -1056,6 +1115,51 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(len(means), 1, out["asked"])
         self.assertTrue(means[0].startswith("修正案 1 は頼みの解き方 M1「分母を直す」に従わない——"), means)
         self.assertIsNone(__import__("gatemarks").push_rec(means[0]))
+
+    def prescription_dev(self, item, note="計画のまま通す", deviation="決まりが別の層に置く"):
+        return {"source": "prescription", "item": item, "why": ["判定の処方と計画の決め手が別の答えを指す"],
+                "text": f"修正案 {item} は単位 u1 の判定の処方「1. 分母を直す」に従わない——{deviation}",
+                "mark": {"decided_by": "決まり", "recommend": {**REC, "note": note}}}
+
+    def test_prescription_rows_of_revised_items_are_asked_with_their_push(self):
+        """直した項目の判定の処方の外れの行を推しの尾つきで聞き（無人の run は推しで抜ける）、直さない項目の行は聞かない。事前審査が
+        落ちた道では、入力 judgment の判定の処方の文を載せた推しなしの行を聞く"""
+        self.deviations = [self.prescription_dev(1), self.prescription_dev(2)]
+        row = {"item": 1, "units": ["u1"], "contract_changed": [], "human": [], "widened": None}
+        out = self.ask_replan([row])
+        self.assertEqual([a[:12] for a in out["asked"]], ["修正案 1 は単位 u1"], out["asked"])
+        self.assertTrue(out["open"], out)
+        self.assertIsNotNone(__import__("gatemarks").push_rec(out["asked"][0]))
+        self.assertTrue(self.ask_replan([row], unattended=True)["go"])
+        old, _ = self.plans()
+        dev = {"prescription": "u1", "deviation": "決まりが別の層に置く"}
+        new = self.put("replan/plan-fields.json", {"round": 1, "fields": [
+            {"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [], "structure": [dev]},
+            {"unit_keys": ["u2"], "allowed_paths": ["c.py"], "out_of_scope": [], "structure": [dev]}]})
+        judgment = self.put("judgment.json", {"units": [{"key": "u1", "prescriptions": ["分母を直す"]}]})
+        for given, word in ((judgment, "1. 分母を直す"), ("null", "判定の処方の文を読めていない")):
+            with self.subTest(judgment=given[:8]):
+                out = self.run.script("ask_replan", replan=json.dumps(self.replan_got(new)), review=json.dumps(self.review_got([], "gave_up")),
+                                      old_plan=old, items=json.dumps([1]), conflicts="null", before_fix="null",
+                                      record=self.put("r1/start.json", {}), judgment=given, ports=self.ports())
+                rows = [a for a in out["asked"] if a.startswith("修正案")]
+                self.assertEqual(len(rows), 1, out["asked"])
+                self.assertIn(word, rows[0])
+                self.assertIsNone(__import__("gatemarks").push_rec(rows[0]))
+
+    def test_prescription_row_passed_before_is_not_reasked_when_only_the_push_changes(self):
+        """修正前の承認ノードが continue で通した処方の外れの行と、同じ項目・同じ単位・同じ deviation で推しの note だけが違う行は聞き直さない。
+        deviation の文を変えた行は聞く"""
+        row = {"item": 1, "units": ["u1"], "contract_changed": [], "human": [], "widened": None}
+        self.deviations = [self.prescription_dev(1)]
+        first = self.ask_replan([row])["asked"][0]
+        before = json.dumps({"decision": "continue", "text": "", "asked": [first]})
+        self.deviations = [self.prescription_dev(1, note="前と違う一言で通す")]
+        self.assertFalse(self.ask_replan([row], before_fix=before)["open"])
+        self.deviations = [self.prescription_dev(1, deviation="別の訳で外れる")]
+        got = self.ask_replan([row], before_fix=before)
+        self.assertTrue(got["open"], got)
+        self.assertIn("別の訳で外れる", got["asked"][0])
 
     def test_replan_answer_carries_the_conditions_in_order(self):
         before = {"decision": "continue", "text": "a.py だけ", "asked": [NARROW]}

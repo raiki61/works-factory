@@ -730,7 +730,7 @@ def fixed_unchanged(doc: dict, rows: list, answers) -> list[str]:
     return out
 
 
-MEANS_ROWS = ("means_drifts", "means_departs")   # 往復の行に写す事前審査の返答の頼みの解き方の欄
+MEANS_ROWS = ("means_drifts", "means_departs", "prescription_departs")   # 往復の行に写す事前審査の返答の頼みの解き方・判定の処方の欄
 
 
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,

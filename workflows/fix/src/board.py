@@ -357,7 +357,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
     if not probs:   # 仮の元の結末 base.json（直す前の結末 cases）と名指し named を渡す（下書き 2.1。仮の輪の状態は組まない）
         st = {"exe": str(exe), "work": str(work), "suite": suite, "suite_made": [], "taken": True, "baseline_cases": [],
-              "baseline": {common._key(c): c.get("outcome") for c in cases or [] if isinstance(c, dict)}}
+              "baseline": baseline_red.outcomes([c for c in cases or [] if isinstance(c, dict)])}
         wide = []
         if shared:
             wide, everything = common._reached(st, repo, seeds=shared, direct_only=False)
@@ -2231,7 +2231,8 @@ def no_suite_at_accept(place, seen: dict) -> str:
     """受け付けの止め no-suite の yes/no（下書き 3.9 の止め方の 2・3）。seen は common.selected_problems が走らせた回の
     {cases, why, log}（走らせなかった回は空）。(1) 実行器が結末を返さない（cases が None）か、(2) 元の結末（accept_base の base.json）の no_tests が
     真か試験が在るかが決まらない（一覧 test_list が absent・failed）かつ実行器が工場の書いた物（suite_by_factory）かつ走らせた回が
-    0 件、なら止める訳。決まらない時は一覧の訳と宣言の案内 LIST_HINT を、下ごしらえが起点の版に在る設定のファイルの書き換えで拒まれて
+    0 件（1 件ごとの行が無い回。試験の道具が結果を書く前に赤で終わった時の予約の 1 件だけの回も 0 件と同じ。baseline_red.reported）、
+    なら止める訳。決まらない時は一覧の訳と宣言の案内 LIST_HINT を、下ごしらえが起点の版に在る設定のファイルの書き換えで拒まれて
     いたらそのパスを足す。でなければ空"""
     from src import basecase
     if "cases" not in seen:
@@ -2242,7 +2243,8 @@ def no_suite_at_accept(place, seen: dict) -> str:
     base = basecase.read_file(accept_base(place)) or {}   # 試験を選ぶ元の結末と同じ物（裁定の後の置き場は bases/<k>/ の物）
     listed = base.get("test_list") if isinstance(base.get("test_list"), dict) else {}
     undecided = listed.get("status") in (basecase.ABSENT, basecase.FAILED)
-    if seen["cases"] or base.get("suite_by_factory") is not True or not (base.get("no_tests") is True or undecided):
+    import baseline_red
+    if baseline_red.reported(seen["cases"]) or base.get("suite_by_factory") is not True or not (base.get("no_tests") is True or undecided):
         return ""
     import oneline
     from graphloops.engine import declared
