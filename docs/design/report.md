@@ -92,7 +92,7 @@ run の結末の語（10 語のどれか）と止めた段の語を、line が�
 - `decisions`: `{before, after, outside}`（どれも字の配列。既定 []）。節「1. 人が決めること」の line の行。`before` は今の `_pushed_lines`・`unrestored_lines`・`backed_out_lines` と、`_decisions` の行のうち問いと種の塊（結末に依らない種だけ）、`after` は `_decisions` の残りの行（保留の答え方の行から後の全部）、`outside` は目的の外の所見の件数の行（今 `_outside` の 3 つ目。次の run の依頼の下書きのファイルの名を持たない字にする）。
 - `apply`: `{sealed, placed, redesign, said, pr, commits}`。既定 `{sealed: false, placed: false, redesign: "", said: "", pr: null, commits: []}`。`sealed`・`placed` は今 `_seal_state`、`redesign` は R2 が作り直しが要ると言った時のその語（今 `seal.REDESIGN`。言わなければ空）、`said` は止まった run の人の一言（今 `_apply_lines` の `said`。無ければ空）、`pr` は出口の語 pr の run の `{act, url, number, is_draft, reason}`（今 `applied-diff` の `deliver`）か null、`commits` は今 `_pr_commit_lines` の行。
 - `carry`: `{findings, prior, drafts, constraints}`（どれもオブジェクトの配列。既定 []）。次の run に渡す物。今 `runreport.next_request`・`prior_failures`・`answer_drafts`・`carry.carried_constraints` の返り。
-- `stop_lines`: `{before, after}`（字の配列。既定 []）。節「2. 止めたか」の line の行。`before` は今 `_stop_lines` の line の止めの語の行・block の止め（judge・spec check など）の訳の行「<node の名> の止めた訳: <訳>」（頭には出さない）・承認ノードの行・封じと置きの ok でない行、`after` は続きの切れ目の行（`chain_notes`）。
+- `stop_lines`: `{before, after}`（字の配列。既定 []）。節「2. 止めたか」の line の行。`before` は今 `_stop_lines` の line の止めの語の行・承認ノードの行・封じと置きの ok でない行、`after` は続きの切れ目の行（`chain_notes`）。
 - `outcome_parts`: `{gate, eyes, data}`（字。既定 ""）。節「模型」の結末の行の句。今 `_outcome_line` の最後の承認ノードの句・独立の目の句・`data_places`。
 - `round`: 整数か null。既定 null。計画の何回目の案か（今 `outcome.planned(returns).round`）。
 - `line_rev`: 字。既定 ""。メイングラフの版（今 `versions.line_rev(start.versions)`）。

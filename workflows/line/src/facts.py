@@ -50,8 +50,6 @@ PR_COMMITS = "PR の commit: "
 POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わったまま終わった"
 UNNAMED_NODE = "名の訳が無いノード"
 UNKNOWN_STOP = "語の意味の記録が無い"
-HUMAN_STOP = "人が承認ノードで止めた"
-WAITS_FOR_HUMAN = "（人が答えるまで先へ進まない）"
 NO_STOP_REASON = "訳の記録が無い"
 BASE_STOPPED = "直す前の試験の関門が止めた（判定は起こしていない）"
 # 止めの語 → 報告の頭の訳の行の尾に付ける「次にすること」の句（語が在る止めは、訳が空でも黙らない）
@@ -603,22 +601,17 @@ def plain(at: str) -> str:
 
 
 def stop_meaning(word) -> str:
-    """止めの語（works: の頭は付いていても無くてもよい）の人が読む意味。人が関所で止めた語（human: の頭）は HUMAN_STOP、表に無い語は
-    UNKNOWN_STOP。語から意味を引く読みはここだけ"""
-    word = str(word)
-    if word.startswith(stopby.HUMAN):
-        return HUMAN_STOP
-    return stopby.REASONS.get(word.removeprefix(stopby.HEAD), UNKNOWN_STOP)
+    """止めの語（works: の頭は付いていても無くてもよい）の人が読む意味。表に無い語は UNKNOWN_STOP。語から意味を引く読みはここだけ"""
+    return stopby.REASONS.get(str(word).removeprefix(stopby.HEAD), UNKNOWN_STOP)
 
 
 def stop_words(stops: list) -> list:
-    """止めの語ごとの 1 行（頭の行）: 人が読む言葉の node の名を並べ、語の意味を言う。人の答えを待つ語と人が関所で止めた語は、尾に人が
-    答えるまで先へ進まないことを言う。node の id と止めの語の字は出さない（頭の外の stop_words_full の行に残る）"""
+    """止めの語ごとの 1 行（頭の行）: 人が読む言葉の node の名を並べ、語の意味を言う。node の id と止めの語の字は出さない（頭の外の
+    stop_words_full の行に残る）"""
     by_word = {}
     for s in stops:
         by_word.setdefault(str(s["word"]), []).append(plain(s["at"]))
     return [f"{'・'.join(dict.fromkeys(ats))}が止めた: {stop_meaning(word)}"
-            f"{WAITS_FOR_HUMAN if word in stopby.WAITING or word.startswith(stopby.HUMAN) else ''}"
             for word, ats in by_word.items()]
 
 
@@ -671,7 +664,7 @@ def ran_notes(returns: dict) -> list:
 def spoken_stops(values: dict, returns: dict) -> list:
     """頭で訳を言う止め [(意味, 訳, 次にすること)]: 次にすることの表 HEAD_NEXT に在る止め（入口が入力を断った止め。訳が空でも黙らず、
     訳の記録が無いと言う）と、止めの語を持たずに ok を偽で返す直す前の試験の関門（試験のコマンドの最初の語を起こせない run など）だけ。
-    ほかの止めの訳は頭に出さない（止めた所と語の意味は stop_words の行が言い、line の script の落ちの訳は problems に、block の止めの訳は「止めたか」の節の行に、テーマの設計の段の訳は
+    ほかの止めの訳は頭に出さない（止めた所と語の意味は stop_words の行が言い、line の script の落ちの訳は problems に、block の止めの訳はその block の報告の行に、テーマの設計の段の訳は
     報告の設計の段の行に在る）。訳は返りの reason を 1 行に畳むだけで言い換えない"""
     import oneline
     out = []
@@ -686,7 +679,7 @@ def spoken_stops(values: dict, returns: dict) -> list:
 
 
 def stop_reason_notes(values: dict, returns: dict) -> list:
-    """止めた段の訳の冒頭の句「<止めの語の意味>: <訳>」。訳は切らない。
+    """止めた段の訳の冒頭の句「<止めの語の意味>: <訳>」。
     次にすることが決まっている止めは尾に「——次にすること: <句>」を付ける。node の id と止めの語の字は出さない（頭の外の節の行に残る）"""
     return [f"{what}: {why}{f'——次にすること: {nxt}' if nxt else ''}"
             for what, why, nxt in spoken_stops(values, returns)]
@@ -1095,13 +1088,10 @@ def apply_of(returns: dict, gates: dict) -> dict:
             "redesign": redesign, "said": said or "", "pr": pr, "commits": lines}
 
 
-def stop_lines(values: dict, returns: dict, gates: dict, stops: list) -> dict:
-    """節「2. 止めたか」の line の行: line の止めの語・block の止めの訳・承認ノードの行・封じと置きの ok でない行（before）と、続きの切れ目
-    （after）。block の止めの訳は頭に出さないので、ここに「node の名 の止めた訳: <訳>」で残す"""
+def stop_lines(returns: dict, gates: dict, stops: list) -> dict:
+    """節「2. 止めたか」の line の行: line の止めの語・承認ノードの行・封じと置きの ok でない行（before）と、続きの切れ目（after）"""
     import oneline
     before = [f"メイングラフのノードの止め: {x}" for x in stop_words_full(stops)]
-    blocks = {node for node, _ in BLOCK_STOPS}
-    before += [f"{named(node)} の止めた訳: {oneline.one_line(why)}" for node, _, why in stop_returns(values) if node in blocks and why]
     before += [f"承認ノード {named(at)}: {gate_line(g)}" for at, g in gates.items()]
     before += unpassed_full(returns)
     for rid in ("sealed-diff", "applied-diff"):
@@ -1243,7 +1233,7 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
         "apply": part("封じと置き", lambda: apply_of(returns, gates),
                       {"sealed": False, "placed": False, "redesign": "", "said": "", "pr": None, "commits": []}),
         "carry": {"findings": findings, "prior": prior, "drafts": drafts, "constraints": constraints},
-        "stop_lines": part("止めたかの行", lambda: stop_lines(values, returns, gates, stops), {"before": [], "after": []}, outcome=False),
+        "stop_lines": part("止めたかの行", lambda: stop_lines(returns, gates, stops), {"before": [], "after": []}, outcome=False),
         "outcome_parts": part("模型の結末の句", lambda: outcome_parts(returns, gates, fixed.get("eyes_due") if fixed else None, head_at),
                               {"gate": "", "eyes": "", "data": ""}, outcome=False),
         "round": as_dict(returns.get("plan")).get("round") if isinstance(as_dict(returns.get("plan")).get("round"), int) else None,

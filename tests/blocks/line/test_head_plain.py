@@ -171,7 +171,7 @@ class BaseStopHeadCase(HeadAfterBase):
 
 class StopReasonHeadCase(HeadAfterBase):
     """報告の冒頭の知らせの行に訳が出る止めは、入口が入力を断った止め（次にすることの句が尾に付く）と直す前の試験の関門が止めた止めだけ。
-    line の script の落ちと block の止めの訳は頭に出さない（script の落ちは problems に在る）。止めていない run には出さない"""
+    line の script の落ちと block の止めの訳は頭に出さない（script の落ちは problems に、block の止めの訳はその block の報告の行に在る）。止めていない run には出さない"""
     REFUSED = "PR の head が対象の HEAD と違う——PR の head を取り出した所で始める"
     NEXT = "次にすること: 訳が名指した入力を直して、run を起こし直す"
 
@@ -200,10 +200,6 @@ class StopReasonHeadCase(HeadAfterBase):
                 self.assertEqual([x for x in facts["head"]["after"] if f"R-{node}" in x], [], "訳の本文は頭に出さない")
                 lines = [x for x in facts["head"]["stopped"] if x.startswith(f"{self.f.plain(node)}が止めた: ")]
                 self.assertEqual(len(lines), 1, facts["head"]["stopped"])
-                self.assertEqual(self.f.WAITS_FOR_HUMAN in lines[0], word in stopby.WAITING or word.startswith(stopby.HUMAN), lines[0])
-        with self.subTest(word="human"):
-            facts = self.facts_of(self.stopped_values("theme-descend", "theme_descend", stopby.HUMAN + "gate-theme"))
-            self.assertIn(f"{self.f.HUMAN_STOP}{self.f.WAITS_FOR_HUMAN}", "\n".join(facts["head"]["stopped"]))
 
     def test_the_design_stage_reason_stays_in_the_theme_section(self):
         import stopby
@@ -241,18 +237,6 @@ class StopReasonHeadCase(HeadAfterBase):
         with self.subTest(node="none"):
             after = self.after(base.passing())
             self.assertFalse([x for x in after if "R-" in x or self.NEXT in x], after)
-
-    def test_a_block_stop_reason_stays_in_the_stopped_section(self):
-        import stopby
-        for node, name in self.f.BLOCK_STOPS:
-            with self.subTest(node=node):
-                facts = self.facts_of(self.stopped_values(node, name, stopby.PREMISES))
-                lines = [x for x in facts["stop_lines"]["before"] if f"R-{node}" in x]
-                self.assertEqual(lines, [f"{self.f.named(node)} の止めた訳: R-{node}"])
-        for node, name in self.f.LINE_STOPS:
-            with self.subTest(node=node, kind="line"):
-                facts = self.facts_of(self.stopped_values(node, name, stopby.LINE_SCRIPT))
-                self.assertEqual([x for x in facts["stop_lines"]["before"] if f"R-{node}" in x], [], "line の script の落ちの訳は problems に在る")
 
     def test_the_refused_line_says_what_to_do_next_without_inner_names(self):
         import stopby
