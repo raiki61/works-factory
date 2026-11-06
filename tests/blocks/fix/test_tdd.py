@@ -13,6 +13,7 @@ test_fix_gates.py の TestRedGreen を src の写しに向け直した物（docs
 lib の baseline_red の物（写していない）なので、その場合は lib/tests/test_baseline_red.py が持つ。
 """
 import importlib
+import inspect
 import json
 import os
 import pathlib
@@ -1495,24 +1496,29 @@ class TestTestFileIdentity(Case):
         テストのファイルとして残し、どれにも当たらないコードのファイルだけを仮の実装に回す"""
         self.assertTrue(hasattr(tdd, "_split_claims"), "tdd に _split_claims が無い")
         st = {"units": {}, "contract": {"u1": {"tests": [{"id": "b/verify.kt::Verify::adds"}], "rewrites": ["c/legacy.rb::old"]}}}
-        claims = ["checks.go", "b/verify.kt", "c/legacy.rb", "x_test.py", "tests/helpers.py", "stats.py"]
-        kept, stubs, declared = tdd._split_claims(st, claims, ["checks.go::Check::adds"])
-        self.assertEqual(sorted(kept), ["b/verify.kt", "c/legacy.rb", "checks.go", "tests/helpers.py", "x_test.py"])
+        claims = ["checks.go", "b/verify.kt", "c/legacy.rb", "x_test.py", "tests/helpers.py", "stats.py", "helper.go"]
+        self.assertIn("places", inspect.signature(tdd._split_claims).parameters, "_split_claims に仮の実装の出どころ places が無い")
+        kept, stubs, declared = tdd._split_claims(st, claims, ["checks.go::Check::adds"], {"stats.py"})
+        self.assertEqual(sorted(kept), ["b/verify.kt", "c/legacy.rb", "checks.go", "helper.go", "tests/helpers.py", "x_test.py"])
         self.assertEqual(sorted(stubs), ["stats.py"])
         self.assertTrue({"checks.go", "b/verify.kt", "c/legacy.rb"} <= set(declared), "名指しのパスも宣言の組に入る")
 
     def test_split_claims_keeps_declared_test_data(self):
         """テストのフォルダの外に置いたテストのデータや期待値は、申告すれば残り（凍る対象のまま）、仮の実装には回らない"""
         self.assertTrue(hasattr(tdd, "_split_claims"), "tdd に _split_claims が無い")
-        data = ["__snapshots__/x.snap", "expected.json", "golden/out.golden", "testdata/input", "testdata/case.txt"]
-        kept, stubs, _ = tdd._split_claims({"units": {}, "contract": {}}, [*data, "stats.py"], ["test_stats.py::TestStats::test_a"])
+        data = ["__snapshots__/x.snap", "expected.json", "golden/out.golden", "testdata/input", "testdata/case.txt",
+                "testdata/expected.go"]
+        self.assertIn("places", inspect.signature(tdd._split_claims).parameters, "_split_claims に仮の実装の出どころ places が無い")
+        kept, stubs, _ = tdd._split_claims({"units": {}, "contract": {}}, [*data, "stats.py"], ["test_stats.py::TestStats::test_a"],
+                                           {"stats.py", "testdata/expected.go"})   # 単位の頭に在っても、データの置き場の下は凍る側
         self.assertEqual(sorted(kept), sorted(data))
         self.assertEqual(sorted(stubs), ["stats.py"])
 
 
 class TestDeclaredStubNotFrozen(LoopCase):
-    """赤の段でまだ無い名の仮の実装のファイルを test_files に申告しても、それはテストでないコードなので凍らない:
-    仮の実装として stub_files に残り、同じ単位の直しの段でも後の単位でも本物に置き換えられる"""
+    """赤の段でまだ無い名の仮の実装のファイルを test_files に申告しても、単位の始めに在ったコードのファイルへの足しなので凍らない:
+    仮の実装として stub_files に残り、同じ単位の直しの段でも後の単位でも本物に置き換えられる。新しく作ったコードは、
+    修正案が作ると名指していなければ申告すると凍る（TestClaimOrigin）"""
 
     def declare_stub_red(self, mean="tdd", clamp="direct"):
         """まだ無い average を読むテストを足し、仮の実装 average を stats.py に足して、両方を test_files に申告して赤を通す"""
@@ -1561,6 +1567,42 @@ class TestDeclaredStubNotFrozen(LoopCase):
             self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
         self.assertTrue(self.st()["done"])
         self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
+
+
+class TestClaimOrigin(ContractCase):
+    """赤の段で申告したコードのファイルが仮の実装として凍結から外れるのは、単位の始めに在ったファイルか、承認済みの修正案が
+    新しく作ると名指したファイルで、試験のデータの置き場の外にある物だけ。新しく作ったコードの期待値や試験の補助は申告すれば凍る"""
+    CONTRACT = {MEAN: {"items": [1], "route": "tdd", "rewrites": [], "refactor": [], "names": ["avg.py"],
+                       "tests": [{"id": MEAN_ID, "red_kind": "assertion"}]}}
+
+    def test_new_code_claim_frozen_unless_plan_names_it(self):
+        self.route()
+        self.add_test(NEW_TEST)
+        (self.repo / "helpers.py").write_text("OFFSET = 0\n", encoding="utf-8")   # 新しく作った根の試験の補助
+        (self.repo / "avg.py").write_text("def average(xs):\n    return 0\n", encoding="utf-8")   # 修正案が名指した仮の実装
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "helpers.py", "avg.py"], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        u = self.st()["units"][MEAN]
+        self.assertIn("helpers.py", u["test_files"])
+        self.assertIn("helpers.py", u["test_hashes"])
+        self.assertEqual(u["stub_files"], ["avg.py"])
+        self.assertNotIn("avg.py", u["test_files"])
+
+    def test_new_testdata_code_claim_is_frozen_in_fix(self):
+        self.route()
+        self.add_test("\n    def test_mean_of_two(self):\n"
+                      "        want = int((pathlib.Path(__file__).parent / 'testdata' / 'expected.py').read_text())\n"
+                      "        self.assertEqual(mean([2, 4]), want)\n")
+        self.edit("test_stats.py", "import unittest", "import pathlib\nimport unittest")
+        (self.repo / "testdata").mkdir()
+        expected = self.repo / "testdata" / "expected.py"
+        expected.write_text("3\n", encoding="utf-8")   # コードの拡張子の期待値
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "testdata/expected.py"], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        expected.write_text("6\n", encoding="utf-8")   # 不具合の出力に合わせた書き換え
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["testdata/expected.py"], "what": "期待値を今の出力に合わせた"})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("凍っている", got.get("reason", ""))
 
 
 class TestRewriteSharedAcrossUnits(ContractCase):

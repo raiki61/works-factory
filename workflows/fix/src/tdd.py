@@ -22,9 +22,10 @@
   - test: 申告したテストのファイルの外のテストのファイル（impact.is_test_file）に触れていない・赤の判定 red_check（名指しは failure で
     落ち、error・一式に居ない・もう通る・飛ばされたは拒み、元で通っていた物は緑。言語に依らない事実だけ）。テストでないファイル
     （これから足す名前の仮の実装）への書き込みは拒まず、単位の stub_files に残す。test_files に申告されても、コードのファイルで、名指しの
-    テストのパス・約束のパス・前の単位のテストのファイル・名の慣習・テストのフォルダの下のどれにも当たらない物は仮の実装として
-    stub_files に残し、test_files と test_hashes に入れず凍らせない（_split_claims）。テストのデータや期待値（コードでないファイル）は
-    申告すれば今どおり凍る。error・一式に居ないで拒む時は NOT_RAN の
+    テストのパス・約束のパス・前の単位のテストのファイル・名の慣習・テストのフォルダの下・試験のデータの置き場の下のどれにも
+    当たらず、出どころ（_claim_places）に在る物は仮の実装として
+    stub_files に残し、test_files と test_hashes に入れず凍らせない（_split_claims）。ほかの申告（新しく作ったコードの期待値・
+    試験の補助、コードでないテストのデータ）は今どおり凍る。error・一式に居ないで拒む時は NOT_RAN の
     1 行を足す（走る前の失敗は赤に数えず、直して走らせ直させる）。
     約束の在る単位は、受け入れのテストの id を全部名指し（走らせる前に見る）、名指しごとの失敗の文の引用と理由（QUOTES_FIELD）を
     結末の failure の文と照らす（red_check。照らす先の無い名指しは引用を求めず、単位の quote_unchecked に残す）。約束の無い単位は
@@ -589,14 +590,22 @@ def declared_test_files(st, named=()) -> set[str]:
     return out
 
 
-def _split_claims(st, files, tests):
-    """役の申告 files を事実で分ける → (kept, claimed_stubs, declared)。kept はテストのファイル（凍る）: 宣言の組（名指しの id・約束・
-    前の単位のテストのファイル）か名の慣習（impact.is_test_file）に当たる物、テストのフォルダの下の補助、コードでない物
-    （テストのデータ・期待値）。claimed_stubs は、どれにも当たらないコードのファイル（仮の実装）。純粋"""
+def _claim_places(st, repo, files, key) -> set:
+    """仮の実装として凍結から外してよい出どころ: 申告 files のうち単位の頭の木に在ったパスと、今の単位の約束の names
+    （planmarks.unit_contract）を posixpath.normpath で揃えた組"""
+    there = set(git_names(repo, "ls-tree", "-r", "--name-only", st["unit_head"], "--", *files)) if files else set()
+    return {posixpath.normpath(p) for p in there | set((_contract(st, key) or {}).get("names") or [])}
+
+
+def _split_claims(st, files, tests, places):
+    """役の申告 files を事実で分ける → (kept, claimed_stubs, declared)。claimed_stubs は仮の実装: コードのファイルで、宣言の組
+    （名指しの id・約束・前の単位のテストのファイル）にも名の慣習（impact.is_test_file）にもテストのフォルダの下にも試験のデータの
+    置き場の下にも当たらず、出どころ places（_claim_places）に在る物。ほかは全部 kept（テストのファイル。凍る）で、新しく作ったコードの期待値や試験の補助も申告すれば凍る。純粋"""
     declared = declared_test_files(st, tests)
     kept, claimed_stubs = [], []
     for f in files:
-        if impact.is_test_file(f, declared) or impact.is_test(f) == "support" or not impact.is_code(f):
+        if impact.is_test_file(f, declared) or impact.is_test(f) == "support" or impact.is_test_data(f) \
+                or not impact.is_code(f) or posixpath.normpath(f) not in places:
             kept.append(f)
         else:
             claimed_stubs.append(f)
@@ -761,7 +770,7 @@ def _test(st, reply, repo) -> list:
     errs += bad
     if errs:
         return errs
-    files, _, declared = _split_claims(st, files, tests)   # 申告のうちコードの仮の実装は凍らせず、触れていれば extra に残して stub_files に記録する
+    files, _, declared = _split_claims(st, files, tests, _claim_places(st, repo, files, u["unit_key"]))   # 申告のうちコードの仮の実装は凍らせず、触れていれば extra に残して stub_files に記録する
     extra = sorted(set(touched(repo, st["unit_head"], snapshot(repo))) - set(files) - set(st["suite_made"]))
     outside = [f for f in extra if impact.is_test_file(f, declared | set(files))]
     if outside:

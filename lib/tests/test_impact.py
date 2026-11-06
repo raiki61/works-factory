@@ -215,6 +215,20 @@ class TestIsTest(unittest.TestCase):
                     self.assertNotIn(ext, impact.REF_EXT)
 
 
+    def test_is_test_data_under_data_dirs(self):
+        """is_test_data は、親のフォルダのどれかが試験のデータの置き場の名（testdata・fixtures・__fixtures__・__snapshots__・golden）
+        のパスに真を返す。実装・試験のフォルダのコードは偽。is_test は広げず、データの置き場の下のコードは None のまま"""
+        self.assertTrue(hasattr(impact, "is_test_data"), "impact に is_test_data が無い")
+        for path in ("testdata/expected.go", "__fixtures__/expected.ts", "fixtures/expected_out.py", "__snapshots__/a.ts",
+                     "golden/out.go", "pkg/testdata/deep/expected.go"):
+            with self.subTest(path=path, want=True):
+                self.assertTrue(impact.is_test_data(path))
+        for path in ("stats.py", "src/app.go", "tests/test_x.py", "testdata.py", "pkg/golden_out.go"):
+            with self.subTest(path=path, want=False):
+                self.assertFalse(impact.is_test_data(path))
+        self.assertIsNone(impact.is_test("testdata/expected.go"))
+
+
 class UnanalysableCase(RepoCase):
     def test_unknown_language_seed_requires_all(self):
         m = self.map(["web/widget.js"])

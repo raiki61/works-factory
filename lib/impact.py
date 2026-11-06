@@ -23,8 +23,10 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - is_test(path) -> "module" | "support" | None: 名の慣習でのテストの file の見分け（言語の表でなく名の形）
 - is_test_file(path, declared) -> bool: テストの file か（宣言 declared に在るか、is_test の module）。宣言と慣習を合わせた見分けの
   1 か所（TDD の輪・事後の関門・深さの run の広さの数えが呼ぶ）。純粋
+- is_test_data(path) -> bool: 試験のデータの置き場（TEST_DATA_DIRS: testdata・fixtures など）の下の file か（親のフォルダのどれかが
+  その名に当たれば真。拡張子は問わない）。is_test は広げず、TDD の輪の申告の仕分けだけが呼ぶ。純粋
 - is_code(path) -> bool: 既知のコードの拡張子の file か（Python・OTHER_CODE_EXT・シェルなど。文書・データ・設定・知らない拡張子は偽）。
-  TDD の輪が、申告のうちコードの仮の実装とテストのデータを分けるのに呼ぶ。純粋
+  TDD の輪が、申告のうちコードの仮の実装とテストのデータを分けるのに is_test_data と一緒に呼ぶ。純粋
 - KNOWN_EXT: changemap の拡張子の表を合わせた集合（plainask が <パス>:<行> の形を数えるかの見分けに使う）
 
 地図の JSON（schema works-impact/1）の欄:
@@ -100,6 +102,9 @@ KNOWN_EXT = frozenset(set(changemap.OUTLINE_PATTERNS) | changemap.PROSE_EXT
                       | {e for exts in changemap.COMMENT_BY_EXT.values() for e in exts}
                       | {e for exts in changemap.FENCE_BY_EXT.values() for e in exts})
 TEST_DIRS = frozenset({"tests", "test", "__tests__", "spec"})
+# 試験のデータ（期待の出力・スナップショット）を置くフォルダの名。Go の testdata、Jest の __snapshots__・__fixtures__ など。
+# is_test の判定には入れない（地図の葉と ripple の振り分けを動かさない）。大文字小文字は区別する
+TEST_DATA_DIRS = frozenset({"testdata", "fixtures", "__fixtures__", "__snapshots__", "golden"})
 TEST_NAME = re.compile(r"(^test_.*\.py$|.*_test\.(py|go)$|.*\.bats$|.*\.(test|spec)\.[jt]sx?$|.*-(case|suite)\.(py|sh)$"
                        r"|^conftest\.py$)")
 # テストの実行器が探す名の形（拡張子を除いた名の語の頭・尾。各言語の実行器の既定の *_test・testMatch の *.test・*.spec・C や
@@ -205,6 +210,12 @@ def is_test_file(path: str, declared) -> bool:
     """テストの file か: 宣言（declared。正規化したパスの組）に在るか、名の慣習（is_test の module。テストの実行器が探す名の形で、
     言語の表でない。語の尾の形はテストのフォルダの下だけ）に当たるか。どちらにも当たらない実装の file はテストと見ない。純粋"""
     return posixpath.normpath(path) in declared or is_test(path) == "module"
+
+
+def is_test_data(path: str) -> bool:
+    """試験のデータの置き場（TEST_DATA_DIRS）の下のファイルか: 親のフォルダのどれかがその名に当たれば真。拡張子は問わない
+    （期待の出力がコードの拡張子の名で置かれることが在る）。純粋"""
+    return any(part in TEST_DATA_DIRS for part in path.split("/")[:-1])
 
 
 def is_code(path):
