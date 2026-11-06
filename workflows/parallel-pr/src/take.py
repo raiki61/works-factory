@@ -2,7 +2,7 @@
 prcheck_take・pr_accept と元の prcheck の _anchored・check_excluded・_write。
 
 照らす順: 返答が JSON のオブジェクト → 投稿していない → 読むだけの役が作業ツリーを変えていない → 素材の欄が記録の決まりに合う
-（carried_over と not_applicable は書けない・札ごとの要る欄）→ 段 after（修正の後）なら外す hunk が空 → 外す hunk が合う。通れば外す hunk を中身の印つきで pr-excluded.json に、
+（carried_over と not_applicable は書けない・札ごとの要る欄）→ 差分を測れず where で代えた集合なら clean を書かない → 段 after（修正の後）なら外す hunk が空 → 外す hunk が合う。通れば外す hunk を中身の印つきで pr-excluded.json に、
 申し送りの下書きを pr-downgrades.json に、素材を material-pr-check.json に書く。拒めば何も書かない。3 回目の拒否で輪を抜ける
 （rolekit.GIVE_UP_AFTER）。諦めた控えは別に書かず、出口が rolekit.given_up_reason を読む。
 """
@@ -100,6 +100,10 @@ def take(place, repo, reply) -> dict:
             else materialkit.check_record(files.ROLE, ("parallel_pr",), {"parallel_pr": material}, "never"))
     if errs:
         return {"ok": False, "reason": "素材の欄が記録の決まりに合わない: " + "; ".join(errs)}
+    brief = json.loads((place / files.BRIEF).read_text(encoding="utf-8")) if (place / files.BRIEF).is_file() else {}
+    stand_in = scan.unmeasured_why(brief.get("changed_source"), brief.get("unmeasured") or [], len(brief.get("changed_files") or []))
+    if stand_in and material["status"] == "clean":
+        return {"ok": False, "reason": f"差分を測れず where で代えた集合なので clean と書かない。awaiting_human でその訳を書け: {stand_in}"}
     if stage == "after" and reply[EXCLUDED_FIELD]:
         return {"ok": False, "reason": AFTER_KEEPS}
     errs = check_excluded(reply, repo)

@@ -1288,7 +1288,7 @@ nodes:
         mismatched: {type: array, items: {type: string}}
         # 修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block の行
         plan_declared: {type: array, items: {type: string}}
-        # 止めの語（戻せず当たったままの組が在れば stopby.UNRESTORED。ほかは ""）
+        # 止めの語（当たったままの組が在るか、join.json が読めず確かめられなければ stopby.UNRESTORED。ほかは空の字）
         stop_reason: {type: string}
         allowed_tests: {<<: *pointer_or_null, description: 'json(shared:allowed-tests.schema.json): 許したテストの変更の訳'}
         accept_trace: {<<: *pointer_or_null, description: 'json(shared:accept-trace.schema.json): 受け付けが選んだ試験を走らせた回の行'}

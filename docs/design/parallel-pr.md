@@ -34,16 +34,18 @@
 - `lang`: `text: 人に見せる欄（material の detail・checked・reason、conflicts の note、excluded の why）の言語。空は依頼の行の言語`。既定 `""`。
 - `stage`: `choice(before|after): 段。before は修正の前の確かめでぶつかる hunk を run の範囲から外す。after は修正の後の確かめ直しで、封じる差分を変えないので外さず、差分に残っていると申し送る（excluded は空）`。既定 `"before"`。line の `parallel-pr-after` だけが `after` を渡す（line の設計書の 8 節の 1）。修正の後に hunk を抜くと緑の認証と封じが無効になり、修正の後の `excluded` には読み手も無い。`scan` が読んで渡し物 `pr-brief.json` の `stage` に書き、`prep`（指示の `<!-- if after -->`）と受け付け（4 節の 5）がそこから読む。
 
-変更ファイルの決め方（`src/scan.py` の `changed_files`。この順で最初に空でない物）:
+変更ファイルの決め方（`src/scan.py` の `changed_files`。この順で最初に空でない物。返りは `{files, source, unmeasured}`: `source` は `changed`・`diff`・`where` のどれか、`unmeasured` は測れなかった訳の文の並び）:
 
 1. port `changed` の値。
-2. `base` が空でなければ、`lib/accept.py` の `touched_files(<作業ツリー>, base)`（`git diff --name-only <base>` と未追跡のファイル）。`Reject` は空として扱う（今の `_pr_files` のまま）。
-3. `git ls-files -z` の追跡中のパスのうち、`request` の行の `where` の字に含まれる物（名の順）。
+2. `base` が空でなければ、`lib/accept.py` の `touched_files(<作業ツリー>, base)`（`git diff --name-only <base>` と未追跡のファイル）。`Reject` の時も 3 へ進むが、訳（型と文）を `unmeasured` に残して返りと渡し物に運ぶ。
+3. `git ls-files -z` の追跡中のパスのうち、`request` の行の `where` の字に含まれる物（名の順。`source` は `where`）。`ls-files` が落ちた時は空に倒さず、「追跡中のパスを git で引けない」を `unmeasured` に残す。
+
+`source` が `where` で `unmeasured` が在る集合は、差分を測れずに依頼の where で代えた物で、その交差が 0 件でも並行 PR と衝突していないことは確かめていない。機械の道（`reply_of`）も役の返答の受け付けも、この集合の交差 0 件を `clean` にせず `awaiting_human` にする（決め方は `src/scan.py` の `unmeasured_why` の 1 か所）。差分が空で `where` で代えた時（`unmeasured` が空）は `clean` のままで、`checked` の文に出どころ「依頼の where が名指す追跡中のパスで代えた変更ファイルの集合」を書く。
 
 出力（`returns: finish`、`outcome_field: ok`）:
 
 - `ok`: boolean。`stop_reason` が空か（役が 3 回とも拒まれず、素材の控えが在る）。素材の札が `awaiting_human`・`not_run` でも、機械が決めた結果なら `ok` は真（確かめられなかったことは `status` が言う）。役の輪が落ちた・scan が全部落ちて素材の控えが無い時は `ok` は偽（元の工場は役の輪が落ちると判定を止めた。再開できる止め）。
-- `status`: 素材の札（`found`・`clean`・`not_applicable`・`awaiting_human`・`not_run`）か `failed`（役を諦めた・素材の控えが無い・出口の誤り）。
+- `status`: 素材の札（`found`・`clean`・`not_applicable`・`awaiting_human`・`not_run`）か `failed`（役を諦めた・素材の控えが無い・出口の誤り）。差分を測れず where で代えた集合の交差 0 件は `awaiting_human`（`clean` にしない）。
 - `stop_reason`: 空か `works:pr`（`lib/stopby.py` の `PR`。役が 3 回とも拒まれた・役の返答の記録が無い）。run を止めるかは line が決める（今は judge がこの語で止める）。
 - `reason`: 日本語の 1 行（人に見せる）。機械が決めた訳・役に任せた訳・諦めた訳。
 - `material`: 素材の札のオブジェクト `{status, count?, detail?, checked?, reason?}`（今の `material-pr-check.json` の `materials.parallel_pr` と同じ中身）。diagnose の `materials` に入る。
@@ -73,7 +75,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 `ports.place()`（単独の run では `$ARTIFACTS_DIR/`、line から judge のまとめを通して include された時は `$ARTIFACTS_DIR/judge/parallel-pr/`）の下に書く。名は `src/files.py` だけが持つ:
 
 - `tree.json`（役の前の作業ツリーの写し。今の `judge/judge-tree.json` の役目のうち、この block の分）
-- `pr-brief.json`（役への渡し物。今の形に段を足した `{node, cwd, base, changed_files, request_wheres, fallback, stage}`。`prep` と受け付けが `src/scan.py` の `stage_of` で `stage` を読む。欄が無い・語の外なら `before`）
+- `pr-brief.json`（役への渡し物。今の形に段を足した `{node, cwd, base, changed_files, changed_source, unmeasured, request_wheres, fallback, stage}`。`prep` と受け付けが `src/scan.py` の `stage_of` で `stage` を読む。欄が無い・語の外なら `before`）
 - `material-pr-check.json`（素材の控え。今のまま `{role, reply, materials: {parallel_pr}}`）
 - `pr-excluded.json`・`pr-downgrades.json`（今と同じ名と形）
 - `rejects-pr-check.json`（`rolekit` の却下の控え）
@@ -151,7 +153,7 @@ If `command -v works-gh` prints nothing, the command is missing and you cannot r
 
 - `cwd`: the target repository. `base`: the root of the diff (the commit fixed at the start of the run).
 - `fallback`: why the machine handed this check to you. The machine tries to finish steps 1 to 5 with gh reads only, and hands over when there was an intersection, when gh is missing, or when it cannot derive owner/repo from the remote. When the remote is not GitHub (no origin, a local path, or another host), the machine marks the check `not_applicable` (no_forge) and does not start you.
-- `changed_files`: the set of changed files the machine took. In a run whose diff is empty, these are the tracked files named in the request's places (`request_wheres`).
+- `changed_files`: the set of changed files the machine took. `changed_source` says where it came from: `changed` (the files the run was given) or `diff` (the git diff) are the real changed files; `where` means the diff was empty or could not be measured, and the set is the tracked files named in the request's places (`request_wheres`). Where the diff was simply empty, `unmeasured` is empty. Where the machine could not measure the diff with git, `unmeasured` lists why (the git failure, or that the tracked paths could not be listed): the set then stands in for a diff nobody measured.
 
 **You receive this prompt only when the machine could not finish steps 1 to 5, or found an intersection.** Even when it handed over because of an intersection, check steps 1 to 5 again yourself before step 6.
 
@@ -159,6 +161,7 @@ If `command -v works-gh` prints nothing, the command is missing and you cannot r
 2. Leave out your own pull request: list with `works-gh pr list -R <owner/repo> --limit {limit} --json number,headRefName,headRefOid`, and remove first the pull request whose headRefOid equals `git rev-parse HEAD` (if you do not, the review target itself goes out of scope, a self-referential misjudgment). Do not match by branch name; on a detached HEAD it is empty.
 3. Check whether the list was cut: if the number returned equals the `--limit`, the list may have been cut. Then set `truncated` to true and `material` to `awaiting_human`. Do not write "no collision" from a cut list.
 4. The set of changed files is `changed_files` in the hand-off file. **If the set is empty, do not write `clean`**: an intersection with an empty set checks nothing. Return `not_run` with a reason that says what was empty.
+   **If `unmeasured` is not empty, do not write `clean` even when nothing intersects**: the set stands in for a diff that could not be measured, so an empty intersection says nothing about the real change. Return `awaiting_human` and write the reasons in `unmeasured` as the reason.
 5. The changed files of each remaining pull request: `works-gh pr view -R <owner/repo> <n> --json files --jq '.files[].path'`. A pull request whose files intersect the set is a parallel pull request touching the same file.
 <!-- if not after -->
 6. Hand the colliding places to the pull request that owns them, without posting: read the hunks with `works-gh pr diff -R <owner/repo> <n>`. For each place where a collision or overlap is found, treat that change as belonging to the pull request that leads it and take it out of this run's scope (one row per hunk in `excluded`). Write a draft of the note for that pull request's owner in `conflicts[].note`: which pull request, which file, which hunk, which change of this run it collides with, and a question asking which should go in first. Return `handed_over: false`. This block does not post to pull requests (owner's decision 2026-09-27); a person reads the drafts and passes them on.
@@ -285,6 +288,7 @@ Return only JSON that matches the output schema.
   3. 読むだけの役が作業ツリーを変えていない: `tree.json` と今の作業ツリーを `accept.tree_moved`（`TREE_KEYS` の全部）で比べる。写しが無い・読めない時も拒む（`Reject` の文）。
   4. 素材の欄: `materialkit.check_record("pr-check", ("parallel_pr",), {"parallel_pr": reply["material"]}, "never")`（素材の札の語のどれか・`carried_over` を拒む・`not_applicable` を拒む・札ごとの要る欄。今は札の語だけを見ていた。6 節の 3）。外れれば「素材の欄が記録の決まりに合わない: …」で拒む（materials の設計書の 4 節の 6 と同じ字）。
   5. 段: 渡し物の `stage` が `after`（修正の後の確かめ直し）なら、`excluded` が空でない返答を拒む（hunk を外さず、差分に残っていると `note` に書かせる。1.2 の `stage`）。
+  5.5. 変更ファイルの出どころ: 渡し物の `changed_source` と `unmeasured` から `scan.unmeasured_why` が字を返す（差分を測れず where で代えた集合）のに素材の `status` が `clean` なら、「差分を測れず where で代えた集合なので clean と書かない。awaiting_human でその訳を書け」で拒む。
   6. 外す hunk: 今の `prcheck.check_excluded` の 5 つ（start <= end・PR が conflicts に在る・ファイルがその行の files に在る・ファイルが今の作業ツリーに在り end が行の数を超えない・note が在る）。
 - 通れば: 外す hunk を `_anchored`（行の中身 `text` と `sha256` を足す）で `pr-excluded.json` に、下書き（note を持つ交差だけ）を `pr-downgrades.json` に、素材を `material-pr-check.json` に書く。拒めば何も書かない。
 - 却下の理由の文は Python（`src/take.py`）が組む日本語のまま（README の 5.3）。

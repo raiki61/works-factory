@@ -60,7 +60,7 @@
 | `base` | `text` | 空 |
 | `lang` | `text` | 空 |
 
-- `prior` は往復の記録。前の周までの審査の穴と答えを持つ。空は 1 周目。周の番号はこの往復の数 + 1。
+- `prior` は往復の記録。前の周までの審査の穴と答えを持つ。空は 1 周目。周の番号はこの往復の数 + 1。空なら 1。空でないのに読めなければ、在る周のフォルダの一番大きい番号 + 1。
 - `prior_design` は前の周の設計の案。書き手は Read で読み、穴と答えが求めない所は保つ。
 - `answers` の形は `workflows/.shared/schemas/human-answers.schema.json`（7 章。書く line と読むこの block の 2 つが使うので `.shared/`）。
 - 独立設計の返答は受けない。独立設計と案を比べるのは審査役（事前審査の形 `theme`）だけ（keep-essence の 9。下書きの 4.2）。
@@ -227,7 +227,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 - standalone の筋書き（`fixtures/standalone.stubs.yaml`）: テーマの md だけで最後まで届く。書き手の返答だけを差し替え、受け付けを全部通る小さな案で `finish` まで。
 - `fixtures/resubmit.stubs.yaml`: 出し直しの役の md を本当の `theme-fix-prep` で組む（`write-prep` だけを `resubmit: true` に差し替える。plan の block の筋書きと同じ形）。
 - `fixtures/missing-theme.stubs.yaml`: テーマの md が無いと書き手を起こさず、出口が `failed` を返す。
-- 振る舞いの試験 `tests/blocks/theme/test_theme.py`: 全部通る案が pointer と md で返る・周の番号が往復の数 + 1・3 回で諦める・出し直しが返した欄だけを合わせる・受け付けの照らしの 1〜9 と 6.2 の 1〜4 のどれも、全部通る案を 1 か所だけ崩すと拒む・起点の版の行を数える・書き手と出し直しの役の型が形 `theme-design` の写しで同じ物・loop の回数が `rolekit.GIVE_UP_AFTER`・node の id に `theme` が無い。
+- 振る舞いの試験 `tests/blocks/theme/test_theme.py`: 全部通る案が pointer と md で返る・周の番号が往復の数 + 1・前の周の記録が空でないのに読めない時は在る周のフォルダの一番大きい番号 + 1 で前の周の控えが残る・3 回で諦める・出し直しが返した欄だけを合わせる・受け付けの照らしの 1〜9 と 6.2 の 1〜4 のどれも、全部通る案を 1 か所だけ崩すと拒む・起点の版の行を数える・書き手と出し直しの役の型が形 `theme-design` の写しで同じ物・loop の回数が `rolekit.GIVE_UP_AFTER`・node の id に `theme` が無い。
 - 守る keep-essence: 4（3 回拒まれたら諦める）。9（独立設計）は、この block が独立設計の返答を受けない形で守る。
 
 ## 10 報告の行
@@ -247,7 +247,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 1. 出し直しの役の指示を組む prep を `theme-fix-prep` として分けた（下書きの 4.1 の並びに無い node）。根拠: plan の block と同じ形（`docs/design/plan.md` の 1.3 と 11 章の 9）。分ける訳は、出し直しの役の md を筋書きで本当の prep から組めることを照らすため。筋書き（`fixtures/*.stubs.yaml`。AI の node を決まった返りに差し替えて YAML を通しで回す dry-run）の loop は 1 回りだけで、前の回の値 `$LOOP_PREV`（loop の前の回の node の返りを読む Archon の参照）が空なので、本当の `write-prep` が出し直しを選ぶ筋書きは書けない。そこで `write-prep` だけを `resubmit: true` に差し替え、別の node の `theme-fix-prep` を本当に走らせて md を組む（9 章の `resubmit.stubs.yaml`）。分けても、本体の層（同じ時に走る node の組）はどれも node 1 つのままにする（1.3 の 2）。出し直しの役は前の回の書き手の会話の続きで起きる（`fresh_context: false`）ので、その直前に 2 つ以上の node の層を置かないため。
 2. 却下の数えは `rolekit.GIVE_UP_AFTER`（3 回）。plan の block の網（`NET_AFTER`）は使わない。根拠: 下書きの 4.1「却下 3 回で諦める」と keep-essence の 4。
-3. 周ごとのフォルダ `r<k>/`（k は往復の記録の往復の数 + 1）。根拠: line は `theme-rounds` の loop の本体で同じ `include: works-factory-theme`（この block の取り込み。8 章）を何周も回し、place（block が自分のファイルを書くフォルダ。冒頭の語）が周をまたいで同じなので、却下の控えと出し直しの控えを周ごとに分けないと前の周の拒否を数える（plan の block と同じ形）。
+3. 周ごとのフォルダ `r<k>/`（k は往復の記録の往復の数 + 1。空なら 1。空でないのに読めなければ、在る周のフォルダの一番大きい番号 + 1）。根拠: 前の周のフォルダを開き直すと、控えと prior_design の pointer の先を消す。また line は `theme-rounds` の loop の本体で同じ `include: works-factory-theme`（この block の取り込み。8 章）を何周も回し、place（block が自分のファイルを書くフォルダ。冒頭の語）が周をまたいで同じなので、却下の控えと出し直しの控えを周ごとに分けないと前の周の拒否を数える（plan の block と同じ形）。
 4. 人の答えの行の形（7 章）の id を `H<n>` にした。根拠: 下書きは「番号」とだけ書き形を決めていない。`premises` の `from` で答えの番号とテーマの行（`theme:<行>`）を字で見分けるため、頭の字を付けた。初めは形を block の `schemas/` に置いたが、PR T3 で line の `theme-turn` が同じ形で行を書いて照らすので `workflows/.shared/schemas/` へ上げた（2 つが使う。憲法の 4。設計の案の形 `theme-design` の `answers_used[].answer` の `^H[0-9]+$` もこの形の決めに頼る）。
 5. 書き手の道具は修正案の役と同じ（Read・Grep・Glob・WebSearch・WebFetch）にし、Agent を持たせない（下書きの 14 章の 8 の答え）。根拠: 下請けの審査役は往復ごとの事前審査の形 `theme` が担う。持たせるかは実走（PR T4）の後に見る。
 6. 模型の群は修正案の役と同じ `@wf-plan-writer`。根拠: 同じ類の役（計画を書く）で、群を足す訳が無い。

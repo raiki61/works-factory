@@ -153,6 +153,41 @@ class ScanCase(Base):
         self.assertEqual(got["go_role"], False)
         self.assertIn("作業ツリーの写しが取れない", got["reason"])
 
+    def test_unmeasured_diff_with_no_crossing_waits_for_human(self):
+        """差分を git で測れず（base が在らない rev）依頼の where で代えた集合は、交差 0 件でも clean と書かない"""
+        gh = fake_gh([{"number": 7, "headRefOid": "f" * 40}], {"7": ["other.py"]})
+        got = self.scan(gh, base="0" * 40)
+        self.assertEqual(got["go_role"], False, got)
+        m = self.material()["materials"]["parallel_pr"]
+        self.assertEqual(m["status"], "awaiting_human", m)
+        self.assertIn("差分を git で測れなかった", m["reason"])
+        self.assertIn("git", m["reason"])
+        self.assertIn("where", m["reason"])
+        brief = self.brief()
+        self.assertEqual(brief["changed_files"], ["stats.py"])
+        self.assertEqual(brief["changed_source"], "where")
+        self.assertTrue(brief["unmeasured"], brief)
+
+    def test_clean_from_request_wheres_names_its_source(self):
+        """差分が空で依頼の where で代えた集合の clean は、集合の出どころを checked に書く"""
+        gh = fake_gh([{"number": 7, "headRefOid": "f" * 40}], {"7": ["other.py"]})
+        got = self.scan(gh, base=self.head)
+        self.assertEqual(got["go_role"], False, got)
+        m = self.material()["materials"]["parallel_pr"]
+        self.assertEqual(m["status"], "clean", m)
+        self.assertIn("依頼の where が名指す追跡中のパスで代えた変更ファイルの集合", m["checked"])
+
+    def test_ls_files_failure_is_named_and_not_emptied(self):
+        """追跡中のパスを git で引けない時、空に倒さず訳を返りに運び、走らせずに止める訳に git が落ちたことを名指す"""
+        folder = hermetic.tmpdir(self)
+        got = self.scan_mod.changed_files(folder, [], "0" * 40, ["stats.py:2"])
+        self.assertIsInstance(got, dict)
+        self.assertEqual((got["files"], got["source"]), ([], "where"))
+        text = "\n".join(got["unmeasured"])
+        self.assertIn("追跡中のパスを git で引けない", text)
+        launch = self.scan_mod.plan(self.repo, got, which=lambda name: "/bin/gh")
+        self.assertIn("追跡中のパスを git で引けない", launch.get("blocked", ""), launch)
+
     def test_github_repo_redacts_token(self):
         git(self.repo, "remote", "set-url", "origin", "https://user:SECRET@git.example.com/o/r.git")
         slug, why = self.scan_mod.github_repo(self.repo)
@@ -195,6 +230,14 @@ class TakeCase(Base):
 
     def take(self, reply):
         return self.take_mod.take(self.place, self.repo, reply)
+
+    def test_clean_on_a_stand_in_set_with_an_unmeasured_diff_is_refused(self):
+        """差分を測れず where で代えた集合（交差が在って役に回った）には、役が clean と返しても受け付けが拒む"""
+        self.scan(fake_gh([{"number": 7, "headRefOid": "f" * 40}], {"7": ["stats.py"]}), base="0" * 40)
+        got = self.take(NO_CONFLICTS)
+        self.assertFalse(got["ok"], got)
+        self.assertIn("差分を測れず where で代えた", got["reason"])
+        self.assertFalse((self.place / self.files.MATERIAL).exists())
 
     def test_check_no_post(self):
         t = self.take_mod

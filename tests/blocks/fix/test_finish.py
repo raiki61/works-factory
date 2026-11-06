@@ -299,6 +299,35 @@ class CollectCase(FinishPlace):
             out = self.finish()
             self.assertEqual((out["ok"], out["stop_reason"]), (True, ""))
 
+    def test_fallback_with_an_unreadable_join_stops_unrestored_and_names_why(self):
+        """join.json が読めないと、作業ツリーに当たったままの組が在るかを確かめられない。finish の落ちない出口は、止めの語を空で返さず
+        stopby.UNRESTORED で人に回し、読めなかった訳（例外の型）を tdd_refused.unread に載せる"""
+        import stopby
+        self.collect_place()
+        (self.place / "join.json").write_text("{broken", encoding="utf-8")
+        out = self.finish()
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["stop_reason"], stopby.UNRESTORED)
+        unread = "\n".join(out["tdd_refused"]["unread"])
+        self.assertIn("作業ツリーに当たったままの組が在るかもしれない", unread)
+        self.assertIn("ValueError", unread)
+
+    def test_fallback_keeps_stuck_groups_when_the_group_plan_is_unreadable(self):
+        """join.json に当たったままの組が読めて、組の控え（groups.json）が読めない時も、止めの語と当たったままの組の行（unit_ids と
+        unrestored）は返りに残り、組の控えを読めない訳が tdd_refused.unread に載る"""
+        import stopby
+        self.collect_place()
+        write(self.place / "join.json", {"par": True, "groups": [
+            {"group_id": "g1", "unit_ids": ["A"], "returned": False, "reason": self.board.UNRESTORED_HEAD, "unrestored": ["stats.py"]}],
+            "units": [{"unit_id": "A", "group_id": "g1", "status": "not_done", "reason": "x"}]})
+        (self.place / "groups.json").write_text("{broken", encoding="utf-8")
+        out = self.finish()
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["stop_reason"], stopby.UNRESTORED)
+        self.assertEqual([(g["group_id"], g["unit_ids"], g["returned"], g.get("unrestored")) for g in out["groups"]],
+                         [("g1", ["A"], False, ["stats.py"])])
+        self.assertIn("組の控えを読めない", "\n".join(out["tdd_refused"]["unread"]))
+
     def test_collect_returns_the_contract_when_lib_cannot_be_read(self):
         """lib が読めない run でも、finish は落ちずに約束の形の ok: false を返す（標準ライブラリだけの最後の手）"""
         self.collect_place()

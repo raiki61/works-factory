@@ -1,7 +1,7 @@
 """theme の block の place のファイルの名と、周の番号（docs/design/theme.md の 1.3）。名はこのモジュールだけが持つ。
 
 place の直下: current-round.json（{round}）・theme-writer-prompt-<n>.md・theme-writer-fix-prompt-<n>.md（prompt.emit）。
-周のフォルダ r<k>/（k は往復の記録の往復の数 + 1）の中:
+周のフォルダ r<k>/（k は往復の記録の往復の数 + 1。空なら 1。空でないのに読めなければ、在る周のフォルダの一番大きい番号 + 1）の中:
 
 - intake.json: port を読んだ値（テーマの md と方針の写しのパス・答えの行・記録された方針の行・世界の解の行・起点の版・言語）と {due, reason}
 - prior.json・prior-design.json: 往復の記録と前の周の設計の案の写し（渡された時だけ）
@@ -74,12 +74,19 @@ def folder(place) -> pathlib.Path:
     return round_dir(place, round_no(place))
 
 
-def next_round(raw_prior) -> int:
-    """port prior の値から今の周の番号（往復の記録の往復の数 + 1）。空・読めなければ 1（読めない訳は intake が拾う）"""
+def highest_round(place) -> int:
+    """place に在る周のフォルダ r<n> の一番大きい n（無ければ 0）"""
+    nums = [int(p.name[1:]) for p in pathlib.Path(place).glob("r*") if p.is_dir() and p.name[1:].isdigit()]
+    return max(nums, default=0)
+
+
+def next_round(place, raw_prior) -> int:
+    """port prior の値から今の周の番号。読めれば往復の数 + 1、空なら 1。空でないのに読めない時は、在る周のフォルダの一番大きい番号 + 1
+    （前の周のフォルダを開き直して、控えと pointer の先のファイルを消さない。読めない訳は steps.intake が due 偽と訳で拾う）"""
     if not ports.text(raw_prior).strip():
         return 1
     try:
         doc = ports.json(raw_prior, "shared:plan-converge.schema.json")
-    except (ValueError, OSError):
-        return 1
-    return len(doc.get("passes") or []) + 1
+        return len(doc.get("passes") or []) + 1
+    except (ValueError, KeyError, TypeError, OSError, ImportError):   # lib（形の照らし）が読めない入口の fallback も同じ式で決める
+        return highest_round(place) + 1
