@@ -72,6 +72,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしはこの尾を外す）
 - push_rec(text): 項目の推しの尾の読み戻し（その無人の方針の読み row_push は line の src/。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
+- item_draft(text, node): 承認ノードの項目の文の答えの下書き（文の末尾の推しの尾を push_rec で読み戻せればその推しが答え。読めなければ text は空で、文の世界の解・狭めない案の尾と文に書かれた推しを note に置く）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
 - spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
@@ -257,6 +258,8 @@ QUOTE_NOTE = ("（引用の中の continue --note <…> は元の graphloops の
 HAPPENED, DECIDE, PUSH = "起きたこと: ", "決めてほしいこと: ", "推し: "
 # 推しは機械が作らない: 判定の役が問いの reason に書いた推しだけを拾い、無ければこの言い方（ask_text の項目と同じ）
 NO_PUSH = "判定の役が書いていない"
+# 構造の目の行に chosen（採った案）が無い時、設計の行の文が「／推し: 」の後ろに置く字（line の gates.design_items が書く。推しでない）
+NO_CHOSEN = "構造の目が書いていない"
 PUSH_IN = re.compile(r"推し\s*[:：]\s*([^／\n]+)")
 PUSH_AT = re.compile(r"(?=推し\s*[:：])")   # 推しの頭の前（reason_push が最後の推しから読む）
 PUSH_TAIL = re.compile(r"／推し: [^／\n]*$")   # 関所の項目の末尾の推しの尾（_push が付ける形）
@@ -321,8 +324,10 @@ def eye_named(name: str, status) -> str:
 
 
 def _text_pushes(t) -> list:
-    """1 つの文に判定の役が書いた推し（PUSH_IN の当たり。NO_PUSH と空は推しでない。機械は推しを作らない）"""
-    return [m.strip() for m in PUSH_IN.findall(str(t or "")) if m.strip() and m.strip() != NO_PUSH]
+    """1 つの文に判定の役が書いた推し（PUSH_IN の当たり。NO_PUSH・NO_CHOSEN（採った案が無い設計の行の字）と空は推しでない。
+    機械は推しを作らない）"""
+    return [m.strip() for m in PUSH_IN.findall(str(t or ""))
+            if m.strip() and m.strip() != NO_PUSH and not m.strip().startswith(NO_CHOSEN)]
 
 
 def pushes(texts) -> str:
@@ -514,6 +519,19 @@ def _no_narrow(mark: dict) -> str:
     """人に回す行の尾: 役が狭めない案の欄を書いた行だけに、その文を付ける"""
     got = str(mark.get(NO_NARROW) or "").strip()
     return f"（狭めない案: {got}）" if got else ""
+
+
+# _world・_no_narrow が付けた尾の読み戻し（尾の並びは世界の解・狭めない案・人に聞く訳・推しの尾。値の終わりは次の尾の頭か文の終わり）
+_WORLD_TAIL = re.compile(r"（世界の解: (.*?)）(?=（狭めない案: |（人に聞く訳: |／" + re.escape(PUSH) + r"|$)", re.S)
+_NO_NARROW_TAIL = re.compile(r"（狭めない案: (.*?)）(?=（人に聞く訳: |／" + re.escape(PUSH) + r"|$)", re.S)
+_WORLD_UNSAID = "役が書いていない"   # _world が欄の無い行に置く字（値として読まない）
+
+
+def _tail_values(text) -> list:
+    """項目の文に _world・_no_narrow が付けた尾の値を [("狭めない案", 値), ("世界の解", 値)] で読み戻す（無い・空・置き字は除く）"""
+    t = str(text or "")
+    found = [("狭めない案", _NO_NARROW_TAIL.findall(t)), ("世界の解", _WORLD_TAIL.findall(t))]
+    return [(name, got[-1].strip()) for name, got in found if got and got[-1].strip() and got[-1].strip() != _WORLD_UNSAID]
 
 
 def recommend_of(mark: dict):
@@ -1001,20 +1019,39 @@ def _draft(question: str, text: str, source: str, note: str = "") -> dict:
     return carry.draft({"question": question, "text": text}, source, note)
 
 
+NO_TAIL_NOTE = "通す・止めるの推しの尾が無いので答えにしない。項目の文に書かれた推し・世界の解・狭めない案を見て人が答えを text に書く"
+SHORT_TAIL_NOTE = ("推しの尾の形は読めたが、note か why が " + str(RECOMMEND_MIN) + " 字に満たず推しとして読めないので答えにしない。"
+                   "項目の文に書かれた推し・世界の解・狭めない案を見て人が答えを text に書く")
+
+
+def _unpushed_draft(text: str, node: str, short_tail: bool) -> dict:
+    """推しの読めない項目の下書き（推しの無い行の下書きを知る唯一の所）: text は空（機械は文から推しを作らない）。note には文の
+    世界の解・狭めない案の尾（_world・_no_narrow の形）を読み戻し、文に書かれた推し（報告と同じ PUSH_IN の読み）を名指す。
+    short_tail は尾の形は読めたが欄が RECOMMEND_MIN 字に満たなかった時（尾が元から無い文と言い分ける）"""
+    said = _text_pushes(text)
+    note = ((SHORT_TAIL_NOTE if short_tail else NO_TAIL_NOTE) + "".join(f"——{name}: {value}" for name, value in _tail_values(text))
+            + (f"——文に書かれた推し: {'；'.join(dict.fromkeys(said))}" if said else ""))
+    return _draft(text, "", f"{named(node)}の行（{'推しの尾が崩れている' if short_tail else '推しの尾が無い'}）", note)
+
+
 def _gate_draft(text: str, mark: dict, node: str) -> dict:
-    """関所の項目 1 つの下書き: 推し（recommend）が在ればその答え、無ければ text を空にし、狭めない案・世界の解を note に置く
-    （人が答えを書く材料）"""
-    who = named(node)
+    """関所の項目 1 つの下書き: 渡された mark の推し（recommend）が在ればその答え、無ければ推しの読めない項目の下書き"""
     rec = recommend_of(mark)
-    if rec is not None:
-        answer, note, why = (rec[k] for k in RECOMMEND_KEYS)
-        return _draft(text, f"{answer}: {_squeeze(note)}（推す理由: {_squeeze(why)}）", f"{who}の行の {RECOMMEND}")
-    parts = [(NO_NARROW, "狭めない案", mark.get(NO_NARROW)), ("world", "世界の解", mark.get("world"))]
-    parts = [(k, w, _squeeze(v)) for k, w, v in parts if _squeeze(v)]
-    if parts:
-        return _draft(text, "", f"{who}の行の {'・'.join(k for k, _, _ in parts)}",
-                      "推しを役が書いていない。下の案から人が答えを text に書く: " + "／".join(f"{w}: {v}" for _, w, v in parts))
-    return _draft(text, "", f"{who}の行（決め手の欄が無い）", "推しも狭めない案も世界の解も役が書いていない——人が答えを text に書く")
+    if rec is None:
+        return _unpushed_draft(text, node, short_tail=False)
+    answer, note, why = (rec[k] for k in RECOMMEND_KEYS)
+    return _draft(text, f"{answer}: {_squeeze(note)}（推す理由: {_squeeze(why)}）", f"{named(node)}の行の {RECOMMEND}")
+
+
+def item_draft(text: str, node: str) -> dict:
+    """承認ノードの項目の文の答えの下書き。文の末尾の推しの尾（_push の形）を push_rec で読み戻せれば、その推しが答え。読めない文は
+    text を空にし、世界の解・狭めない案の尾と文に書かれた推しを note に置く。尾の形でも note・why が RECOMMEND_MIN 字に満たなければ
+    推しの尾として読まず、尾が崩れていると note に言う。question は尾を含む文の全体のまま（次の依頼の答えは文の全文一致で項目に当たる）"""
+    rec = push_rec(text)
+    mark = {RECOMMEND: {k: rec[k] for k in RECOMMEND_KEYS}} if rec is not None else {}
+    if rec is not None and recommend_of(mark) is None:
+        return _unpushed_draft(text, node, short_tail=True)
+    return _gate_draft(text, mark, node)
 
 
 def answer_key(b, q) -> str:

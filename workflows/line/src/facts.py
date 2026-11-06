@@ -1017,7 +1017,7 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
         deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
         asked = [q for q in deferred if q not in ledger_texts] + asked
     asked += means_questions(returns, gates)
-    out += [gatemarks._gate_draft(q, {}, gatemarks.GATE_NODE) for q in asked if q.strip()]
+    out += [gatemarks.item_draft(q, gatemarks.GATE_NODE) for q in asked if q.strip()]
     for q in held:
         key = gatemarks.answer_key(b, q)
         push = gatemarks.reason_push(q)

@@ -3,9 +3,11 @@
 元は test_runreport.py の DraftsCase（元 runreport.answer_drafts。その前は lib/tests/test_gate_drafts.py の DraftsCase。
 docs/design/README.md の 9.5）。新しい形では下書きの材料を、承認し直すかの問い（spec_check の questions）・独立の目 R4 の問い・
 無人の run で修正前の承認ノードが通さなかった時の載せなかった台帳の問い（ask_before_fix の deferred）・保留の台帳の問い・問いの
-立っていない測れていない素材の 5 つから組む。修正案の狭める行と事前審査の穴の推しを読む元の下書き（元 test_recommend_of_the_narrow_
-becomes_the_answer・test_no_narrow_and_face_rows_give_their_marks・test_world_deviation_drafted_once）は、承認ノードの項目を line の
-gates.before_fix が組むようになって下書きの材料から外れたので写さない（推しで抜けるかは test_gate_drafts.py）。
+立っていない測れていない素材の 5 つから組む。承認ノードの項目の文は、末尾の推しの尾（_push の形）だけを gatemarks.item_draft で
+読み戻して答えにする（test_gate_item_push_tail_becomes_the_draft_answer）。尾の無い項目は text が空で、文に書かれた推しと、文の
+世界の解・狭めない案の尾（gates が付けた物を item_draft が読み戻す）を note に置き、人が答えを書く
+（test_gate_item_without_push_tail_keeps_what_its_text_says。元 test_no_narrow_and_face_rows_give_their_marks の働き）。
+推しで抜けるかは test_gate_drafts.py。
 """
 import json
 import unittest
@@ -100,6 +102,58 @@ class AnswerDraftsCase(unittest.TestCase):
                              gates={"gate-before-fix": None}, unattended=True)
         self.assertEqual([d["question"] for d in drafts], items, drafts)
         self.assertTrue(all(d["draft"] is True and d["source"] for d in drafts), drafts)
+
+    def stopped_gate(self, rounds, **kw) -> dict:
+        """無人の run で止まった修正前の承認ノードの出力のうち、下書きの材料（ask_before_fix の値）"""
+        gates = kit.load(BLOCK, "gates")
+        got = gates.before_fix(rounds, unattended_run=True, design=False, **kw)
+        self.assertEqual((got["open"], got["go"]), (False, False), got)
+        return {k: got[k] for k in ("deferred", "asked")}
+
+    def test_gate_item_push_tail_becomes_the_draft_answer(self):
+        """推しの尾を持つ項目（頼みの解き方の行）の下書きは、尾の推しが答え。推しの尾の無い穴の行は text が空。尾の在る項目は
+        承認ノードの抜け方が読む答え（gates.row_push）と下書きの頭の答えが一致する"""
+        gates = kit.load(BLOCK, "gates")
+        rec = {"answer": "continue", "note": "空の列は 0 を返す形で通す", "why": "呼び手が 0 を前提に書かれている"}
+        means = {"source": self.gm.MEANS_KIND, "item": 1, "why": [self.gm.MEANS_WHY],
+                 "mark": {"decided_by": "リポジトリの決まりが別の層に置く", "recommend": rec},
+                 "text": "修正案 1 は頼みの解き方 M1「分母を直す」に従うが、独立設計と食い違う——別の層に置く"}
+        rounds = {"ok": True, "status": "ok", "round": 1, "deviations": [means],
+                  "asks": [{"kind": "regression", "text": "狭めるか", "decided": False}]}
+        ask_before_fix = self.stopped_gate(rounds)
+        drafts = self.drafts(values={"ask_before_fix": ask_before_fix}, gates={"gate-before-fix": None}, unattended=True)
+        by_question = {d["question"]: d for d in drafts}
+        tail_item = next(q for q in by_question if gates.row_push(q) is not None)
+        pushed = by_question[tail_item]
+        self.assertEqual(pushed["text"], "continue: 空の列は 0 を返す形で通す（推す理由: 呼び手が 0 を前提に書かれている）")
+        self.assertTrue(pushed["text"].startswith(gates.row_push(tail_item).rec["answer"]))
+        self.assertIn("recommend", pushed["source"])
+        bare = by_question["狭めるか"]
+        self.assertEqual(bare["text"], "")
+
+    def test_gate_item_without_push_tail_keeps_what_its_text_says(self):
+        """推しの尾（_push の形）を持たない項目は text が空で、機械は推しを作らない。構造の目の設計の行は文に書かれた推し（chosen）を
+        note が名指し、世界の解・狭めない案の尾つきの穴の行も「推しも狭めない案も世界の解も役が書いていない」とは言わない"""
+        gates = kit.load(BLOCK, "gates")
+        rounds = {"ok": True, "status": "ok", "round": 1, "deviations": [],
+                  "asks": [{"kind": "regression", "text": "狭めるか", "decided": False,
+                            "mark": {"decided_by": "x", "world": "W", "no_narrow": "N"}}]}
+        design = [{"route": gates.structmark.ROUTE_UP, "unit_id": "u1", "undecided_because": "2 つの形が割れる", "chosen": "案Zを採る"},
+                  {"route": gates.structmark.ROUTE_UP, "unit_id": "u2", "undecided_because": "採る案を書いていない"}]
+        ask_before_fix = self.stopped_gate(rounds, design_rows_=design)
+        drafts = self.drafts(values={"ask_before_fix": ask_before_fix}, gates={"gate-before-fix": None}, unattended=True)
+        self.assertEqual(len(drafts), 3, drafts)
+        for d in drafts:
+            with self.subTest(question=d["question"]):
+                self.assertEqual(d["text"], "")
+                self.assertNotIn("役が書いていない", d["note"])
+        design_draft = next(d for d in drafts if d["question"].startswith(self.gm.DESIGN_HEAD))
+        self.assertIn("案Zを採る", design_draft["note"])
+        hole = next(d for d in drafts if "狭めるか" in d["question"])
+        self.assertIn("世界の解: W", hole["note"])
+        self.assertIn("狭めない案: N", hole["note"])
+        no_chosen = next(d for d in drafts if "u2" in d["question"])
+        self.assertNotIn("文に書かれた推し:", no_chosen["note"])
 
     def test_attended_or_passed_gate_gets_no_gate_item_drafts(self):
         """元 test_attended_run_gets_no_gate_item_drafts: 人の居る run と、修正前の承認ノードを通した（approve・continue）無人の run は、
