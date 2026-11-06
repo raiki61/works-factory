@@ -29,5 +29,7 @@ You are one of the independent eyes (R3 overall coherence), started in a new con
 
 {shared:eye-recorded-policy}
 
+{shared:reply-types}
+
 Write `reason`, `seen`, and `unseen` in {lang}. Keep `status`, identifiers, paths, commands, and quoted text as they are.
 Return only JSON that matches this node's output schema (JSON Schema).

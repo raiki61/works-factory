@@ -40,6 +40,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。
   - `resubmit`: 拒まれた後に、同じ会話の続きで拒まれた欄だけを返させる役の指示（中の口 `{rejection}`・`{candidate}`）。
   - `handoff`: 引き継ぎのメモの頼みと前の周のメモのセクション（中の口 `{handoff_rounds}`。段落 `handoff_rounds` の真偽が要る。報告の書き手と、plan の書き手が使う）。
+  - `reply-types`: 返答の各欄を、この node の出力の形（JSON Schema）が宣言する JSON の型で返させ、JSON を字に包ませない 1 段落。どの欄がどの型かは書かず、中の口も段落の印も持たない。r3-coherence・r4-scope・plan-writer・報告の block の `write` の md と、断片 `material-status` が差し込む。
   - `recorded-policy`: 記録された方針（人か持ち主が決めた出どころの決まりと名指しの行。中の口 `{recorded_rows}`。段落 `recorded_none` の真偽が要る）。修正案の役が差し込む。目の外の block も使う（値は `lib/eyekit.py` の `recorded_rows_text` が組む）。
   - `prior-failures`: 前の run で最後まで通らなかった物の行（中の口 `{prior_notes}`・`{prior_redesign}`。段落 `prior_notes`・`prior_redesign` の真偽が要る）。
   - `unknown-asks`: 頭の深さの、依頼の行ごとの未知の種類と、種類ごとにすること（中の口 `{kind_none}`・`{kind_cause}`・`{kind_shape}`・`{kind_scope}`・`{unknown_rows}`・`{unknown_why}`。段落 `unknown_rows`・`unknown_none` の真偽が要る）。
@@ -60,7 +61,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
     - `g1-review`: 審査役の指示（中の口 `{template}`。段落 `spawns` の真偽が要る。中で `brief-reading`・`query-rule`・`sandbox-shell` を差し込む）。
     - `g1-scene`・`g1-rest`（中の口 `{keys}`）・`g1-report`・`g1-impl-report`・`g1-head-sha`: 借りた型の穴を埋める短い字。
     - `seat-briefs`: 直す義務の単位の brief を名指すファイル（中身は `{shared:brief-head}` の 1 行）。
-  - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
+  - 素材の観点の族（docs/design/materials.md の 3.2）: `material-status`（中で `reply-types` を差し込む）・`material-na`（段落 `na_never`・`na_cond_true`・`na_cond_false`・`na_judged`、中の口 `{na_why}`）・`material-where`・`material-readonly`。
   - 目の外の block も使う物（docs/design/r1.md の 0.6）: `axis`（判断の 1 軸の 1 文）・`concept-map`（考えの住処の地図。段落 `maps_found` の真偽が要る。中は次の 2 本を選ぶだけ）・`concept-map-found`（中の口 `{concept_maps}`）・`concept-map-none`（中の口 `{map_tail}`）。値は `lib/eyekit.py` の `maps` が組む。`concept-map-found`・`concept-map-none` は段落の印を持たないので、段落の中に地図を置く md（r4 のまとめた形）はこの 2 本を自分の段落で選ぶ。
   - 独立の目の族（docs/design/r1.md の 0.6。r1〜r4 だけが使う。どれも段落の印を持たないので、段落の中に置ける）: `eye-role`（役の 2 行目と 3 行目）・`eye-diff`（累積差分の 1 段落。中の口 `{diff_file}`・`{base}`・`{changed_files}`・`{repo}`。値は `eyekit.diff_values`）・`eye-frozen`（読むのはこの run に固定した作業ツリー）・`eye-green`（最後のテストの認証が通っていない 1 文。md は `<!-- if not green -->` の中に置く）・`eye-seen`（seen と unseen・status の 3 語。中の口 `{st_pass}`・`{st_redesign}`・`{st_unverifiable}`）・`eye-coherence`（R3 の観点の全部。`axis`・`eye-seen` を中に持ち、中の口 `{home_prefix}`・`{after_section}`・`{review_md}`・`{repo_review_md}`。地図は持たない）・`eye-policy`（`policy` とこの役の書く先 reason。md は `<!-- if policy -->` の中に置く）・`eye-recorded-policy`（目の 1 文と `recorded-policy`。段落の外に置く）。
 - 取り置いた断片の名（まだ置かない。最初に要った PR が、この名で足す）: 今は無い。
