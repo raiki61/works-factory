@@ -29,7 +29,7 @@ RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
 CONTINUING = frozenset({"wake", "signal"})
 EXECUTING = frozenset({"run"}) | RESUMING | CONTINUING
 # run のノードが lib/ を探すリポジトリの根（workflows/.shared/ports.py の lib_root が読む名）
-ROOT_ENV = "WORKS_FACTORY_ROOT"
+ROOT_ENV = userenv.ROOT_ENV
 # 読むだけと分かった上の命令。ほか（trigger・chat・serve・殻の知らない命令）は AI を走らせうるので認証に通す
 READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）

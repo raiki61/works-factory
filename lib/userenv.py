@@ -1,4 +1,4 @@
-"""対象のコマンドに渡す、利用者の隔離の前の HOME・XDG の控え（#492）。層 L1（works の物を何も知らない）。標準ライブラリだけ。
+"""対象のコマンドの env で扱う、工場が置く変数の名と、利用者の隔離の前の HOME・XDG の控えの読み書き（#492）。層 L1（works の物を何も知らない）。標準ライブラリだけ。
 
 起動の殻（bin/_lib/isolate.py）は HOME・XDG を run の置き場へ向け、隔離の前の値をいつも RECORD に控える。tree_run.outside_env が
 対象のコマンド（tree_run.outside_env の env で起こすコマンド。数え上げは docs/design/ の「対象のコマンドの環境と準備」の節）の env にだけ戻す。
@@ -15,6 +15,8 @@
 - read_gh_first(env) -> None: 起動の殻が READ_GH_ENV で渡した読むだけの gh の置き場を env の PATH の頭に置く（無ければ何もしない）。
   script のノードの PATH の頭は利用者のログインを継ぐ書ける gh の口なので、対象のコマンド（AI が書いた試験のコードも走る）には
   役と同じ読むだけの口を先に見せる（持ち主の決め roles-read-only-gh。事故の柵で、堅い境ではない）
+- ROOT_ENV: 起動の殻が script のノードに渡す工場の根の名。ports が import の時にこの値の先の lib/ を sys.path に足すので、対象のコマンドには
+  継がない（tree_run.outside_env が外す）
 """
 import json
 import os
@@ -26,6 +28,7 @@ RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"
 RAN_FILE = "user-env-ran"
 MARK = "WORKS_FACTORY_USER_ENV_MARK"   # 戻した env にだけ在る、印のパス。子には渡さない
 READ_GH_ENV = "WORKS_FACTORY_READ_GH"   # 読むだけの gh の置き場（起動の殻が置く）
+ROOT_ENV = "WORKS_FACTORY_ROOT"   # 起動の殻が script のノードに渡す工場の根。ports が import の時にこの値の先の lib/ を sys.path に足すので、対象のコマンドには継がない
 CONTROL = (RECORD, RAN_DIR_ENV, MARK)   # 工場が置く制御の変数。継いだ値は起動の殻（bin/_lib/isolate.py）と restore が外す
 NOTE = "AI が書いた試験のコードを、あなたの HOME・XDG（設定・認証の置き場）で走らせた。毎回の決まりで、あなたの操作は要らない"
 
