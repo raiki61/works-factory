@@ -116,11 +116,14 @@ def outside_env(environ):
       RECORD が在れば中の値に戻して、印のパスを MARK に置く（userenv.restore。印を置くのは、この写しで子を起こす側が起こす
       直前。RECORD の形が違う・RAN_DIR_ENV が無ければ ValueError）。戻すのはこの写しだけで、実行基盤・役・script 自身は隔離の
       まま（この写しで起こす対象のコマンドの子を除く。数え上げは docs/design/ の「対象のコマンドの環境と準備」の節）
+    - userenv.ROOT_ENV（工場の根）はいつも外す。ports が import の時にこの値の先の lib/ を sys.path に足すので、渡すと対象の試験
+      （工場自身が対象の時）が作業ツリーでない取り置いた lib を読み、偽の赤・偽の緑になる。工場の script・役には run の設定の層のまま届く
     実行基盤は script の節を `uv run <ファイル>` で起こし、uv は PATH の頭に自分の python の bin を足し、VIRTUAL_ENV・
     UV_RUN_RECURSION_DEPTH を立てる。そのまま渡すと `python3 -m <試験の実行器>` が uv の python を掴んで偽の赤になる。
     限界: 節に deps: を足すと uv は --with の層の bin も足し、それは外れない（今の節は deps を持たない）"""
     env = dict(environ)
     userenv.restore(env)
+    env.pop(userenv.ROOT_ENV, None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env.pop("UV_NO_CONFIG", None)
     if env.pop("UV_RUN_RECURSION_DEPTH", None) is not None:

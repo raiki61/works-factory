@@ -15,6 +15,7 @@
 - pack の中に __pycache__ を作らない（試験が持つ写しの pack で見る）
 孫の生死はプロセスグループ（コマンドの sh の pid と同じ番号）が空かで見る。グループの外へ出た孫は、孫が書いた pid で見る。
 """
+import ast
 import itertools
 import json
 import os
@@ -560,6 +561,40 @@ class OutsideEnvCase(unittest.TestCase):
         src = {"UV_RUN_RECURSION_DEPTH": "1", "PATH": ""}
         tree_run.outside_env(src)
         self.assertEqual(src, {"UV_RUN_RECURSION_DEPTH": "1", "PATH": ""})
+
+    def test_factory_root_is_not_inherited(self):
+        """工場の根（userenv.ROOT_ENV）は対象のコマンドの env に残さない。ports が import の時にこの値の先の lib を sys.path に足すので、
+        渡すと対象の試験が作業ツリーでない lib を読む。渡した写しは変えない"""
+        given = hermetic.child_env(**{userenv.ROOT_ENV: "/x"})
+        before = dict(given)
+        env = tree_run.outside_env(given)
+        self.assertNotIn(userenv.ROOT_ENV, set(env))
+        self.assertEqual(given, before)
+
+    @staticmethod
+    def assigned_in(path, name):
+        """path の module の頭の `name = ...` の右辺の木（import しない）"""
+        tree = ast.parse(pathlib.Path(path).read_text(encoding="utf-8"))
+        values = [n.value for n in tree.body if isinstance(n, ast.Assign)
+                  for t in n.targets if isinstance(t, ast.Name) and t.id == name]
+        assert len(values) == 1, (path, name, len(values))
+        return values[0]
+
+    def test_factory_root_name_matches_launcher_and_ports(self):
+        """outside_env が外す名 userenv.ROOT_ENV は、ports.py の ROOT_ENV の字と同じで、launcher.py の ROOT_ENV は userenv.ROOT_ENV の参照"""
+        ports = self.assigned_in(hermetic.PORTS, "ROOT_ENV")
+        self.assertEqual(ast.literal_eval(ports), userenv.ROOT_ENV)
+        launcher = self.assigned_in(LIB.parent / "bin" / "_lib" / "launcher.py", "ROOT_ENV")
+        self.assertEqual(ast.unparse(launcher), "userenv.ROOT_ENV")
+
+    def test_factory_root_does_not_reach_the_started_child(self):
+        """outside_env の env で tree_run.run が起こした子のプロセスに、工場の根が届かない"""
+        env = tree_run.outside_env(hermetic.child_env(**{userenv.ROOT_ENV: "/x"}))
+        with tempfile.TemporaryDirectory() as top:
+            seen = pathlib.Path(top) / "seen"
+            rc = tree_run.run([sys.executable, "-c",
+                               f"import os; open({str(seen)!r}, 'w').write(os.environ.get({userenv.ROOT_ENV!r}, ''))"], env=env)
+            self.assertEqual((rc, seen.read_text(encoding="utf-8")), (0, ""))
 
     def test_user_record_restores_home_and_xdg(self):
         """起動の殻の控え（userenv.RECORD）は外し、値の在る名は戻し null の名は外す。uv run の中でも外でも同じ"""
