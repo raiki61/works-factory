@@ -553,6 +553,13 @@ def _frozen_rows(record_file, repo, allowed, since, skip_spans) -> list:
             line = _def_line(_tree_text(repo, base, path), name)
             if line:
                 scope.setdefault(path, []).append((line, line, True))   # def の行の 1 行の指し（関数の幅に広がる）
+    frozen_by = st.get("frozen_by") or {}
+
+    def by(f) -> str:
+        """そのファイルを赤の段で申告した単位の句（記録に由来が無い古い記録・手で組んだ記録は空）"""
+        keys = frozen_by.get(f) or []
+        return f"単位 {', '.join(keys)} の赤の段で test_files に申告して凍った" if keys else ""
+
     out = []
     for f in moved:
         spans = scope.get(f)
@@ -564,13 +571,13 @@ def _frozen_rows(record_file, repo, allowed, since, skip_spans) -> list:
             if not any(_same_code(was, lines) for lines in pruned):
                 bad = min([_hunks_outside(repo, base, f, []), *(_hunks_outside(repo, base, f, [], new=lines) for lines in pruned)],
                           key=len)
-                out.append((f, f"TDD のループで凍ったテストのファイルを書き換えた: {[f]}（ループで直した単位のテストは変えない）", bad))
+                out.append((f, f"TDD のループで凍ったテストのファイルを書き換えた: {[f]}（{by(f) + '。' if by(f) else ''}ループで直した単位のテストは変えない）", bad))
             continue
         # 足した物を除いた中身のどれか（と今どおりの中身）で範囲の外の塊が無ければ通す。並べるのは一番少ない物
         bad = min([_hunks_outside(repo, base, f, spans), *(_hunks_outside(repo, base, f, spans, new=lines) for lines in pruned)],
                   key=len)
         if bad:
-            out.append((f, f"TDD のループで凍ったテストのファイル {f} を、テストの変更の許し（修正案の rewrite_tests の名指しまたは裁定 "
+            out.append((f, f"TDD のループで凍ったテストのファイル {f}{f'（{by(f)}）' if by(f) else ''} を、テストの変更の許し（修正案の rewrite_tests の名指しまたは裁定 "
                            f"fix_test_scope）の範囲の外で書き換えた: 旧い行 {', '.join(bad)}"
                            "（範囲に並べた行だけ直してよい。.py の 1 行の指しはその行を含む関数の全体）", bad))
     return out

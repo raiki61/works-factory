@@ -680,6 +680,28 @@ class TestUnitLoop(LoopCase):
         self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
         self.assertTrue(common.frozen_problems(self.record, self.repo), "輪の後の修正役がテストを変えたら拒む")
 
+    def test_fix_rejection_names_red_declaration(self):
+        self.route()
+        self.red()
+        self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 6")
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "期待値を今の出力に合わせた"})
+        self.assertFalse(got["ok"], got)
+        reason = got.get("reason", "")
+        for want in (MEAN, "赤の段で test_files に申告して凍っている", "test_stats.py"):
+            self.assertIn(want, reason)
+
+    def test_loop_frozen_names_declaring_unit(self):
+        self.route()
+        self.red()
+        self.fix_mean()
+        self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
+        for allowed in ((), ("test_stats.py:1",)):
+            with self.subTest(allowed=allowed):
+                got = common.frozen_problems(self.record, self.repo, allowed)
+                self.assertTrue(got)
+                for line in got:
+                    self.assertIn(f"単位 {MEAN} の赤の段で test_files に申告して凍った", line)
+
     def test_refactor_rechecked(self):
         self.route()
         self.red()
@@ -1493,40 +1515,46 @@ class TestTestFileIdentity(Case):
 
     def test_split_claims_keeps_named_and_convention(self):
         """申告の仕分けは、慣習に外れた名でも名指しの id のパス・約束の受け入れと書き換えのパス、名の慣習、テストのフォルダの下の補助を
-        テストのファイルとして残し、どれにも当たらないコードのファイルだけを仮の実装に回す"""
+        テストのファイルとして残し、どれにも当たらないコードのファイルだけを仮の実装に回す。出どころ places には申告の全部を渡し
+        （helper.go だけ除く）、各ファイルを残す理由がその条件の 1 つだけになるようにする（条件を 1 つ外すとその行が仮の実装に回る）"""
         self.assertTrue(hasattr(tdd, "_split_claims"), "tdd に _split_claims が無い")
-        st = {"units": {}, "contract": {"u1": {"tests": [{"id": "b/verify.kt::Verify::adds"}], "rewrites": ["c/legacy.rb::old"]}}}
-        claims = ["checks.go", "b/verify.kt", "c/legacy.rb", "x_test.py", "tests/helpers.py", "stats.py", "helper.go"]
+        st = {"units": {"u0": {"test_files": ["prev/earlier.rb"]}},
+              "contract": {"u1": {"tests": [{"id": "b/verify.kt::Verify::adds"}], "rewrites": ["c/legacy.rb::old"]}}}
+        claims = ["checks.go", "b/verify.kt", "c/legacy.rb", "prev/earlier.rb", "x_test.py", "tests/helpers.py", "notes.json",
+                  "stats.py", "helper.go"]
         self.assertIn("places", inspect.signature(tdd._split_claims).parameters, "_split_claims に仮の実装の出どころ places が無い")
-        kept, stubs, declared = tdd._split_claims(st, claims, ["checks.go::Check::adds"], {"stats.py"})
-        self.assertEqual(sorted(kept), ["b/verify.kt", "c/legacy.rb", "checks.go", "helper.go", "tests/helpers.py", "x_test.py"])
+        kept, stubs, declared = tdd._split_claims(st, claims, ["checks.go::Check::adds"], set(claims) - {"helper.go"})
+        self.assertEqual(sorted(kept), ["b/verify.kt", "c/legacy.rb", "checks.go", "helper.go", "notes.json", "prev/earlier.rb",
+                                        "tests/helpers.py", "x_test.py"])
         self.assertEqual(sorted(stubs), ["stats.py"])
-        self.assertTrue({"checks.go", "b/verify.kt", "c/legacy.rb"} <= set(declared), "名指しのパスも宣言の組に入る")
+        self.assertTrue({"checks.go", "b/verify.kt", "c/legacy.rb", "prev/earlier.rb"} <= set(declared), "名指し・約束・前の単位のパスも宣言の組に入る")
 
     def test_split_claims_keeps_declared_test_data(self):
-        """テストのフォルダの外に置いたテストのデータや期待値は、申告すれば残り（凍る対象のまま）、仮の実装には回らない"""
+        """テストのフォルダの外に置いたテストのデータや期待値は、申告すれば残り（凍る対象のまま）、仮の実装には回らない。出どころ places には
+        申告の全部を渡し、コードの拡張子でも試験のデータの置き場の下なら残り、置き場の外でもコードでない物は残る（条件が 1 つずつ効く）"""
         self.assertTrue(hasattr(tdd, "_split_claims"), "tdd に _split_claims が無い")
         data = ["__snapshots__/x.snap", "expected.json", "golden/out.golden", "testdata/input", "testdata/case.txt",
-                "testdata/expected.go"]
+                "testdata/expected.go", "fixtures/expected_out.py"]
+        claims = [*data, "stats.py"]
         self.assertIn("places", inspect.signature(tdd._split_claims).parameters, "_split_claims に仮の実装の出どころ places が無い")
-        kept, stubs, _ = tdd._split_claims({"units": {}, "contract": {}}, [*data, "stats.py"], ["test_stats.py::TestStats::test_a"],
-                                           {"stats.py", "testdata/expected.go"})   # 単位の頭に在っても、データの置き場の下は凍る側
+        kept, stubs, _ = tdd._split_claims({"units": {}, "contract": {}}, claims, ["test_stats.py::TestStats::test_a"],
+                                           set(claims))   # 出どころに在っても、データの置き場の下とコードでない物は凍る側
         self.assertEqual(sorted(kept), sorted(data))
         self.assertEqual(sorted(stubs), ["stats.py"])
 
 
 class TestDeclaredStubNotFrozen(LoopCase):
-    """赤の段でまだ無い名の仮の実装のファイルを test_files に申告しても、単位の始めに在ったコードのファイルへの足しなので凍らない:
-    仮の実装として stub_files に残り、同じ単位の直しの段でも後の単位でも本物に置き換えられる。新しく作ったコードは、
-    修正案が作ると名指していなければ申告すると凍る（TestClaimOrigin）"""
+    """申告しない仮の実装は記録だけされ、同じ単位の直しの段でも後の単位でも本物に置き換えられ、ループの後の凍結に入らない。
+    単位の始めに在ったファイルは申告すれば必ず凍る（TestExistingClaimFrozen）"""
 
     def declare_stub_red(self, mean="tdd", clamp="direct"):
-        """まだ無い average を読むテストを足し、仮の実装 average を stats.py に足して、両方を test_files に申告して赤を通す"""
+        """まだ無い average を読むテストを足し、仮の実装 average を stats.py に足して（stats.py は申告せず）、test_stats.py だけを
+        test_files に申告して赤を通す"""
         self.route(mean=mean, clamp=clamp)
         self.edit("test_stats.py", "from stats import clamp, mean", "from stats import average, clamp, mean")
         self.add_test("\n    def test_mean_of_two(self):\n        self.assertEqual(average([2, 4]), 3)\n")
         self.edit("stats.py", "def clamp(", "def average(xs):\n    return 0\n\n\ndef clamp(")
-        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "stats.py"], "tests": [MEAN_ID]})
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [MEAN_ID]})
         self.assertTrue(got["ok"], got)
         return got
 
@@ -1569,9 +1597,97 @@ class TestDeclaredStubNotFrozen(LoopCase):
         self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
 
 
+class TestExistingClaimFrozen(LoopCase):
+    """単位の始めに在ったファイルは、赤の段で test_files に申告すれば、名・置き場・編集の形（行を足す・置き換える・消す）に依らず
+    凍る: test_files と test_hashes に入り、stub_files には入らず、同じ単位の直しの段でも後の単位の赤の段でも書き換えを拒まれる"""
+    DATA = "test_data/expected_out.py"
+    CLAMP_TEST = "\n    def test_clamp_just_above(self):\n        self.assertEqual(clamp(11, 0, 10), 10)\n"
+    CLAMP_ID = "test_stats.py::TestStats::test_clamp_just_above"
+    READS_DATA = ("\n    def test_mean_of_two(self):\n"
+                  "        want = int((pathlib.Path(__file__).parent / 'test_data' / 'expected_out.py').read_text())\n"
+                  "        self.assertEqual(mean([2, 4]), want)\n")
+
+    def place(self, name, text):
+        """単位の頭に入る前に、慣習外の置き場のファイルを置いて commit し、輪を起こし直す"""
+        p = self.repo / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+        git(self.repo, "add", name)
+        git(self.repo, "commit", "-qm", name)
+        self.restart()
+
+    def reads_expected(self):
+        """test_data/expected_out.py の値を期待値に読む mean のテストを足す"""
+        self.edit("test_stats.py", "import unittest", "import pathlib\nimport unittest")
+        self.add_test(self.READS_DATA)
+
+    def test_existing_claims_frozen_by_table(self):
+        rows = [("stats.py", "add"), ("stats.py", "replace"),
+                (self.DATA, "add"), (self.DATA, "replace"), (self.DATA, "delete"),
+                ("Tests/AppTests/Helpers.swift", "add"), ("Tests/AppTests/Helpers.swift", "replace"),
+                ("Tests/AppTests/Helpers.swift", "delete"),
+                ("testutil/assert.go", "add"), ("testutil/assert.go", "replace"), ("testutil/assert.go", "delete")]
+        for name, shape in rows:
+            with self.subTest(name=name, shape=shape):
+                self.setUp()
+                if name != "stats.py":
+                    self.place(name, "one\ntwo\n")
+                self.route()
+                self.add_test(NEW_TEST)
+                path = self.repo / name
+                if shape == "delete":
+                    path.unlink()
+                elif name == "stats.py":
+                    text = path.read_text(encoding="utf-8")
+                    path.write_text(text + "\n\ndef average(xs):\n    return 0\n" if shape == "add"
+                                    else text.replace("平均と範囲への切り詰め。", "平均と範囲。"), encoding="utf-8")
+                else:
+                    path.write_text("one\ntwo\nthree\n" if shape == "add" else "one\nTWO\n", encoding="utf-8")
+                got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", name], "tests": [MEAN_ID]})
+                self.assertTrue(got["ok"], got)
+                u = self.st()["units"][MEAN]
+                self.assertIn(name, u["test_files"])
+                self.assertIn(name, u["test_hashes"])
+                self.assertEqual(u["test_hashes"][name] is None, shape == "delete")
+                self.assertNotIn(name, u["stub_files"])
+
+    def test_same_unit_fix_rejected_on_existing_claim(self):
+        self.place(self.DATA, "6\n")   # 不具合の出力
+        self.route()
+        self.reads_expected()
+        (self.repo / self.DATA).write_text("3\n", encoding="utf-8")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", self.DATA], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        (self.repo / self.DATA).write_text("6\n", encoding="utf-8")   # 不具合の出力に合わせた書き換え
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": [self.DATA], "what": "期待値を今の出力に合わせた"})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("凍っている", got.get("reason", ""))
+        self.assertIn(self.DATA, got.get("reason", ""))
+
+    def test_later_unit_red_rejects_declared_existing_file(self):
+        self.place(self.DATA, "6\n")
+        self.route(clamp="tdd")
+        self.reads_expected()
+        (self.repo / self.DATA).write_text("3\n", encoding="utf-8")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", self.DATA], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        self.fix_mean()
+        if self.st()["phase"] == "refactor":
+            self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
+        self.assertEqual(self.st()["queue"][self.st()["cur"]], CLAMP)
+        self.add_test(self.CLAMP_TEST)
+        (self.repo / self.DATA).write_text("3\n\n", encoding="utf-8")   # 値は同じで、申告したファイルに触れる
+        got = self.step({"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [self.CLAMP_ID]})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("申告したテストのファイルの外のテストのファイル", got.get("reason", ""))
+        self.assertIn(self.DATA, got.get("reason", ""))
+
+
 class TestClaimOrigin(ContractCase):
-    """赤の段で申告したコードのファイルが仮の実装として凍結から外れるのは、単位の始めに在ったファイルか、承認済みの修正案が
-    新しく作ると名指したファイルで、試験のデータの置き場の外にある物だけ。新しく作ったコードの期待値や試験の補助は申告すれば凍る"""
+    """赤の段で申告したコードのファイルが仮の実装として凍結から外れるのは、承認済みの修正案が新しく作ると名指したファイルのうち、
+    単位の始めの木に無い物で、試験のデータの置き場の外にある物だけ。単位の始めに在ったファイルと、新しく作ったコードの期待値や
+    試験の補助は申告すれば凍る"""
+
     CONTRACT = {MEAN: {"items": [1], "route": "tdd", "rewrites": [], "refactor": [], "names": ["avg.py"],
                        "tests": [{"id": MEAN_ID, "red_kind": "assertion"}]}}
 
@@ -1602,7 +1718,23 @@ class TestClaimOrigin(ContractCase):
         expected.write_text("6\n", encoding="utf-8")   # 不具合の出力に合わせた書き換え
         got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["testdata/expected.py"], "what": "期待値を今の出力に合わせた"})
         self.assertFalse(got["ok"], got)
-        self.assertIn("凍っている", got.get("reason", ""))
+        reason = got.get("reason", "")
+        for want in (MEAN, "赤の段で test_files に申告して凍っている", "testdata/expected.py"):
+            self.assertIn(want, reason)
+
+    def test_existing_django_style_tests_claim_checks_unnamed_edits(self):
+        (self.repo / "app").mkdir()
+        (self.repo / "app" / "tests.py").write_text("def test_old():\n    assert 1 == 1\n", encoding="utf-8")
+        git(self.repo, "add", "app/tests.py")
+        git(self.repo, "commit", "-qm", "app tests")
+        with mock.patch.object(tdd, "plan_contract", return_value=self.CONTRACT):
+            self.restart()
+        self.route()
+        self.add_test(NEW_TEST)
+        (self.repo / "app" / "tests.py").write_text("def test_old():\n    assert 1 == 2\n", encoding="utf-8")   # 既存の試験の本体の書き換え
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "app/tests.py"], "tests": [MEAN_ID]})
+        self.assertFalse(got["ok"], got)
+        self.assertIn("名指しの外の既存のテスト", got.get("reason", ""))
 
 
 class TestRewriteSharedAcrossUnits(ContractCase):
@@ -1795,6 +1927,21 @@ class TestOneItemTwoUnits(ContractCase):
         done = summary.split("## ループで直した単位", 1)[1].split("\n## ", 1)[0]
         self.assertIn(f"- {CLAMP}", done, "閉じた単位はループで直した単位に並ぶ（direct に並べない）")
         self.assertEqual(common.frozen_problems(self.record, self.repo), [])
+
+    def test_loop_frozen_names_only_declaring_unit(self):
+        self.route_both()
+        self.add_test(NEW_TEST + SAME_ITEM_FAR)
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                         "tests": [t["id"] for t in SAME_ITEM_TESTS]})
+        self.assertTrue(got["ok"], got)
+        self.edit("stats.py", "return sum(xs) / (len(xs) - 1)", "return sum(xs) / len(xs)")
+        self.edit("stats.py", "    if x > hi:\n        return lo", "    if x > hi:\n        return hi")
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母と上限の枝を項目どおりに直した"})
+        self.assertTrue(got["done"], got)
+        self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")
+        text = "\n".join(common.frozen_problems(self.record, self.repo))
+        self.assertIn(MEAN, text)
+        self.assertNotIn(CLAMP, text, "一緒に閉じた単位は赤の段で申告していない")
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):
         """前の単位が申し出で止まれば（受け入れのテストを確かめていない）、後の単位は今どおり自分の段を回す"""

@@ -66,6 +66,18 @@
         }
       }
     },
+    "frozen_by": {
+      "type": "object",
+      "description": "tdd の輪の機械が書く {パス: [そのファイルを赤の段で申告した単位の鍵]}。ほかの型は空",
+      "patternProperties": {
+        "": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "frozen_tree": {
       "type": "string"
     },

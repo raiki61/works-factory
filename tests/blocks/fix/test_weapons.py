@@ -775,7 +775,7 @@ class AcceptTableCase(unittest.TestCase):
                             "static の単位の赤は variant の単位の赤に数えない")
 
     def test_accepted_reply_writes_returns_and_their_frozen_files_are_checked(self):
-        """返しを通した時に型ごとの returns/<k>.json を書き（tdd は輪の記録の frozen・frozen_tree・suite_made を写す）、後の受け付けは
+        """返しを通した時に型ごとの returns/<k>.json を書き（tdd は輪の記録の frozen・frozen_by・frozen_tree・suite_made を写す）、後の受け付けは
         その凍ったファイルの、注文の許しの外の書き換えを拒む"""
         record = self.put("tdd-1/record.json", {"frozen": {"test_stats.py": self.common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
                                               "frozen_tree": self.rev, "suite_made": ["made.log"],
@@ -800,6 +800,20 @@ class AcceptTableCase(unittest.TestCase):
         pathlib.Path(got[0]).write_text("{broken", encoding="utf-8")
         self.assertTrue(any(str(got[0]) in t for t in self.duties.frozen_by_returns(self.place, self.repo)),
                         "読めない返しの控えを照らしの済んだ物として飛ばさない（E23）")
+
+    def test_returns_carry_frozen_provenance(self):
+        declaring = "stats.py mean: 分母の式"
+        record = self.put("tdd-1/record.json", {"frozen": {"test_stats.py": self.common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]},
+                                              "frozen_by": {"test_stats.py": [declaring]}, "frozen_tree": self.rev, "suite_made": [],
+                                              "units": {"T": {"tests": ["test_stats.py::test_mean"]}}})
+        self.ordered({"T": "tdd"}, {"tdd": {"units": [{"key": "T", "tests": ["test_stats.py::test_mean"]}]}})
+        got = self.duties.write_returns(self.place, self.repo, self.rev, {"changes": [{"unit_key": "T", "files": ["stats.py"]}]},
+                                        record=str(record))
+        (self.repo / "test_stats.py").write_text("def test_mean():\n    assert 1 == 1\n", encoding="utf-8")
+        got = self.duties.frozen_by_returns(self.place, self.repo)
+        self.assertTrue(got)
+        for line in got:
+            self.assertIn(declaring, line)
 
     def test_returns_carry_removed_tests_and_untested_into_the_output_rows(self):
         """下書き 4.1 の 7: 返しの控えは起点の版に在って今の木に無い試験の id（removed）と注文の why_untested を持ち、修正の出力の

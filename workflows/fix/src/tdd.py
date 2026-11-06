@@ -23,9 +23,9 @@
     落ち、error・一式に居ない・もう通る・飛ばされたは拒み、元で通っていた物は緑。言語に依らない事実だけ）。テストでないファイル
     （これから足す名前の仮の実装）への書き込みは拒まず、単位の stub_files に残す。test_files に申告されても、コードのファイルで、名指しの
     テストのパス・約束のパス・前の単位のテストのファイル・名の慣習・テストのフォルダの下・試験のデータの置き場の下のどれにも
-    当たらず、出どころ（_claim_places）に在る物は仮の実装として
-    stub_files に残し、test_files と test_hashes に入れず凍らせない（_split_claims）。ほかの申告（新しく作ったコードの期待値・
-    試験の補助、コードでないテストのデータ）は今どおり凍る。error・一式に居ないで拒む時は NOT_RAN の
+    当たらず、出どころ（_claim_places。承認済みの修正案が作ると名指したファイルのうち単位の頭の木に無い物）に在る物は仮の実装として
+    stub_files に残し、test_files と test_hashes に入れず凍らせない（_split_claims）。ほかの申告（単位の頭の木に在ったファイル、
+    新しく作ったコードの期待値・試験の補助、コードでないテストのデータ）は申告すれば必ず凍る。error・一式に居ないで拒む時は NOT_RAN の
     1 行を足す（走る前の失敗は赤に数えず、直して走らせ直させる）。
     約束の在る単位は、受け入れのテストの id を全部名指し（走らせる前に見る）、名指しごとの失敗の文の引用と理由（QUOTES_FIELD）を
     結末の failure の文と照らす（red_check。照らす先の無い名指しは引用を求めず、単位の quote_unchecked に残す）。約束の無い単位は
@@ -220,7 +220,7 @@ def new_state(board_dir, repo, base_file, open_units: list, work, *, owed=None, 
     return {**{f: base[f] for f in BASE_FIELDS}, "work": str(work), "base_file": str(base_file), "open_units": keys,
             "excused": excused, "handoff": snapshot(repo), "phase": "route", "tries": 0, "reason": "", "iterations": 0,
             "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
-            "done": False, "note": "", "frozen": {}, "parked": [], "parked_why": {}, "contract": contract,
+            "done": False, "note": "", "frozen": {}, "frozen_by": {}, "parked": [], "parked_why": {}, "contract": contract,
             "light": sorted(set(light) & set(keys)), "calls": [], "kinds": []}
 
 
@@ -590,17 +590,21 @@ def declared_test_files(st, named=()) -> set[str]:
     return out
 
 
-def _claim_places(st, repo, files, key) -> set:
-    """仮の実装として凍結から外してよい出どころ: 申告 files のうち単位の頭の木に在ったパスと、今の単位の約束の names
-    （planmarks.unit_contract）を posixpath.normpath で揃えた組"""
-    there = set(git_names(repo, "ls-tree", "-r", "--name-only", st["unit_head"], "--", *files)) if files else set()
-    return {posixpath.normpath(p) for p in there | set((_contract(st, key) or {}).get("names") or [])}
+def _claim_places(st, repo, key) -> set:
+    """仮の実装として凍結から外してよい出どころ: 今の単位の約束の names（承認済みの修正案が作ると名指したファイル。
+    planmarks.unit_contract）を posixpath.normpath で揃えた組のうち、単位の頭の木に無いパス。単位の頭の木に在ったファイルは
+    申告すれば必ず凍るので、出どころに入れない"""
+    names = {posixpath.normpath(p) for p in (_contract(st, key) or {}).get("names") or []}
+    there = {posixpath.normpath(p) for p in git_names(repo, "ls-tree", "-r", "--name-only", st["unit_head"], "--", *sorted(names))} \
+        if names else set()
+    return names - there
 
 
 def _split_claims(st, files, tests, places):
     """役の申告 files を事実で分ける → (kept, claimed_stubs, declared)。claimed_stubs は仮の実装: コードのファイルで、宣言の組
     （名指しの id・約束・前の単位のテストのファイル）にも名の慣習（impact.is_test_file）にもテストのフォルダの下にも試験のデータの
-    置き場の下にも当たらず、出どころ places（_claim_places）に在る物。ほかは全部 kept（テストのファイル。凍る）で、新しく作ったコードの期待値や試験の補助も申告すれば凍る。純粋"""
+    置き場の下にも当たらず、出どころ places（_claim_places。修正案が作ると名指した新しいファイル）に在る物。ほかは全部 kept
+    （テストのファイル。凍る）で、単位の頭に在ったファイルも、新しく作ったコードの期待値や試験の補助も申告すれば凍る。純粋"""
     declared = declared_test_files(st, tests)
     kept, claimed_stubs = [], []
     for f in files:
@@ -770,7 +774,7 @@ def _test(st, reply, repo) -> list:
     errs += bad
     if errs:
         return errs
-    files, _, declared = _split_claims(st, files, tests, _claim_places(st, repo, files, u["unit_key"]))   # 申告のうちコードの仮の実装は凍らせず、触れていれば extra に残して stub_files に記録する
+    files, _, declared = _split_claims(st, files, tests, _claim_places(st, repo, u["unit_key"]))   # 申告のうち、修正案が新しく作ると名指したコードの仮の実装だけを凍らせず、触れていれば extra に残して stub_files に記録する
     extra = sorted(set(touched(repo, st["unit_head"], snapshot(repo))) - set(files) - set(st["suite_made"]))
     outside = [f for f in extra if impact.is_test_file(f, declared | set(files))]
     if outside:
@@ -805,7 +809,7 @@ def _frozen_moved(u, repo) -> list:
 def _green(st, u, repo) -> list:
     moved = _frozen_moved(u, repo)
     if moved:
-        return [f"テストのファイルを赤の時から書き換えた: {moved}——テストは凍っている（テストの誤りは what に書け）"]
+        return [f"単位 '{u['unit_key']}' の赤の段で test_files に申告して凍っているテストのファイルを書き換えた: {moved}"]
     other = _other_test_edits(st, u, repo)
     if other:
         return other
@@ -1018,9 +1022,11 @@ OUT_HEAD = "## 直す義務から外れた単位（直すな。not_done に理�
 DIRECT_HEAD = "## direct の単位（ここで直せ）"
 
 def _finish(st, repo) -> None:
-    """輪の後の修正役へ渡す summary.md と、凍ったテストのファイルの控え（frozen）"""
+    """輪の後の修正役へ渡す summary.md と、凍ったテストのファイルの控え（frozen）と、凍ったファイルごとに赤の段で申告した単位の
+    鍵の並び（frozen_by。一緒に閉じた単位は元の単位の test_files を写しただけで赤の段を回していないので除く）"""
     passed = [st["units"][k] for k in st["order"] if st["units"][k]["route"] == "tdd"]
     st["frozen"] = hashes(repo, sorted({f for u in passed for f in u["test_files"]}))
+    st["frozen_by"] = {f: [u["unit_key"] for u in passed if f in u["test_files"] and not u.get("covered_by")] for f in st["frozen"]}
     st["frozen_tree"] = snapshot(repo)
     lines = [RESULT_TITLE, ""]
     if st["note"]:
@@ -1055,11 +1061,11 @@ RECORD_UNIT = {"route": "", "why": "", "tests": [], "test_files": [], "red": "",
 
 def record(st) -> dict:
     """輪の記録 record.json の中身（形は schemas/tdd-record.schema.json）。輪が抜ける時の状態から、輪の外が読む欄だけを同じ名と形で写す:
-    輪の全体の frozen・frozen_tree・handoff・suite_made・no_suite・note・done・calls と summary.md の在りか、組の結果の tdd の欄
+    輪の全体の frozen・frozen_by・frozen_tree・handoff・suite_made・no_suite・note・done・calls と summary.md の在りか、組の結果の tdd の欄
     （exit_fields の order・parked・parked_why・suite・test_cmd_gate・test_cmd_note・reused・related）、単位ごと（order の単位）の
     RECORD_UNIT の欄。どの抜け方でも同じ形で書く（諦めた・direct の単位には test_hashes が無いので {} に揃える）"""
     units = {k: {f: json.loads(json.dumps(st["units"][k].get(f, default))) for f, default in RECORD_UNIT.items()} for k in st["order"]}
-    return {"frozen": st["frozen"], "frozen_tree": st["frozen_tree"], "handoff": st["handoff"], "suite_made": list(st["suite_made"]),
+    return {"frozen": st["frozen"], "frozen_by": st["frozen_by"], "frozen_tree": st["frozen_tree"], "handoff": st["handoff"], "suite_made": list(st["suite_made"]),
             "no_suite": st.get("no_suite") is True, "note": st["note"], "done": True, "calls": list(st.get("calls") or []),
             "summary": str(pathlib.Path(st["work"]) / SUMMARY), "order": list(st["order"]), "parked": list(st.get("parked") or []),
             "parked_why": dict(st.get("parked_why") or {}), "suite": st["suite"], "test_cmd_gate": st.get("test_cmd_gate", GATE_OFF),

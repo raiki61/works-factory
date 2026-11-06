@@ -434,10 +434,10 @@ def evidence_named(reply, key) -> list:
 
 def write_returns(place, repo, rev: str, reply, *, record: str = "", owed=None) -> list:
     """共通の受け付けが返答を通した時に、型ごとの返しの控え returns/<k>.json を書く（下書き 2.1 の「返しの控え」。書くのはここ 1 か所）。
-    形 {stage, weapon, group, tree, units: [{key, named}], frozen, frozen_tree, suite_made, added, rewritten, removed, files,
+    形 {stage, weapon, group, tree, units: [{key, named}], frozen, frozen_by, frozen_tree, suite_made, added, rewritten, removed, files,
     why_untested, kinds}（kinds は書き手の返答の evidence.kinds の行。種類ごとの確かめの記録）。owed（受け付けた書き手の直す義務の単位）を渡せば、その単位を持つ型の注文の分だけを書く（型は 1 つずつ順に回る）。
     型は注文の索引の weapons、段の番と組は注文の物、tree は通した時の作業ツリーの木。tdd の返しの機械の欄 frozen・
-    frozen_tree・suite_made は輪の記録 record から写す（ほかの型は空）。removed は起点の版に在って今の木に無い試験の id、files は返答の
+    frozen_by・frozen_tree・suite_made は輪の記録 record から写す（ほかの型は空）。removed は起点の版に在って今の木に無い試験の id、files は返答の
     行のパス、why_untested は注文の物（修正の出力の欄 removed_tests・untested の出どころ。下書き 4.1 の 7）。注文の無い置き場は書かない。
     書いたパスを返す"""
     from src import common, orders
@@ -466,6 +466,7 @@ def write_returns(place, repo, rev: str, reply, *, record: str = "", owed=None) 
                "units": [{"key": u.get("key"), "named": _ids([*(u.get("tests") or []), *evidence_named(reply, u.get("key"))])}
                          for u in doc.get("units") or [] if isinstance(u, dict)],
                "frozen": dict(loop.get("frozen") or {}) if w == "tdd" else {},
+               "frozen_by": dict(loop.get("frozen_by") or {}) if w == "tdd" else {},
                "frozen_tree": str(loop.get("frozen_tree") or "") if w == "tdd" else "",
                "suite_made": list(loop.get("suite_made") or []) if w == "tdd" else [],
                "added": sorted(set(added)), "rewritten": sorted(set(rewritten)), "removed": sorted(set(removed)), "files": paths,
@@ -482,7 +483,7 @@ def frozen_by_returns(place, repo) -> list:
     """凍ったファイルの照らし（下書き 2.3 の 9）のうち返しの控えの分: 置き場の returns/ の全部の frozen（前の型・前の段の凍結）を、
     注文の索引の since の木を基準に、注文の permits の範囲（PERMIT_RANGES の行の test）と段の頭の後に取れた範囲の相談の合意
     （orders.later_agreed。注文は段の頭で 1 度しか書かない）だけを許して照らす（common.frozen_problems の
-    同じ式。返しの控えは輪の状態と同じ名の欄 frozen・frozen_tree を持つ）。今の照らし facts.check_frozen は外さずに並べる（両方を
+    同じ式。返しの控えは輪の状態と同じ名の欄 frozen・frozen_by・frozen_tree を持つ）。今の照らし facts.check_frozen は外さずに並べる（両方を
     通る物だけを通す。docs/design/fix.md の 22 節）。注文の無い置き場・控えの無い置き場は空。
     読めない控えは、照らせなかった訳の行にする"""
     import jsonfile   # lib/
