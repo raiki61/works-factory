@@ -719,6 +719,59 @@ def _tmp():
     return tempfile.TemporaryDirectory()
 
 
+class DirectionStopCase(unittest.TestCase):
+    """修正前の承認の一言の向きで修正の前に止めるかの決め（gates.direction_stop。docs/design/line.md の 2 節の 2）。照らすのは、承認ノードが
+    開いて人が通す語で答えた時だけ。その時、判定の返りが {ok: 真, aligned: 真} でなければ止める（fail-closed）。向きの語は block の中だけが
+    持つので、ここは真偽 aligned だけを渡す"""
+    NOTE = "計画と違い、空の列は例外を投げる形にして"
+    GATE = {"decision": "continue", "text": NOTE}
+    ANSWER = {**GATE, "asked": [NARROW]}
+    ALIGNED = {"ok": True, "status": "ok", "reason": "", "direction": "aligned", "aligned": True, "why": "計画の向きを足しているだけ", "report": []}
+    REDIRECTED = {**ALIGNED, "direction": "redirected", "aligned": False, "why": "計画は 0 を返すが一言は例外を選んでいる"}
+    UNCLEAR = {**ALIGNED, "direction": "unclear", "aligned": False, "why": "どちらの向きか言っていない"}
+    FAILED = {"ok": False, "status": "failed", "reason": "役が返答を返さなかった", "direction": "", "aligned": False, "why": "", "report": []}
+
+    def setUp(self):
+        self.g = kit.load(BLOCK, "gates")
+        self.stopby = __import__("stopby")
+        self.assertTrue(hasattr(self.g, "direction_stop"), "gates に一言の向きで止めるかの決め direction_stop が在る")
+        self.assertTrue(hasattr(self.stopby, "ANSWER_REDIRECTED"), "stopby に一言の向きで止めた語 ANSWER_REDIRECTED が在る")
+
+    def stop(self, gate=None, answer=None, checked=None, *, due=True):
+        return self.g.direction_stop(self.GATE if gate is None else gate, self.ANSWER if answer is None else answer, checked, due=due)
+
+    def test_stops_unless_the_judgment_reads_aligned(self):
+        for name, checked, said in (("redirected", self.REDIRECTED, ("redirected", self.REDIRECTED["why"])),
+                                    ("unclear", self.UNCLEAR, ("unclear", self.UNCLEAR["why"])),
+                                    ("failed", self.FAILED, ("役が返答を返さなかった",)),
+                                    ("ok false even if aligned", {**self.ALIGNED, "ok": False}, ()),
+                                    ("aligned missing", {"ok": True}, ()),
+                                    ("empty receiver", None, ()), ("not an object", "aligned", ())):
+            with self.subTest(name):
+                word, why = self.stop(checked=checked)
+                self.assertEqual(word, self.stopby.ANSWER_REDIRECTED)
+                self.assertIn(self.NOTE, why, "人の一言が訳に入る")
+                for part in said:
+                    self.assertIn(part, why)
+        self.assertEqual(self.stop(checked=self.ALIGNED), ("", ""))
+        word, why = self.stop(checked={**self.REDIRECTED, "why": "一行目\n二行目"}, gate={"decision": "continue", "text": "a\n\nb"})
+        self.assertEqual(word, self.stopby.ANSWER_REDIRECTED)
+        self.assertNotIn("\n", why, "訳は 1 行")
+
+    def test_unopened_pushed_or_stopping_answers_are_not_checked(self):
+        """承認ノードが開かなかった（対話モードの合意・推しで進んだ）・無人の run の推しで答えた・止める語で答えた・照らさない道（due 偽）は、
+        判定の返りが無くても止めない。止める語の答えは human:gate-before-fix で止まるので、ここは足さない"""
+        pushed = {**self.ANSWER, __import__("answer").PUSHED: [{"item": NARROW}]}
+        stop = {"decision": "stop", "text": self.NOTE}
+        for name, gate, answer, due in (("gate unopened (None)", None, self.ANSWER, True), ("gate unopened (empty)", "", self.ANSWER, True),
+                                        ("pushed", self.GATE, pushed, True), ("stop word", stop, stop, True),
+                                        ("reject word", {**stop, "decision": "reject"}, {**stop, "decision": "reject"}, True),
+                                        ("no answer", self.GATE, None, True), ("not due", self.GATE, self.ANSWER, False)):
+            with self.subTest(name):
+                for checked in (None, self.REDIRECTED, self.FAILED):
+                    self.assertEqual(self.g.direction_stop(gate, answer, checked, due=due), ("", ""))
+
+
 class UnattendedPolicyCallCase(unittest.TestCase):
     def test_gate_scripts_leave_the_unattended_choice_to_the_policy(self):
         """#653: 修正前と案の直しの承認ノードは、無人の run の進むか止まるかを gates.passage に渡すだけで、止めの語を自分で組まない"""
@@ -819,6 +872,93 @@ class ScriptCase(unittest.TestCase):
         self.assertNotEqual(saved["policy"]["sha256"], "old")
         self.assertEqual(out["policy"], saved["policy"]["copy"])
         self.assertTrue(pathlib.Path(out["policy"]).is_file())
+
+    NOTE = "計画と違い、空の列は例外を投げる形にして"
+    JUDGED = {"ok": True, "status": "ok", "reason": "", "direction": "redirected", "aligned": False,
+              "why": "計画は 0 を返すが一言は例外を選んでいる", "report": []}
+
+    def before_fix_answer(self, record, *, gate=None, direction="null", due=None, **over):
+        inputs = {"gate": json.dumps(gate or {"decision": "continue", "text": self.NOTE}), "go": "true", "stop_reason": "",
+                  "place": "gate-before-fix", "asked": json.dumps([NARROW]), "pushed": "null", "policy_changed": "false",
+                  "record": record, "ports": self.ports(policy="/p.md"), **over}
+        if due is not None:
+            inputs.update(direction=direction, direction_due=due)
+        return self.run.script("before_fix_answer", **inputs)
+
+    def test_before_fix_answer_stops_a_redirected_note(self):
+        """一言の向きの判定（direction）が aligned 偽なら、go 偽・止めの語 works:answer-redirected・判定の why と人の一言を含む reason。
+        答えの控えには今どおり一言と asked が残る。方針は固め直さない"""
+        record = self.put("r1/start.json", {})
+        out = self.before_fix_answer(record, direction=json.dumps(self.JUDGED), due="true", policy_changed="true")
+        self.assertEqual((out["go"], out["stop_reason"], out["policy"]), (False, "works:answer-redirected", "/p.md"), out)
+        self.assertIn(self.JUDGED["why"], out["reason"])
+        self.assertIn(self.NOTE, out["reason"])
+        self.assertEqual(out["answer"], {"decision": "continue", "text": self.NOTE, "asked": [NARROW]})
+        kept = json.loads((self.run.artifacts / "gates" / "gate-before-fix.json").read_text(encoding="utf-8"))
+        self.assertEqual((kept["text"], kept["asked"]), (self.NOTE, [NARROW]))
+        # 計画に沿う（aligned）・役を起こさなかった（skipped）判定なら止めずに修正へ進む
+        aligned = {**self.JUDGED, "direction": "aligned", "aligned": True, "why": "足しているだけ"}
+        for name, direction in (("aligned", aligned), ("skipped", {**aligned, "status": "skipped", "direction": "", "why": ""})):
+            with self.subTest(name):
+                went = self.before_fix_answer(record, direction=json.dumps(direction), due="true")
+                self.assertEqual((went["go"], went["stop_reason"], went["reason"]), (True, "", ""), went)
+        # 判定の返りが無い（受け皿が空）・落ちた（ok 偽）時は止める（fail-closed）。訳は落ちた訳を言う
+        failed = {"ok": False, "status": "failed", "reason": "役が返答を返さなかった", "direction": "", "aligned": False, "why": "", "report": []}
+        for name, direction, said in (("null", "null", ""), ("failed", json.dumps(failed), failed["reason"])):
+            with self.subTest(name):
+                stopped = self.before_fix_answer(record, direction=direction, due="true")
+                self.assertEqual((stopped["go"], stopped["stop_reason"]), (False, "works:answer-redirected"), stopped)
+                self.assertIn(said, stopped["reason"])
+                self.assertIn(self.NOTE, stopped["reason"])
+        # 対話モードの合意だけで入る道（承認ノードが開かない）は、due 真でも判定の返りが無くて止めない。合意の一言は設計の相談の承認ノードが受ける
+        agreed = json.dumps({"decision": "continue", "text": "合意の一言", "asked": [NARROW]})
+        quiet = self.run.script("before_fix_answer", gate="null", go="true", stop_reason="", place="gate-before-fix", asked="[]", pushed="null",
+                                policy_changed="false", agreed=agreed, record=record, ports=self.ports(policy="/p.md"),
+                                direction="null", direction_due="true")
+        self.assertEqual((quiet["go"], quiet["stop_reason"], quiet["reason"]), (True, "", ""), quiet)
+        # 合意の後に新しい行で開いた承認ノードを人が通した時、判定に掛かる答えは承認ノードの出力そのもの（合意の一言は足されない）。
+        # 止める時の訳の人の一言も、承認ノードで書いた一言だけ
+        agreed = json.dumps({"decision": "continue", "text": "合意の一言", "asked": ["合意で見せた行"]})
+        after = self.run.script("before_fix_answer", gate=json.dumps({"decision": "continue", "text": self.NOTE}), go="true", stop_reason="",
+                                place="gate-before-fix", asked=json.dumps([NARROW]), pushed="null", policy_changed="false", agreed=agreed,
+                                record=record, ports=self.ports(policy="/p.md"), direction=json.dumps(self.JUDGED), direction_due="true")
+        self.assertEqual((after["go"], after["stop_reason"]), (False, "works:answer-redirected"), after)
+        self.assertIn(self.NOTE, after["reason"])
+        self.assertNotIn("合意の一言", after["reason"])
+
+    def test_before_fix_answer_without_the_check_stays(self):
+        """direction_due を渡さない（本線の）before_fix_answer は、一言付きの continue で今どおり go 真を返し、reason は空。判定の返りを渡しても、
+        due を渡さなければ照らさない"""
+        record = self.put("r1/start.json", {})
+        for name, extra in (("main line", {}), ("due false", {"direction": json.dumps(self.JUDGED), "direction_due": "false"})):
+            with self.subTest(name):
+                out = self.before_fix_answer(record, **extra)
+                self.assertEqual((out["go"], out["stop_reason"], out.get("reason")), (True, "", ""), out)
+
+    def test_ask_before_fix_hands_the_plan_it_shows(self):
+        """承認ノードに掛ける計画（往復の返りの fix_plan の pointer）を欄 plan で返す。往復が無い・計画の無い周は null。写しの運ぶ値から開き直す
+        時も、写しの rounds の fix_plan を同じ欄で返す"""
+        record = self.put("r1/start.json", {"answers": []})
+        judge = json.dumps({"judgment": None, "answer_ties": None, "materials": None})
+        plan = self.run.pointer("plan/fix-plan.json")
+        fresh = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds(asks=[ask_row()], fix_plan=json.loads(plan))),
+                                structure="null", judge=judge, record=record, ports=self.ports())
+        self.assertTrue(fresh["open"], fresh)
+        self.assertEqual(fresh.get("plan"), json.loads(plan))
+        planless = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds(asks=[ask_row()])), structure="null",
+                                   judge=judge, record=record, ports=self.ports())
+        self.assertIn("plan", planless)
+        self.assertIsNone(planless["plan"])
+        absent = self.run.script("ask_before_fix", request=handed({}), rounds="null", structure="null", judge=judge, record=record,
+                                 ports=self.ports())
+        self.assertIn("plan", absent)
+        self.assertIsNone(absent["plan"])
+        carried = self.put("fixture-carried.json", {"judge": {"judgment": None, "answer_ties": None, "materials": None},
+                                                     "structure": {"structure": None},
+                                                     "gate_rounds": rounds(asks=[ask_row()], fix_plan=json.loads(plan))})
+        copied = self.run.script("ask_before_fix", request=handed({}), rounds="", structure="", judge="", fixture=carried, record=record,
+                                 ports=self.ports())
+        self.assertEqual((copied["open"], copied.get("plan")), (True, json.loads(plan)))
 
     def plans(self):
         old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": []}]})

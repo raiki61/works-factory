@@ -9,7 +9,7 @@ process.human_items の行の node（conflict・replan・守りのファイル�
 - HEAD: 機械の語の頭。is_line(by): 機械が止めた語か（頭で見る）
 - REASONS: 決まりが core（.shared/core）に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
   ブロックだけでも、段の決まりが core に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
-  line-script・spec-changed）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
+  line-script・spec-changed・answer-redirected）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
   付けた語で、呼び手はその定数を引く（自分の定数に写さない）
 - HUMAN: 人が関所で止めた時の止めの理由の頭（後ろは関所の所）。機械の語ではない（is_line は偽）
 - WAITING: 線の止めでなく、人の答えを待つ語
@@ -27,6 +27,7 @@ NAME = re.compile(r"[a-z][a-z0-9]*(-[a-z0-9]+)*")   # 名の形（小文字と�
 
 REASONS = {
     "adapter": "包みの確かめが通らない（この run の役の起動が包みを通っていない・宣言した包みの形が読めない・役の起動に柵が掛かっていない）",
+    "answer-redirected": "修正前の承認の通す答えに添えた人の一言が、見せた計画と違う向きを選んだか向きが読めないか、判定が落ちたので、修正へ進まずに一言を次の run の依頼の下書きへ回した",
     "ci": "CI の任せ先の役の返答を受けられなかった（3 回とも拒まれた・ループが回らなかった）か、CI の役の後に start のループへ戻れない",
     "conflict": "食い違いの申し出が答えを待つまま止めた（その答えの行の node も同じ語）",
     "delta": "差分の審査の段が止めた（審査役が 3 回とも拒まれた・受けた 2 判定の控えを置けない・修正案の欄の控えの壊れを見た）",
@@ -86,6 +87,7 @@ def is_line(by) -> bool:
 
 
 ADAPTER = word("adapter")
+ANSWER_REDIRECTED = word("answer-redirected")
 CI = word("ci")
 CONFLICT = word("conflict")
 DELTA = word("delta")
@@ -109,4 +111,4 @@ START_REFUSED = word("start-refused")
 SUITE_BROKEN = word("suite-broken")
 TDD_REPEAT = word("tdd-repeat")
 UNRESTORED = word("unrestored")
-WAITING = frozenset({CONFLICT, NEEDS_HUMAN, REPLAN, SPEC_CHANGED, TDD_REPEAT, UNRESTORED})
+WAITING = frozenset({ANSWER_REDIRECTED, CONFLICT, NEEDS_HUMAN, REPLAN, SPEC_CHANGED, TDD_REPEAT, UNRESTORED})

@@ -1,0 +1,11 @@
+{
+  "plan": [
+    {
+      "unit_keys": ["u1"],
+      "approach": "空の列の mean が 0 を返す形に変える",
+      "files": [
+        {"path": "stats.py", "op": "modify", "responsibility": "平均を出す"}
+      ]
+    }
+  ]
+}

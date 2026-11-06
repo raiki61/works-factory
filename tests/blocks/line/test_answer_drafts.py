@@ -105,6 +105,36 @@ class AnswerDraftsCase(unittest.TestCase):
         self.assertEqual([d["question"] for d in drafts], items, drafts)
         self.assertTrue(all(d["draft"] is True and d["source"] for d in drafts), drafts)
 
+    SHOWN = ["修正案 1 が狭める能力: 空の列の mean——0 を返していた呼び手が例外を受ける", "修正案 2 が狭める能力: 呼び手の docs"]
+    NOTE = "計画と違い、空の列は例外を投げる形にして"
+    REASON = "判定: redirected（計画は 0 を返すが一言は例外を選んでいる）。一言: " + NOTE
+
+    def redirected(self, **over) -> dict:
+        return {"answer_before_fix": {"go": False, "stop_reason": "works:answer-redirected", "reason": self.REASON, "policy": "",
+                                      "answer": {"decision": "continue", "text": self.NOTE, "asked": self.SHOWN}, **over}}
+
+    def test_redirected_note_is_drafted_for_each_shown_item(self):
+        """修正前の答えが works:answer-redirected で止めた run は、承認ノードで見せた項目ごとに、下書きの印つきの答えの行を出す（question は項目の
+        文の全文、text は空、note に人の一言と返りの reason）。止めていない run・人が止めた run・項目の無い答えは出さない"""
+        got = self.drafts(values=self.redirected())
+        self.assertEqual([(d["question"], d["text"]) for d in got], [(q, "") for q in self.SHOWN])
+        for draft in got:
+            self.assertTrue(draft["draft"] is True and draft["source"] == self.f.REDIRECT_SOURCE, draft)
+            self.assertIn(self.NOTE, draft["note"])
+            self.assertIn(self.REASON, draft["note"])
+            self.assertIn(self.f.REDIRECT_NOTE.split("{")[0], draft["note"])
+        for name, values in (("passed", self.redirected(go=True, stop_reason="")),
+                             ("human stop", self.redirected(stop_reason="human:gate-before-fix")),
+                             ("no items", self.redirected(answer={"decision": "continue", "text": self.NOTE, "asked": []})),
+                             ("no answer", self.redirected(answer=None)), ("no gate", {})):
+            with self.subTest(name):
+                self.assertEqual(self.drafts(values=values), [])
+        # 同じ項目の文が無人の run の載せなかった項目の下書きにも在れば、答えの下書きは 1 行にまとめる（先に置く一言つきの行が残る）
+        values = {**self.redirected(), "ask_before_fix": {"deferred": [self.SHOWN[0]], "asked": []}}
+        got = [d for d in self.drafts(values=values, gates={"gate-before-fix": None}, unattended=True) if d["question"] == self.SHOWN[0]]
+        self.assertEqual(len(got), 1, got)
+        self.assertEqual(got[0]["source"], self.f.REDIRECT_SOURCE)
+
     def stopped_gate(self, rounds, **kw) -> dict:
         """無人の run で止まった修正前の承認ノードの出力のうち、下書きの材料（ask_before_fix の値）"""
         gates = kit.load(BLOCK, "gates")

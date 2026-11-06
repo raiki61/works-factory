@@ -359,6 +359,38 @@ class SpecDrivenWiringCase(unittest.TestCase):
         self.assertEqual(TOP["fixture-ask-before-fix"]["with"]["fixture"], "$start.output.fixture")
         self.assertIn("&before_fix_wait", TEXT)
 
+    def test_only_spec_and_fixture_answers_wire_the_direction(self):
+        """一言の向きの判定（block answer-direction）の配線: spec-answer-before-fix と fixture-answer-before-fix だけが with: に direction
+        （同じ道の受け皿の got。飛ばされたら null）と direction_due 'true' を持ち、本線の answer-before-fix は持たない（今の振る舞いのまま）。
+        spec-direction・fixture-direction の when: はそれぞれ from_spec・fixture_gate の句で始まり、with: の plan は同じ道の ask の出力 plan を読む。
+        三つの答えは同じ output_format（止めた訳 reason の欄を持つ）"""
+        self.assertLessEqual({"spec-direction", "spec-direction-out", "fixture-direction", "fixture-direction-out"}, set(TOP),
+                             "一言の向きの判定の node と受け皿が、仕様駆動の道と写しの道に在る")
+        for head, gate in (("spec", "from_spec"), ("fixture", "fixture_gate")):
+            direction, answer = TOP[f"{head}-direction"], TOP[f"{head}-answer-before-fix"]
+            with self.subTest(head):
+                self.assertEqual(direction["include"], "works-factory-answer-direction")
+                self.assertTrue(direction["when"].startswith(f"$start.output.{gate} == true && "), direction["when"])
+                self.assertTrue(direction["when"].endswith(f"${head}-ask-before-fix.output.open == true"), direction["when"])
+                self.assertEqual(direction["with"]["plan"], {"from": f"${head}-ask-before-fix.output.plan", "if_skipped": None})
+                self.assertEqual(direction["with"]["answer"], f"${head}-gate-before-fix.output")
+                self.assertEqual(direction["with"]["asked"], f"${head}-ask-before-fix.output.asked")
+                self.assertEqual(direction["with"]["lang"], "$start.output.ports.lang")
+                self.assertEqual(TOP[f"{head}-direction-out"]["with"]["got"], f"${head}-direction.output")
+                self.assertEqual(answer["with"]["direction"], {"from": f"${head}-direction-out.output.got", "if_skipped": None})
+                self.assertEqual(answer["with"]["direction_due"], "true")
+                self.assertIn(f"{head}-direction-out", answer["depends_on"])
+        self.assertEqual({n for n, node in TOP.items() if "direction_due" in (node.get("with") or {})},
+                         {"spec-answer-before-fix", "fixture-answer-before-fix"})
+        self.assertEqual({n for n, node in TOP.items() if "direction" in (node.get("with") or {})},
+                         {"spec-answer-before-fix", "fixture-answer-before-fix"})
+        self.assertNotIn("direction", TOP["answer-before-fix"]["with"])
+        self.assertNotIn("direction_due", TOP["answer-before-fix"]["with"])
+        self.assertIn("reason", TOP["answer-before-fix"]["output_format"]["properties"])
+        self.assertNotIn("reason", TOP["answer-before-fix"]["output_format"]["required"], "reason は任意の欄（3 道で同じ形のまま）")
+        self.assertIn("plan", TOP["ask-before-fix"]["output_format"]["properties"])
+        self.assertNotIn("plan", TOP["ask-before-fix"]["output_format"]["required"])
+
 
 if __name__ == "__main__":
     unittest.main()

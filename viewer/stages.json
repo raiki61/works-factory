@@ -1,5 +1,5 @@
 {
-  "about": "見る道具の段の表（トレースの段の span と run の span の段ごとの費用の表が読む）。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。受け皿の -out・返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix と直す前で止まった写しの run の fixture-ask-before-fix・fixture-answer-before-fix）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.5）。source は段の出どころ（docs/design/line.md の 1.3 の番号）で、表を直す人が読む（見る道具の部品は読まない）",
+  "about": "見る道具の段の表（トレースの段の span と run の span の段ごとの費用の表が読む）。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。受け皿の -out・返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix と一言の向きの判定の受け皿 spec-direction-out と、直す前で止まった写しの run の fixture-ask-before-fix・fixture-answer-before-fix と受け皿 fixture-direction-out）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.5）。source は段の出どころ（docs/design/line.md の 1.3 の番号）で、表を直す人が読む（見る道具の部品は読まない）",
   "graph": "line",
   "stages": [
     {
@@ -35,9 +35,11 @@
     {
       "name": "修正前の承認",
       "source": "docs/design/line.md の 1.3 の 9・2 節の 2",
-      "nodes": ["ask-before-fix", "gate-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-gate-before-fix", "spec-answer-before-fix",
-                "fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-answer-before-fix"],
-      "wiring": ["ask-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-answer-before-fix", "fixture-ask-before-fix", "fixture-answer-before-fix"]
+      "nodes": ["ask-before-fix", "gate-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-gate-before-fix", "spec-direction",
+                "spec-direction-out", "spec-answer-before-fix", "fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction",
+                "fixture-direction-out", "fixture-answer-before-fix"],
+      "wiring": ["ask-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-direction-out", "spec-answer-before-fix", "fixture-ask-before-fix",
+                 "fixture-direction-out", "fixture-answer-before-fix"]
     },
     {
       "name": "修正",

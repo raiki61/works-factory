@@ -15,7 +15,8 @@ workflows/line/scripts/ask_before_fix.py の決まりのまま、軸・項目・
   開かずに止め、通す語ならそこで見せた行を聞き直さず、設計だけの行も足さない（合意した承認を聞き直さない）
 返り: open・go・stop_reason・text・deferred・asked（載せた項目の文）・pushed（推しで進んだ答え）・passes（聞かずに通した行）・
 policy_changed（方針の文書の変化の行を載せたか。answer-before-fix が固め直す）・agreed（設計の相談の最後の答え。answer-before-fix が通す語の
-合意を修正前の答えとして書き、報告は止めた答えの一言も出す。対話モードでない run は null）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
+合意を修正前の答えとして書き、報告は止めた答えの一言も出す。対話モードでない run は null）・plan（承認に掛けた計画の修正案。往復の返り
+rounds の fix_plan の pointer。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復が無ければ null）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
 
 入力（with:）: rounds（plan-rounds-out の got）・structure（structure-in の structure。構造の目の控えの pointer か null）・judge
 （judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）・
@@ -63,7 +64,7 @@ def compute() -> dict:
         text = gatemarks.gate_text(asking, run_id=os.environ["WORKFLOW_ID"], node=gatemarks.GATE_NODE, record_name=RECORD)
     return {"open": got["open"], "go": got["go"], "stop_reason": got["stop_reason"], "reason": "", "text": text, "deferred": got["deferred"],
             "asked": got["asked"], "pushed": got["pushed"], "passes": got["passes"], "policy_changed": got["policy_changed"],
-            "agreed": agreed}
+            "agreed": agreed, "plan": rounds["fix_plan"] if rounds is not None else None}
 
 
 def copied(pointer) -> dict:
@@ -83,7 +84,7 @@ def fallback(reason: str) -> dict:
     from src import guard
 
     return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "text": "", "deferred": [], "asked": [], "pushed": None,
-            "passes": [], "policy_changed": False, "agreed": None}
+            "passes": [], "policy_changed": False, "agreed": None, "plan": None}
 
 
 ports.run(compute, fallback)

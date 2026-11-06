@@ -20,6 +20,7 @@ import answer  # noqa: E402
 import gatemarks  # noqa: E402
 import seal  # noqa: E402
 from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
+from tests.blocks.kit import load as kit_load  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
 PUSHED_FORK = {**FORK, "reason": "割れる。推し: x——呼び手が既に x を前提にしている"}
@@ -291,6 +292,33 @@ class SpecWordsCase(unittest.TestCase):
                          and n.value.id == "gatemarks"]
                 self.assertEqual([n.attr for n in attrs if n.attr in self.WORDS], [])
                 self.assertEqual(sum(n.attr == "spec_words" for n in attrs), 2)
+
+
+class GateTextCase(unittest.TestCase):
+    """答えを受ける関所の文（gate_text）の答え方。通す行の約束は、向きを照らす関所（修正前の承認ノード）と、照らさない関所（仕様の承認ノード）で違う"""
+    ASKING = {"node": "", "kinds": ["plan_review"], "question": "通す範囲と条件を一言に", "items": ["修正案 1 が狭める能力: 空の列の mean"]}
+    CHECKED = "次の依頼の下書きに回る"
+
+    def pass_line(self, node: str, record_name: str) -> str:
+        text = gatemarks.gate_text(self.ASKING, run_id="run-1", node=node, record_name=record_name)
+        [line] = [x for x in text.splitlines() if x.startswith("- 通す:")]
+        return line
+
+    def test_the_pass_line_says_a_redirecting_note_stops(self):
+        """修正前の承認ノードの通す行は、仕様駆動の run と写しの run では計画と違う向きの一言（向きが読めない一言も）が修正へ進まずに止まり
+        次の依頼の下書きに回ること、ほかの run では修正役に届くことを言う。仕様の承認ノードは向きを照らさないので、今の文のまま"""
+        spec_approve = kit_load("spec", "files").APPROVE
+        before_fix = self.pass_line(gatemarks.GATE_NODE, "run の置き場の gates/gate-before-fix.json")
+        self.assertIn(self.CHECKED, before_fix)
+        self.assertIn("仕様駆動の run と写しの run", before_fix)
+        self.assertIn("向きが読めない", before_fix)
+        self.assertIn("修正へ進まず", before_fix)
+        self.assertIn("ほかの run では修正役に届く", before_fix)
+        self.assertIn("gates/gate-before-fix.json", before_fix)
+        spec = self.pass_line(spec_approve, "process.spec.approval")
+        self.assertNotIn(self.CHECKED, spec)
+        self.assertIn("修正役に届く", spec)
+        self.assertIn("process.spec.approval", spec)
 
 
 class MeansRowsCase(unittest.TestCase):

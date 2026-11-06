@@ -1,0 +1,15 @@
+# 単独の run: 承認ノードの答え（continue と、計画と逆向きの一言）・見せた項目・計画の修正案（fixtures/plan.json）だけで最後まで届く
+# （script は本当に走り、AI の役の返答だけを差し替える）。役が redirected を返すので、出口は aligned が偽（出口の値は tests/blocks/answer_direction が照らす）
+fixture:
+  expect: completed
+  reached: [direction-prep, direction, direction-save, finish]
+  inputs:
+    answer: '{"decision": "continue", "text": "空の列は 0 でなく例外を投げる形にしてほしい"}'
+    asked: '["修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える"]'
+    plan: .archon/workflows/works-factory/answer-direction/fixtures/plan.json
+  resolved-text-contains:
+    direction: 'You are the direction judge.'
+exec-code: true
+direction:
+  direction: redirected
+  why: 計画は空の列で 0 を返すが、一言は例外を投げる向きを選んでいる

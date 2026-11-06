@@ -953,6 +953,10 @@
        1,
        "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
       ],
+      "workflows/answer-direction/works-factory-answer-direction.yaml": [
+       2,
+       "散らばり（数の歯止め。減らす向きだけ）: 修正前の承認の一言の向きを判じる新しい AI の node（block answer-direction の direction）が model: と allowed_tools の 2 行を足した。loosened に訳の行を足してある"
+      ],
       "workflows/cold-read/works-factory-cold-read.yaml": [
        2,
        "散らばり（数の歯止め。減らす向きだけ）: 2026-11-05 の数え直しで表に載せた（#765 の組み込みで block に移った・足した所）"
@@ -1289,6 +1293,7 @@
   }
  },
  "loosened": {
+  "known:ai-launch:workflows/answer-direction/works-factory-answer-direction.yaml": "修正前の承認の一言が計画と違う向きを選んでも止めずに修正へ進む穴を塞ぐため、一言の向きを判じる新しい AI の node direction（葉の block answer-direction。docs/design/answer-direction.md）を足した。AI の node は model: の行と allowed_tools の行を 1 つずつ書くので、考え ai-launch の数の歯止めの既知の漏れが 2 行増える。役は道具を持たない 1 回だけの判じで、line に AI の node を置かない決まり（docs/design/line.md の冒頭）のため新しい葉の block に置いた。数を減らす向きの歯止めを意図して緩める行",
   "allowed:start-record:始めの記録の置き場の名を字で書く形（引用符かパスの区切りで囲んだ start.json）・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数の定義と呼び。同じ字の局所の変数は数えない）:workflows/line/src/startrec.py": "#765 の組み込みで住処の startrec.py を lib から line の src（workflows/line/src/startrec.py）へ移した。読み口（read・load・write・shape など）は住処に残り、置き場の名の字は line の置き場の名の表 files.py の START に移って、住処はそれを REL として引く（柵に当たる字は住処に無い）",
   "allowed:start-record:始めの記録の置き場の名を字で書く形（引用符かパスの区切りで囲んだ start.json）・置き場の名の別名（START_REL・START_FILE）・別の読み口（start_doc の関数の定義と呼び。同じ字の局所の変数は数えない）:workflows/line/src/files.py": "#765 の組み込みで、始めの記録の置き場の名の字 r1/start.json を line の src の置き場の名の表（workflows/line/src/files.py の START）に移した。字を持つのは表の 1 行で、住処 startrec はそれを REL として引き、ほかの書き手と読み手は住処の口を引く",
   "allowed:plan-scope:修正案の項目の範囲（allowed_paths・out_of_scope の glob）を手で当てる形:lib/globs.py": "#655 で glob の下回り（glob_match・glob_problem・globs_meet）を planmarks から lib/globs.py へ移した。読みも当て方も前の planmarks の物と同じで、範囲の照らしの住処 planrange の外で範囲を当てる所は増えていない",
