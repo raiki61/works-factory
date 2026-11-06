@@ -283,6 +283,12 @@ def _key(c) -> str:
     return f"{c['classname']}::{c['name']}"   # baseline_red の _key と同じ形（元の結末の鍵）
 
 
+def _case_of(key: str) -> dict:
+    """元の結末の鍵 `classname::name` を JUnit の行 {"classname", "name"} に戻す（_key の逆）"""
+    cls, _, name = key.partition("::")
+    return {"classname": cls, "name": name}
+
+
 def _abs_paths(repo, files) -> list:
     """根からの相対パス（node id の頭も）を絶対パスにする。実行器は自分の置き場へ cd しうるので、相対では解けない"""
     root = pathlib.Path(repo).absolute()
@@ -415,7 +421,7 @@ def _reached(st, repo, seeds=None, direct_only=True) -> tuple[list, bool]:
         return [], True
     if sel["run_all"]:
         return [], True
-    base = {impact._junit_module({"classname": k.partition("::")[0]}) for k in st["baseline"]}
+    base = {impact._junit_module(_case_of(k)) for k in st["baseline"]}
     return [f for f in sel["selected"] if PYTEST_FILE.match(posixpath.basename(f)) and (pathlib.Path(repo) / f).is_file()
             and impact._mod(f) in base], False
 

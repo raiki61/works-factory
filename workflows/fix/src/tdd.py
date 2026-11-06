@@ -500,7 +500,7 @@ def _next_head(prev: dict, run: dict) -> dict:
         return run
     whole = set(run.get("whole") or [])
     kept = {k: o for k, o in prev.get("outcome", {}).items()
-            if impact._junit_module({"classname": k.partition("::")[0]}) not in whole}
+            if impact._junit_module(common._case_of(k)) not in whole}
     return {"outcome": {**kept, **run["outcome"]}, "args": None, "whole": [], "full": False}
 
 
@@ -662,15 +662,15 @@ def _vanished(head: dict, refs: list, now: dict, args: list, scope, skip, whole=
     whole = set(whole)
     out = []
     for k, o in head.get("outcome", {}).items():
-        cls, _, name = k.partition("::")
-        if o != "passed" or (scope is not None and impact._junit_module({"classname": cls}) not in scope):
+        case = common._case_of(k)
+        module = impact._junit_module(case)
+        if o != "passed" or (scope is not None and module not in scope):
             continue
-        case = {"classname": cls, "name": name.split("[", 1)[0]}
+        case["name"] = case["name"].split("[", 1)[0]
         if any(rules().match_case(_id_base(i), [case]) for i in skip):
             continue
         got = now.get(k)
-        if got == "skipped" or (got is None and (any(k in r.get("outcome", {}) for r in same)
-                                                  or impact._junit_module({"classname": cls}) in whole)):
+        if got == "skipped" or (got is None and (any(k in r.get("outcome", {}) for r in same) or module in whole)):
             out.append((k, got or "missing"))
     return out
 

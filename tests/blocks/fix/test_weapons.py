@@ -203,6 +203,36 @@ class DutyTableCase(unittest.TestCase):
         self.assertEqual(duties.check("tidy", {**f, "vanished": []}), [])
         self.assertEqual(duties.check("tidy", {**f, "permits": [{"kind": "remove", "test": "c::gone"}]}), [])
 
+    def test_keep_same_result_matches_path_permits_to_junit_keys(self):
+        """許しはファイルのパス形、居なくなった試験の鍵は JUnit の classname::name 形——同じ試験なら許しの中に数える。
+        許しの外の名と、別のモジュールの同じ名は拒む"""
+        permits = [{"kind": "remove", "test": "tests/test_changed.py::ChangedTest::test_a"}]
+        f = {"unit": "u", "permits": permits, "files": ["a.md"], "test_files": [], "added": []}
+        self.assertEqual(duties.keep_same_result({**f, "vanished": ["tests.test_changed.ChangedTest::test_a"]}), [])
+        self.assertEqual(duties.check("tidy", {**f, "vanished": ["tests.test_changed.ChangedTest::test_a"]}), [])
+        for outside in ("tests.test_changed.ChangedTest::test_b", "tests.test_other.ChangedTest::test_a"):
+            got = duties.keep_same_result({**f, "vanished": [outside]})
+            self.assertEqual(len(got), 1, outside)
+            self.assertIn(outside, got[0])
+            self.assertEqual(len(duties.check("tidy", {**f, "vanished": [outside]})), 1, outside)
+
+    def test_keep_same_result_tail_match_passes_deeper_same_tail(self):
+        """許しより深いディレクトリに在る、後ろ側の段が同じ試験の消えは、同じ試験として通る（match_case の後ろ側の一致）"""
+        permits = [{"kind": "remove", "test": "test_changed.py::ChangedTest::test_a"}]
+        self.assertEqual(duties.keep_same_result(
+            {"vanished": ["tests.sub.test_changed.ChangedTest::test_a"], "permits": permits}), [])
+
+    def test_keep_same_result_param_permit_covers_only_its_case(self):
+        """場合の許し（test_x[1]）はその場合だけを覆い、関数の許し（test_x）は全部の場合を覆う"""
+        one = [{"kind": "remove", "test": "tests/t.py::test_x[1]"}]
+        self.assertEqual(duties.keep_same_result({"vanished": ["tests.t::test_x[1]"], "permits": one}), [])
+        got = duties.keep_same_result({"vanished": ["tests.t::test_x[2]"], "permits": one})
+        self.assertEqual(len(got), 1)
+        self.assertIn("tests.t::test_x[2]", got[0])
+        whole = [{"kind": "remove", "test": "tests/t.py::test_x"}]
+        self.assertEqual(duties.keep_same_result(
+            {"vanished": ["tests.t::test_x[1]", "tests.t::test_x[2]"], "permits": whole}), [])
+
     def test_change_named_or_gone(self):
         ok = {"named": ["t"], "before": {"t": "failure"}, "after": {"t": "passed"}}
         self.assertEqual(duties.change_named_or_gone(ok), [])
