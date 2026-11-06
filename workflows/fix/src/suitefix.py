@@ -43,16 +43,19 @@ def begin(place, repo, values: dict, keys: list, reuse) -> dict:
 
 
 def settle_kept(place, values: dict, repo, out: dict) -> None:
-    """工場の書いた実行器の取り置き: 輪の頭で結末が取れたら（base.json の taken）test_cmd の字で取り置き、壊れていたら同じバイトの
-    取り置きを捨てる（人が渡した実行器は触らない。直す前には走らせないので、取り置くのはここ。static だけの組は走らせずに base.json を
-    書くので取り置かない。持ち主の決め suite-by-ai）"""
+    """工場の書いた実行器の取り置き: 輪の頭で結末が取れたら（base.json の taken）test_cmd の字と実行器を書く指示の版
+    （prompt.digest(prompt.RUNNER_WRITER)）で取り置き、壊れていたら同じ版の同じバイトの取り置きを捨てる（人が渡した実行器は
+    触らない。直す前には走らせないので、取り置くのはここ。static だけの組は走らせずに base.json を書くので取り置かない。
+    持ち主の決め suite-by-ai）"""
     if values["suite_made"] is not True or not out.get("suite"):
         return
+    import prompt
     exe = tdd.exe_path(repo, out["suite"])
+    stamp = prompt.digest(prompt.RUNNER_WRITER)
     if out.get("suite_broken") is True:
-        suitewrite.drop_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe)
+        suitewrite.drop_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe, stamp=stamp)
     elif taken(place):
-        suitewrite.keep_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe)
+        suitewrite.keep_runner(ports.suite_keep(), str(values["test_cmd"] or ""), exe, stamp=stamp)
 
 
 def taken(place) -> bool:

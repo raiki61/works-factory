@@ -199,6 +199,48 @@ class SharedCase(Base):
                 with self.subTest(name=name), self.assertRaisesRegex(prompt.PromptError, "断片 の id の形でない"):
                     prompt.render_shared(name, {})
 
+    def test_digest_follows_the_fragment_and_the_prompts_that_take_it_in(self):
+        """版の値は、断片の字・中の断片の字・断片を取り込む block の md（parts と system の md を含む）の字のどれかが変われば変わり、
+        取り込まない block の md や断片の頭の印の行だけの違いでは変わらない。無い断片は PromptError"""
+        with self.shared_dir(frag="<!-- required-for-tools: Agent -->\nFrag {shared:inner}.\n", inner="Inner.\n", other="Other.\n"):
+            pack = prompt.ports.SHARED.parent
+
+            def put(block, rel, text):
+                path = pack / block / "prompts" / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+
+            def change(path, text):
+                path.write_text(text, encoding="utf-8")
+                return prompt.digest("frag")
+
+            put("alpha", "role.md", "Alpha {shared:frag}\n")
+            put("alpha", "parts/note.md", "Note {shared:frag}\n")
+            put("alpha", "role.system.md", "System {shared:frag}\n")
+            put("alpha", "plain.md", "Alpha plain.\n")
+            put("beta", "role.md", "Beta {shared:other}\n")
+            base = prompt.digest("frag")
+            self.assertRegex(base, r"\A[0-9a-f]{64}\Z")
+            shared = pack / "shared" / "prompts"
+            for path, text in ((shared / "frag.md", "Frag changed {shared:inner}.\n"), (shared / "inner.md", "Inner changed.\n"),
+                               (pack / "alpha" / "prompts" / "role.md", "Alpha changed {shared:frag}\n"),
+                               (pack / "alpha" / "prompts" / "parts" / "note.md", "Note changed {shared:frag}\n"),
+                               (pack / "alpha" / "prompts" / "role.system.md", "System changed {shared:frag}\n")):
+                with self.subTest(changed=path.name):
+                    original = path.read_text(encoding="utf-8")
+                    self.assertNotEqual(change(path, text), base)
+                    change(path, original)
+                    self.assertEqual(prompt.digest("frag"), base)
+            for path, text in ((pack / "alpha" / "prompts" / "plain.md", "Alpha plain changed.\n"),
+                               (pack / "beta" / "prompts" / "role.md", "Beta changed {shared:other}\n"),
+                               (shared / "other.md", "Other changed.\n"),
+                               (shared / "frag.md", "Frag {shared:inner}.\n")):   # 頭の印の行を落とした字は同じ
+                with self.subTest(unchanged=path.name):
+                    self.assertEqual(change(path, text), base)
+            self.assertNotEqual(prompt.digest("other"), base)
+            with self.assertRaisesRegex(prompt.PromptError, "が無い"):
+                prompt.digest("absent")
+
     def test_it_reads_the_real_shared_fragments(self):
         """本物の .shared/prompts の断片も組める（呼んだ block が無くても）"""
         self.assertEqual(prompt.render_shared("brief-head", {"brief_rows": "- row"}).splitlines()[:3], ["## The requirement (briefs)", "", "- row"])

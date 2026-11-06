@@ -981,12 +981,22 @@ class SuiteLoopCase(ScriptCase):
         self.declared = {launcher.SUITE_KEEP_ENV: str(self.tmp / "suites")}
         self.write_start(test_cmd=f" {self.CMD} ")
 
-    def kept(self) -> pathlib.Path:
-        return self.tmp / "suites" / hashlib.sha256(self.CMD.encode("utf-8")).hexdigest()
+    @staticmethod
+    def stamp() -> str:
+        """実行器を書く指示の今の版の値（取り置きの名に入る）"""
+        if str(kit.SHARED) not in sys.path:
+            sys.path.append(str(kit.SHARED))
+        import prompt
+        return prompt.digest(prompt.RUNNER_WRITER)
 
-    def put_kept(self, body: str) -> None:
-        self.kept().parent.mkdir(parents=True)
-        self.kept().write_text(body, encoding="utf-8")
+    def kept(self, stamp: str | None = "") -> pathlib.Path:
+        """取り置きの名 <sha256(test_cmd)>.<版>（stamp が空なら今の版、None なら版の無い前の形の名）"""
+        name = hashlib.sha256(self.CMD.encode("utf-8")).hexdigest()
+        return self.tmp / "suites" / (name if stamp is None else f"{name}.{stamp or self.stamp()}")
+
+    def put_kept(self, body: str, stamp: str | None = "") -> None:
+        self.kept(stamp).parent.mkdir(parents=True, exist_ok=True)
+        self.kept(stamp).write_text(body, encoding="utf-8")
 
     def state(self) -> dict:
         return json.loads((self.place("base") / "suite-state.json").read_text(encoding="utf-8"))
@@ -1048,6 +1058,18 @@ class SuiteLoopCase(ScriptCase):
         out = self.ok("result", "base")
         self.assertEqual(out["suite"], self.state()["tdd_suite"])
         self.assertIn(suitewrite.USED, out["suite_note"])
+
+    def test_kept_runner_from_another_writer_text_calls_the_writer(self):
+        """同じ test_cmd の取り置きが版の無い前の形の名か別の版の名にしか無ければ使わず、書き手の指示を返す（その物は消さない）"""
+        self.put_kept(self.RED, stamp=None)
+        self.put_kept(self.RED, stamp="another")
+        self.ok("run", "base")
+        prep = self.ok("suite_prep", "base")
+        self.assertTrue(prep["write"])
+        self.assertIn("runner", prep["prompt"])
+        self.assertEqual(self.state()[suitewrite.KEY]["from"], suitewrite.FROM_AI)
+        self.assertTrue(self.kept(None).is_file() and self.kept("another").is_file())
+        self.assertFalse(self.kept().exists())
 
     def test_a_runner_is_bound_without_running_it_before_the_fix(self):
         """直す前の版では試験を走らせない（持ち主の決め base-runs-nothing）: 試験を 1 件も書かない実行器も、直す前は走らせずに結ぶ。
@@ -1373,6 +1395,19 @@ class PromptCase(ScriptCase):
         self.assertIn(f"has the run declaration `{declared_checks.DECL_NAME}`", text)
         self.assertIn(f"````text\n{cmd}\n````", text)
         self.assertNotIn("None (the person did not give one).", text)
+
+    def test_suite_write_prompt_holds_the_steps_for_an_and_chained_test_cmd(self):
+        text = self.write_prompt(test_cmd="make build && pytest -q tests/a && pytest -q tests/b")
+        self.assertIn("joined only by `&&`", text)
+        self.assertIn("its own temporary file", text)
+        self.assertIn("even if an earlier part is red", text)
+        self.assertIn("`testsuites`", text)
+        self.assertIn("a `<error>` testcase", text)
+        self.assertIn("Put only the part's number in its name", text)
+        self.assertIn("exit code in the `message` of the `<error>`", text)
+        self.assertIn("a part to which you added the JUnit option", text)
+        self.assertIn("first non-zero", text)
+        self.assertIn("The machine treats a runner that contains the test_cmd as typed as the same thing as the test_cmd", text)
 
     def test_suite_write_lang(self):
         self.assertIn("in Japanese.", self.write_prompt(lang="Japanese"))
