@@ -325,27 +325,49 @@ def collect(place, repo) -> dict:
 
 def fallback(place, why: str) -> dict:
     """誤りの時の約束の形の返り（ok: false と理由。ほかは空の値。当たったままの組は stopby.UNRESTORED で返す）。lib が読めない時も
-    標準ライブラリだけで返す"""
-    groups_rows, units_rows, stop = [], [], ""
+    標準ライブラリだけで返す。join.json が読めず、当たったままの組が在るかを確かめられない時も stopby.UNRESTORED で人に回し、
+    読めなかった訳を tdd_refused.unread に載せる。組の控えが読めなくても、当たったままの組の行は残す"""
+    groups_rows, units_rows, stop, stuck = [], [], "", {}
+    unread = [why]
     place = pathlib.Path(place)
+    board = stopby = None
     try:
         import stopby
         from src import board
-        stuck = board.unrestored_of(place)
-        stop = stopby.UNRESTORED if stuck else ""
-        plan = board.read_json(place / board.GROUPS_FILE)
-        gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
-        if not gs:
-            got = json.loads((place / files.INTAKE).read_text(encoding="utf-8")).get("group")
-            gs = [got] if isinstance(got, dict) else []
-        for g in gs:
-            groups_rows.append({"group_id": str(g["group_id"]), "unit_ids": [str(k) for k in g["unit_ids"]],
-                                "returned": False, "reason": why,
-                                **({"unrestored": stuck[str(g["group_id"])]} if str(g["group_id"]) in stuck else {})})
-            units_rows += [{"unit_id": str(k), "group_id": str(g["group_id"]), "status": "not_done", "reason": why}
-                           for k in g["unit_ids"]]
-    except Exception:
-        groups_rows, units_rows = [], []
+    except Exception as error:  # noqa: BLE001
+        board = stopby = None
+        unread.append(f"lib を読めない（{type(error).__name__}: {error}）")
+    if board is not None:
+        try:
+            stuck = board.unrestored_of(place)
+            stop = stopby.UNRESTORED if stuck else ""
+        except Exception as error:  # noqa: BLE001
+            stuck, stop = {}, stopby.UNRESTORED
+            unread.append(f"join.json を読めず、作業ツリーに当たったままの組が在るかもしれない（{type(error).__name__}: {error}）")
+        try:
+            plan = board.read_json(place / board.GROUPS_FILE)
+            gs = plan["groups"] if isinstance(plan, dict) and isinstance(plan.get("groups"), list) else []
+            if not gs:
+                got = json.loads((place / files.INTAKE).read_text(encoding="utf-8")).get("group")
+                gs = [got] if isinstance(got, dict) else []
+            for g in gs:
+                groups_rows.append({"group_id": str(g["group_id"]), "unit_ids": [str(k) for k in g["unit_ids"]],
+                                    "returned": False, "reason": why,
+                                    **({"unrestored": stuck[str(g["group_id"])]} if str(g["group_id"]) in stuck else {})})
+                units_rows += [{"unit_id": str(k), "group_id": str(g["group_id"]), "status": "not_done", "reason": why}
+                               for k in g["unit_ids"]]
+        except Exception as error:  # noqa: BLE001
+            groups_rows, units_rows = [], []
+            unread.append(f"組の控えを読めない（{type(error).__name__}: {error}）")
+            if stuck:
+                try:
+                    joined = {str(r.get("group_id")): r.get("unit_ids") for r in board.read_json(place / board.JOIN_FILE)["groups"]}
+                except Exception:  # noqa: BLE001
+                    joined = {}
+                for gid, paths in stuck.items():
+                    ids = [str(k) for k in joined.get(str(gid)) or []]
+                    groups_rows.append({"group_id": str(gid), "unit_ids": ids, "returned": False, "reason": why, "unrestored": paths})
+                    units_rows += [{"unit_id": k, "group_id": str(gid), "status": "not_done", "reason": why} for k in ids]
     if not groups_rows:
         groups_rows = [{"group_id": "", "unit_ids": [], "returned": False, "reason": why}]
     try:
@@ -357,7 +379,6 @@ def fallback(place, why: str) -> dict:
     except OSError:
         pass   # 書けなくても、誤りの文の置き場を指す（読み手は読めない控えとして扱う）
     diff = ports.pointer(place / files.COLLECT_ERROR, "file")   # file の form は中身を照らさないので、書けなかった時も指せる
-    unread = [why]
     # 落ちない出口なので、隣のファイルが形に合わない・照らせない時は null にし、黙らずに訳を unread に載せる
     try:
         allowed = ports.pointer(place / files.ALLOWED_TESTS_FILE, "json(shared:allowed-tests.schema.json)") \

@@ -97,6 +97,19 @@ class RoundTest(_Case):
         self.assertEqual(self.intake(prior=dump(prior))["round"], 3)
         self.assertTrue((self.folder(3) / "intake.json").is_file())
 
+    def test_an_unreadable_prior_opens_the_next_folder_and_keeps_the_earlier_round(self):
+        """前の周の記録が空でないのに読めない時、周の番号は在る周のフォルダの一番大きい番号 + 1 で、前の周の控えを消さない"""
+        earlier = self.folder(1)
+        earlier.mkdir(parents=True)
+        (earlier / "intake.json").write_text(dump({"due": True}), encoding="utf-8")
+        (earlier / "design.json").write_text(dump({"kept": True}), encoding="utf-8")
+        got = self.intake(prior="{壊れ")
+        self.assertEqual(got["round"], 2, got)
+        self.assertFalse(got["due"], got)
+        self.assertIn("prior", got["reason"])
+        self.assertEqual(json.loads((earlier / "design.json").read_text(encoding="utf-8")), {"kept": True})
+        self.assertTrue((self.folder(2) / "intake.json").is_file())
+
     def test_a_recorded_row_without_a_name_is_not_shown_as_nameable(self):
         """記録された方針の行は lib/eyekit.recorded_rows_text で組む: 名の無い settled の行（where の無い決め）を名指せる行の形で見せない
         （断片 recorded-policy は「名を字のまま写せ」と言うので、空の名を見せると役が空の字を名指す）"""

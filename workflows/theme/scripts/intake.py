@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""設計の案の書き手の入口: 全部の port を読み、周のフォルダ r<k>/（k は往復の記録の往復の数 + 1）を開いて、書き手を起こすかを決める。
+"""設計の案の書き手の入口: 全部の port を読み、周のフォルダ r<k>/（k は往復の記録の往復の数 + 1。空なら 1。空でないのに読めなければ、在る周のフォルダの一番大きい番号 + 1）を開いて、書き手を起こすかを決める。
 読めない port は書き手を起こさない。落ちない: 誤りは due 偽と訳を周のフォルダの intake.json に残す"""
 import os
 import sys
@@ -18,7 +18,7 @@ K = []   # この周の番号（compute が決め、fallback が同じ番号を�
 def round_number() -> int:
     from src import files
     if not K:
-        K.append(files.next_round(os.environ.get("INPUTS_PRIOR")))
+        K.append(files.next_round(ports.place(), os.environ.get("INPUTS_PRIOR")))
     return K[0]
 
 

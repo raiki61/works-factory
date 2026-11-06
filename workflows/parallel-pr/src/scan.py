@@ -34,35 +34,58 @@ def wheres_of(request) -> list:
     return [r["where"] for r in request if isinstance(r, dict) and isinstance(r.get("where"), str)]
 
 
-def changed_files(repo, changed, base: str, wheres) -> list:
-    """交差を取る変更ファイルの集合。順に最初に空でない物: port changed の値・base から作業ツリーまでの変更ファイル（lib/accept.touched_files。
-    取れなければ空）・追跡中のパスのうち依頼の where の字に含まれる物（名の順）"""
+SOURCE_CHANGED, SOURCE_DIFF, SOURCE_WHERE = "changed", "diff", "where"   # 変更ファイルの集合の出どころ
+LS_FILES_FAILED = "追跡中のパスを git で引けない"
+
+
+def changed_files(repo, changed, base: str, wheres) -> dict:
+    """交差を取る変更ファイルの集合 {files, source, unmeasured}。順に最初に空でない物: port changed の値（source は changed）・
+    base から作業ツリーまでの変更ファイル（lib/accept.touched_files。source は diff）・追跡中のパスのうち依頼の where の字に含まれる物
+    （名の順。source は where）。unmeasured は測れなかった訳の文の並びで、差分が取れなかった訳（git の失敗の型と文）と、追跡中のパスを
+    引けなかった訳を捨てずに運ぶ"""
     if changed:
-        return list(changed)
-    found = []
+        return {"files": list(changed), "source": SOURCE_CHANGED, "unmeasured": []}
+    unmeasured = []
     if base:
         try:
             found = core_accept.touched_files(pathlib.Path(repo), base)
-        except Reject:
+        except Reject as e:
             found = []
-    if found:
-        return found
-    tracked = (forge._git(repo, "ls-files", "-z") or "").split("\0")
-    return sorted({t for t in tracked if t and any(t in w for w in wheres)})
+            unmeasured.append(f"{type(e).__name__}: {e}")
+        if found:
+            return {"files": found, "source": SOURCE_DIFF, "unmeasured": []}
+    listed = forge._git(repo, "ls-files", "-z")
+    if listed is None:
+        unmeasured.append(LS_FILES_FAILED)
+    tracked = (listed or "").split("\0")
+    return {"files": sorted({t for t in tracked if t and any(t in w for w in wheres)}),
+            "source": SOURCE_WHERE, "unmeasured": unmeasured}
 
 
-def plan(repo, changed, *, which=None) -> dict:
-    """返り {fallback: 理由}（役に任せる）・{blocked: 理由}（走らせずに not_run）・{repo, head, files}（数えを走らせる）。
-    which は gh を探す口（試験が差し替える）"""
+def unmeasured_why(source, unmeasured, n: int) -> str:
+    """集合が差分を測れずに依頼の where で代えた物なら、その訳の文（札を clean にしない根拠）。ほかは空の字。
+    機械の道（reply_of）と役の返答の受け付け（take）がこの 1 か所で決める"""
+    if source != SOURCE_WHERE or not unmeasured:
+        return ""
+    return (f"差分を git で測れなかった（{'; '.join(unmeasured)}）。依頼の where が名指す追跡中のパス {n} 件で代えた"
+            "——差分の交差は確かめていない")
+
+
+def plan(repo, measured, *, which=None) -> dict:
+    """measured は changed_files の返り。返り {fallback: 理由}（役に任せる）・{blocked: 理由}（走らせずに not_run）・
+    {repo, head, files, measured}（数えを走らせる）。which は gh を探す口（試験が差し替える）"""
     slug, why = github_repo(repo)
     if not slug:
         return {"fallback": why}
     if not (which or shutil.which)("gh"):
         return {"fallback": "gh がこの環境に無い"}
-    if not changed:
-        return {"blocked": "交差を取る変更ファイルの集合が空（差分も、依頼の where が名指す追跡中のパスも無い）——空の集合との交差は何も確かめない"}
+    if not measured["files"]:
+        blocked = "交差を取る変更ファイルの集合が空（差分も、依頼の where が名指す追跡中のパスも無い）——空の集合との交差は何も確かめない"
+        if measured["unmeasured"]:
+            blocked += f"。git で測れなかった: {'; '.join(measured['unmeasured'])}"
+        return {"blocked": blocked}
     head = (forge._git(repo, "rev-parse", "HEAD") or "").strip()
-    return {"repo": slug, "head": head, "files": changed}
+    return {"repo": slug, "head": head, "files": measured["files"], "measured": measured}
 
 
 def count(repo, slug: str, head: str, changed, *, gh=None) -> tuple:
@@ -100,8 +123,13 @@ def reply_of(launch: dict, got, why: str = "") -> dict:
         return {"fallback": f"並行 PR と {len(got['conflicts'])} 件交差した（{[c['pr'] for c in got['conflicts']][:10]}）——交差した hunk を読んで担当の PR に申し送る 6 段は役"}
     if got.get("truncated"):
         return {"reply": {"material": {"status": "awaiting_human", "reason": f"gh pr list が上限 {got.get('listed')} 件で打ち切られた——打ち切られた一覧で衝突なしと書かない"}, **rest, "conflicts": []}}
+    measured = launch["measured"]
+    stand_in = unmeasured_why(measured["source"], measured["unmeasured"], len(measured["files"]))
+    if stand_in:
+        return {"reply": {"material": {"status": "awaiting_human", "reason": f"{stand_in}（gh で数えた交差は 0 件）"}, **rest, "conflicts": []}}
+    kind = "依頼の where が名指す追跡中のパスで代えた変更ファイルの集合" if measured["source"] == SOURCE_WHERE else "変更ファイルの集合"
     return {"reply": {"material": {"status": "clean", "checked": (f"engine が gh -R {got['repo']} で open な PR {got['listed']} 件を引き、自分の PR（headRefOid が HEAD）を除いて、"
-                                                            f"変更ファイルの集合と交差 0 件（打ち切りなし）")}, **rest, "conflicts": []}}
+                                                            f"{kind}と交差 0 件（打ち切りなし）")}, **rest, "conflicts": []}}
 
 
 def _material(place, reply: dict) -> None:
@@ -132,16 +160,16 @@ def scan(place, repo, *, request, base: str, changed, stage: str = "before", gh=
     except Reject as e:
         return _done(place, {"go_role": False, "reason": f"作業ツリーの写しが取れない（役の前後を比べられない）: {e}"})
     wheres = wheres_of(request)
-    changed_set, head = [], ""
+    measured, head = {"files": [], "source": "", "unmeasured": []}, ""
     try:
-        changed_set = changed_files(repo, changed, base, wheres)
+        measured = changed_files(repo, changed, base, wheres)
         head = (forge._git(repo, "rev-parse", "HEAD") or "").strip()
         no_forge = forge.reason(forge.detect(repo))
         if no_forge:
             result = {"reply": {"material": {"status": "not_applicable", "reason": no_forge},
                                 "repo": "", "listed": 0, "truncated": False, "conflicts": []}}
         else:
-            launch = plan(repo, changed_set, which=which)
+            launch = plan(repo, measured, which=which)
             if "fallback" in launch:
                 result = launch
             elif launch.get("blocked"):
@@ -151,7 +179,8 @@ def scan(place, repo, *, request, base: str, changed, stage: str = "before", gh=
                 result = reply_of(launch, got, why)
     except Exception as e:  # noqa: BLE001  機械の道が落ちたら役に任せる（起こし直しは当たらない）
         result = {"fallback": f"機械の道が落ちた（{type(e).__name__}: {e}）——役に任せる"}
-    jsonfile.write(place / files.BRIEF, {"node": files.NODE, "cwd": str(repo), "base": base, "changed_files": changed_set,
+    jsonfile.write(place / files.BRIEF, {"node": files.NODE, "cwd": str(repo), "base": base, "changed_files": measured["files"],
+                                         "changed_source": measured["source"], "unmeasured": measured["unmeasured"],
                                          "request_wheres": wheres, "fallback": result.get("fallback", ""), "stage": stage})
     if "fallback" in result:
         return _done(place, {"go_role": True, "reason": result["fallback"]})
