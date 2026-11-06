@@ -68,7 +68,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - PLAIN・named(node)・status_named(status)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
 - head3(happened, decide, push)・pushes(texts)・push_of(texts): 関所の文と報告の冒頭 3 行（起きたこと・決めてほしいこと・推し）と、推しを記録から拾う口
-- gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て）
+- gate_text(asking, *, run_id, node, record_name): 答えを受ける関所の文（修正前の関所と仕様の関所が呼ぶ 1 つの組み立て。通す行の一言の行き先だけは、向きを照らす修正前の関所（node が GATE_NODE）にだけ DIRECTION_STOPS を足し、向きを照らさない仕様の関所は「修正役に届く」のまま）
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしはこの尾を外す）
 - push_rec(text): 項目の推しの尾の読み戻し（その無人の方針の読み row_push は line の src/。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
@@ -183,6 +183,8 @@ PASSED_BY = "decided"
 PASSED_BY_HUMAN = "human"               # 修正の後の関所で、修正前の関所で人が通した行と同じなので聞き直さなかった
 PASSED_BY_PUSH = "push"                 # 同じく、修正前の関所を無人の run が推しで通した行と同じなので聞き直さなかった
 GATE_NODE = "p2.human_gate"
+DIRECTION_STOPS = ("仕様駆動の run と写しの run では、計画と違う向きを選ぶ一言（向きが読めない一言・向きの判定が落ちた時も）は修正へ進まずに止まり、"
+                   "次の依頼の下書きに回る。")   # 修正前の承認ノードの通す行の約束（向きを照らすのはその承認ノードだけ。仕様の承認ノードの文には足さない）
 START_GATE_NODE = "始めの承認ノード"   # 始めの承認の答えの行の札（lib の語。始めの承認は review-graph の節に当たらないので p0.* の形にしない）
 R4_GATE_NODE = "r4.human_gate"
 # 修正前の関所の行の頭（line の承認ノードの組み立てが組む形）。r4_gate_items が種類と本文に分ける
@@ -368,9 +370,9 @@ def gate_text(asking: dict, *, run_id: str, node: str, record_name: str) -> str:
         lines += [ASK_GATE_HEAD, ""]
     lines += ["問いの文（記録のまま引く）:", *quote(asking.get("question")), QUOTE_NOTE, "", f"項目（{len(items)} 件）:"]
     lines += [f"- {x}" for x in items] or ["- （無し）"]
+    reaches = ("に残る。" + DIRECTION_STOPS + "それ以外の一言は修正役に届く" if node == GATE_NODE else "に残り、修正役に届く")
     lines += ["", "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
-              f"- 通す: {answer.line(run_id, 'continue', '<通す範囲と条件>')}（一言は run の記録（記録の名 {record_name}）に残り、"
-              "修正役に届く）",
+              f"- 通す: {answer.line(run_id, 'continue', '<通す範囲と条件>')}（一言は run の記録（記録の名 {record_name}）{reaches}）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
     return "\n".join(lines) + "\n"
 

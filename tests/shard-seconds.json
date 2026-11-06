@@ -77,6 +77,7 @@
   "tests.bin.test_startpoint": 0.1,
   "tests.bin.test_toolset": 10.2,
   "tests.bin.test_works_gh": 1.8,
+  "tests.blocks.answer_direction.test_answer_direction": 4.5,
   "tests.blocks.chain.test_chain": 31.2,
   "tests.blocks.cold_read.test_cold_read": 1.7,
   "tests.blocks.consistency_bypass.test_consistency_bypass": 3.9,

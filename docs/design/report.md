@@ -8,7 +8,7 @@
 この文書の語は README の頭の物を使う（line・始めの記録・今は [materials.md](materials.md) の頭）。ほかに:
 
 - 周: この文書では、断りが無ければ書き手のループの 1 回（`r<n>` のフォルダの n）。run の修正の回り（1 run = 1 周）を言う時は「run の周」と書く。
-- 止めの語の頭: `report.REQUEST_BY` は `"request:"`（依頼の側が置いた止め札）、`report.HUMAN_BY` は `"human:"`（人が止めた）、`stopby.WAITING` は人待ちの語の集まり（`lib/stopby.py:108` の `CONFLICT`・`NEEDS_HUMAN`・`REPLAN`・`SPEC_CHANGED`・`TDD_REPEAT`・`UNRESTORED`）。
+- 止めの語の頭: `report.REQUEST_BY` は `"request:"`（依頼の側が置いた止め札）、`report.HUMAN_BY` は `"human:"`（人が止めた）、`stopby.WAITING` は人待ちの語の集まり（語の並びの住処は `lib/stopby.py` の `WAITING`）。
 - 封じ・置き: merge の block が差分を確定して hash を取ること（封じ。`sealed`）と、封じた差分を対象の作業ツリーに当てること（置き。`placed`）。凍結: fix がテストの hash を取り、修正役に書き換えさせないこと（keep-essence の 3）。
 - 独立の目（R1〜R4）: 修正に関わっていない AI の見直し。R1 最小性とコメント・R2 独立設計との比べと前提の検算・R3 全体の整合・R4 見えていない範囲（README の 8.4）。
 - 段の表・続きの切れ目: line が渡す表 `stages`（前の段の出力のある欄が真なら後の段の出力が在るはず、という行の並び）と、それが守られていない所（`cut`。run が途中で終わった印）。

@@ -861,6 +861,7 @@ nodes:
           passes: {type: array, items: &passed {type: object, properties: {node: {type: string}, round: {type: [integer, 'null']}, by: {type: string}, item: {type: string}, decided_by: {type: string}}}}
           policy_changed: {type: boolean}
           agreed: *talked
+          plan: {type: array, items: {type: string}, description: '承認に掛けた計画の行（項目ごとのやり方と書く所）。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復・修正案の項目が無い run は空'}
     depends_on: [plan-rounds-out, judge-out, structure-in]
     with:
       rounds: "$plan-rounds-out.output.got"
@@ -893,6 +894,7 @@ nodes:
           go: {type: boolean}
           answer: *answer
           stop_reason: {type: string}
+          reason: {type: string, description: '止めた訳（一言の向きで止めた時の、判定の向きと why と人の一言。止めていなければ空。仕様駆動の道と写しの道だけが止める）'}
           policy: {type: string, description: 'file: 修正前の答えが固め直した方針の写しのパス（固め直さなければ配る値の写し）'}
     depends_on: [ask-before-fix, gate-before-fix]
     trigger_rule: none_failed_min_one_success
@@ -1018,11 +1020,33 @@ nodes:
     depends_on: [spec-ask-before-fix, gate-before-fix]
     trigger_rule: none_failed_min_one_success
     when: "$start.output.from_spec == true && $spec-ask-before-fix.output.open == true"
-  - id: spec-answer-before-fix
-    <<: *before_fix_answer
+  # 一言の向きの判定（docs/design/answer-direction.md）。承認ノードが開いて人が答えた後に、答えの一言を承認に掛けた計画と見せた項目に照らす。
+  # 照らすのは仕様駆動の道と写しの道だけ（本線の answer-before-fix には足さない）。止めるかは spec-answer-before-fix が決める。承認ノードが
+  # 開かない run では飛び、受け皿の got は null になる（その時は spec-answer-before-fix も一言を照らさない）
+  - id: spec-direction
+    include: works-factory-answer-direction
     depends_on: [spec-ask-before-fix, spec-gate-before-fix]
     trigger_rule: none_failed_min_one_success
+    when: "$start.output.from_spec == true && $spec-ask-before-fix.output.open == true"
     with:
+      answer: "$spec-gate-before-fix.output"
+      asked: "$spec-ask-before-fix.output.asked"
+      plan: {from: "$spec-ask-before-fix.output.plan", if_skipped: null}
+      lang: "$start.output.ports.lang"
+  - id: spec-direction-out
+    <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-answer-direction): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
+    depends_on: [spec-direction]
+    with:
+      got: "$spec-direction.output"
+      names: "ok status reason direction aligned why report"
+  - id: spec-answer-before-fix
+    <<: *before_fix_answer
+    depends_on: [spec-ask-before-fix, spec-gate-before-fix, spec-direction-out]
+    trigger_rule: none_failed_min_one_success
+    with:
+      direction: {from: "$spec-direction-out.output.got", if_skipped: null}
+      direction_due: "true"
       gate: {from: "$spec-gate-before-fix.output", if_skipped: null}
       go: "$spec-ask-before-fix.output.go"
       stop_reason: "$spec-ask-before-fix.output.stop_reason"
@@ -1056,11 +1080,30 @@ nodes:
     depends_on: [fixture-ask-before-fix, spec-gate-before-fix]
     trigger_rule: none_failed_min_one_success
     when: "$start.output.fixture_gate == true && $fixture-ask-before-fix.output.open == true"
-  - id: fixture-answer-before-fix
-    <<: *before_fix_answer
+  - id: fixture-direction
+    include: works-factory-answer-direction
     depends_on: [fixture-ask-before-fix, fixture-gate-before-fix]
     trigger_rule: none_failed_min_one_success
+    when: "$start.output.fixture_gate == true && $fixture-ask-before-fix.output.open == true"
     with:
+      answer: "$fixture-gate-before-fix.output"
+      asked: "$fixture-ask-before-fix.output.asked"
+      plan: {from: "$fixture-ask-before-fix.output.plan", if_skipped: null}
+      lang: "$start.output.ports.lang"
+  - id: fixture-direction-out
+    <<: *receiver
+    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-answer-direction): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
+    depends_on: [fixture-direction]
+    with:
+      got: "$fixture-direction.output"
+      names: "ok status reason direction aligned why report"
+  - id: fixture-answer-before-fix
+    <<: *before_fix_answer
+    depends_on: [fixture-ask-before-fix, fixture-gate-before-fix, fixture-direction-out]
+    trigger_rule: none_failed_min_one_success
+    with:
+      direction: {from: "$fixture-direction-out.output.got", if_skipped: null}
+      direction_due: "true"
       gate: {from: "$fixture-gate-before-fix.output", if_skipped: null}
       go: "$fixture-ask-before-fix.output.go"
       stop_reason: "$fixture-ask-before-fix.output.stop_reason"
@@ -1908,7 +1951,8 @@ nodes:
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
                  delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
                  eyes-out, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
-                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-answer-before-fix, fixture-ask-before-fix, fixture-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
+                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-direction-out, spec-answer-before-fix, fixture-ask-before-fix, fixture-direction-out,
+                 fixture-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
                  theme-rounds-out, theme-descend, request-in, theme-return]
     trigger_rule: all_done
     always_run: true

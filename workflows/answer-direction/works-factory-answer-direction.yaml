@@ -1,0 +1,83 @@
+name: works-factory-answer-direction
+description: '修正前の承認の一言の向きの判定の block（docs/design/answer-direction.md）。承認ノードの答え（決めの語と一言）を、承認に掛けた計画の行と承認ノードで見せた項目に照らし、一言が計画と同じ向きか・違う向きを選んでいるか・向きが読めないかを、道具を持たない役に 1 回だけ判じさせる。決めの語が通す語で一言が空でない時だけ役を起こす。止めるかは決めず、呼んだ側が出力の欄 aligned で決める（判定が落ちた時・返答が読めない時は aligned が偽）。単独の run でも、graph から include されても回る'
+inputs:
+  answer:
+    required: true
+    description: 'text: 承認ノードの答え {decision, text} の JSON の字。決めの語が通す語（approve・continue）で一言 text が空でない時だけ役を起こす。読めない・null は判定が落ちた扱い（aligned が偽）'
+  asked: {default: '[]', description: 'json(shown.schema.json): 承認ノードで見せた項目の文の配列。空の配列・null は見せた項目が無い'}
+  plan:
+    default: '[]'
+    description: 'json(shown.schema.json): 承認に掛けた計画の行の配列（項目ごとのやり方と書く所）。一言があるのに空の配列・null・読めない時は判定が落ちた扱い（aligned が偽）'
+  lang: {default: '', description: 'text: 人に見せる欄（why の字）の言語。空は一言の言語'}
+returns: finish
+outcome_field: ok
+nodes:
+  - id: direction-prep
+    script: direction_prep
+    runtime: uv
+    mutates_checkout: false
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [due, prompt, reason]
+      properties:
+        due: {type: boolean}
+        prompt: {type: string}
+        reason: {type: string}
+  - id: direction
+    prompt: "$direction-prep.output.prompt"
+    depends_on: [direction-prep]
+    when: "$direction-prep.output.due == true"
+    context: fresh
+    model: '@wf-judge-materials'
+    allowed_tools: []
+    settingSources: [user]
+    sandbox: {enabled: true, allowUnsandboxedCommands: false}
+    mutates_checkout: false
+    idle_timeout: 1728000000
+    retry: {max_attempts: 2, on_error: all}
+    output_format:
+      type: object
+      required: [direction, why]
+      additionalProperties: false
+      properties:
+        direction: {type: string, enum: [aligned, redirected, unclear]}
+        why: {type: string}
+  # 役の返答の受け皿。出口は落ちうる役の node を結ばず、受け皿が写したファイルで読む（役が落ちても受け皿が飛ぶだけ）
+  - id: direction-save
+    script: direction_save
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [direction]
+    with:
+      reply: $direction.output
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [saved]
+      properties:
+        saved: {type: boolean}
+  - id: finish
+    script: finish
+    runtime: uv
+    mutates_checkout: false
+    depends_on: [direction-prep, direction-save]
+    trigger_rule: all_done
+    with:
+      prep: {from: "$direction-prep.output", if_skipped: null}
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [ok, status, reason, direction, aligned, why, report]
+      properties:
+        ok: {type: boolean}
+        status:
+          type: string
+          enum: [ok, skipped, failed]
+        reason: {type: string}
+        direction:
+          type: string
+          enum: [aligned, redirected, unclear, '']
+        aligned: {type: boolean}
+        why: {type: string}
+        report: {type: array, items: {type: string}}

@@ -53,7 +53,8 @@ UNKNOWN_STOP = "語の意味の記録が無い"
 NO_STOP_REASON = "訳の記録が無い"
 BASE_STOPPED = "直す前の試験の関門が止めた（判定は起こしていない）"
 # 止めの語 → 報告の頭の訳の行の尾に付ける「次にすること」の句（語が在る止めは、訳が空でも黙らない）
-HEAD_NEXT = {stopby.START_REFUSED: "訳が名指した入力を直して、run を起こし直す（AI は起こしておらず、対象には何も当てていない）"}
+HEAD_NEXT = {stopby.START_REFUSED: "訳が名指した入力を直して、run を起こし直す（AI は起こしておらず、対象には何も当てていない）",
+             stopby.ANSWER_REDIRECTED: "下書きの一言を見直し、その向きで計画し直す依頼にするか、計画どおりなら continue と書いて回し直す"}
 UNPASSED_WHERE = "指摘の全文は報告の「2. 止めたか」の節"
 EYE_ASK_HEAD = "依頼の範囲を超えていないかを見る目の問い"   # gatemarks.EYES["R4"] の問い。頭の行に目の印 R4 を出さない
 MEANS_ASK_HEAD = "頼みの解き方どおりで独立設計と食い違う所"   # R2 の頼みどおりの違いの問い（計画 means-answers の 6.3 の 3。行の頭の R2: で目が分かる）
@@ -662,8 +663,8 @@ def ran_notes(returns: dict) -> list:
 
 
 def spoken_stops(values: dict, returns: dict) -> list:
-    """頭で訳を言う止め [(意味, 訳, 次にすること)]: 次にすることの表 HEAD_NEXT に在る止め（入口が入力を断った止め。訳が空でも黙らず、
-    訳の記録が無いと言う）と、止めの語を持たずに ok を偽で返す直す前の試験の関門（試験のコマンドの最初の語を起こせない run など）だけ。
+    """頭で訳を言う止め [(意味, 訳, 次にすること)]: 次にすることの表 HEAD_NEXT に在る止め（入口が入力を断った止めと、修正前の承認の
+    一言の向きで止めた止め。訳が空でも黙らず、訳の記録が無いと言う）と、止めの語を持たずに ok を偽で返す直す前の試験の関門（試験のコマンドの最初の語を起こせない run など）だけ。
     ほかの止めの訳は頭に出さない（止めた所と語の意味は stop_words の行が言い、line の script の落ちの訳は problems に、block の止めの訳はその block の報告の行に、テーマの設計の段の訳は
     報告の設計の段の行に在る）。訳は返りの reason を 1 行に畳むだけで言い換えない"""
     import oneline
@@ -1016,15 +1017,33 @@ def _item_said(x) -> str:
     return json.dumps(x, ensure_ascii=False)
 
 
+REDIRECT_SOURCE = "修正前の承認の一言が計画と違う向きで止めた行（一言を見直して答え直す）"
+REDIRECT_NOTE = "承認ノードの一言が計画と違う向きを選んだか、向きが読めないか、判定が落ちたので修正へ進まず止めた。止めた訳: {reason}。この項目への答えを、一言の向きを見直して text に書く"
+
+
+def redirect_drafts(values: dict) -> list:
+    """修正前の答えの一言の向きで止めた run（止めの語 stopby.ANSWER_REDIRECTED）が、承認ノードで見せた項目に答え直す下書き。項目ごとに 1 行:
+    question は項目の文の全文、text は空（機械は人の一言から答えを作らない）、note に返りの reason（止めた訳。人の一言を含む）。止めていない run は空"""
+    import oneline
+    got = as_dict(values.get("answer_before_fix"))
+    if got.get("stop_reason") != stopby.ANSWER_REDIRECTED:
+        return []
+    said = as_dict(got.get("answer"))
+    note = REDIRECT_NOTE.format(reason=oneline.one_line(got.get("reason") or NO_STOP_REASON))
+    import gatemarks
+    return [gatemarks._draft(q, "", REDIRECT_SOURCE, note) for q in _list(said.get("asked")) if isinstance(q, str) and q.strip()]
+
+
 def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) -> list:
     """人の判断を待つ項目への答えの下書き（元 runreport.answer_drafts の、承認し直すかの問い・載せなかった修正前の問いと R4 の問い・
-    保留の台帳の問い・問いの立っていない測れていない素材の行）"""
+    保留の台帳の問い・問いの立っていない測れていない素材の行。修正前の答えの一言の向きで止めた run の見せた項目への答え直しの行は redirect_drafts）"""
     import answer
     import gatemarks
     spec = as_dict(values.get("spec_check"))
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
     words = gatemarks.spec_words(bool(spec_qs) and spec.get("unchecked") is not False)
     out = [gatemarks._draft(q, "", words.source, words.note) for q in spec_qs]
+    out += redirect_drafts(values)
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
     asked = [(q, False) for q in eye_questions(returns)]

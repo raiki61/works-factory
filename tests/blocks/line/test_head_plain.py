@@ -237,6 +237,25 @@ class StopReasonHeadCase(HeadAfterBase):
             after = self.after(base.passing())
             self.assertFalse([x for x in after if "R-" in x or self.NEXT in x], after)
 
+    REDIRECTED = "判定: redirected（計画は 0 を返すが一言は例外を選んでいる）。一言: 空の列は例外を投げる形にして"
+    REDIRECT_NEXT = "次にすること: 下書きの一言を見直し、その向きで計画し直す依頼にするか、計画どおりなら continue と書いて回し直す"
+
+    def test_the_redirected_answer_says_its_reason_and_what_to_do_next(self):
+        """修正前の承認の一言の向きで止めた run（止めの語 answer-redirected）は、冒頭の知らせの行に止めた訳（判定の訳と一言）と次にすることの句を
+        1 行で出し、node の id は出さない（仕様駆動の道と写しの道の答えの返りは collect が今の欄の名に重ねて渡す）"""
+        import stopby
+        meaning = stopby.REASONS.get("answer-redirected")
+        self.assertTrue(meaning, "止めの語 answer-redirected の意味が stopby の表に在る")
+        v = base.passing()
+        v["answer_before_fix"] = {"go": False, "answer": {"decision": "continue", "text": "一言", "asked": ["項目"]},
+                                  "stop_reason": "works:answer-redirected", "reason": self.REDIRECTED, "policy": ""}
+        lines = [x for x in self.after(v) if x.startswith(meaning)]
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(self.REDIRECTED, lines[0])
+        self.assertIn(self.REDIRECT_NEXT, lines[0])
+        self.assertLess(lines[0].index(self.REDIRECTED), lines[0].index(self.REDIRECT_NEXT), "訳が先、次にすることが尾")
+        self.assertEqual(self.inner_names_in(lines[0].replace(self.REDIRECTED, "")), [], lines[0])
+
     def test_the_refused_line_says_what_to_do_next_without_inner_names(self):
         import stopby
         v = {name: None for name in base.INPUTS} | {"notices": "", "optional": []}

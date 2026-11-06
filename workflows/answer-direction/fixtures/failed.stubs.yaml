@@ -1,0 +1,14 @@
+# 役が落ちた道（役の node に output_format に合わない stub を置いて落とす。workflow test は型に合わない stub の node を落ちた node にする）:
+# 受け皿は飛び、返す node は all_done で走り、返答の控えが無いので status failed・aligned 偽を返す（判定が落ちたのを通さない。
+# 出口の値は tests/blocks/answer_direction が照らす）
+fixture:
+  expect: failed
+  reached: [direction-prep, finish]
+  fail-node: [direction]
+  inputs:
+    answer: '{"decision": "continue", "text": "空の列は 0 でなく例外を投げる形にしてほしい"}'
+    asked: '["修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える"]'
+    plan: '["- 項目 1（u1）: 空の列の mean が 0 を返す形に変える"]'
+exec-code: true
+direction:
+  direction: not-a-direction

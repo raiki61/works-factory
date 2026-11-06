@@ -410,6 +410,7 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 
 - report（報告を書く）: block の `report` の欄を並べ、結末の語を決め、書き手の役が本文を書く。書き手と初見の読み手の往復（回ごとの書き手の受け付けが、同じ回の読み手の判定で決まる）は、この block の中に置く。graph の loop で report と cold-read を並べると、受け付けの決まりを cold-read か graph が持つことになり（憲法の 3）、report を単独で回した時に初見の確かめが落ちる（憲法の 5）。入力 `sections` json（block ごとの `report` の欄を graph が 1 つに集めた物）・`facts` json（結末を決める事実。どの block の欄が止め・人待ち・残りに当たるかは line が読み分けて入れる）。出力 `outcome`・`stop_reason`・`machine`・`human`・`detail`（どれも報告のファイルの pointer）・`next_request`・`prior_failures`・`report`（ほかの block と同じ日本語の行の配列。4.1・7.1 の 8。pointer ではない）。設計書 [report.md](report.md)。
 - cold-read（初見の読み手）: 文脈を持たない読み手が本文を 1 回読み、詰まった所を返す。報告に依らない素の読み手で、報告の頭の決まりは持たない（報告の中の読み手は report が持つ。役の定義は共通の断片 `role-cold-reader` 1 か所）。入力 `text` file。出力 `status`・`verdict`・`pass`・`stops`・`guessed`・`decidable`・`stuck`。設計書 [cold-read.md](cold-read.md)。
+- answer-direction（修正前の承認の一言の向きの判定）: 承認ノードの答え（決めの語と一言）を、承認に掛けた計画の修正案と承認ノードで見せた項目に照らし、一言が計画と同じ向きか・違う向きを選んでいるか・向きが読めないかを、道具を持たない役が 1 回判じる。決めの語が通す語で一言が空でない時だけ役を起こす。止めるかは決めず、line が返りの真偽 `aligned` で決める（判定が落ちた時・返答が読めない時は `aligned` が偽）。line は仕様駆動の道と写しの道の修正前の承認の答えの後にだけ include する（line は AI の node を持たない。docs/design/line.md の冒頭）。入力 `answer` text（承認ノードの答えの JSON）・`asked` json（見せた項目の文の配列）・`plan` json（承認に掛けた計画の行の字の配列。line の `ask-before-fix` が `src.talk.plan_lines` で組む）・`lang`。出力 `status`（ok・skipped・failed）・`direction`・`aligned`・`why`・`reason`・`report`。設計書 [answer-direction.md](answer-direction.md)。
 
 ### 8.6 3 つの時の目（崩れを入る前・入る時・入った後で見る）
 

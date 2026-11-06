@@ -1,6 +1,7 @@
 # 仕様駆動の道で、計画の部品が決め手の無い能力を狭める行（narrows）を返した筋書き（docs/design/spec-driven.md の 6.5 の 8）。
 # spec-rounds の返りの asks の行（lib/gatemarks.narrow_asks が組む形。組むこと自体は tests/blocks/line/test_spec_rounds.py が照らす）で
-# spec-ask-before-fix が開け、spec-gate-before-fix が今と同じ形の承認ノードとして開き、答えで修正へ進む
+# spec-ask-before-fix が開け、spec-gate-before-fix が今と同じ形の承認ノードとして開き、答えで修正へ進む。答えの一言は計画に沿う向きと
+# 判定され（include の中の返す node spec-direction__finish を aligned の返りで差す）、止めずに修正へ進む（逆向きの一言で止まる筋書きは spec-direction）
 fixture:
   expect: completed
   inputs:
@@ -9,6 +10,8 @@ fixture:
   - spec-rounds
   - spec-ask-before-fix
   - spec-gate-before-fix
+  - spec-direction__finish
+  - spec-direction-out
   - spec-answer-before-fix
   - fix-in
   - fix__finish
@@ -658,3 +661,11 @@ spec-rounds:
 spec-gate-before-fix:
   decision: approve
   text: 狭めてよい
+spec-direction__finish:
+  ok: true
+  status: ok
+  reason: ''
+  direction: aligned
+  aligned: true
+  why: 一言は計画の向きの条件を足しているだけ
+  report: []

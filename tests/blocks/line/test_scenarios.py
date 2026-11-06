@@ -148,7 +148,8 @@ class LineReturnsTest(unittest.TestCase):
 # 仕様駆動の道だけで回る node（docs/design/spec-driven.md の 6.2 の足す node）。include の中の node は `<id>__<中の id>`。前からの
 # spec-check-run（仕様の段の照らし）は仕様駆動の道の node でないので、頭の字でなく id で名指す
 SPEC_DRIVEN_NODES = ("spec-entry", "spec-entry-out", "spec-diagnose", "spec-diagnose-out", "spec-plan", "spec-plan-out", "spec-check",
-                     "spec-check-out", "spec-rounds", "spec-ask-before-fix", "spec-gate-before-fix", "spec-answer-before-fix")
+                     "spec-check-out", "spec-rounds", "spec-ask-before-fix", "spec-gate-before-fix", "spec-direction", "spec-direction-out",
+                     "spec-answer-before-fix")
 # 仕様駆動の道の筋書き（docs/design/spec-driven.md の 6.5 の 7 と 8）
 SPEC_SCENARIOS = ("spec-driven", "spec-refused", "spec-mismatch", "spec-gate", "spec-unattended")
 
@@ -445,6 +446,64 @@ class FixFixtureGateTest(unittest.TestCase):
         trace = self.traces["fix-fixture"]
         for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-answer-before-fix"):
             self.assertFalse(ran(trace, node), node)
+
+
+class DirectionStopTest(unittest.TestCase):
+    """一言の向きの止め（docs/design/line.md の 2 節の 2・docs/design/answer-direction.md）: 仕様駆動の道と写しの道だけが、承認ノードの
+    continue に添えた一言の向きを計画に照らす。逆向きと判定されると、答えの node が go 偽・止めの語 works:answer-redirected・止めた訳を返し、
+    修正へ進まない。計画に沿うと今どおり修正へ進む。依頼の文・差分・固定材料の run（本線）は照らさない。差すのは include の中の返す node
+    （spec-direction__finish・fixture-direction__finish）だけで、答えの node と受け皿と fix-in は本物の script で回る"""
+
+    def test_spec_redirected_note_stops_before_the_fix(self):
+        self.assertTrue((kit.BLOCKS / BLOCK / "fixtures" / "spec-direction.stubs.yaml").is_file(), "逆向きの一言の筋書きの stub が在る")
+        trace = line_traces(("spec-direction",))["spec-direction"]
+        for node in ("spec-ask-before-fix", "spec-gate-before-fix", "spec-direction-out", "spec-answer-before-fix", "fix-in"):
+            self.assertTrue(ran(trace, node), node)
+        self.assertIs(got(trace, "spec-direction")["aligned"], False)
+        answered = out(trace, "spec-answer-before-fix")
+        self.assertEqual((answered["go"], answered["stop_reason"]), (False, "works:answer-redirected"), answered)
+        self.assertTrue(answered["reason"].strip(), "止めた訳が空でない")
+        self.assertIn("例外を投げる形にして", answered["reason"], "人の一言が訳に入る")
+        self.assertIs(out(trace, "fix-in")["go"], False)
+        self.assertFalse(ran(trace, "fix__finish"), "修正の節は走らない")
+        self.assertTrue(ran(trace, "collect") and ran(trace, "result"))
+
+    def test_fixture_redirected_note_stops_before_the_fix(self):
+        """写しの道は fix-in を stub で差すので、修正へ進むかの元の値である答えの node の go を照らす"""
+        self.assertTrue((kit.BLOCKS / BLOCK / "fixtures" / "fixture-direction.stubs.yaml").is_file(), "逆向きの一言の筋書きの stub が在る")
+        trace = line_traces(("fixture-direction",))["fixture-direction"]
+        for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction-out", "fixture-answer-before-fix"):
+            self.assertTrue(ran(trace, node), node)
+        answered = out(trace, "fixture-answer-before-fix")
+        self.assertEqual((answered["go"], answered["stop_reason"]), (False, "works:answer-redirected"), answered)
+        self.assertIn("例外を投げる形にして", answered["reason"])
+
+    def test_spec_aligned_note_goes_to_the_fix(self):
+        """計画に沿う一言: 判定の受け皿が走り、今どおり修正へ進む。写しの道も同じ（逆向きの筋書きと違うのは判定の返りだけ）"""
+        traces = line_traces(("spec-gate", "fix-fixture-gate"))
+        trace = traces["spec-gate"]
+        self.assertTrue(ran(trace, "spec-direction-out"))
+        self.assertIs(got(trace, "spec-direction")["aligned"], True)
+        answered = out(trace, "spec-answer-before-fix")
+        self.assertEqual((answered["go"], answered["stop_reason"], answered["reason"]), (True, "", ""), answered)
+        self.assertTrue(ran(trace, "fix__finish"))
+        fixture = traces["fix-fixture-gate"]
+        self.assertTrue(ran(fixture, "fixture-direction-out"))
+        answered = out(fixture, "fixture-answer-before-fix")
+        self.assertEqual((answered["go"], answered["stop_reason"], answered["reason"]), (True, "", ""), answered)
+
+    def test_request_runs_do_not_check_the_direction(self):
+        """依頼の文・差分・固定材料で入る組 A の筋書きでは、一言の向きの node とその受け皿が 1 つも走らない。本線の answer-before-fix は
+        止めた訳の欄 reason を空で返す（判定を走らせず今どおり進む）"""
+        asked = 0
+        for name, trace in line_traces(SCENARIOS).items():
+            with self.subTest(scenario=name):
+                for node in ("spec-direction", "spec-direction-out", "fixture-direction", "fixture-direction-out"):
+                    self.assertFalse(touched(trace, node), node)
+                if ran(trace, "answer-before-fix"):
+                    asked += 1
+                    self.assertEqual(out(trace, "answer-before-fix")["reason"], "")
+        self.assertTrue(asked, "本物の answer-before-fix が回る筋書きが 1 つは在る")
 
 
 if __name__ == "__main__":
