@@ -1538,18 +1538,16 @@ class TestTestFileIdentity(Case):
         claims = [*data, "stats.py"]
         self.assertIn("places", inspect.signature(tdd._split_claims).parameters, "_split_claims に仮の実装の出どころ places が無い")
         kept, stubs, _ = tdd._split_claims({"units": {}, "contract": {}}, claims, ["test_stats.py::TestStats::test_a"],
-                                           set(claims))   # 出どころに在っても、データの置き場の下とコードでない物は凍る側
+                                           set(claims))
         self.assertEqual(sorted(kept), sorted(data))
         self.assertEqual(sorted(stubs), ["stats.py"])
 
 
-class TestDeclaredStubNotFrozen(LoopCase):
+class TestUndeclaredStubNotFrozen(LoopCase):
     """申告しない仮の実装は記録だけされ、同じ単位の直しの段でも後の単位でも本物に置き換えられ、ループの後の凍結に入らない。
     単位の始めに在ったファイルは申告すれば必ず凍る（TestExistingClaimFrozen）"""
 
-    def declare_stub_red(self, mean="tdd", clamp="direct"):
-        """まだ無い average を読むテストを足し、仮の実装 average を stats.py に足して（stats.py は申告せず）、test_stats.py だけを
-        test_files に申告して赤を通す"""
+    def undeclared_stub_red(self, mean="tdd", clamp="direct"):
         self.route(mean=mean, clamp=clamp)
         self.edit("test_stats.py", "from stats import clamp, mean", "from stats import average, clamp, mean")
         self.add_test("\n    def test_mean_of_two(self):\n        self.assertEqual(average([2, 4]), 3)\n")
@@ -1562,21 +1560,14 @@ class TestDeclaredStubNotFrozen(LoopCase):
         self.edit("stats.py", "def average(xs):\n    return 0", "def average(xs):\n    return sum(xs) / len(xs)")
         return self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "average を本物にした"})
 
-    def test_declared_stub_is_recorded_not_frozen(self):
-        self.declare_stub_red()
-        u = self.st()["units"][MEAN]
-        self.assertEqual(u["stub_files"], ["stats.py"])
-        self.assertEqual(u["test_files"], ["test_stats.py"])
-        self.assertEqual(list(u["test_hashes"]), ["test_stats.py"])
-
-    def test_same_unit_fix_may_replace_declared_stub(self):
-        self.declare_stub_red()
+    def test_same_unit_fix_may_replace_undeclared_stub(self):
+        self.undeclared_stub_red()
         got = self.replace_stub()
         self.assertTrue(got["ok"], got)
         self.assertNotIn("凍っている", got.get("reason", ""))
 
-    def test_later_unit_may_touch_declared_stub(self):
-        self.declare_stub_red(clamp="tdd")
+    def test_later_unit_may_touch_undeclared_stub(self):
+        self.undeclared_stub_red(clamp="tdd")
         got = self.replace_stub()
         self.assertTrue(got["ok"], got)
         if self.st()["phase"] == "refactor":
@@ -1587,8 +1578,8 @@ class TestDeclaredStubNotFrozen(LoopCase):
         got = self.step({"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [FAR_ID]})
         self.assertTrue(got["ok"], got)
 
-    def test_loop_frozen_omits_declared_stub(self):
-        self.declare_stub_red()
+    def test_loop_frozen_omits_undeclared_stub(self):
+        self.undeclared_stub_red()
         got = self.replace_stub()
         self.assertTrue(got["ok"], got)
         if self.st()["phase"] == "refactor":
@@ -1617,7 +1608,6 @@ class TestExistingClaimFrozen(LoopCase):
         self.restart()
 
     def reads_expected(self):
-        """test_data/expected_out.py の値を期待値に読む mean のテストを足す"""
         self.edit("test_stats.py", "import unittest", "import pathlib\nimport unittest")
         self.add_test(self.READS_DATA)
 
@@ -1731,7 +1721,7 @@ class TestClaimOrigin(ContractCase):
             self.restart()
         self.route()
         self.add_test(NEW_TEST)
-        (self.repo / "app" / "tests.py").write_text("def test_old():\n    assert 1 == 2\n", encoding="utf-8")   # 既存の試験の本体の書き換え
+        (self.repo / "app" / "tests.py").write_text("def test_old():\n    assert 1 == 2\n", encoding="utf-8")
         got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "app/tests.py"], "tests": [MEAN_ID]})
         self.assertFalse(got["ok"], got)
         self.assertIn("名指しの外の既存のテスト", got.get("reason", ""))

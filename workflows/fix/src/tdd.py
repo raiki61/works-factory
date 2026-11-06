@@ -774,7 +774,7 @@ def _test(st, reply, repo) -> list:
     errs += bad
     if errs:
         return errs
-    files, _, declared = _split_claims(st, files, tests, _claim_places(st, repo, u["unit_key"]))   # 申告のうち、修正案が新しく作ると名指したコードの仮の実装だけを凍らせず、触れていれば extra に残して stub_files に記録する
+    files, _, declared = _split_claims(st, files, tests, _claim_places(st, repo, u["unit_key"]))
     extra = sorted(set(touched(repo, st["unit_head"], snapshot(repo))) - set(files) - set(st["suite_made"]))
     outside = [f for f in extra if impact.is_test_file(f, declared | set(files))]
     if outside:
