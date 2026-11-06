@@ -35,6 +35,15 @@ def git(repo, *args, stdin=None):
                           encoding="utf-8", check=True, env=hermetic.child_env()).stdout.strip()
 
 
+def known_files(repo) -> list[str]:
+    """git が知るファイルの、repo からの相対パスの並び: 追跡中の物と、まだ add していないが無視されない物（標準の無視の表
+    ＝ .gitignore・.git/info/exclude・利用者の大域の無視に当たる物と、.git の中は含まない）。merge の途中で index に段 1〜3 として残る名は 1 回にする。
+    消したが add していない追跡中の名も出る（作業木に在るかは呼び手が見る）。repo が git のリポジトリでない時や git が落ちた時は
+    CalledProcessError が上がり、空にも、根から歩いた一覧にも戻さない"""
+    out = git(repo, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    return list(dict.fromkeys(p for p in out.split("\0") if p))
+
+
 def commit_absent(repo, paths) -> str:
     """paths を中身の同じ 1 つの blob で index に足して commit し、作業ツリーには書かない。作業ツリーから見ると全部が消えた物で、
     何万本の消えたファイルの差分を、ファイルを書かずに作る（書いて消すと、遅いファイルシステムでは 1 万本ごとに数秒かかる）。返りは commit の版"""
