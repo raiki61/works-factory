@@ -2,14 +2,12 @@
 
 今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の `works/.shared/core/board.py`:450-504 の SCOPE_DECL・read_scope・
 skipped_steps・scope_word・skipped_text を、元の名のまま字のとおり写した物。どれも盤面に届かない。read_scope が読む
-declared.DECL_NAME は lib/graphloops/engine/declared.py から読む。request_files は依頼の where が名指すパスの読み
+declared.DECL_NAME は lib/graphloops/engine/declared.py から読む。request_files は依頼の where が名指すパスの読み（git の呼び口は lib/leftovers.py の git_names・Unreadable）
 （元 `works/.shared/core/graphloops/rules/review-loop.py`:2293 `_pr_files` の差分が空の周の分）。
 """
 import json
-import os
 import pathlib
 import re
-import subprocess
 import sys
 
 _GL = pathlib.Path(__file__).resolve().parent / "graphloops"
@@ -17,6 +15,7 @@ if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))
 
 from engine import declared  # noqa: E402
+from leftovers import Unreadable, git_names  # noqa: E402,F401  （Unreadable は request_files が投げる。呼び手は checkscope.Unreadable で受ける）
 
 # works の範囲の宣言: 対象のルートのこのファイル {段の名: {"paths_ignore": [ルートからのファイルかフォルダのパス, …]}} が、対象の宣言
 # （declared.DECL_NAME。graphloops の engine と共有する）の段ごとに、段が見ない所を足す。対象の宣言には触らない（works は元の
@@ -77,17 +76,12 @@ def skipped_text(skipped: list) -> str:
 
 def request_files(root, wheres) -> list:
     """依頼の where（文字列の並び）のどれかに名として現れる（前後が名の字でない）、追跡中のパス（ルートから・名前の順。頭の ./ と絶対パスの中のも拾う）。判定から入る run は差分が
-    空なので、範囲と照らす変更を依頼の where で決める。git が読めなければ []（足さない）
+    空なので、関わる試験の選びの起点を依頼の where で決める。git が読めなければ leftovers.Unreadable を投げる（[] にすると『名指すパスが無い』と
+    見分けがつかないので、呼び手が一式を走らせる側に倒す）。where が空なら git を打たずに []
     （元 works/.shared/core/graphloops/rules/review-loop.py:2293 `_pr_files` の、差分が空の周の分）"""
     wheres = [w for w in wheres or () if isinstance(w, str)]
     if not wheres:
         return []
-    try:
-        out = subprocess.run(["git", "ls-files", "-z"], cwd=str(root), capture_output=True, stdin=subprocess.DEVNULL)
-    except OSError:
-        return []
-    if out.returncode != 0:
-        return []
-    tracked = [os.fsdecode(t) for t in out.stdout.split(b"\0") if t]
+    tracked = git_names(root, "ls-files")
     text = "\n".join(wheres)
     return sorted({t for t in tracked if t in text and re.search(r"(?<![A-Za-z0-9_.\-])" + re.escape(t) + r"(?![A-Za-z0-9_\-])", text)})

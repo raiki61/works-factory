@@ -120,7 +120,7 @@ def _take(place, n: int, reply, repo, sealed) -> dict:
     try:
         materials.verify(place, sealed)
     except ValueError as error:
-        return touchup.stop(place, files.REVIEW[n] + "-accept", f"範囲・許しの写しが入口の後に変わった: {error}")
+        return touchup.stop(place, files.REVIEW[n] + "-accept", str(error))
     bad = problems(place, n, reply, repo)
     if bad:
         return {"ok": False, "reason": PROBLEMS + "\n".join(f"  - {x}" for x in bad)}

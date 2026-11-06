@@ -6,17 +6,20 @@ RepoDeclarationScopeCase と tests/test_board_engine_run.py の ScopedStepsCase�
   範囲を持つ段が無ければ変更を測らない
 - scope_word・skipped_text: 素材の文と報告の行が出す字
 """
+import os
 import pathlib
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import checkscope  # noqa: E402
+import leftovers  # noqa: E402
 from tests.bin.gitkit import git  # noqa: E402
 
 STEPS = [{"name": "far", "argv": ["x"]}, {"name": "near", "argv": ["y"]}]
@@ -133,6 +136,18 @@ class RequestFilesCase(unittest.TestCase):
             git(tmp, "init", "-q")
             git(tmp, "add", "-A")
             self.assertEqual(checkscope.request_files(tmp, ["./src/a.py:3 の数え", "/home/u/proj/src/b.py の頭"]), ["src/a.py", "src/b.py"])
+
+    def test_unreadable_git_is_named_not_empty(self):
+        """git ls-files が失敗する木（.git の無い一時のフォルダ）では、『名指すパスが無い』の [] にせず、Unreadable で git ls-files -z の失敗を名指す"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp).resolve()
+            with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(root.parent)}):   # 抜ける時に環境は元に戻る
+                for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+                    os.environ.pop(name, None)
+                with self.assertRaises(leftovers.Unreadable) as raised:
+                    checkscope.request_files(root, ["a.py:3 の数え"])
+            self.assertIn("git ls-files -z", str(raised.exception))
+            self.assertIs(checkscope.Unreadable, leftovers.Unreadable)
 
 
 if __name__ == "__main__":

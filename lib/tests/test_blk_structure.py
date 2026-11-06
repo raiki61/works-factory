@@ -7,7 +7,9 @@ fixture のリポジトリはクラスに 1 回、日時を固定して作る（
 - 和集合（a.txt と new.txt）: --follow は 1 本ずつの和で 5（c0b を含む）・素の値 5・--no-merges 4
 """
 import json
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -41,6 +43,18 @@ def _write(repo, rel, text, mode=None):
     p.write_text(text, encoding="utf-8")
     if mode:
         p.chmod(mode)
+
+
+def failing_git(bindir, sub):
+    """PATH の先に置く git の殻。`git -C <repo> <sub> …` だけを終了 128 で落とし、ほかの下位コマンドは本物の git に渡す。
+    殻を先頭に足した環境を返す"""
+    real = shutil.which("git")
+    bindir.mkdir(parents=True, exist_ok=True)
+    shim = bindir / "git"
+    shim.write_text('#!/bin/sh\nif [ "$1" = "-C" ] && [ "$3" = "%s" ]; then\n  echo "fatal: injected failure" >&2\n'
+                    '  exit 128\nfi\nexec "%s" "$@"\n' % (sub, real), encoding="utf-8")
+    shim.chmod(0o755)
+    return child_env(PYTHONDONTWRITEBYTECODE="1", PATH=str(bindir) + os.pathsep + os.environ.get("PATH", ""))
 
 
 def build_fixture(repo):
@@ -236,6 +250,41 @@ class MeasureCase(unittest.TestCase):
     def test_entrypoints(self):
         out = self.measure("--paths", "tool.sh")
         self.assertEqual(self.entry(out, "tool.sh")["entrypoints"], {"named_by": 2, "executable": 1})
+
+    def run_measure_in(self, repo, env, *args):
+        return subprocess.run([sys.executable, str(SCRIPT), "--since", SINCE, *args], cwd=str(repo), env=env,
+                              capture_output=True, text=True, encoding="utf-8", timeout=120)
+
+    def test_git_grep_error_stops_instead_of_zero_named_by(self):
+        env = failing_git(pathlib.Path(self._tmp.name) / "shim-grep", "grep")
+        r = self.run_measure_in(self.repo, env, "--paths", "tool.sh")
+        self.assertEqual(r.returncode, 1, "git grep の誤りで終わらず出力した: " + r.stdout)
+        self.assertIn("git grep", r.stderr)
+        self.assertEqual(r.stdout, "")
+
+    def test_unreadable_base_blob_stops_but_absent_base_is_new(self):
+        env = failing_git(pathlib.Path(self._tmp.name) / "shim-show", "show")
+        r = self.run_measure_in(self.repo, env, "--paths", "a.txt")
+        self.assertEqual(r.returncode, 1, "窓の始めの版の blob が読めないのに出力した: " + r.stdout)
+        self.assertIn("git show", r.stderr)
+        self.assertEqual(r.stdout, "")
+        # 本物の git: 窓の中で生まれた物と、窓の始めの版で gitlink だった物は、窓の始めに無かったファイルとして測る
+        repo = pathlib.Path(self._tmp.name) / "born"
+        repo.mkdir()
+        _git(repo, "init", "-q")
+        _git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+        _write(repo, "keep.txt", "k\n")
+        _git(repo, "add", "-A")
+        _git(repo, "update-index", "--add", "--cacheinfo", "160000," + "1" * 40 + ",sub")
+        _git(repo, "commit", "-q", "-m", "c0", date="2020-01-01")
+        _git(repo, "rm", "-q", "--cached", "sub")
+        _write(repo, "sub", "s1\ns2\ns3\n")
+        _write(repo, "born.txt", "b1\nb2\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", "c1", date="2020-07-01")
+        out = self.measure("--paths", "born.txt", "sub", cwd=repo)
+        self.assertEqual(self.entry(out, "born.txt")["growth"], {"base_name": None, "base_lines": 0, "delta": 2})
+        self.assertEqual(self.entry(out, "sub")["growth"], {"base_name": None, "base_lines": 0, "delta": 3})
 
     def test_skipped_with_reasons_and_continue(self):
         out = self.measure("--max-bytes", "100", "--paths", "bin.dat", "big.txt", "loose.txt", "a.txt")

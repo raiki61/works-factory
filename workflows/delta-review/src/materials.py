@@ -108,12 +108,19 @@ def seal(place, names) -> dict:
 
 def verify(place, sealed) -> None:
     """受け付けが写しを使う前に印と照らす。sealed は入口の返りの seal（with: の値）。trace.jsonl の印が写しごとにちょうど 1 本でない・
-    写しが読めない・sha256 が sealed とも印とも合わない（入口の後に書き換えた）なら名指す ValueError"""
-    rows = []
+    写しが読めない・trace.jsonl が読めない・壊れている・sha256 が sealed とも印とも合わない（入口の後に書き換えた）なら名指す ValueError"""
     try:
-        rows = [json.loads(x) for x in (pathlib.Path(place) / files.TRACE).read_text(encoding="utf-8").splitlines() if x.strip()]
-    except (OSError, ValueError):
-        pass
+        lines = (pathlib.Path(place) / files.TRACE).read_text(encoding="utf-8").splitlines()
+    except (OSError, ValueError) as error:
+        raise ValueError(f"凍結の印を読む {files.TRACE} が読めない・壊れている（{type(error).__name__}: {error}）") from None
+    rows = []
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            raise ValueError(f"凍結の印を読む {files.TRACE} が読めない・壊れている（{number} 行目が JSON として読めない）") from None
     if not isinstance(sealed, dict):
         raise ValueError("入口の返りの凍結の印 seal が受け付けに渡っていない（with: の配線の誤り）")
     for name in SEALED:

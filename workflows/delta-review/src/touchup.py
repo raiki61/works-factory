@@ -200,7 +200,7 @@ def _take(place, n: int, reply, repo, base: str, sealed) -> dict:
     try:
         materials.verify(place, sealed)
     except ValueError as error:
-        return stop(place, files.REFIX[n] + "-accept", f"範囲・許しの写しが入口の後に変わった: {error}")
+        return stop(place, files.REFIX[n] + "-accept", str(error))
     head = (jsonfile.read_or(place / files.refix_head(n)) or {}).get("tree") or ""
     if not head:
         raise Broken(f"手直しの段の頭の木 {files.refix_head(n)} が無い（手直しの役を起こす前に控えていない）")

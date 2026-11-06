@@ -1252,6 +1252,30 @@ class RelatedCase(ScriptCase):
         self.assertEqual(out["ran_steps"], {"ran": [], "unran": ["関わる試験の実行器"]})
 
 
+class ScopeUnreadableGitCase(unittest.TestCase):
+    """依頼の where が名指す追跡中のパスを git で読めない時、関わる試験の選びは where の起点を黙って抜かずに一式に倒れる"""
+
+    def test_related_pick_runs_whole_with_the_reason_when_ls_files_fails(self):
+        import related   # lib/
+        scope = kit.load("test-gate", "scope")
+        tmp = hermetic.tmpdir(self)
+        repo = tmp / "repo"
+        head = committed_copy(repo, SEED)
+        doc = {"request": [{"where": "stats.py:4", "text": "x"}], "request_scope": True, "entry_base": "", "base": head}
+        normal = related.pick(repo, rev=head, seeds=[], cache_dir=tmp / "cache-normal")
+        # ls-files -z だけを落とし、ほかの git は本物に渡す殻
+        shim = tmp / "shim"
+        shim.mkdir()
+        (shim / "git").write_text(f"#!/bin/sh\nif [ \"$*\" = \"ls-files -z\" ]; then echo 'fatal: ls-files broke' >&2; exit 128; fi\n"
+                                  f"exec {shutil.which('git')} \"$@\"\n", encoding="utf-8")
+        (shim / "git").chmod(0o755)
+        with mock.patch.dict(os.environ, {"PATH": f"{shim}{os.pathsep}{os.environ['PATH']}"}):
+            got = scope.related_pick(repo, doc, tmp / "cache")
+        self.assertTrue(got["whole"], "where が名指すパスを読めないのに、起点を抜いて選んだ")
+        self.assertTrue(any("ls-files" in r for r in got["reasons"]), got["reasons"])
+        self.assertEqual(set(got), set(normal))
+
+
 class BaseRunsNothingCase(ScriptCase):
     """#828（持ち主の決め base-runs-nothing。docs/design/test-gate.md の 15 節）: 直す前の版では試験を何も走らせない（宣言の段・
     test_cmd・宣言の準備・人が渡した実行器のどれも）。最後のテストの赤で元の結末に無い物は、修正前の版で同じ走らせ方を 1 回して、

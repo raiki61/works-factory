@@ -7,6 +7,8 @@ finishes」）。この部品はメイングラフの最後のノードから呼
 - 選び: workflow runs --json --all の行の parent_run_id がこの run（WORKFLOW_ID）で、metadata の branch_name（作業ツリーを
   持つ子だけに在る。Archon の packages/workflows/src/executor.ts）が archon/task-<この run の id の頭 8 字>- で始まる物
   （packages/core/src/workflows/child-isolation-resolver.ts）。一覧は新しい順なので、この run の行が一覧に在れば子は全部入っている。
+  metadata が JSON として読めない（または object でない）子は、作業ツリーを持つか分からないので、消さずに理由つきで残す（branch は空）。
+  metadata が無い（空の字・null）子は作業ツリーを持たない正常な子として対象にしない。
 - status が completed の子だけを消す。再開は completed の子を起こし直さず記録だけを使うが、failed などの子は作業ツリーを
   使い回して起こし直す（packages/workflows/src/dag-executor.ts の fan_out の再開）。
 - completed の子でも、子を起こしたノードと同じ include の中のノード（id の頭の <include の id>__ が同じ物）が全部この run で
@@ -55,7 +57,8 @@ Run = Callable[..., subprocess.CompletedProcess]
 
 
 def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
-    """workflow runs --json の出力から、この run の作業ツリーを持つ子を（消す物, 理由つきで残す物）に分ける。読めなければ ValueError"""
+    """workflow runs --json の出力から、この run の作業ツリーを持つ子と、metadata が読めず作業ツリーを持つか分からない子を、
+    （消す物, 理由つきで残す物）に分ける。一覧が読めなければ ValueError"""
     runs = listing.get("runs") if isinstance(listing, dict) and listing.get("ok") is not False else None
     if not isinstance(runs, list):
         raise ValueError(f"workflow runs の出力に runs の一覧が無い: {_clip(json.dumps(listing, ensure_ascii=False))}")
@@ -65,7 +68,11 @@ def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
     for r in runs:
         if r.get(PARENT_KEY) != run_id:
             continue
-        metadata = run_metadata(r.get("metadata"))
+        metadata, unreadable = read_metadata(r.get("metadata"))
+        if unreadable:
+            left.append({"branch": "", "run_id": r.get("id"), "node": "",
+                         "reason": f"{unreadable}。作業ツリーの枝が分からないので消さずに残す"})
+            continue
         branch = metadata.get(BRANCH_KEY)
         if not branch:
             continue
@@ -180,14 +187,24 @@ def last_json(stdout: str) -> object:
         raise ValueError(f"Archon の JSON が読めない: {error}") from None
 
 
-def run_metadata(value: object) -> dict:
-    """run の行の metadata（JSON の字か object）を dict に読む。読めなければ空"""
-    if isinstance(value, str):
+def read_metadata(value: object) -> tuple[dict, str]:
+    """run の行の metadata（JSON の字か object）を（dict, 読めない訳）に読む。無い（None・空の字・JSON の null）のは作業ツリーを持たない
+    正常な子の形なので（{}, ""）。読めない訳に metadata の字そのものは入れない"""
+    if isinstance(value, str) and value.strip():
         try:
             value = json.loads(value)
-        except json.JSONDecodeError:
-            return {}
-    return value if isinstance(value, dict) else {}
+        except json.JSONDecodeError as error:
+            return {}, _clip(f"子の run の metadata が JSON として読めない（{error}）")
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return {}, ""
+    if not isinstance(value, dict):
+        return {}, _clip(f"子の run の metadata が object でない（{type(value).__name__}）")
+    return value, ""
+
+
+def run_metadata(value: object) -> dict:
+    """run の行の metadata（JSON の字か object）を dict に読む。読めなければ空"""
+    return read_metadata(value)[0]
 
 
 def _clip(text: str) -> str:
