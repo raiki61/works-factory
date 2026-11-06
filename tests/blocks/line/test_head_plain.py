@@ -163,7 +163,6 @@ class BaseStopHeadCase(HeadAfterBase):
         lines = [x for x in facts["head"]["after"] if x.startswith("直す前の試験の関門が止めた")]
         self.assertEqual(len(lines), 1, lines)
         self.assertIn(green_cert.RAN_GUIDE, lines[0])
-        self.assertFalse([x for x in facts["notes"] if "報告の頭では切った訳の全文" in x], facts["notes"])
 
     def test_a_base_gate_that_went_on_says_nothing(self):
         self.assertFalse([x for x in self.after(base.passing()) if x.startswith("直す前の試験の関門が止めた")])

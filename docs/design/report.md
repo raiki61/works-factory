@@ -85,7 +85,7 @@ run の結末の語（10 語のどれか）と止めた段の語を、line が�
 - `no_fix`: boolean。既定 false。直す物が無い周（今 `_no_fix`）。
 - `left`: `[{where, text, unmeasured}]`。既定 []。fixed を名乗らせない残りの行（今 `residue` から受け止めた落ちの行を除いた物。`unmeasured` は測れていない素材の行か。今 `_is_material_row`）。
 - `proved`: boolean。既定 false。最後のテストの ok と green と封じの ok が真か（今 `_proved`）。
-- `head`: `{before, stopped, after, notices}`（どれも字の配列。既定 []）。冒頭 1 行目の結末の語の後ろに `。` でつなぐ句。`before` は今の `split_line`・`_pushed_said`、`stopped` は今の `_stopped_why`（止まった結末の時だけ使う）、`after` は `stop_reason_notes`（入口が入力を断った訳〔次にすることの句つき〕と直す前の試験の関門が止めた訳）・`suite_broken_notes`・`ran_notes`・`_suite_note`・`_user_env_note`。`notices` は冒頭の下に 1 行ずつ載る起こす前の注意（今の line の `notices`）。
+- `head`: `{before, stopped, after, notices}`（どれも字の配列。既定 []）。`before` と `stopped` は節「2. 止めたか」の頭の行、`after` は報告の冒頭の知らせの行になる（`workflows/report/src/machine.py`）。`before` は今の `split_line`・`pushed_said`、`stopped` は今の `stopped_why`（止まった結末の時だけ使う）、`after` は `stop_reason_notes`（入口が入力を断った訳〔次にすることの句つき〕と直す前の試験の関門が止めた訳）・`suite_broken_notes`・`ran_notes`・`_suite_note`・`_user_env_note`。`notices` は冒頭の下に 1 行ずつ載る起こす前の注意（今の line の `notices`）。
 - `asks`: `[{kind, text, title?}]`。既定 []。`title` は決める中身を言う短い平易な題で、本文を書いた所が一緒に書く（#812。AI の役が本文を書く項目はその役の返りの形に題の欄を持ち、機械が組む項目は組むコードが決まった字で出す）。無い（古い記録・題を返さなかった役）時は種の名に戻す。人が決める物のうち、結末に依らない物（今 `_decisions` の `asks` から、種 `report.CHECKS_LEFT`・「直しきれずに残った物」・「記録が通らないこと」の 3 つを除いた物。問いの種の推しの尾は付けた後の字）。
 - `tallied`: `{<種>: 整数}`。既定 {}。行の数でなく全件の数で数える種（今の `tallied`。守りのパスに当たった差分）。
 - `counted_left`: 字の配列。既定 []。結末が round_limit の時に「直しきれずに残った物」から外す `where`（今 `counted_units`。直す義務に戻せなかった単位）。
