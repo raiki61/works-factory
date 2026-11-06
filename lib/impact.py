@@ -23,6 +23,8 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - is_test(path) -> "module" | "support" | None: 名の慣習でのテストの file の見分け（言語の表でなく名の形）
 - is_test_file(path, declared) -> bool: テストの file か（宣言 declared に在るか、is_test の module）。宣言と慣習を合わせた見分けの
   1 か所（TDD の輪・事後の関門・深さの run の広さの数えが呼ぶ）。純粋
+- is_code(path) -> bool: 既知のコードの拡張子の file か（Python・OTHER_CODE_EXT・シェルなど。文書・データ・設定・知らない拡張子は偽）。
+  TDD の輪が、申告のうちコードの仮の実装とテストのデータを分けるのに呼ぶ。純粋
 - KNOWN_EXT: changemap の拡張子の表を合わせた集合（plainask が <パス>:<行> の形を数えるかの見分けに使う）
 
 地図の JSON（schema works-impact/1）の欄:
@@ -85,7 +87,8 @@ PATHREF_NAMES = frozenset({"makefile", "gnumakefile", "dockerfile", "justfile"})
 DOC_EXT = frozenset({"md", "markdown", "txt", "rst", "adoc", "csv", "lock", "html", "htm", "xml", "svg", "patch",
                      "diff", "log", "example", "sample", "tsv", "jsonl", "ndjson", "po", "pot", "snap"})
 # import を読まない言語のコード（依る側を字の一致でしか辿れない。近くに在れば全部を回す）。この表は届いた先を先へ伸ばすかの
-# 目安で、言語の見分けには使わない: 表に無い拡張子も、文書の表（DOC_EXT）に無ければ同じく読めないコードと見る（_lang）
+# 目安で、_lang は言語の見分けにこの表を使わない: 表に無い拡張子も、文書の表（DOC_EXT）に無ければ同じく読めないコードと見る。
+# 表に載る拡張子だけを知っているコードとして数える is_code は例外（偽に倒すのは、凍結から外す範囲を狭めるため）
 OTHER_CODE_EXT = frozenset({"js", "jsx", "mjs", "cjs", "ts", "tsx", "go", "rb", "rs", "java", "kt", "kts", "scala", "c",
                             "h", "cc", "cpp", "cxx", "hpp", "cs", "swift", "php", "pl", "pm", "lua", "r", "dart",
                             "groovy", "gradle", "ex", "exs", "hs", "elm", "clj", "vue", "svelte", "ps1", "m", "mm"})
@@ -202,6 +205,13 @@ def is_test_file(path: str, declared) -> bool:
     """テストの file か: 宣言（declared。正規化したパスの組）に在るか、名の慣習（is_test の module。テストの実行器が探す名の形で、
     言語の表でない。語の尾の形はテストのフォルダの下だけ）に当たるか。どちらにも当たらない実装の file はテストと見ない。純粋"""
     return posixpath.normpath(path) in declared or is_test(path) == "module"
+
+
+def is_code(path):
+    """既知のコードの拡張子のファイルか: Python・OTHER_CODE_EXT の言語と、mentions（コード）に数えるシェルなどの拡張子
+    （PATHREF_EXT - REF_EXT）。文書・データ・設定・知らない拡張子・拡張子の無い名は偽——表に無い物を偽に倒すのは、テストの
+    期待値やデータを凍結から外さないため（_lang は表に無い拡張子を読めないコードと見るが、そちらは全部の試験を回す側に倒す）。純粋"""
+    return _ext(path) in PY_EXT | OTHER_CODE_EXT | (PATHREF_EXT - REF_EXT)
 
 
 def _lang(path, rec):

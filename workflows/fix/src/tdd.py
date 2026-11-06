@@ -21,7 +21,10 @@
     tdd か direct（理由 10 字以上）に振る。約束で tdd の単位は direct に振れない（出口は phase conflict の申し出）
   - test: 申告したテストのファイルの外のテストのファイル（impact.is_test_file）に触れていない・赤の判定 red_check（名指しは failure で
     落ち、error・一式に居ない・もう通る・飛ばされたは拒み、元で通っていた物は緑。言語に依らない事実だけ）。テストでないファイル
-    （これから足す名前の仮の実装）への書き込みは拒まず、単位の stub_files に残す。error・一式に居ないで拒む時は NOT_RAN の
+    （これから足す名前の仮の実装）への書き込みは拒まず、単位の stub_files に残す。test_files に申告されても、コードのファイルで、名指しの
+    テストのパス・約束のパス・前の単位のテストのファイル・名の慣習・テストのフォルダの下のどれにも当たらない物は仮の実装として
+    stub_files に残し、test_files と test_hashes に入れず凍らせない（_split_claims）。テストのデータや期待値（コードでないファイル）は
+    申告すれば今どおり凍る。error・一式に居ないで拒む時は NOT_RAN の
     1 行を足す（走る前の失敗は赤に数えず、直して走らせ直させる）。
     約束の在る単位は、受け入れのテストの id を全部名指し（走らせる前に見る）、名指しごとの失敗の文の引用と理由（QUOTES_FIELD）を
     結末の failure の文と照らす（red_check。照らす先の無い名指しは引用を求めず、単位の quote_unchecked に残す）。約束の無い単位は
@@ -572,16 +575,32 @@ def _plan_rewrites(st, k) -> list:
     return (_contract(st, k) or {}).get("rewrites") or []
 
 
-def declared_test_files(st) -> set[str]:
-    """宣言されたテストのファイル: 単位ごとの役の申告（test_files）と、承認済みの修正案の約束の受け入れのテスト（tests）・書き換えの
-    名指し（rewrites）のパス。テストのファイルの見分け（impact.is_test_file）の宣言の正本。純粋"""
+def declared_test_files(st, named=()) -> set[str]:
+    """宣言されたテストのファイル: 単位ごとのテストのファイル（test_files。事実で照らした後の物）と、承認済みの修正案の約束の
+    受け入れのテスト（tests）・書き換えの名指し（rewrites）のパス、named（今の単位の名指しの id）のパス。テストのファイルの見分け
+    （impact.is_test_file）の宣言の正本。純粋"""
     out = set()
     for u in (st.get("units") or {}).values():
         out |= set(fixboard.unit_test_files(u))
     for c in (st.get("contract") or {}).values():
         ids = [t.get("id") for t in (c or {}).get("tests") or [] if isinstance(t, dict)] + list((c or {}).get("rewrites") or [])
         out |= {id_path(i) for i in ids if isinstance(i, str) and i.strip()}
+    out |= {id_path(i) for i in named if isinstance(i, str) and i.strip()}
     return out
+
+
+def _split_claims(st, files, tests):
+    """役の申告 files を事実で分ける → (kept, claimed_stubs, declared)。kept はテストのファイル（凍る）: 宣言の組（名指しの id・約束・
+    前の単位のテストのファイル）か名の慣習（impact.is_test_file）に当たる物、テストのフォルダの下の補助、コードでない物
+    （テストのデータ・期待値）。claimed_stubs は、どれにも当たらないコードのファイル（仮の実装）。純粋"""
+    declared = declared_test_files(st, tests)
+    kept, claimed_stubs = [], []
+    for f in files:
+        if impact.is_test_file(f, declared) or impact.is_test(f) == "support" or not impact.is_code(f):
+            kept.append(f)
+        else:
+            claimed_stubs.append(f)
+    return kept, claimed_stubs, declared
 
 
 def _moved_test_files(st, repo, exclude=()) -> list[str]:
@@ -742,9 +761,9 @@ def _test(st, reply, repo) -> list:
     errs += bad
     if errs:
         return errs
+    files, _, declared = _split_claims(st, files, tests)   # 申告のうちコードの仮の実装は凍らせず、触れていれば extra に残して stub_files に記録する
     extra = sorted(set(touched(repo, st["unit_head"], snapshot(repo))) - set(files) - set(st["suite_made"]))
-    declared = declared_test_files(st) | set(files)
-    outside = [f for f in extra if impact.is_test_file(f, declared)]
+    outside = [f for f in extra if impact.is_test_file(f, declared | set(files))]
     if outside:
         return [f"申告したテストのファイルの外のテストのファイルに触れた: {outside[:5]}——test_files に申告するか、触れるな"]
     stubs = [f for f in extra if f not in outside]   # テストでないファイル（これから足す名前の仮の実装）は拒まず、記録に残す

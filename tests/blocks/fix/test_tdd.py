@@ -1490,6 +1490,78 @@ class TestTestFileIdentity(Case):
                 self.assertEqual(tdd._paths(bad, "test_files")[0], [])
                 self.assertEqual(board.unit_test_files({"test_files": bad}), written if isinstance(bad, list) and bad else [])
 
+    def test_split_claims_keeps_named_and_convention(self):
+        """申告の仕分けは、慣習に外れた名でも名指しの id のパス・約束の受け入れと書き換えのパス、名の慣習、テストのフォルダの下の補助を
+        テストのファイルとして残し、どれにも当たらないコードのファイルだけを仮の実装に回す"""
+        self.assertTrue(hasattr(tdd, "_split_claims"), "tdd に _split_claims が無い")
+        st = {"units": {}, "contract": {"u1": {"tests": [{"id": "b/verify.kt::Verify::adds"}], "rewrites": ["c/legacy.rb::old"]}}}
+        claims = ["checks.go", "b/verify.kt", "c/legacy.rb", "x_test.py", "tests/helpers.py", "stats.py"]
+        kept, stubs, declared = tdd._split_claims(st, claims, ["checks.go::Check::adds"])
+        self.assertEqual(sorted(kept), ["b/verify.kt", "c/legacy.rb", "checks.go", "tests/helpers.py", "x_test.py"])
+        self.assertEqual(sorted(stubs), ["stats.py"])
+        self.assertTrue({"checks.go", "b/verify.kt", "c/legacy.rb"} <= set(declared), "名指しのパスも宣言の組に入る")
+
+    def test_split_claims_keeps_declared_test_data(self):
+        """テストのフォルダの外に置いたテストのデータや期待値は、申告すれば残り（凍る対象のまま）、仮の実装には回らない"""
+        self.assertTrue(hasattr(tdd, "_split_claims"), "tdd に _split_claims が無い")
+        data = ["__snapshots__/x.snap", "expected.json", "golden/out.golden", "testdata/input", "testdata/case.txt"]
+        kept, stubs, _ = tdd._split_claims({"units": {}, "contract": {}}, [*data, "stats.py"], ["test_stats.py::TestStats::test_a"])
+        self.assertEqual(sorted(kept), sorted(data))
+        self.assertEqual(sorted(stubs), ["stats.py"])
+
+
+class TestDeclaredStubNotFrozen(LoopCase):
+    """赤の段でまだ無い名の仮の実装のファイルを test_files に申告しても、それはテストでないコードなので凍らない:
+    仮の実装として stub_files に残り、同じ単位の直しの段でも後の単位でも本物に置き換えられる"""
+
+    def declare_stub_red(self, mean="tdd", clamp="direct"):
+        """まだ無い average を読むテストを足し、仮の実装 average を stats.py に足して、両方を test_files に申告して赤を通す"""
+        self.route(mean=mean, clamp=clamp)
+        self.edit("test_stats.py", "from stats import clamp, mean", "from stats import average, clamp, mean")
+        self.add_test("\n    def test_mean_of_two(self):\n        self.assertEqual(average([2, 4]), 3)\n")
+        self.edit("stats.py", "def clamp(", "def average(xs):\n    return 0\n\n\ndef clamp(")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "stats.py"], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        return got
+
+    def replace_stub(self):
+        self.edit("stats.py", "def average(xs):\n    return 0", "def average(xs):\n    return sum(xs) / len(xs)")
+        return self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "average を本物にした"})
+
+    def test_declared_stub_is_recorded_not_frozen(self):
+        self.declare_stub_red()
+        u = self.st()["units"][MEAN]
+        self.assertEqual(u["stub_files"], ["stats.py"])
+        self.assertEqual(u["test_files"], ["test_stats.py"])
+        self.assertEqual(list(u["test_hashes"]), ["test_stats.py"])
+
+    def test_same_unit_fix_may_replace_declared_stub(self):
+        self.declare_stub_red()
+        got = self.replace_stub()
+        self.assertTrue(got["ok"], got)
+        self.assertNotIn("凍っている", got.get("reason", ""))
+
+    def test_later_unit_may_touch_declared_stub(self):
+        self.declare_stub_red(clamp="tdd")
+        got = self.replace_stub()
+        self.assertTrue(got["ok"], got)
+        if self.st()["phase"] == "refactor":
+            self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
+        self.assertEqual(self.st()["queue"][self.st()["cur"]], CLAMP)
+        self.add_test(FAR_TEST)
+        self.edit("stats.py", "def average(xs):", "def average(xs):   # 平均")
+        got = self.step({"phase": "test", "unit_key": CLAMP, "test_files": ["test_stats.py"], "tests": [FAR_ID]})
+        self.assertTrue(got["ok"], got)
+
+    def test_loop_frozen_omits_declared_stub(self):
+        self.declare_stub_red()
+        got = self.replace_stub()
+        self.assertTrue(got["ok"], got)
+        if self.st()["phase"] == "refactor":
+            self.step({"phase": "refactor", "unit_key": MEAN, "what": "整える物は無い"})
+        self.assertTrue(self.st()["done"])
+        self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
+
 
 class TestRewriteSharedAcrossUnits(ContractCase):
     """1 つの項目が 2 つの単位にまたがると、同じ書き換えの名指しが両方の単位の約束に載る。前の単位で赤→緑を確かめた id は、
