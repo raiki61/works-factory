@@ -27,20 +27,21 @@ def related_pick(root, doc: dict, cache_dir) -> dict:
     今の作業ツリーまでに触ったファイルと、依頼の where が名指す追跡中のパス（related_wheres）"""
     import related   # lib/
     root = pathlib.Path(root)
-    seeds = checkscope.request_files(root, related_wheres(doc["request"], doc["request_scope"]))
+    try:
+        seeds = checkscope.request_files(root, related_wheres(doc["request"], doc["request_scope"]))
+    except checkscope.Unreadable as e:
+        return {"whole": True, "reasons": [f"依頼の where が名指す追跡中のパスを読めない: {e}"], "files": [], "left": [], "far": []}
     return related.pick(root, rev=doc["entry_base"] or doc["base"] or "HEAD", seeds=seeds, cache_dir=cache_dir)
 
 
-def changed(root, base: str, wheres=()):
-    """範囲の宣言と照らす変更（根からのパス）。base から今の作業ツリーまでに触ったファイルと、依頼の where が名指す追跡中のパス
-    （wheres）の和から Archon の置き場を除いた物。測れない（git の誤り・空）なら None（絞らない）"""
+def changed(root, base: str):
+    """範囲の宣言と照らす変更（根からのパス）。base から今の作業ツリーまでに触ったファイルから Archon の置き場を除いた物。
+    依頼の where は範囲の照らしに足さない（関わる試験の選びだけが使う）。測れない（git の誤り・空）なら None（絞らない）"""
     root = pathlib.Path(root)
-    files = set(checkscope.request_files(root, wheres))
-    if base:
-        try:
-            files |= set(accept.touched_files(root, base))
-        except accept.Reject:
-            return None
+    try:
+        files = set(accept.touched_files(root, base)) if base else set()
+    except accept.Reject:
+        return None
     return sorted(f for f in files if not f.startswith(ports.RUNTIME_COPY_PREFIX)) or None
 
 

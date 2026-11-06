@@ -352,6 +352,40 @@ class SealCase(s.Flow):
         got = self.review(1, s.review_reply(checks=[s.check()]))
         self.assertEqual((got["ok"], got["done"]), (False, True))
         self.assertEqual(self.run.script("finish")["status"], "failed")
+        # 印の置き場の trace.jsonl が壊れた時の審査の受け付けも、書き換えの訳でなく、壊れた行の番号で trace.jsonl を名指す
+        trace = self.run.artifacts / "trace.jsonl"
+        broken = len(trace.read_text(encoding="utf-8").splitlines()) + 1
+        with open(trace, "a", encoding="utf-8") as f:
+            f.write("{not json\n")
+        got = self.review(1, s.review_reply(checks=[s.check()]))
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        reason = self.read("errors.json")[-1]["reason"]
+        for text in (got["reason"], reason):
+            self.assertIn("trace.jsonl が読めない・壊れている", text)
+            self.assertIn(f"{broken} 行目", text)
+            self.assertNotIn("line 1 column", text)
+            self.assertNotIn("入口の後に変わった", text)
+
+    def assert_named_as_the_trace(self, got):
+        self.assertEqual((got["ok"], got["done"]), (False, True))
+        reason = self.read("errors.json")[-1]["reason"]
+        for text in (got["reason"], reason):
+            self.assertIn("trace.jsonl が読めない・壊れている", text)
+            self.assertNotIn("入口が置いていない", text)
+            self.assertNotIn("入口の後に変わった", text)
+
+    def test_a_broken_trace_line_is_named_as_the_trace(self):
+        self.start()
+        with open(self.run.artifacts / "trace.jsonl", "a", encoding="utf-8") as f:
+            f.write("{not json\n")
+        got = self.refix(1, self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole")))
+        self.assert_named_as_the_trace(got)
+
+    def test_a_missing_trace_is_named_as_the_trace(self):
+        self.start()
+        (self.run.artifacts / "trace.jsonl").unlink()
+        got = self.refix(1, self.handled(self.answer("copy-of-the-rule"), self.answer("claimed-closed-hole")))
+        self.assert_named_as_the_trace(got)
 
     def test_a_missing_mark_is_named(self):
         self.start()

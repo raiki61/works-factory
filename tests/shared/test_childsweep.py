@@ -97,6 +97,21 @@ class ChildSweepTest(unittest.TestCase):
         archon = FakeArchon({"runs": [child(0, as_text=True), row(RUN, "running")]})
         self.assertEqual([c["branch"] for c in self.sweep(archon)["cleaned"]], [f"{OURS}0"])
 
+    def test_unreadable_metadata_child_is_left_with_a_reason(self):
+        broken = row("child-broken", "completed", RUN)
+        broken["metadata"] = '{"branch_name": "' + "x" * 1000
+        blank = row("child-blank", "completed", RUN)
+        blank["metadata"] = ""
+        archon = FakeArchon({"runs": [broken, blank, child(0), row(RUN, "running")]})
+        got = self.sweep(archon)
+        self.assertEqual(archon.completed(), [f"{OURS}0"])
+        self.assertEqual([c["branch"] for c in got["cleaned"]], [f"{OURS}0"])
+        self.assertEqual([left["run_id"] for left in got["left"]], ["child-broken"])
+        reason = got["left"][0]["reason"]
+        self.assertIn("metadata が JSON として読めない", reason)
+        self.assertLessEqual(len(reason), childsweep.REASON_LIMIT)
+        self.assertEqual(got["error"], "")
+
     def test_list_after_log_lines_is_read(self):
         listing = {"runs": [child(0), row(RUN, "running")]}
         archon = FakeArchon('{"level":40,"msg":"warn"}\n' + json.dumps(listing, indent=2) + "\n")

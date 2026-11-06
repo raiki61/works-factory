@@ -76,7 +76,7 @@ def base_run(root: Path, doc: dict) -> dict:
 def final_run(root: Path, place: Path, doc: dict, log_dir: Path) -> dict:
     """最後のテストの記録（今までどおり一式。赤が元の結末に無ければ修正前の版で同じ走らせ方を 1 回）"""
     ci = declared_checks.run_ci(root, test_cmd=doc["test_cmd"], log_dir=log_dir,
-                                changed=lambda: scope.changed(root, doc["base"], ()), after_judge=True,
+                                changed=lambda: scope.changed(root, doc["base"]), after_judge=True,
                                 report_dir=place / files.JUNIT, reuse=None)
     ran = None
     extra, narrow = (), False
@@ -119,7 +119,7 @@ def base_rerun(root: Path, place: Path, doc: dict, ci: dict, ran, extra, narrow:
         cases = []
         if ci["junit_steps"]:
             old = declared_checks.run_ci(copy, test_cmd="", log_dir=log_dir / "base-rev",   # 1 件ごとの結末が要るのは JUnit の段だけ
-                                         changed=lambda: scope.changed(root, doc["base"], ()), after_judge=True,
+                                         changed=lambda: scope.changed(root, doc["base"]), after_judge=True,
                                          report_dir=place / files.JUNIT_BASE_REV, reuse=None)
             cases += old["cases"]
             out["logs"].append(old["log"])

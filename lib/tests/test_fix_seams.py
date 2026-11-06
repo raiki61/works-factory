@@ -329,6 +329,24 @@ class RecountSeamCase(TempCase):
         self.assertEqual(cov["round"], 1)
         self.assertEqual({i["unit_key"]: (i["total"], i["after"]) for i in cov["items"]}, {R_MEAN: (1, 0), R_CLAMP: (2, 1)})
 
+    def test_merge_with_unreadable_previous_counts_stops_and_keeps_the_file(self):
+        """merge で同じ周の前の書き手の控えが在るのに読めない（壊れた JSON・dict でない・items が並びでない）時は、
+        控えを名指して止まり、ファイルは上書きせずそのまま残す。ファイルが無い時は今どおり件数を書く"""
+        self.edit_tree(R_FIXED)
+        path = self.place / self.recount.COVERAGE_FILE
+        for text in ("{", "[]", '{"round": 1, "items": {}}'):
+            with self.subTest(text=text):
+                path.write_text(text, encoding="utf-8")
+                with self.assertRaises(RuntimeError) as cm:
+                    self.accept(_fix_ok(), merge=True)
+                self.assertIn(self.recount.COVERAGE_FILE, str(cm.exception))
+                self.assertEqual(path.read_text(encoding="utf-8"), text, "読めない控えは上書きしない")
+        path.unlink()
+        got = self.accept(_fix_ok(), merge=True)
+        self.assertTrue(got["ok"], got)
+        cov = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual({i["unit_key"] for i in cov["items"]}, {R_MEAN, R_CLAMP})
+
     def test_rejects_count_not_dropped(self):
         self.assert_rejected(_fix_ok(), R_MEAN, "母数 1", "修正の後も 1 件")
         self.edit_tree(R_RESIDUE)

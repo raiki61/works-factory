@@ -62,7 +62,9 @@ WRITE_FORMS = (
 RULES = {
     "lines": "改行の数（最後の行に改行が無ければ 1 足す）",
     "growth": "窓の始まりの commit は git rev-list -1 --before=<since> HEAD。その時の名前は窓の中の git log --follow --name-status の"
-              "改名（と写し）の行を新しい方からたどって求め、git show <commit>:<その時の名前> の行数を数える。delta は今の行数との差",
+              "改名（と写し）の行を新しい方からたどって求め、git show <commit>:<その時の名前> の行数を数える。delta は今の行数との差。"
+              "窓の始めの版にそのパスがファイル（blob）として在るかは git ls-tree で決め、無い・gitlink・フォルダなら窓の始めに無かった"
+              "ファイル（base_lines 0）とする。在るのに git show が落ちれば測りを止める",
     "frequency": "窓の中（--since）の commit の数。follow は git log --follow（git の改名と写しの検出でたどる。マージは出さない）、"
                  "raw は --follow 無し、no_merges は --follow 無しに --no-merges。raw と no_merges の差はそのパスを触るマージの数",
     "union": "follow はパスごとの git log --follow の commit の集合の和（--follow は 1 本のパスにしか効かない）。"
@@ -71,7 +73,8 @@ RULES = {
     "duplicates": f"空行を落とし、各行の空白を 1 つに詰めた連続 {BLOCK_LINES} 行の塊の sha1 を、git ls-files の追跡ファイル全体で引く。"
                   "同じ塊の在る自分以外の場所を並べる。言語の文法は見ない",
     "entrypoints": "named_by は自分の外でファイルの名（basename）を文字どおり含む追跡ファイルの数（git grep -l -F -I）。"
-                   "executable はそのうち git ls-files -s の mode が 100755 の物",
+                   "executable はそのうち git ls-files -s の mode が 100755 の物。git grep の終了 1 を 0 件とし、ほかの終了は測りを止める。"
+                   "git grep が開けずに読み飛ばした追跡ファイルは、skipped の写しと環境変数の数えと同じく数えに入らない",
     "env": "名は測るパスの中の [A-Z][A-Z0-9]*(_[A-Z0-9]+)+。接頭辞は最初の _ までで、異なる名の数が一番多い物。"
            "同数は辞書順で並べ、先の物を top にする。counts の all は名を含む追跡ファイルの数（散らばり）、"
            "excluding_tests_docs はそのうち test・tests・doc・docs のフォルダの下と .md・.rst・.adoc を除いた数、"
@@ -104,12 +107,12 @@ class GitError(Exception):
     pass
 
 
-def git(repo: Path, *args: str, check: bool = True) -> str:
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
-                       errors="replace")
-    if check and r.returncode != 0:
-        raise GitError(f"git {' '.join(args)}: {r.stderr.strip()}")
-    return r.stdout
+def git(repo: Path, *args: str, ok: tuple = (0,)) -> str:
+    """git を打って stdout を返す。終了コードが ok に無ければ GitError（git grep の終了 1 は「見つからない」で正常）"""
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True)   # バイトで受ける（text モードは単独の CR を改行に読み替える）
+    if r.returncode not in ok:
+        raise GitError(f"git {' '.join(args)}: {r.stderr.decode('utf-8', errors='replace').strip()}")
+    return r.stdout.decode("utf-8", errors="replace")
 
 
 def count_lines(text: str) -> int:
@@ -168,10 +171,12 @@ def growth(repo: Path, path: str, lines: int, base, shallow: bool) -> dict:
     if base is None:
         return {"status": UNMEASURABLE, "reason": "窓の始まりより前の commit が無い"}
     name = name_at(repo, path, base)
-    r = subprocess.run(["git", "-C", str(repo), "show", f"{base}:{name}"], capture_output=True)
-    if r.returncode != 0:
+    entries = git(repo, "ls-tree", "-z", base, "--", name).split("\0")
+    # ls-tree のパスは型で照らすので、字のとおりの項目だけを取る。「<mode> <type> <object>\t<path>」
+    kinds = [e.split("\t", 1)[0].split()[1] for e in entries if "\t" in e and e.split("\t", 1)[1] == name]
+    if kinds != ["blob"]:   # 項目が無い・gitlink（commit）・フォルダ（tree）は、窓の始めにファイルとして無かった
         return {"base_name": None, "base_lines": 0, "delta": lines}
-    n = count_lines(r.stdout.decode("utf-8", errors="replace"))
+    n = count_lines(git(repo, "show", f"{base}:{name}"))
     return {"base_name": name, "base_lines": n, "delta": lines - n}
 
 
@@ -202,7 +207,7 @@ def duplicates(path: str, own: list, index: dict) -> list:
 
 
 def named_by(repo: Path, path: str) -> list:
-    out = git(repo, "grep", "-l", "-z", "-F", "-I", "-e", Path(path).name, check=False)
+    out = git(repo, "grep", "-l", "-z", "-F", "-I", "-e", Path(path).name, ok=(0, 1))
     return sorted(f for f in out.split("\0") if f and f != path)
 
 

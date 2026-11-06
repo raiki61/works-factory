@@ -48,6 +48,8 @@ COUNT_CACHE_FILE = "count-cache.json"
 COUNT_BUDGET_FILE = "count-budget.json"
 # 1 周に数える問いを走らせてよい回数と時間の上限（元 works/.shared/core/graphloops/rules/review-loop.py:3304 の COUNT_BUDGET）
 COUNT_BUDGET = {"calls": 300, "seconds": 900}
+_PREV_UNREADABLE = ("同じ周の前の書き手の数え直しの控え {file} が読めない（{why}）。"
+                    "重ねると前の書き手の行が消えるので受け付けを止める")
 REJECT_HEADING = "数え直しで拒んだ行:"   # 直し方は共通の断片 rejected.md が言う
 
 
@@ -343,7 +345,9 @@ def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=Non
     commit が偽なら乾いた照らし（置き場に件数を書かない。数えた量と版の答えの取り置きは刻む）で、返りに dry: True と changes: []。
     元 works/.shared/core/recount.py:115（盤面の entry.take(board, "p3.fix", …) に渡し、写しの fix_covers_open_units が
     盤面の判定と state.inputs.review_rev を読んで数え直した所を、引数の判定 judged・直す義務 owed・修正前の版 base_rev で受ける）。red_units は赤を見ない clean の照らしを当てる単位（_after_problems。None は全部）。
-    merge が真なら、同じ周の前の件数のうち今の返答に無い単位の行を残して重ねる（書き手を 1 つずつ順に回す受け付け）"""
+    merge が真なら、同じ周の前の件数のうち今の返答に無い単位の行を残して重ねる（書き手を 1 つずつ順に回す受け付け）。
+    前の控えが在るのに読めない時（壊れた JSON・読みの誤り・dict でない・同じ周なのに items が並びでない）は、重ねると前の書き手の
+    行が消えるので、控えを上書きせずに RuntimeError で受け付けを止める（控えが無い時だけ前の書き手が無いものとして書く）"""
     if not isinstance(reply, dict) or not isinstance(reply.get("changes", []), list):
         return {"ok": False, "reason": "修正の返答に changes の並びが無い", "problems": ["修正の返答に changes の並びが無い"],
                 "changes": [], **({"dry": True} if not commit else {})}
@@ -359,11 +363,17 @@ def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=Non
     if merge:
         try:
             prev = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            prev = {}
-        if isinstance(prev, dict) and prev.get("round") == round_:
+        except FileNotFoundError:
+            prev = {}      # 前の書き手が無い（最初の書き手）
+        except (OSError, ValueError) as e:
+            raise RuntimeError(_PREV_UNREADABLE.format(file=COVERAGE_FILE, why=f"{type(e).__name__}: {e}")) from e
+        if not isinstance(prev, dict):
+            raise RuntimeError(_PREV_UNREADABLE.format(file=COVERAGE_FILE, why=f"{type(prev).__name__} で dict でない"))
+        if prev.get("round") == round_:
+            if not isinstance(prev.get("items"), list):
+                raise RuntimeError(_PREV_UNREADABLE.format(file=COVERAGE_FILE, why="items が並びでない"))
             now = {a.get("unit_key") for a in afters}
-            afters = [a for a in prev.get("items") or [] if isinstance(a, dict) and a.get("unit_key") not in now] + afters
+            afters = [a for a in prev["items"] if isinstance(a, dict) and a.get("unit_key") not in now] + afters
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps({"round": round_, "items": afters}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     os.replace(tmp, path)
