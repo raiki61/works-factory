@@ -70,8 +70,8 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - item_blocks(b, n): 項目 n が答える前の往復の答えの要る穴の key（求める側。受け付けが下請けの答えの resolved か同じ key の face を求める）
 - resolvable_keys(doc, n=None)・stray_resolved(doc, resolved, n=None): resolved に書いてよい key の集合（どの往復かの block と suggest の
   key。n で項目 n の範囲に絞る）の唯一の持ち主と、それに無い key の拒否の行（resolved_gaps と下請けの答えの受け付けが引く）
-- prev_row(b, n)・answered_hits(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答えと、suggest の穴（往復の行の
-  notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
+- prev_row(b, n)・answered_hits(b, n)・answered_file_notes(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答え・
+  下請けが読んだファイルの覚えと、suggest の穴（往復の行の notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
   owed_faces が引く開いた項目の物だけで、閉じた・保留の項目の物と審査が消えたと言った物は参考として渡る）
 - stuck_reason(b)・lines(b): 関所の理由・報告の行（往復ごとの行は前の往復の block を審査が suggest に下げた key も名指し、disputed と
   答えた穴の key と根拠を 1 行ずつ後ろに足す）。修正案の役と事前審査の役に返す節の文（前の revise_section・review_section と頼みの文）は
@@ -602,6 +602,18 @@ def answered_hits(b, n: int) -> list:
         return []
     return [{**h, "pass": p["pass"]} for p in reversed(doc["passes"]) for x in p.get("items") or []
             if x.get("id") == plan[n - 1]["id"] for h in x.get("hits") or []]
+
+
+def answered_file_notes(b, n: int) -> list:
+    """項目 n（同じ id）の前の往復の、下請けが読んだファイルの覚えの行（受け付けが下請けの答えから組んで items の file_notes に置いた
+    物 {path, sha256, learned, pass}。往復の順に全部返し、パスごとに新しい行へは縮めない: 後の往復の範囲だけの覚えで、前の往復の
+    全体の覚えが消えないように）"""
+    doc = read(b)
+    plan = doc.get("plan") or []
+    if not 1 <= n <= len(plan):
+        return []
+    return [dict(r) for p in doc["passes"] for x in p.get("items") or [] if x.get("id") == plan[n - 1]["id"]
+            for r in x.get("file_notes") or [] if isinstance(r, dict)]
 
 
 def carried_notes(b) -> list:

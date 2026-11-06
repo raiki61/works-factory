@@ -198,14 +198,15 @@ MEANS_ROWS = ("means_drifts", "means_departs")   # 往復の行に写す事前�
 
 def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy: list | None = None,
              hits: dict | None = None, origins: list | None = None, at_cap: bool = False, refs: dict | None = None,
-             push=None) -> dict:
+             push=None, file_notes: dict | None = None) -> dict:
     """控え doc に事前審査の返答 1 つを往復の行として足し、decide で抜け方を決めて doc と行の outcome に置く（ファイルの写し・
     書き込み・trace はしない）。at_cap（呼び手が渡す、輪がもう 1 周回せない事実）が真で decide が AGAIN の往復は、行に
     capped: true を立てて UNSETTLED（保留の項目が在れば PERSISTED）で止める（決まりは decide のまま。CLEAN と止める往復は
     変えない）。origins（審査の出自の申告の行。型は節の output_format か、受け付けが答えのファイルの型（ORIGIN_SCHEMA の写し）で照らし済み）は
     _origins が照らして、2 往復目からの新しい block の出自を行の origins に置く（採らなかった申告は origins_claimed）。refs（{項目の番号:
     その項目の答えの対応表の design_ref の並び}）は審査した項目の items の行に置く（carried_refs が、閉じた項目が受けた要素を後の往復の
-    網羅に数える。carried_refs）。push（返答の一番上の止まった時の推し STUCK_PUSH の値。形は照らさず、読む gatemarks が照らす）は、
+    網羅に数える。carried_refs）。file_notes（{項目の番号: 下請けが読んだファイルの覚えの行 {path, sha256, learned, pass}}）も同じく審査した
+    項目の items の行に置く（次の往復の項目の材料が、中身の変わらないファイルの覚えとして載せる）。push（返答の一番上の止まった時の推し STUCK_PUSH の値。形は照らさず、読む gatemarks が照らす）は、
     在れば行の push に置く。返りは足した行"""
     passes = doc["passes"]
     k = len(passes) + 1
@@ -233,6 +234,8 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
                 it["hits"] = copy.deepcopy(hits[it["n"]])
             if it["n"] in (refs or {}):
                 it["refs"] = list(refs[it["n"]])
+            if it["n"] in (file_notes or {}):
+                it["file_notes"] = copy.deepcopy(file_notes[it["n"]])
         row["synergy"] = list(synergy or [])
     row["origins"], row["origins_claimed"] = _origins(
         [key for key in blocks if key not in earlier] if passes else [], origins if isinstance(origins, list) else [],
@@ -418,7 +421,7 @@ def _int_keys(got) -> dict:
 
 
 def record_pass(doc: dict, got: dict, *, at_cap: bool, dest, plan_rejects=()) -> dict:
-    """pass.json の中身 got（{pass, plan, answers, review, resolved, synergy, hits, origins, refs, push, files, rejects,
+    """pass.json の中身 got（{pass, plan, answers, review, resolved, synergy, hits, file_notes, origins, refs, push, files, rejects,
     precedent_checks}）を往復の行として記録 doc に足す（今の converge.record_pass と stash_rejects と planblk.save_precedents を
     line が当てる）。plan（converge.plan_rows の行）を記録の plan に置いてから足し、files の在るファイルを dest（往復のフォルダ）へ
     写して行に写した先を置き、計画の拒否 plan_rejects（role plan）と事前審査の拒否 got.rejects を行の rejects に積み、
@@ -430,7 +433,8 @@ def record_pass(doc: dict, got: dict, *, at_cap: bool, dest, plan_rejects=()) ->
                    resolved=got.get("resolved") if isinstance(got.get("resolved"), list) else [],
                    synergy=got.get("synergy") if isinstance(got.get("synergy"), list) else None,
                    hits=_int_keys(got.get("hits")), origins=got.get("origins") if isinstance(got.get("origins"), list) else None,
-                   at_cap=at_cap, refs=_int_keys(got.get("refs")), push=got.get("push"))
+                   at_cap=at_cap, refs=_int_keys(got.get("refs")), push=got.get("push"),
+                   file_notes=_int_keys(got.get("file_notes")))
     dest = pathlib.Path(dest)
     for name, src in (got.get("files") or {}).items() if isinstance(got.get("files"), dict) else ():
         if isinstance(src, str) and os.path.isfile(src):

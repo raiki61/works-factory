@@ -353,7 +353,7 @@ def _take(place: pathlib.Path, intake: dict, reply: dict, repo, keys) -> dict:
         jsonfile.write(place / files.PASS, {
             "pass": converge.pass_no(b), "plan": doc.get("plan") or [], "answers": (doc.get("open") or {}).get("answers", []),
             "review": bare_review, "resolved": merged["resolved"], "synergy": merged["synergy"], "hits": merged["hits"],
-            "origins": merged["origins"], "refs": merged.get("refs") or refs, "push": tree.get(converge.STUCK_PUSH),
+            "file_notes": merged.get("file_notes") or {}, "origins": merged["origins"], "refs": merged.get("refs") or refs, "push": tree.get(converge.STUCK_PUSH),
             "files": {**merged["files"], **_material_file(place)}, "rejects": _pass_rejects(place),
             "precedent_checks": checks if isinstance(checks, dict) else {}}, indent=2)
     jsonfile.write(place / files.REVIEW, written, indent=2)   # 最後に書く（出口はこれが在れば受けた返答と読む）

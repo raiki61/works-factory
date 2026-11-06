@@ -2,7 +2,7 @@
 
 元の試験は盤面 b（round・dir・work・trace）に lib/converge.py の record_pass・read・stuck_reason・lines を当てた。line の記録は
 盤面を持たず、記録の dict と place のパスを受けるので、元の試験の口の形を持つ小さな写し C（下の Adapter）を通して同じ値を照らす:
-record_pass は pass.json の材料の形（{review, answers, resolved, synergy, hits, origins, refs, push, files, plan}）に詰め直して
+record_pass は pass.json の材料の形（{review, answers, resolved, synergy, hits, file_notes, origins, refs, push, files, plan}）に詰め直して
 src.rounds.record_pass に渡し、記録を place のファイルに書く。note_plan・note_answers は元どおり次の往復の材料に置く。
 元の試験のうち lib に残る読み口（splice・owed_faces・revise_section・answer_gaps・resolved_gaps など）と trace の行を見る物は、
 lib/tests に残るので写さない。
@@ -765,6 +765,16 @@ class PlaceRecordCase(BoardCase):
                                            {"role": "p2.plan_review", "at": 1, "reason": "r"}])
         self.assertEqual(doc["precedent_checks"], {"https://x": {"ok": False}})
         self.assertEqual((line["items"][0]["hits"], line["items"][0]["refs"]), ([{"hit": "h"}], ["e1"]))
+
+    def test_file_notes_ride_on_the_item_row(self):
+        """pass.json の file_notes（字の番号の鍵）を、審査した項目の items[] の行の file_notes に写す（hits・refs と同じ道）"""
+        C.note_plan(self.b, [row("u1")])
+        doc = rounds.fresh()
+        note = {"path": "stats.py", "sha256": "ab" * 32, "learned": "clamp の上限の枝だけが lo を返している", "pass": 1}
+        got = {"review": {"faces": [face("key-a1", units=["u1"])]}, "answers": [], "resolved": [], "plan": self.b.plan,
+               "file_notes": {"1": [note]}}
+        line = rounds.record_pass(doc, got, at_cap=False, dest=self.b.dir / "p")
+        self.assertEqual(line["items"][0].get("file_notes"), [note])
 
 
 class PushableCase(unittest.TestCase):
