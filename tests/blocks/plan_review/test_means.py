@@ -129,6 +129,50 @@ class PrescriptionCase(unittest.TestCase):
                     if n["id"] == "finish")
         self.assertEqual(validate_schema(done, kit._gate()._expanded(node["output_format"], kit.BLOCKS / BLOCK)), [])
 
+    def test_the_material_lists_the_departure_with_the_unit_key_set_apart(self):
+        """材料の節「The judgment's prescriptions and the plan's answers」は頼みの解き方の節と同じ型で、外れた単位の key を札
+        prescription_key で区切って頭に置き（key は空白と「: 」を含む）、処方の文と項目ごとの答えを続ける。指示の md がその節と区切りを名指す"""
+        material = kit.load(BLOCK, "material")
+        head = material.MAT_HEADS["prescriptions"]
+        row = (f"- `{UNIT_MEAN}`: {' / '.join(self.PRESCRIBED)} — plan: departs (item 1) — {WHY}; follows (item 2)")
+        self.assertIn(f"{head}\n\n{row}\n", self.flow.text("review-material-1.md"))
+        prompt = self.flow.prompt()
+        self.assertIn(f'"{head[3:]}"', prompt)
+        self.assertIn("between backquotes", prompt)
+
+    def test_a_recommendation_of_an_earlier_pass_is_kept(self):
+        """2 往復目に差分だけを見る審査役が前の往復の推しを書き直さなくても、往復の記録（line の rounds.record_pass が写す行）に積んだ推しで
+        受け付けが通り、finish の行に推しが載る"""
+        f = self.flow
+        self.assertTrue(f.accept(review(prescription_departs=[self.depart()]))["ok"])
+        f.finish()
+        f.carry()
+        f.intake()
+        f.prep()
+        self.assertTrue(f.accept(review())["ok"], "前の往復の推しは書き直さなくてよい")
+        rows = [d for d in f.finish()["deviations"] if d.get("source") == "prescription"]
+        self.assertEqual([(r["item"], r["mark"]["recommend"]) for r in rows], [(1, REC)], rows)
+
+    def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
+        """木の往復（TreeMeansCase と同じ場面）: 項目の材料のファイルの末尾に処方の節が在り、項目の下請けの答えの prescription_departs が
+        tree_merge で返答に並び、受け付けを通り、finish の deviations の source prescription の行に推しが載る"""
+        tree = kit.load(BLOCK, "tree")
+        f = self.flow
+        f.intake(tree="on")
+        f.prep()
+        material = kit.load(BLOCK, "material")
+        self.assertIn(material.MAT_HEADS["prescriptions"], f.text("items/item-1.md"))
+        b = f.view()
+        for n, row in {1: answer(1, prescription_departs=[self.depart()]), 2: answer(2)}.items():
+            path = tree.answer_file(b, n)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(dump(row), encoding="utf-8")
+        tree.synergy_file(b).write_text(dump(synergy()), encoding="utf-8")
+        got = f.accept(tree=summary({1: [], 2: []}))
+        self.assertTrue(got["ok"], got)
+        rows = [d for d in f.finish()["deviations"] if d.get("source") == "prescription"]
+        self.assertEqual([(r["item"], r["mark"]["recommend"]) for r in rows], [(1, REC)], rows)
+
 
 class DriftBase(MeansBase):
     def setUp(self):

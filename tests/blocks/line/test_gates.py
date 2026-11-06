@@ -894,13 +894,16 @@ class ScriptCase(unittest.TestCase):
                 self.assertEqual(any("AGENTS.md が名指す docs/deploy.adoc" in x for x in out["asked"]), want, out["asked"])
 
     def test_ask_before_fix_reads_the_plan_fields_when_the_review_fell(self):
-        """計画 means-answers の 3.2 の 8: 事前審査が諦めた周は、材料の読み（src.asking.materials）が判定の means と往復の plan の控え
-        （plan-fields.json）を読んで before_fix に渡し、計画の {means, deviation} が推しなしの項目で出る。事前審査が通った周は読まない"""
+        """計画 means-answers の 3.2 の 8: 事前審査が諦めた周は、材料の読み（src.asking.materials）が判定の means と判定の処方の文と往復の
+        plan の控え（plan-fields.json）を読んで before_fix に渡し、計画の {means, deviation}・{prescription, deviation} が推しなしの項目で出る
+        （処方の文は入力 judgment の判定から引く。引かないと読めていないと名乗る）。事前審査が通った周は読まない"""
         record = self.put("r1/start.json", {"answers": []})
         plan = self.put("plan-fields.json", {"round": 1, "fields": [
             {"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [],
-             "structure": [{"means": "M1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]})
-        judge = json.dumps({"judgment": None, "answer_ties": None, "materials": None, "means": ["分母を len(xs) にする"]})
+             "structure": [{"means": "M1", "deviation": "リポジトリの決まりが別の層に置くと決めている"},
+                           {"prescription": "u1", "deviation": "リポジトリの決まりが別の層に置くと決めている"}]}]})
+        judgment = self.put("judge/judgment.json", {"units": [{"key": "u1", "prescriptions": ["上限の枝を hi にする"]}], "questions": []})
+        judge = json.dumps({"judgment": judgment, "answer_ties": None, "materials": None, "means": ["分母を len(xs) にする"]})
         for status, want in (("gave_up", True), ("ok", False)):
             with self.subTest(status=status):
                 got = rounds(review_status=status, review_reason="受け付けが諦めた", plan=json.loads(plan))
@@ -908,6 +911,10 @@ class ScriptCase(unittest.TestCase):
                                       record=record, ports=self.ports())
                 means = [a for a in out["asked"] if a.startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従わない——")]
                 self.assertEqual(len(means), 1 if want else 0, out["asked"])
+                rx = [a for a in out["asked"] if a.startswith("修正案 1 は単位 u1 の判定の処方")]
+                self.assertEqual(len(rx), 1 if want else 0, out["asked"])
+                if want:
+                    self.assertIn("1. 上限の枝を hi にする", rx[0])
 
     def test_before_fix_answer_records_the_asked_rows(self):
         """S46: 答えの asked に載せた行を付け、gates/gate-before-fix.json に書く。方針の変化を通さない答えは配る値の policy のまま"""

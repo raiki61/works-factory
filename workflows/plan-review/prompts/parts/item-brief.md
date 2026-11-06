@@ -46,7 +46,7 @@ The section "The request's means and the plan's answers" is at the end of your i
 <!-- if prescription_ask -->
 {part:prescription-ask}
 
-Write rows of `prescription_departs` only for your item (the acceptance check rejects a row whose `item` is another item's number).
+The section "The judgment's prescriptions and the plan's answers" is at the end of your item file. Write rows of `prescription_departs` only for your item (the acceptance check rejects a row whose `item` is another item's number).
 <!-- end prescription_ask -->
 
 <!-- if design_diff -->

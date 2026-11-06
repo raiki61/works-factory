@@ -32,6 +32,7 @@ import concepthome   # lib/
 import converge      # lib/
 import design        # lib/
 import gatemarks     # lib/
+import jsonfile      # lib/
 import libdocs       # lib/
 import oneline       # lib/
 import planmarks     # lib/
@@ -55,6 +56,7 @@ MAT_HEADS = {
     "libdocs": "## Library documents",
     "design": "## Independent design",
     "means": "## The request's means and the plan's answers",
+    "prescriptions": "## The judgment's prescriptions and the plan's answers",
     "deviations": "## Deviations recorded in the plan",
     "fields": "## Works fields of the plan items",
     "map_items": "## Items that write design_map",
@@ -101,9 +103,10 @@ LABELS = {
     "design_none": "None: {why}",
     "unit_files": "- reading the units' files: {why}",
     "versus": " (versus the standard practice: {note})",
-    "means_follows": "follows (item {n})",
+    "means_follows": "follows (item {n})",   # 頼みの解き方と判定の処方の節が同じ札で答えを並べる
     "means_departs": "departs (item {n}) — {why}",
     "means_none": "no answer",
+    "prescription_key": "`{key}`",   # 処方の節の単位の key は区切って置く（key は空白と「: 」を含みうる。受け付けは字の一致で照らす）
 }
 REPO_LINE = "Repository: {repo} (read version: `{rev}`) BASE: `{base}` canonical rules: {review_md}"
 # 形ごとの、この往復で design_map を照らさない項目を言う札（元 boardview.MAP_OTHERS。形 review は plan に名が変わった）
@@ -276,22 +279,46 @@ def deviations_section(b, place: pathlib.Path) -> str:
         for d in devs)
 
 
+def _plan_answers(rows: list, name: str) -> dict:
+    """{欄 structure の鍵 name の値: [答えの札]}（follows (item <i>) か departs (item <i>) — <deviation>。値の出た順、項目の順）"""
+    got = {}
+    for n, it in enumerate(rows, 1):
+        for a in it.get("structure") if isinstance(it.get("structure"), list) else []:
+            if isinstance(a, dict) and isinstance(a.get(name), str):
+                got.setdefault(a[name], []).append(
+                    LABELS["means_follows"].format(n=n) if a.get("follows") is True
+                    else LABELS["means_departs"].format(n=n, why=oneline.one_line(a.get("deviation") or "")))
+    return got
+
+
 def means_section(b, intake: dict) -> str:
     """頼みの解き方の節（計画 means-answers の 3.2 の 1）: M<n>: <文> — plan: follows (item <i>) | departs (item <i>) — <deviation>。
     答えは控えの欄 structure から読む。means が無ければ空"""
     said = worldmark.means_hints(intake.get("means"))
     if not said:
         return ""
-    rows = _item_rows(b)
+    got = _plan_answers(_item_rows(b), worldmark.MEANS)
     lines = [MAT_HEADS["means"], ""]
     for key, text in said.items():
-        got = []
-        for n, it in enumerate(rows, 1):
-            for a in it.get("structure") if isinstance(it.get("structure"), list) else []:
-                if isinstance(a, dict) and a.get(worldmark.MEANS) == key:
-                    got.append(LABELS["means_follows"].format(n=n) if a.get("follows") is True
-                               else LABELS["means_departs"].format(n=n, why=oneline.one_line(a.get("deviation") or "")))
-        lines.append(f"- {key}: {oneline.one_line(text)} — plan: {'; '.join(got) or LABELS['means_none']}")
+        lines.append(f"- {key}: {oneline.one_line(text)} — plan: {'; '.join(got.get(key) or []) or LABELS['means_none']}")
+    return "\n".join(lines)
+
+
+def prescription_section(b) -> str:
+    """判定の処方の節（頼みの解き方の節と同じ型）: `<単位の key>`: <処方の文> — plan: follows (item <i>) | departs (item <i>) — <deviation>。
+    単位の key は札 prescription_key で区切る（受け付け take._departs_gaps が推しの行の prescription を key と字で照らす）。処方の文は
+    置き場の判定の写しから（gate.prescription_items と同じ。読めなければ文を書かない）。並べるのは、どれかの項目が外れた（deviation を書いた。受け付けと同じ）単位だけ。外れが無ければ空"""
+    rows = _item_rows(b)
+    departed = list(dict.fromkeys(a["prescription"] for it in rows for a in (it.get("structure") if isinstance(it.get("structure"), list) else [])
+                                  if isinstance(a, dict) and isinstance(a.get("prescription"), str) and isinstance(a.get("deviation"), str)))
+    if not departed:
+        return ""
+    got = _plan_answers(rows, "prescription")
+    said = planmarks.judged_prescriptions(jsonfile.read_or(pathlib.Path(b.dir) / files.JUDGMENT))
+    lines = [MAT_HEADS["prescriptions"], ""]
+    for key in departed:
+        text = " / ".join(oneline.one_line(x) for x in said.get(key) or [])
+        lines.append(f"- {LABELS['prescription_key'].format(key=key)}{': ' + text if text else ''} — plan: {'; '.join(got[key])}")
     return "\n".join(lines)
 
 
@@ -750,6 +777,7 @@ def material_text(place: pathlib.Path, intake: dict, repo, b) -> str:
     parts.append(lib_section(b, pathlib.Path(repo), ports.shared_cache()))
     parts.append(design_only(b, intake))
     parts.append(means_section(b, intake))
+    parts.append(prescription_section(b))
     if form == "plan" and not later:
         parts += [deviations_section(b, place), fields_section(b)]
     else:

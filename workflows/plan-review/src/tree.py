@@ -557,9 +557,9 @@ def write_tree(place, b, intake: dict, material_path, n: int, repo=None) -> tupl
             done.append(f"- {converge.ITEM_CITE.format(n=m)}: {path}")
             continue
         retry = retry or not missing
-        means = material.means_section(b, intake)   # 頼みの解き方の節は全部の項目で同じ字（下請けが自分の項目の答えを見る）
-        path.write_text(_item_material(b, m, rows[m - 1], doc, pre.get(m) or [], errs) + (f"\n{means}\n" if means else ""),
-                        encoding="utf-8")
+        # 頼みの解き方と判定の処方の節は全部の項目で同じ字（下請けが自分の項目の答えを見る）
+        tail = "".join(f"\n{x}\n" for x in (material.means_section(b, intake), material.prescription_section(b)) if x)
+        path.write_text(_item_material(b, m, rows[m - 1], doc, pre.get(m) or [], errs) + tail, encoding="utf-8")
         todo.append(f"- {converge.ITEM_CITE.format(n=m)}: {path}")
     passes = converge.read(b)["passes"]
     last = {it["n"]: it for it in (passes[-1].get("items") or [])} if passes else {}
