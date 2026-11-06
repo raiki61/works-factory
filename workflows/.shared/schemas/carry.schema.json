@@ -32,6 +32,17 @@
          }
         }
        },
+       "frozen_by": {
+        "type": "object",
+        "patternProperties": {
+         "^.+$": {
+          "type": "array",
+          "items": {
+           "type": "string"
+          }
+         }
+        }
+       },
        "frozen_tree": {
         "type": "string"
        },
@@ -253,6 +264,17 @@
          "string",
          "null"
         ]
+       }
+      }
+     },
+     "frozen_by": {
+      "type": "object",
+      "patternProperties": {
+       "": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
        }
       }
      },

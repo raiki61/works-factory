@@ -3,7 +3,7 @@
 節と関数:
 - tdd-start → start: 入力 tdd_suite（JUnit XML の書き先を第 1 引数に受け、リポジトリの根で走る実行ファイル。本線と同じ約束）が
   空なら何もせず go: false（static でない単位の在る組は組の頭が no-suite で止める。docs/plans/2026-10-24-fix-weapons.md の 3.9）。在れば一式を 1 回走らせて元の結末を取り、置き場の tdd-<k>/ に状態を置く。
-  承認済みの修正案の単位ごとの約束（plan_contract → planmarks.unit_contract。道・受け入れのテストと、案が狙う落ち方 red_kind。後者は役に見せるだけで機械は照らさない）もここで 1 回だけ
+  承認済みの修正案の単位ごとの約束（plan_contract → planmarks.unit_contract と、案が新しく作ると書いたパス creates。道・受け入れのテストと、案が狙う落ち方 red_kind。後者は役に見せるだけで機械は照らさない）もここで 1 回だけ
   組んで状態の contract に置く（欄の控えの無い置き場・平の run は空で、輪は約束の無い今の動きのまま）。
   run のテストのコマンド（線の入力 test_cmd）の関門（test_cmd_gate）もここで 1 回だけ決める: 空なら off、実行器のファイルが
   そのコマンドの文字列をそのまま含むなら same_as_suite（一式と同じなので 2 度走らせない）、ほかは 1 回走らせて緑なら on、
@@ -23,7 +23,7 @@
     落ち、error・一式に居ない・もう通る・飛ばされたは拒み、元で通っていた物は緑。言語に依らない事実だけ）。テストでないファイル
     （これから足す名前の仮の実装）への書き込みは拒まず、単位の stub_files に残す。test_files に申告されても、コードのファイルで、名指しの
     テストのパス・約束のパス・前の単位のテストのファイル・名の慣習・テストのフォルダの下・試験のデータの置き場の下のどれにも
-    当たらず、出どころ（_claim_places。承認済みの修正案が作ると名指したファイルのうち単位の頭の木に無い物）に在る物は仮の実装として
+    当たらず、出どころ（_claim_places。承認済みの修正案が新しく作ると書いたファイル〔拡張子に依らない〕のうち単位の頭の木に無い物）に在る物は仮の実装として
     stub_files に残し、test_files と test_hashes に入れず凍らせない（_split_claims）。ほかの申告（単位の頭の木に在ったファイル、
     新しく作ったコードの期待値・試験の補助、コードでないテストのデータ）は申告すれば必ず凍る。error・一式に居ないで拒む時は NOT_RAN の
     1 行を足す（走る前の失敗は赤に数えず、直して走らせ直させる）。
@@ -175,7 +175,15 @@ def plan_contract(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> 
         fields = conflict.frozen_fields(pathlib.Path(board_dir), round_)
     except ValueError as e:
         raise Broken(str(e)) from None
-    return {k: c for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
+    return {k: {**c, "creates": _plan_creates(fields, k)} for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
+
+
+def _plan_creates(fields, key) -> list[str]:
+    """単位 key を unit_keys に含む項目の files の op=create の行の path（planmarks.file_rows。拡張子に依らない。現れた順・重なりは 1 つ）。
+    約束の names（planmarks._declared）は .py の path と symbol の名しか持たないので、仮の実装の出どころ（_claim_places）はこちらを読む"""
+    return list(dict.fromkeys(row["path"] for f in fields or [] if isinstance(f, dict) and key in (f.get("unit_keys") or [])
+                              for row in planmarks.file_rows(f)
+                              if row.get("op") == "create" and isinstance(row.get("path"), str) and row["path"].strip()))
 
 
 def _light_units(raw: str) -> list:
@@ -591,10 +599,10 @@ def declared_test_files(st, named=()) -> set[str]:
 
 
 def _claim_places(st, repo, key) -> set:
-    """仮の実装として凍結から外してよい出どころ: 今の単位の約束の names（承認済みの修正案が作ると名指したファイル。
-    planmarks.unit_contract）を posixpath.normpath で揃えた組のうち、単位の頭の木に無いパス。単位の頭の木に在ったファイルは
-    申告すれば必ず凍るので、出どころに入れない"""
-    names = {posixpath.normpath(p) for p in (_contract(st, key) or {}).get("names") or []}
+    """仮の実装として凍結から外してよい出どころ: 今の単位の約束の creates（承認済みの修正案が新しく作ると書いた行のパス。拡張子に
+    依らない。_plan_creates）を posixpath.normpath で揃えた組のうち、単位の頭の木に無いパス。単位の頭の木に在ったファイルは
+    名指されても申告すれば必ず凍るので、出どころに入れない"""
+    names = {posixpath.normpath(p) for p in (_contract(st, key) or {}).get("creates") or []}
     there = {posixpath.normpath(p) for p in git_names(repo, "ls-tree", "-r", "--name-only", st["unit_head"], "--", *sorted(names))} \
         if names else set()
     return names - there
@@ -603,7 +611,7 @@ def _claim_places(st, repo, key) -> set:
 def _split_claims(st, files, tests, places):
     """役の申告 files を事実で分ける → (kept, claimed_stubs, declared)。claimed_stubs は仮の実装: コードのファイルで、宣言の組
     （名指しの id・約束・前の単位のテストのファイル）にも名の慣習（impact.is_test_file）にもテストのフォルダの下にも試験のデータの
-    置き場の下にも当たらず、出どころ places（_claim_places。修正案が作ると名指した新しいファイル）に在る物。ほかは全部 kept
+    置き場の下にも当たらず、出どころ places（_claim_places。修正案が新しく作ると書いたファイルのうち単位の頭の木に無い物）に在る物。ほかは全部 kept
     （テストのファイル。凍る）で、単位の頭に在ったファイルも、新しく作ったコードの期待値や試験の補助も申告すれば凍る。純粋"""
     declared = declared_test_files(st, tests)
     kept, claimed_stubs = [], []

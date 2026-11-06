@@ -1678,8 +1678,48 @@ class TestClaimOrigin(ContractCase):
     単位の始めの木に無い物で、試験のデータの置き場の外にある物だけ。単位の始めに在ったファイルと、新しく作ったコードの期待値や
     試験の補助は申告すれば凍る"""
 
-    CONTRACT = {MEAN: {"items": [1], "route": "tdd", "rewrites": [], "refactor": [], "names": ["avg.py"],
-                       "tests": [{"id": MEAN_ID, "red_kind": "assertion"}]}}
+    CONTRACT = {MEAN: {"items": [1], "route": "tdd", "rewrites": [], "refactor": [], "names": ["avg.py", "average"],
+                       "creates": ["avg.py"], "tests": [{"id": MEAN_ID, "red_kind": "assertion"}]}}
+
+    def restart_with_plan(self, *creates):
+        """修正案の項目の files に creates を op=create の行で書いた欄の控えから、本物の plan_contract で約束を組み直す"""
+        fields = [{"unit_keys": [MEAN], "route": "tdd", "route_why": "", "rewrite_tests": [],
+                   "tests": [{"id": MEAN_ID, "behavior": "2 つの値の平均", "path": "stats.mean を直に呼ぶ",
+                              "red_kind": "assertion", "red_why": "今は len-1 で割る"}],
+                   "refactor": {"declared": False, "why": ""},
+                   "files": [{"path": p, "op": "create", "symbols": [{"name": "average", "change": "add"}]} for p in creates]}]
+        with mock.patch.object(tdd.conflict, "frozen_fields", return_value=fields):
+            self.restart()
+
+    def test_new_non_py_code_named_by_plan_is_stub(self):
+        """修正案が新しく作ると書いた .py でないコードのファイル（パスの形は揃えて比べる）も、申告すれば仮の実装として外れる"""
+        self.restart_with_plan("./src/avg.ts")
+        self.route()
+        self.add_test(NEW_TEST)
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "avg.ts").write_text("export const average = (xs: number[]) => 0;\n", encoding="utf-8")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "src/avg.ts"], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        u = self.st()["units"][MEAN]
+        self.assertEqual(u["stub_files"], ["src/avg.ts"])
+        self.assertNotIn("src/avg.ts", u["test_files"])
+        self.assertNotIn("src/avg.ts", u["test_hashes"])
+
+    def test_file_named_as_new_but_at_unit_start_is_frozen(self):
+        """修正案が新しく作ると書いても、単位の始めの木に在ったファイルは申告すれば凍る"""
+        (self.repo / "avg.py").write_text("def average(xs):\n    return 0\n", encoding="utf-8")
+        git(self.repo, "add", "avg.py")
+        git(self.repo, "commit", "-qm", "avg")
+        self.restart_with_plan("avg.py")
+        self.route()
+        self.add_test(NEW_TEST)
+        (self.repo / "avg.py").write_text("def average(xs):\n    return 1\n", encoding="utf-8")
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py", "avg.py"], "tests": [MEAN_ID]})
+        self.assertTrue(got["ok"], got)
+        u = self.st()["units"][MEAN]
+        self.assertIn("avg.py", u["test_files"])
+        self.assertIn("avg.py", u["test_hashes"])
+        self.assertNotIn("avg.py", u["stub_files"])
 
     def test_new_code_claim_frozen_unless_plan_names_it(self):
         self.route()
