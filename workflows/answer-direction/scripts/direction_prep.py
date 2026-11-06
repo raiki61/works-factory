@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""一言の向きの判定の支度: 承認ノードの答え・見せた項目・計画の修正案を読み、役を起こすか（due）と、役の指示を prompts/direction.md から
+"""一言の向きの判定の支度: 承認ノードの答え・見せた項目・承認に掛けた計画の行を読み、役を起こすか（due）と、役の指示を prompts/direction.md から
 組む。決めの語が通す語で一言が空でない時だけ起こす。一言が空か止める語なら due 偽・reason 空（要らない）。入力が読めなければ due 偽で
 読めなかった入力を名指す訳を返す（出口が failed にする）。落ちない"""
 import os
@@ -24,7 +24,7 @@ def compute():
         (place / name).unlink(missing_ok=True)
     got = direction.due(os.environ.get("INPUTS_ANSWER"), os.environ.get("INPUTS_ASKED"), os.environ.get("INPUTS_PLAN"))
     if not got["due"]:
-        return {"due": False, "prompt": "", "reason": got["reason"]}
+        return not_due(got["reason"])
     lang = ports.text(os.environ.get("INPUTS_LANG")).strip()
     values = {"note": got["note"], "asked": "\n".join(f"- {row}" for row in got["asked"]) or NO_ASKED, "plan": "\n".join(got["plan"]),
               "lang": lang}

@@ -115,12 +115,12 @@ class AnswerDraftsCase(unittest.TestCase):
 
     def test_redirected_note_is_drafted_for_each_shown_item(self):
         """修正前の答えが works:answer-redirected で止めた run は、承認ノードで見せた項目ごとに、下書きの印つきの答えの行を出す（question は項目の
-        文の全文、text は空、note に人の一言と返りの reason）。止めていない run・人が止めた run・項目の無い答えは出さない"""
+        文の全文、text は空、note に返りの reason。reason が含む人の一言は重ねない）。止めていない run・人が止めた run・項目の無い答えは出さない"""
         got = self.drafts(values=self.redirected())
         self.assertEqual([(d["question"], d["text"]) for d in got], [(q, "") for q in self.SHOWN])
         for draft in got:
             self.assertTrue(draft["draft"] is True and draft["source"] == self.f.REDIRECT_SOURCE, draft)
-            self.assertIn(self.NOTE, draft["note"])
+            self.assertEqual(draft["note"].count(self.NOTE), 1, draft["note"])
             self.assertIn(self.REASON, draft["note"])
             self.assertIn(self.f.REDIRECT_NOTE.split("{")[0], draft["note"])
         for name, values in (("passed", self.redirected(go=True, stop_reason="")),

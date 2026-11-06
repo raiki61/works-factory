@@ -73,6 +73,7 @@ REDESIGN_ELSEWHERE = ("前の答え redesign（設計へ戻す）はテーマの
                       "設計し直させるなら revise と一言、止めるなら stop で答え直す")
 REDESIGN_WAY = "修正へ進まずに run を閉じ、続きの run のテーマの md・依頼のファイル・起動の 1 行を書き出す（報告は出る）"
 NO_ITEMS = "- （無し）"
+NO_PLAN = "- （設計案の控えが無い。下の相談の結果を見る）"   # plan_lines の、修正案の項目が無い時の 1 行
 
 
 class Stage(NamedTuple):
@@ -455,7 +456,7 @@ def plan_lines(po: dict) -> list:
     fields = _read(po.get("plan"), lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"))
     items = bare.get("plan") if isinstance(bare, dict) else None
     if not isinstance(items, list) or not items:
-        return ["- （設計案の控えが無い。下の相談の結果を見る）"]
+        return [NO_PLAN]
     works = fields.get("fields") if isinstance(fields, dict) and isinstance(fields.get("fields"), list) else []
     out = []
     for n, it in enumerate(items, 1):

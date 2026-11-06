@@ -18,7 +18,7 @@ design_talk・request_answers・design_item・stuck_push・design_items・_conti
 - AXES・gather(asks, deviations, design_rows) -> {軸: {ok, note}}: 4 つの軸（元 gate_axes.gather。軸ごとの訳は事前審査の返りの行の why）
 - before_fix(...): 修正前の承認ノード（2 節の 2）の決め（返り {open, go, stop_reason, items, deferred, asked, pushed, passes, policy_changed}）。
   対話モードの run は設計の相談の承認ノード（TALK_GATE）の合意 agreed を受け、合意した行を聞き直さない
-- direction_stop(gate, answer, checked, *, due) -> (止めの語, 訳): 修正前の承認の一言の向きで修正の前に止めるか（仕様駆動の道と写しの道。
+- direction_stop(gate, taken, checked, *, due) -> (止めの語, 訳): 修正前の承認の一言の向きで修正の前に止めるか（仕様駆動の道と写しの道。
   承認ノードが開いて人が通す語で答えた時だけ照らし、判定の block の返りが {ok: 真, aligned: 真} でなければ stopby.ANSWER_REDIRECTED）
 - replan_rows(...)・replan(...): 案の直しの承認ノード（2 節の 3）の「聞くか」と項目の行
 - policy_change(record, cwd, folder)・change_row(ch): 固めた方針の文書と今の文書の版の比べ（元 boardview）
@@ -35,7 +35,6 @@ import pathlib
 from typing import Callable, NamedTuple
 
 import answer
-import answer as _answer   # direction_stop の引数 answer が module を隠すので、その中は別名で読む
 import gatemarks
 import policy
 import stopby
@@ -472,18 +471,18 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
             "passes": passes, "policy_changed": changed}
 
 
-def direction_stop(gate, answer, checked, *, due: bool) -> tuple:
+def direction_stop(gate, taken, checked, *, due: bool) -> tuple:
     """修正前の承認の一言の向きで、修正の前に止めるか (止めの語, 訳)。止めない時は ('', '')。
-    照らすのは、承認ノードが開いて人が通す語で答えた時だけ（gate が在り、answer の decision が GO_WORDS で、推しの印 PUSHED が無い）。
+    照らすのは、承認ノードが開いて人が通す語で答えた時だけ（gate が在り、取った答え taken の decision が GO_WORDS で、推しの印 PUSHED が無い）。
     対話モードの合意だけで入る道（承認ノードが開かない）と、無人の run の推しは照らさない。合意への向きの変更は、設計の相談の承認ノードの
     revise・redesign が受ける。その時、due（照らす道か）が真で checked（一言の向きの判定の block の返り）が {ok: 真, aligned: 真} でなければ、
     止めの語 stopby.ANSWER_REDIRECTED と訳を返す（redirected・unclear・判定が落ちた・返りが無いのどれも止める。fail-closed）。訳は判定の
     向きと why（落ちた時は返りの reason）と人の一言（承認ノードの出力の一言。合意の一言は足さない）。向きの語は判定の block だけが持ち、
     ここは真偽 aligned だけを読む。道の名は見ない（呼び手が due で決める）"""
-    if not due or gate in (None, "") or not isinstance(answer, dict) or _answer.by_push(answer):
+    if not due or gate in (None, "") or not isinstance(taken, dict) or answer.by_push(taken):
         return "", ""
-    said = _answer.decision(gate)
-    if answer.get("decision") not in _answer.GO_WORDS:
+    said = answer.decision(gate)
+    if taken.get("decision") not in answer.GO_WORDS:
         return "", ""
     if isinstance(checked, dict) and checked.get("ok") is True and checked.get("aligned") is True:
         return "", ""

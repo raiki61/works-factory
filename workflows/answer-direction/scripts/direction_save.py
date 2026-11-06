@@ -23,7 +23,7 @@ def compute():
     path = ports.place() / direction.REPLY
     try:
         jsonfile.write(path, ports.parsed(raw))
-    except ValueError:   # 読めない返答は字のまま写す。出口の読みが名指して failed にする
+    except ValueError:
         path.write_text(raw, encoding="utf-8")
     return {"saved": True}
 

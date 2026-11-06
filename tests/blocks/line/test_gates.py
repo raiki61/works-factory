@@ -936,29 +936,32 @@ class ScriptCase(unittest.TestCase):
                 self.assertEqual((out["go"], out["stop_reason"], out.get("reason")), (True, "", ""), out)
 
     def test_ask_before_fix_hands_the_plan_it_shows(self):
-        """承認ノードに掛ける計画（往復の返りの fix_plan の pointer）を欄 plan で返す。往復が無い・計画の無い周は null。写しの運ぶ値から開き直す
-        時も、写しの rounds の fix_plan を同じ欄で返す"""
+        """承認ノードに掛ける計画の行（src.talk.plan_lines の字の配列）を欄 plan で返す。往復が無い・修正案の項目が無い周は空。写しの運ぶ値から
+        開き直す時も、写しの rounds の計画の行を同じ欄で返す。判定の block は修正案の形を知らず、この行だけを受ける"""
         record = self.put("r1/start.json", {"answers": []})
         judge = json.dumps({"judgment": None, "answer_ties": None, "materials": None})
-        plan = self.run.pointer("plan/fix-plan.json")
-        fresh = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds(asks=[ask_row()], fix_plan=json.loads(plan))),
+        doc = {"plan": [{"unit_keys": ["u1"], "approach": "空の列の mean が 0 を返す形に変える",
+                         "files": [{"path": "stats.py", "op": "modify", "responsibility": "平均を出す"}]}]}
+        kit.shaped("shared:fix-plan.schema.json", doc)
+        plan = json.loads(self.put("plan/fix-plan.json", doc))
+        lines = ["- 項目 1（u1）: 空の列の mean が 0 を返す形に変える"]
+        fresh = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds(asks=[ask_row()], fix_plan=plan)),
                                 structure="null", judge=judge, record=record, ports=self.ports())
         self.assertTrue(fresh["open"], fresh)
-        self.assertEqual(fresh.get("plan"), json.loads(plan))
-        planless = self.run.script("ask_before_fix", request=handed({}), rounds=json.dumps(rounds(asks=[ask_row()])), structure="null",
-                                   judge=judge, record=record, ports=self.ports())
-        self.assertIn("plan", planless)
-        self.assertIsNone(planless["plan"])
-        absent = self.run.script("ask_before_fix", request=handed({}), rounds="null", structure="null", judge=judge, record=record,
-                                 ports=self.ports())
-        self.assertIn("plan", absent)
-        self.assertIsNone(absent["plan"])
+        self.assertEqual(fresh.get("plan"), lines)
+        empty = json.loads(self.put("plan/empty.json", {"plan": []}))
+        for name, given in (("planless", json.dumps(rounds(asks=[ask_row()]))), ("no items", json.dumps(rounds(asks=[ask_row()], fix_plan=empty))),
+                            ("absent", "null")):
+            with self.subTest(name):
+                out = self.run.script("ask_before_fix", request=handed({}), rounds=given, structure="null", judge=judge, record=record,
+                                      ports=self.ports())
+                self.assertEqual(out.get("plan"), [], out)
         carried = self.put("fixture-carried.json", {"judge": {"judgment": None, "answer_ties": None, "materials": None},
                                                      "structure": {"structure": None},
-                                                     "gate_rounds": rounds(asks=[ask_row()], fix_plan=json.loads(plan))})
+                                                     "gate_rounds": rounds(asks=[ask_row()], fix_plan=plan)})
         copied = self.run.script("ask_before_fix", request=handed({}), rounds="", structure="", judge="", fixture=carried, record=record,
                                  ports=self.ports())
-        self.assertEqual((copied["open"], copied.get("plan")), (True, json.loads(plan)))
+        self.assertEqual((copied["open"], copied.get("plan")), (True, lines))
 
     def plans(self):
         old = self.put("plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": []}]})

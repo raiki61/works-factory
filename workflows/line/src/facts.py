@@ -1018,18 +1018,18 @@ def _item_said(x) -> str:
 
 
 REDIRECT_SOURCE = "修正前の承認の一言が計画と違う向きで止めた行（一言を見直して答え直す）"
-REDIRECT_NOTE = "承認ノードの一言が計画と違う向きを選んだか、向きが読めないか、判定が落ちたので修正へ進まず止めた。人の一言: {note}。止めた訳: {reason}。この項目への答えを、一言の向きを見直して text に書く"
+REDIRECT_NOTE = "承認ノードの一言が計画と違う向きを選んだか、向きが読めないか、判定が落ちたので修正へ進まず止めた。止めた訳: {reason}。この項目への答えを、一言の向きを見直して text に書く"
 
 
 def redirect_drafts(values: dict) -> list:
     """修正前の答えの一言の向きで止めた run（止めの語 stopby.ANSWER_REDIRECTED）が、承認ノードで見せた項目に答え直す下書き。項目ごとに 1 行:
-    question は項目の文の全文、text は空（機械は人の一言から答えを作らない）、note に人の一言と返りの reason（止めた訳）。止めていない run は空"""
+    question は項目の文の全文、text は空（機械は人の一言から答えを作らない）、note に返りの reason（止めた訳。人の一言を含む）。止めていない run は空"""
     import oneline
     got = as_dict(values.get("answer_before_fix"))
     if got.get("stop_reason") != stopby.ANSWER_REDIRECTED:
         return []
     said = as_dict(got.get("answer"))
-    note = REDIRECT_NOTE.format(note=oneline.one_line(said.get("text") or ""), reason=oneline.one_line(got.get("reason") or NO_STOP_REASON))
+    note = REDIRECT_NOTE.format(reason=oneline.one_line(got.get("reason") or NO_STOP_REASON))
     import gatemarks
     return [gatemarks._draft(q, "", REDIRECT_SOURCE, note) for q in _list(said.get("asked")) if isinstance(q, str) and q.strip()]
 

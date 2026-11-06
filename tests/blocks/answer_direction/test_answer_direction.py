@@ -14,11 +14,8 @@ from tests.blocks import kit
 BLOCK = "answer-direction"
 NOTE = "計画と違い、空の列は例外を投げる形にしてほしい"
 ASKED = ["修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える"]
-PLAN = {"plan": [{"unit_keys": ["u1"], "approach": "空の列の mean が 0 を返す形に変える",
-                  "files": [{"path": "stats.py", "op": "modify", "responsibility": "平均を出す"},
-                            {"path": "tests/test_stats.py", "op": "modify", "responsibility": "平均の試験"}]},
-                 {"unit_keys": ["u2"], "approach": "呼び手の docs を新しい戻り値に合わせる",
-                  "files": [{"path": "docs/stats.md", "op": "modify", "responsibility": "文書"}]}]}
+PLAN = ["- 項目 1（u1）: 空の列の mean が 0 を返す形に変える", "  - 書く所: stats.py・tests/test_stats.py・直し方: modify",
+        "- 項目 2（u2）: 呼び手の docs を新しい戻り値に合わせる"]   # 承認に掛けた計画の行（block は修正案の形を知らず、字の配列で受ける）
 GO = {"decision": "continue", "text": NOTE}
 REDIRECTED = {"direction": "redirected", "why": "計画は 0 を返すが、一言は例外を投げる向きを選んでいる"}
 UNCLEAR = {"direction": "unclear", "why": "一言がどちらの向きかを言っていない"}
@@ -33,17 +30,9 @@ class AnswerDirectionCase(unittest.TestCase):
     def setUp(self):
         self.run = kit.Run(self, BLOCK)
 
-    def fix_plan_pointer(self, doc=PLAN) -> str:
-        """承認に掛けた計画の修正案（fix-plan.schema.json の形）を置き場に置き、pointer を返す"""
-        kit.shaped("shared:fix-plan.schema.json", doc)
-        path = self.run.artifacts / "plan" / "fix-plan.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(dump(doc), encoding="utf-8")
-        return self.run.pointer("plan/fix-plan.json")
-
     def prep(self, answer=GO, *, asked=ASKED, given=None, lang="") -> dict:
         return self.run.script("direction_prep", answer=answer if isinstance(answer, str) else dump(answer),
-                               asked=asked if isinstance(asked, str) else dump(asked), plan=self.fix_plan_pointer() if given is None else given, lang=lang)
+                               asked=asked if isinstance(asked, str) else dump(asked), plan=dump(PLAN) if given is None else given, lang=lang)
 
     def finish(self, prep, reply=None, raw: str | None = None) -> dict:
         """受け皿 direction-save に役の返答を渡して写させ、返す node finish を回す（finish は役の node を結ばず、写しのファイルで読む）"""
@@ -92,9 +81,8 @@ class AnswerDirectionCase(unittest.TestCase):
     def test_prompt_carries_the_plan_approach_and_the_note(self):
         got = self.prep()
         self.assertTrue(got["due"])
-        for want in (NOTE, ASKED[0], PLAN["plan"][0]["approach"], PLAN["plan"][1]["approach"], "stats.py", "modify", "docs/stats.md"):
+        for want in (NOTE, ASKED[0], *PLAN):
             self.assertIn(want, got["prompt"])
-        self.assertNotIn("responsibility", got["prompt"], "files は path と op だけを要約して渡す")
         self.assertEqual((self.run.artifacts / "direction-prompt-1.md").read_text(encoding="utf-8"), got["prompt"])
         # 言語: 既定は一言の言語、渡せばその言語
         self.assertIn("in the language of the note", got["prompt"])
@@ -105,7 +93,7 @@ class AnswerDirectionCase(unittest.TestCase):
         # 見せた項目が無い（null）でも、一言と計画だけで判じる
         self.assertTrue(self.prep(asked="null")["due"])
         # include の中は place が include の道に分かれる
-        self.run.script("direction_prep", "answer-direction__direction-prep", answer=dump(GO), asked=dump(ASKED), plan=self.fix_plan_pointer(), lang="")
+        self.run.script("direction_prep", "answer-direction__direction-prep", answer=dump(GO), asked=dump(ASKED), plan=dump(PLAN), lang="")
         self.assertTrue((self.run.artifacts / "answer-direction" / "direction-prompt-1.md").is_file())
 
     def test_a_missing_reply_fails_closed(self):
@@ -143,8 +131,7 @@ class AnswerDirectionCase(unittest.TestCase):
         self.assertIn("入力 asked", asked["reason"])
 
     def test_unreadable_plan_fails_closed(self):
-        absent = self.run.pointer("plan/absent.json")
-        for given in ("null", "", absent, dump({"plan": []}), "not-a-path-or-pointer{"):
+        for given in ("null", "", "[]", dump({"plan": []}), dump([1]), "not-json{"):
             with self.subTest(given=given):
                 prep = self.prep(given=given)
                 self.assertEqual((prep["due"], prep["prompt"]), (False, ""))

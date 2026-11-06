@@ -4,7 +4,7 @@ The plan was approved as it stands. A note that only adds a condition, a caution
 
 ## Plan approved
 
-Each item below is one planned change: its approach, then the files it touches with the operation on each.
+Each item below is one planned change: its approach, then, when recorded, where it writes and how.
 
 {plan}
 

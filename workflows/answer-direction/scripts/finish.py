@@ -16,7 +16,7 @@ import ports  # noqa: E402
 
 def compute():
     from src import direction
-    saved = ports.place() / direction.REPLY   # 受け皿 direction-save が写した役の返答（役が落ちた・飛ばされた時は無い）
+    saved = ports.place() / direction.REPLY
     raw = saved.read_text(encoding="utf-8") if saved.is_file() else ""
     return direction.outcome(ports.parsed(os.environ.get("INPUTS_PREP")), raw)
 

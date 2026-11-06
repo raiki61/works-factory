@@ -1,5 +1,5 @@
 {
-  "description": "承認ノードで人に見せた項目の文の配列（項目の文の全文。空の配列は見せた項目が無い）。書き手は line の修正前の承認ノードを開ける node（ask-before-fix の返りの asked）",
+  "description": "承認ノードで人に見せた行の配列（見せた項目の文の全文か、承認に掛けた計画の行。空の配列は見せた行が無い）。書き手は line の修正前の承認ノードを開ける node（ask-before-fix の返りの asked と plan）",
   "type": "array",
   "items": {"type": "string"}
 }

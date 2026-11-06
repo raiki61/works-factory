@@ -7,14 +7,14 @@
 この文書の語は README の頭の物を使う。ほかに:
 
 - 承認の一言: 修正前の承認ノード `gate-before-fix`（仕様駆動の道は `spec-gate-before-fix`、写しの道は `fixture-gate-before-fix`）の答え `{decision, text}` の `text`。
-- 計画: 承認に掛けた修正案（`plan` の出力 `fix_plan`。`{plan: [項目の行]}`）。見せた項目: 承認ノードで人に見せた項目の文（`ask-before-fix` の返り `asked`）。
+- 計画の行: 承認に掛けた修正案（`plan` の出力 `fix_plan`）を、line が `workflows/line/src/talk.py` の `plan_lines` で項目ごとの字の行にした物（`ask-before-fix` の返り `plan`）。見せた項目: 承認ノードで人に見せた項目の文（`ask-before-fix` の返り `asked`）。
 - 向き: 一言が計画の向きを足すだけなら `aligned`、計画や見せた項目と違う振る舞い・やり方・範囲を選んでいれば `redirected`、どちらの向きか読めなければ `unclear`。
 
 ## 1 block の全体
 
 ### 1.1 役
 
-承認の一言を、計画の各項目の approach と files の path・op の要約（`plan_lines`）と見せた項目に照らして、向きを 1 回だけ判じる。止めるかは決めない（呼んだ側が出力の欄 `aligned` で決める）。
+承認の一言を、承認に掛けた計画の行（項目ごとのやり方と書く所。line が修正案から組む）と見せた項目に照らして、向きを 1 回だけ判じる。止めるかは決めない（呼んだ側が出力の欄 `aligned` で決める）。
 
 ### 1.2 port
 
@@ -22,7 +22,7 @@
 
 - `answer`（必須）: `text: 承認ノードの答え {decision, text} の JSON の字`。決めの語が通す語（`lib/answer.py` の `GO_WORDS`）で一言が空でない時だけ役を起こす。読めない・`null` は判定が落ちた扱い。
 - `asked`: `json(shown.schema.json): 承認ノードで見せた項目の文の配列`（形は block の `schemas/shown.schema.json`）。既定 `[]`。`null` は項目なし。
-- `plan`: `json(shared:fix-plan.schema.json)`: 承認に掛けた計画の修正案の pointer（か値を読めるパス）。既定 `""`。一言があるのに空・読めない時は判定が落ちた扱い。
+- `plan`: `json(shown.schema.json): 承認に掛けた計画の行の配列`（形は `asked` と同じ字の配列。block は修正案の形を知らない）。既定 `[]`。一言があるのに空の配列・`null`・読めない時は判定が落ちた扱い。
 - `lang`: `text`: `why` の字の言語。空は一言の言語。
 
 出力（`returns: finish`、`outcome_field: ok`）:
@@ -36,15 +36,15 @@
 
 ### 1.3 node の並び（`workflows/answer-direction/works-factory-answer-direction.yaml`）
 
-1. `direction-prep`（script `direction_prep.py`）: port を読み、place の中のこの block のファイル（`direction-prompt-1.md`・`reply.json`）を名で引いて消し、`src/direction.py` の `due` で役を起こすかを決める。返り `{due, prompt, reason}`。`due` が偽で `reason` が空なら役が要らない（`skipped`）、`reason` が空でなければ読めなかった入力の名指し（`failed`）。起こす時は指示を `prompts/direction.md` に一言・見せた項目・`plan_lines` を入れて組む。
+1. `direction-prep`（script `direction_prep.py`）: port を読み、place の中のこの block のファイル（`direction-prompt-1.md`・`reply.json`）を名で引いて消し、`src/direction.py` の `due` で役を起こすかを決める。返り `{due, prompt, reason}`。`due` が偽で `reason` が空なら役が要らない（`skipped`）、`reason` が空でなければ読めなかった入力の名指し（`failed`）。起こす時は指示を `prompts/direction.md` に一言・見せた項目・計画の行を入れて組む。
 2. `direction`（AI。`depends_on: [direction-prep]`・`when: "$direction-prep.output.due == true"`・`context: fresh`・`model: '@wf-judge-materials'`・`allowed_tools: []`・`settingSources: [user]`・`sandbox: {enabled: true, allowUnsandboxedCommands: false}`・`mutates_checkout: false`・`idle_timeout: 1728000000`・`retry: {max_attempts: 2, on_error: all}`）: `output_format {direction: aligned|redirected|unclear, why}`。道具を持たない。指示は英語の md 1 本（`prompts/direction.md`）。
 3. `direction-save`（script `direction_save.py`。`depends_on: [direction]`・`with: {reply: $direction.output}`）: 役の返答の受け皿。返答を place の `reply.json` に写す。判定の向きと `why` の run の記録はこのファイル。役が落ちた・飛ばされた時はこの node も飛ぶ。
 4. `finish`（script `finish.py`。`depends_on: [direction-prep, direction-save]`・`trigger_rule: all_done`）: `reply.json` を読んで `src/direction.py` の `outcome` で出力を返す。役の node は結ばない（落ちた node の出力を受けた node は `all_done` でも落ちるため、役が落ちた時に返す node が落ちず、`failed` の印が返りに出る）。
 
 ### 1.4 コードの置き場
 
-- `src/direction.py`: `due`（起こすかと入力の読み）・`plan_lines`・`read_reply`・`outcome`・`failed`・place のファイルの名 `REPLY`・向きの語 `VERDICTS`（YAML の enum と同じ。試験が突き合わせる）。向きの語と `aligned` の真偽の決めはここ 1 か所。line に写さない。
-- `scripts/`: `direction_prep.py`・`direction_save.py`・`finish.py`。`prompts/direction.md`。`schemas/shown.schema.json`（入力 `asked` の形）。`fixtures/`: `standalone.stubs.yaml`・`failed.stubs.yaml`・`plan.json`（単独の筋書きの計画）。
+- `src/direction.py`: `due`（起こすかと入力の読み）・`read_reply`・`outcome`・`failed`・place のファイルの名 `REPLY`・向きの語 `VERDICTS`（YAML の enum と同じ。試験が突き合わせる）。向きの語と `aligned` の真偽の決めはここ 1 か所。line に写さない。
+- `scripts/`: `direction_prep.py`・`direction_save.py`・`finish.py`。`prompts/direction.md`。`schemas/shown.schema.json`（入力 `asked`・`plan` の形）。`fixtures/`: `standalone.stubs.yaml`・`failed.stubs.yaml`。
 
 ## 2 呼ぶ形
 
@@ -52,13 +52,13 @@ line が include する（[line.md](line.md) の 1.3 の 9・2 節の 2。仕様
 
 - `spec-direction`・`fixture-direction`: `with: {answer: <同じ道の gate の出力>, asked: <同じ道の ask の asked>, plan: {from: <同じ道の ask の plan>, if_skipped: null}, lang}`。`when:` は仕様駆動の道が `from_spec == true` と `spec-ask-before-fix` の `open`、写しの道が `fixture_gate == true` と `fixture-ask-before-fix` の `open`。
 - 受け皿 `spec-direction-out`・`fixture-direction-out`。答えの node `spec-answer-before-fix`・`fixture-answer-before-fix` が `direction`（受け皿の `got`）と `direction_due`（`true`）で返りを受け、`gates.direction_stop` に渡して止めるかを決める。本線の `answer-before-fix` は入力を足さない。
-- 単独でも回る: `answer`・`asked`・`plan`（`fixtures/plan.json` のパス）を渡せば最後まで届く。
+- 単独でも回る: `answer`・`asked`・`plan`（計画の行の JSON の配列）を渡せば最後まで届く。
 
 ## 3 判定が落ちた時の止め（fail-closed）
 
 次はどれも `status: failed`・`aligned` 偽で、line は修正の前に止める（止めの語 `works:answer-redirected`）:
 
-- 答え `answer` が JSON でない・`null`・`decision` が字でない。見せた項目 `asked` が字の配列でない。計画 `plan` が `null`・空・読めない・形に合わない（一言が空か止める語の答えは、計画を読む前に `skipped` で返るので、計画が読めなくても止まらない）。
+- 答え `answer` が JSON でない・`null`・`decision` が字でない。見せた項目 `asked` が字の配列でない。計画の行 `plan` が `null`・空の配列・読めない・字の配列でない（一言が空か止める語の答えは、計画を読む前に `skipped` で返るので、計画が読めなくても止まらない）。
 - 役が返答を返さなかった（落ちた・飛ばされた）。返答が JSON でない・向きの語の外・`why` が字でない。
 - 支度の node が落ちた。
 
@@ -66,11 +66,7 @@ line が include する（[line.md](line.md) の 1.3 の 9・2 節の 2。仕様
 
 ## 4 照らさない入口
 
-block は呼ばれた答えを照らすだけで、どの答えを照らすかは line が決める（[line.md](line.md) の 2 節の 2）。照らさない入口:
-
-- 対話モードの合意だけで入る道（承認ノードが開かない）。合意の後に新しい行で開いた承認ノードで足される合意の一言（判定に掛かるのは承認ノードの出力そのもの）。合意への向きの変更は、設計の相談の承認ノード `gate-design` の `revise`・`redesign` が受ける。
-- 無人の run の推しで進んだ答え。止める語の答え。
-- 通常の run（本線）。
+block は呼ばれた答えを照らすだけで、どの答えを照らすか（照らさない入口）は line が決める（[line.md](line.md) の 2 節の 2 の「照らさない入口」）。
 
 ## 5 E11（仕組みを足す前の 3 つの問い）
 

@@ -861,7 +861,7 @@ nodes:
           passes: {type: array, items: &passed {type: object, properties: {node: {type: string}, round: {type: [integer, 'null']}, by: {type: string}, item: {type: string}, decided_by: {type: string}}}}
           policy_changed: {type: boolean}
           agreed: *talked
-          plan: {<<: *pointer_or_null, description: 'json(shared:fix-plan.schema.json): 承認に掛けた計画の修正案（往復の出力 rounds の fix_plan）。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復が無い run は null'}
+          plan: {type: array, items: {type: string}, description: '承認に掛けた計画の行（項目ごとのやり方と書く所）。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復・修正案の項目が無い run は空'}
     depends_on: [plan-rounds-out, judge-out, structure-in]
     with:
       rounds: "$plan-rounds-out.output.got"
