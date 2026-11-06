@@ -12,7 +12,7 @@
 - 試験を集める前に、この過程の環境から試験の子へ渡さない名（tests/bin/hermetic.dropped）を外す（hermetic.scrub）。
 - 集め方: 別の解釈系で discover し、親にはモジュールの名・数・置き場だけを戻す。親は試験本体を import しない。
 - 並べ方: モジュールごとに新しい解釈系を起こし、同時に WORKERS_ENV（既定は SHARING の注記）本まで並べる。
-  scrub の控えも子へ渡す。出力は unittest のまま（進みの印・落ちた試験の名と traceback をモジュールの名の順に・最後の Ran N tests と
+  scrub の控えも子へ渡す。子は 1 件ごとの記録と unittest の走った数を返し、親が印字・数え・XML をそこから作る。出力は unittest のまま（進みの印・落ちた試験の名と traceback をモジュールの名の順に・最後の Ran N tests と
   OK / FAILED）。1 つのモジュールの試験は同じ子で順に走るので、モジュールの中で置き場を分け合う試験はそのまま走る。
   子は直下の親が替わったら（親だけが止められた）終わり、子が途中で落ちたら、終わらなかったモジュールを赤にして最後の数えまで出す。
 - 名指しのパスだけを走らせる: `python3 -m tests.shard --paths PATH...`（tests/changed.py が使う）。
@@ -21,6 +21,9 @@
   runner の 1 か所。CI の旗 REQUIRED が在れば見送らない）。見送った試験は最後の数えの前に名を並べる。
   頭（__init__.py）で読めないパッケージ（discover がパッケージ名の 1 件にする物）は、その下のパスでも選ぶ。
   試験のモジュールの集め方（discover と PATTERN）は suites() の 1 か所に在り、作業中の選びと CI の分けの両方がそこから読む。
+- JUnit XML: `--junit-xml <置き場>` を足すと、子が返した 1 件ごとの記録から 1 つの JUnit XML を書く（--shard でも効く。--merge では読まない）。
+  試験のメソッド 1 本が testcase 1 本。読めないモジュールや子の死はモジュールの名を classname にした error の testcase 1 本。
+  終了の値が 0・1・5 のどれでも書き、印字と終了の値は変わらない。
 - 表を直す: CI の各分けが上げた秒数（artifact の `shard-seconds-<i>`）を取り、
   `python3 -m tests.shard --merge <置き場>...` で表を作り直して、PR で入れる。
 """
@@ -32,12 +35,14 @@ import subprocess
 import tempfile
 import os
 import pathlib
+import re
 import statistics
 import sys
 import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from xml.etree import ElementTree
 
 from tests.bin import hermetic
 
@@ -71,7 +76,7 @@ def collect(root: pathlib.Path) -> dict[str, dict]:
 
 
 def isolated(action: str, root: pathlib.Path, name: str = "") -> dict:
-    """試験の import と実行を使い捨ての解釈系に閉じ込め、字と数だけを持ち帰る。"""
+    """試験の import と実行を使い捨ての解釈系に閉じ込め、1 件ごとの記録（id・結末・説明の字・失敗の字・印・秒）と走った数・秒数だけを持ち帰る。"""
     with tempfile.TemporaryDirectory(prefix="shard-result-") as tmp:
         output = pathlib.Path(tmp) / "result.json"
         request = {"action": action, "root": str(root), "name": name, "output": str(output),
@@ -149,6 +154,69 @@ def merge(paths: list[pathlib.Path]) -> dict[str, float]:
     return {name: round(joined[name], 1) for name in sorted(joined)}
 
 
+OUTCOME_LISTS = {"failure": "failures", "error": "errors", "skipped": "skipped", "expectedFailure": "expectedFailures",
+                 "unexpectedSuccess": "unexpectedSuccesses"}
+# 試験のメソッドでない物（読めないモジュール・モジュールの頭の見送り・setUpClass などの誤り）を unittest が包む型の名
+MODULE_LEVEL = ("_FailedTest", "ModuleSkipped", "_ErrorHolder")
+CHILD_OF = {"failure": "failure", "unexpectedSuccess": "failure", "error": "error", "skipped": "skipped",
+            "expectedFailure": "skipped"}   # 結末ごとの testcase の子の名
+XML_ILLEGAL = re.compile(r"[^\t\n\r\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")   # XML 1.0 に書けない字（traceback や出力に混じりうる）
+
+
+class Recording(unittest.TextTestResult):
+    """unittest の結果に、試験 1 件ごとの記録（id・結末・説明の字・失敗の字・印・秒）の並び cases を足す。
+    記録は結末の通知（addSuccess など）ごとに、通知の前後で結果の一覧と印の流れに増えた物から作る"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cases: list[dict] = []
+        self.started = 0.0
+
+    def startTest(self, test):
+        self.started = time.perf_counter()
+        super().startTest(test)
+
+    def record(self, test, notify, *args, passed=False) -> None:
+        before = self.stream.tell()
+        sizes = {outcome: len(getattr(self, name)) for outcome, name in OUTCOME_LISTS.items()}
+        notify(*args)
+        grown = next((o for o, name in OUTCOME_LISTS.items() if len(getattr(self, name)) > sizes[o]), None)
+        if grown is None and not passed:   # 通ったと決め打たない。一覧が増えない結末は unittest の変更で、通ったことにせず子ごと落として表に出す
+            raise RuntimeError(f"{notify.__name__} が結果の一覧に何も積まなかった: {self.getDescription(test)}")
+        outcome = grown or "passed"
+        entry = getattr(self, OUTCOME_LISTS[outcome])[-1] if outcome != "passed" else None
+        case = getattr(test, "test_case", test)   # 部分試験の結末は親の試験に寄せる
+        module_level = type(case).__name__ in MODULE_LEVEL
+        self.cases.append({
+            "test": case.id(), "module_level": module_level, "description": self.getDescription(test), "outcome": outcome,
+            "text": entry[1] if isinstance(entry, tuple) else "", "mark": self.stream.getvalue()[before:],
+            "seconds": 0.0 if module_level else time.perf_counter() - self.started})
+
+    def addSuccess(self, test):
+        self.record(test, super().addSuccess, test, passed=True)
+
+    def addFailure(self, test, err):
+        self.record(test, super().addFailure, test, err)
+
+    def addError(self, test, err):
+        self.record(test, super().addError, test, err)
+
+    def addSkip(self, test, reason):
+        self.record(test, super().addSkip, test, reason)
+
+    def addExpectedFailure(self, test, err):
+        self.record(test, super().addExpectedFailure, test, err)
+
+    def addUnexpectedSuccess(self, test):
+        self.record(test, super().addUnexpectedSuccess, test)
+
+    def addSubTest(self, test, subtest, err):
+        if err is None:   # 通った部分試験は何も積まず、親の試験の結末が記録になる
+            super().addSubTest(test, subtest, err)
+        else:
+            self.record(subtest, super().addSubTest, test, subtest, err)
+
+
 class Recorded:
     """子で走った 1 件の試験の、結果の印字（TextTestResult.printErrors）に要る形だけの写し"""
 
@@ -173,9 +241,8 @@ def watch_parent(ppid: int) -> None:
 
 
 def run_module(name: str, root: pathlib.Path) -> dict:
-    """子の中で 1 モジュールを走らせ、結果を親へ渡せる形（字と数）で返す"""
-    stream = io.StringIO()
-    result = unittest.TextTestResult(stream, descriptions=True, verbosity=1)
+    """子の中で 1 モジュールを走らせ、結果を親へ渡せる形（1 件ごとの記録と走った数・秒数）で返す"""
+    result = Recording(io.StringIO(), descriptions=True, verbosity=1)
     start = time.perf_counter()
     sys.path.insert(0, str(root))
     loader = ModuleLoader()
@@ -186,14 +253,45 @@ def run_module(name: str, root: pathlib.Path) -> dict:
     except Exception:
         suite, _ = unittest.loader._make_failed_import_test(name, loader.suiteClass)
     suite.run(result)
+    return {"seconds": time.perf_counter() - start, "run": result.testsRun, "cases": result.cases}
 
-    def described(pairs):
-        return [(result.getDescription(test), text) for test, text in pairs]
 
-    return {"seconds": time.perf_counter() - start, "dots": stream.getvalue(), "run": result.testsRun,
-            "errors": described(result.errors), "failures": described(result.failures),
-            "skipped": described(result.skipped), "expectedFailures": described(result.expectedFailures),
-            "unexpectedSuccesses": [result.getDescription(test) for test in result.unexpectedSuccesses]}
+def write_junit(cases: dict[str, list[dict]], path: pathlib.Path) -> None:
+    """モジュールごとの記録から JUnit XML を 1 つ書く。モジュールの中の試験の id ごとに testcase が 1 本（部分試験の落ちは
+    親の試験の子）、試験のメソッドでない物（読めないモジュールや子の死など）はモジュールの名を classname にした testcase が 1 本。
+    tests・failures・errors・skipped は testcase とその子の要素の数。予期した失敗は skipped、予期しない成功は failure に数えるので、
+    印字の FAILED (...) の skipped・failures とは、予期した失敗・予期しない成功の分だけ多い"""
+    suite = ElementTree.Element("testsuite", name="tests.shard")
+    counts = dict.fromkeys(CHILD_OF.values(), 0)
+    total = 0
+    for module, records in cases.items():
+        by_id: dict[str, ElementTree.Element] = {}
+        for record in records:
+            if record["module_level"]:
+                classname, name, case = module, record["description"].split("\n")[0], None
+            else:
+                classname, _, name = record["test"].rpartition(".")
+                case = by_id.get(record["test"])
+            if case is None:
+                case = ElementTree.SubElement(suite, "testcase", classname=classname, name=XML_ILLEGAL.sub("\ufffd", name), time="0")
+                total += 1
+                if not record["module_level"]:
+                    by_id[record["test"]] = case
+            case.set("time", f"{float(case.get('time')) + record['seconds']:.3f}")
+            outcome, text = record["outcome"], XML_ILLEGAL.sub("\ufffd", record["text"])
+            if tag := CHILD_OF.get(outcome):
+                message = {"unexpectedSuccess": "unexpected success", "expectedFailure": "expected failure"}.get(
+                    outcome, text if tag == "skipped" else (text.strip().splitlines() or [""])[-1])
+                ElementTree.SubElement(case, tag, message=message).text = text
+                counts[tag] += 1
+    suite.set("tests", str(total))
+    suite.set("failures", str(counts["failure"]))
+    suite.set("errors", str(counts["error"]))
+    suite.set("skipped", str(counts["skipped"]))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("wb", dir=path.parent, prefix=f".{path.name}.", delete=False) as out:
+        ElementTree.ElementTree(suite).write(out, encoding="utf-8", xml_declaration=True)
+    os.replace(out.name, path)
 
 
 class Parallel:
@@ -202,6 +300,7 @@ class Parallel:
 
     def __init__(self, found: dict[str, dict], n: int, seconds: dict[str, float]):
         self.found, self.n, self.seconds = found, n, seconds
+        self.cases: dict[str, list[dict]] = {}   # モジュールの名 → 子が返した 1 件ごとの記録（走り終えた後に入る）
 
     def __call__(self, result: unittest.TextTestResult) -> unittest.TextTestResult:
         done, broken = {}, {}
@@ -215,32 +314,40 @@ class Parallel:
                     except ChildProcessError as e:
                         broken[futures[future]] = f"{type(e).__name__}: {e}\n"
                         continue
-                    result.stream.write(outcome["dots"])
+                    result.stream.write("".join(case["mark"] for case in outcome["cases"]))
                     result.stream.flush()
             except BaseException:
                 pool.shutdown(cancel_futures=True)
                 raise
-        deferred = sorted({test.split("\n")[0] for name in done for test, why in done[name]["skipped"]
-                           if why.startswith(hermetic.ARCHON_DEFERRED)})   # 1 行目だけ（2 行目は docstring）
+        # 途中で終わったモジュールが先、残りはモジュールの名の順（子が死んだ分は印を書かず数えもしない）
+        self.cases = {name: [{"test": None, "module_level": True, "description": f"{name} {BROKEN}", "outcome": "error",
+                              "text": text, "mark": "", "seconds": 0.0}] for name, text in sorted(broken.items())}
+        self.cases.update({name: done[name]["cases"] for name in sorted(done)})
+        deferred = sorted({case["description"].split("\n")[0] for cases in self.cases.values() for case in cases
+                           if case["outcome"] == "skipped" and case["text"].startswith(hermetic.ARCHON_DEFERRED)})   # 1 行目だけ（2 行目は docstring）
         if deferred:
             result.stream.write(f"\n{hermetic.ARCHON_DEFERRED}（{len(deferred)} 件）:\n" + "".join(f"  {t}\n" for t in deferred))
             result.stream.flush()
-        result.errors.extend((Recorded(f"{name} {BROKEN}"), text) for name, text in sorted(broken.items()))
-        for name in sorted(done):
-            outcome = done[name]
-            self.seconds[name] = outcome["seconds"]
-            result.testsRun += outcome["run"]
-            for kind in ("errors", "failures", "skipped", "expectedFailures"):
-                getattr(result, kind).extend((Recorded(test), text) for test, text in outcome[kind])
-            result.unexpectedSuccesses.extend(Recorded(test) for test in outcome["unexpectedSuccesses"])
+        for cases in self.cases.values():
+            for case in cases:
+                if case["outcome"] == "unexpectedSuccess":
+                    result.unexpectedSuccesses.append(Recorded(case["description"]))
+                elif case["outcome"] != "passed":
+                    getattr(result, OUTCOME_LISTS[case["outcome"]]).append((Recorded(case["description"]), case["text"]))
+        for name in done:
+            self.seconds[name] = done[name]["seconds"]
+            result.testsRun += done[name]["run"]
         return result
 
 
-def run(found: dict[str, dict], record: pathlib.Path | None, n: int) -> int:
+def run(found: dict[str, dict], record: pathlib.Path | None, n: int, junit_xml: pathlib.Path | None = None) -> int:
     seconds: dict[str, float] = {}
-    result = unittest.TextTestRunner().run(Parallel(found, n, seconds))
+    parallel = Parallel(found, n, seconds)
+    result = unittest.TextTestRunner().run(parallel)
     if record is not None:
         record.write_text(json.dumps(seconds, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if junit_xml is not None:
+        write_junit(parallel.cases, junit_xml)
     if not result.testsRun and result.wasSuccessful():
         return 5   # unittest と同じく、1 件も走らない分けを緑にしない（子が落ちて 1 件も数えられなかった分けは 1）
     return 0 if result.wasSuccessful() else 1
@@ -270,6 +377,7 @@ def main(argv: list[str]) -> int:
     action.add_argument("--paths", nargs="+", metavar="PATH")
     action.add_argument("--merge", type=pathlib.Path, nargs="+", metavar="SECONDS")
     parser.add_argument("--record", type=pathlib.Path)
+    parser.add_argument("--junit-xml", type=pathlib.Path, help="試験 1 件ごとの結末を JUnit XML でこの置き場へ書く（--merge では読まない）")
     args = parser.parse_args(argv)
     if args.merge:
         TABLE.write_text(json.dumps(merge(args.merge), indent=2) + "\n", encoding="utf-8")
@@ -285,12 +393,12 @@ def main(argv: list[str]) -> int:
               f"全部は CI が回す）:")
         print("\n".join(f"  {name}" for name in names))
         sys.stdout.flush()
-        return run({name: found[name] for name in names}, args.record, n)
+        return run({name: found[name] for name in names}, args.record, n, args.junit_xml)
     index, count = args.shard
     names = sorted(found)
     shards = plan(names, load_seconds(TABLE), count)
     check(names, shards)
-    return run({name: found[name] for name in shards[index - 1]}, args.record, n)
+    return run({name: found[name] for name in shards[index - 1]}, args.record, n, args.junit_xml)
 
 
 def child() -> None:

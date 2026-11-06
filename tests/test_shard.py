@@ -7,12 +7,16 @@
 - (e) --paths の選び（pick）は、名指しのファイルと、名指しのフォルダの下のモジュールだけを取る。何も取らなければ全部に広げず赤（終了の値 5）
 - (f) 並べる子の数は CPU の数を SHARING で割った数（1 以上）で、環境変数 WORKERS_ENV が上書きする
 - (g) 並べた子: 試験を回す親だけを SIGKILL しても子は残らない。子が途中で落ちたら、そのモジュールを名指しの赤にして最後の数えまで出す。止められたら待ち行列のモジュールは回さない（子へ渡す管に既に入った物は回り切る）
+- (h) JUnit XML: run に書き先を渡すと、試験のメソッド 1 本につき testcase が 1 本（結末は failure・error・skipped の子）、子が死んだモジュールと
+  読めないモジュールはモジュールの名を classname にした error の testcase が 1 本で、数えは印字の数えと合う。書き先の有無で印字は変わらない
 """
 import contextlib
+import inspect
 import io
 import json
 import os
 import pathlib
+import re
 import signal
 import subprocess
 import sys
@@ -20,6 +24,7 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+from xml.etree import ElementTree
 
 from tests import shard
 from tests.bin import hermetic
@@ -416,6 +421,140 @@ class ScrubTest(unittest.TestCase):
             shard.main(["--paths", "no/such/dir"])
             self.assertEqual(hermetic.inherited("WORKS_FACTORY_REAL_RUN", "ANTHROPIC_"), parent)
             self.assertFalse(set(parent) & set(hermetic.child_env()))
+
+
+def report_of(path: pathlib.Path) -> ElementTree.Element:
+    root = ElementTree.parse(path).getroot()
+    return root if root.tag == "testsuite" else root.find("testsuite")
+
+
+def cases_named(suite: ElementTree.Element, classname: str, name: str | None = None) -> list[ElementTree.Element]:
+    return [c for c in suite.iter("testcase") if c.get("classname") == classname and name in (None, c.get("name"))]
+
+
+def printed_counts(out: str) -> dict[str, int]:
+    summary = re.search(r"FAILED \((.*)\)", out)
+    return {key.strip(): int(n) for key, n in re.findall(r"([a-z ]+)=(\d+)", summary.group(1))} if summary else {}
+
+
+class JunitTest(unittest.TestCase):
+    """--junit-xml の書き先を run に渡すと、子が返した 1 件ごとの記録から JUnit XML が書かれ、印字は変わらない"""
+
+    def run_with_report(self, found: dict, path: pathlib.Path) -> tuple[int, str]:
+        self.assertIn("junit_xml", inspect.signature(shard.run).parameters, "run が JUnit XML の書き先を受けない")
+        stream = io.StringIO()
+        with contextlib.redirect_stderr(stream):
+            rc = shard.run(found, None, 2, junit_xml=path)
+        return rc, stream.getvalue()
+
+    def run_plain(self, found: dict) -> tuple[int, str]:
+        stream = io.StringIO()
+        with contextlib.redirect_stderr(stream):
+            rc = shard.run(found, None, 2)
+        return rc, stream.getvalue()
+
+    def test_every_test_is_one_case_and_the_counts_match_the_printed_summary(self):
+        pkg = "shard_report_cases_pkg"
+        body = ("import unittest\n\n\nclass T(unittest.TestCase):\n"
+                "    def test_pass(self):\n        pass\n"
+                "    def test_fail(self):\n        self.fail('no')\n"
+                "    def test_error(self):\n        raise RuntimeError('boom')\n"
+                "    def test_skip(self):\n        self.skipTest('later')\n"
+                "    @unittest.expectedFailure\n    def test_xfail(self):\n        self.fail('expected')\n"
+                "    def test_sub(self):\n        with self.subTest(i=1):\n            self.fail('sub')\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_cases.py": body})
+            report = root / "out" / "report.xml"
+            rc, out = self.run_with_report(shard.suites(root), report)
+            self.assertEqual(rc, 1, out)
+            self.assertTrue(report.exists(), "XML が書かれない")
+            suite = report_of(report)
+            classname = f"{pkg}.test_cases.T"
+            names = sorted(c.get("name") for c in suite.iter("testcase"))
+            self.assertEqual(names, ["test_error", "test_fail", "test_pass", "test_skip", "test_sub", "test_xfail"])
+            self.assertEqual({c.get("classname") for c in suite.iter("testcase")}, {classname})
+            self.assertEqual(list(cases_named(suite, classname, "test_pass")[0]), [])
+            self.assertEqual([e.tag for e in cases_named(suite, classname, "test_fail")[0]], ["failure"])
+            self.assertEqual([e.tag for e in cases_named(suite, classname, "test_error")[0]], ["error"])
+            self.assertEqual([e.tag for e in cases_named(suite, classname, "test_skip")[0]], ["skipped"])
+            self.assertEqual([e.tag for e in cases_named(suite, classname, "test_xfail")[0]], ["skipped"])
+            self.assertEqual([e.tag for e in cases_named(suite, classname, "test_sub")[0]], ["failure"])
+            counts = printed_counts(out)
+            self.assertEqual(int(suite.get("tests")), int(re.search(r"Ran (\d+) tests?", out).group(1)))
+            self.assertEqual(int(suite.get("failures")), counts["failures"])
+            self.assertEqual(int(suite.get("errors")), counts["errors"])
+            self.assertEqual(int(suite.get("skipped")), counts["skipped"] + counts["expected failures"])
+            self.assertEqual(int(suite.get("skipped")), len(list(suite.iter("skipped"))))
+
+    def test_a_dead_child_and_an_unreadable_module_are_error_cases_under_the_module_name(self):
+        pkg = "shard_report_dead_pkg"
+        dies = "import os, unittest\n\n\nclass T(unittest.TestCase):\n    def test_dies(self):\n        os._exit(3)\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"test_dies.py": dies, "test_unreadable.py": "import shard_no_such_module_zz\n",
+                             "test_ok.py": TEST_CASE})
+            report = root / "report.xml"
+            rc, out = self.run_with_report(shard.suites(root), report)
+            self.assertEqual(rc, 1, out)
+            self.assertTrue(report.exists(), "XML が書かれない")
+            suite = report_of(report)
+            for module in (f"{pkg}.test_dies", f"{pkg}.test_unreadable"):
+                with self.subTest(module=module):
+                    found = cases_named(suite, module)
+                    self.assertEqual(len(found), 1, ElementTree.tostring(suite, encoding="unicode"))
+                    self.assertEqual([e.tag for e in found[0]], ["error"])
+            ok = cases_named(suite, f"{pkg}.test_ok.T", "test_ok")
+            self.assertEqual(len(ok), 1)
+            self.assertEqual(list(ok[0]), [])
+
+    def test_the_printed_output_is_the_same_with_and_without_the_report(self):
+        pkg = "shard_report_same_pkg"
+        reexport = f"from {pkg}.base import Base\n"
+        dies = "import os, unittest\n\n\nclass T(unittest.TestCase):\n    def test_dies(self):\n        os._exit(3)\n"
+        set_up = ("import unittest\n\n\nclass T(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n"
+                  "        raise RuntimeError('setup')\n    def test_x(self):\n        pass\n")
+        sub_skip = ("import unittest\n\n\nclass T(unittest.TestCase):\n    def test_s(self):\n"
+                    "        with self.subTest(i=1):\n            self.skipTest('later')\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            tree(root, pkg, {"base.py": TEST_CASE.replace("class T", "class Base"), "test_one.py": reexport,
+                             "test_two.py": reexport, "test_dies.py": dies, "test_setup.py": set_up,
+                             "test_subskip.py": sub_skip})
+            found = shard.suites(root)
+            plain_rc, plain = self.run_plain(found)
+            report = root / "report.xml"
+            rc, with_report = self.run_with_report(found, report)
+
+            def settled(out: str) -> tuple[str, str]:
+                dots, rest = out.split("\n", 1)   # 進みの印は子の終わった順なので、字の並びは比べない
+                return "".join(sorted(dots)), re.sub(r"in [\d.]+s", "in Ns", rest)
+
+            self.assertEqual(rc, plain_rc)
+            self.assertEqual(settled(with_report), settled(plain))
+            for out in (plain, with_report):
+                self.assertEqual(int(re.search(r"Ran (\d+) tests?", out).group(1)), 3, out)
+                self.assertEqual(out.split("\n", 1)[0].count("E"), 1, out)
+            self.assertEqual(len(cases_named(report_of(report), f"{pkg}.base.Base", "test_ok")), 2)
+
+    def test_a_notification_that_adds_to_no_result_list_is_raised_instead_of_recorded_as_passed(self):
+        class Silent(shard.Recording):
+            def addSkip(self, test, reason):   # 一覧にも印にも積まない通知（unittest の内部が変わった時の姿）
+                self.record(test, lambda *_: None, test, reason)
+
+        class T(unittest.TestCase):
+            def test_skip(self):
+                self.skipTest("later")
+
+            def test_ok(self):
+                pass
+
+        result = Silent(io.StringIO(), True, 1)
+        T("test_ok").run(result)
+        self.assertEqual([c["outcome"] for c in result.cases], ["passed"])
+        with self.assertRaises(RuntimeError):
+            T("test_skip").run(result)
+        self.assertEqual(len(result.cases), 1)
 
 
 if __name__ == "__main__":
