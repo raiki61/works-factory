@@ -1010,14 +1010,17 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     out = [gatemarks._draft(q, "", words.source, words.note) for q in spec_qs]
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
-    asked = eye_questions(returns)
+    asked = [(q, False) for q in eye_questions(returns)]
     if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in answer.GO_WORDS:
         # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
         ledger_texts = {gatemarks.ask_text(q) for q in held}
         deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
-        asked = [q for q in deferred if q not in ledger_texts] + asked
-    asked += means_questions(returns, gates)
-    out += [gatemarks.item_draft(q, gatemarks.GATE_NODE) for q in asked if q.strip()]
+        asked = [(q, True) for q in deferred if q not in ledger_texts] + asked
+    asked += [(q, True) for q in means_questions(returns, gates)]
+    # asked は (文, 尾を読むか) の組: final.unattended_pass は R2 の行だけを gates.passage に掛け、R4 の行は読まずに止める。下書きも同じ分け方にする。
+    # 載せなかった修正前の項目のうち構造の目の設計の行と、R2 の照らせない行（UNCHECKED の尾に役の字を写す）は、末尾が役の字でも
+    # 抜け方が推しとして読むので、ここでも True のまま抜け方と揃える（その穴は issue #1014）
+    out += [gatemarks.item_draft(q, gatemarks.GATE_NODE, read_tail=r) for q, r in asked if q.strip()]
     for q in held:
         key = gatemarks.answer_key(b, q)
         push = gatemarks.reason_push(q)

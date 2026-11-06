@@ -72,7 +72,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - recommend_gaps(node, reply)・recommend_of(mark): 関所の項目の行の推し recommend {answer, note, why}（実の利用者の run ac9e02ab）の
   形の誤り（受け付けが拒む。事前審査の返答は一番上の止まった時の推し converge.STUCK_PUSH も同じ形で照らす）と、形の整った推し（人に回す項目の末尾「／推し: …」に載る。照らしはこの尾を外す）
 - push_rec(text): 項目の推しの尾の読み戻し（その無人の方針の読み row_push は line の src/。持ち主 2026-10-15「人がいないときは推しの答え。」issue #552）
-- item_draft(text, node): 承認ノードの項目の文の答えの下書き（文の末尾の推しの尾を push_rec で読み戻せればその推しが答え。読めなければ text は空で、文の世界の解・狭めない案の尾と文に書かれた推しを note に置く）
+- item_draft(text, node, *, read_tail): 承認ノードの項目の文の答えの下書き（read_tail は無人の抜け方が同じ文を推しとして読む出どころか。True なら文の末尾の推しの尾を push_rec で読み戻せればその推しが答え。読めなければ、また False（抜け方に掛からず最後の承認ノードで必ず止まる出どころの文）なら text は空で、文の世界の解・狭めない案の尾と文に書かれた推しを note に置く）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
 - spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
@@ -541,7 +541,7 @@ def recommend_of(mark: dict):
 
 
 REASON_HEAD = "（理由: "  # 推しの尾で note と why を分ける区切り
-REASON_SAFE = "（理由："  # why の中の REASON_HEAD をこの字に替える（全角の colon）
+REASON_SAFE = "（理由："
 
 
 def _push(mark: dict) -> str:
@@ -1050,10 +1050,14 @@ def _gate_draft(text: str, mark: dict, node: str) -> dict:
     return _draft(text, f"{answer}: {_squeeze(note)}（推す理由: {_squeeze(why)}）", f"{named(node)}の行の {RECOMMEND}")
 
 
-def item_draft(text: str, node: str) -> dict:
-    """承認ノードの項目の文の答えの下書き。文の末尾の推しの尾（_push の形）を push_rec で読み戻せれば、その推しが答え。読めない文は
-    text を空にし、世界の解・狭めない案の尾と文に書かれた推しを note に置く。尾の形でも note・why が RECOMMEND_MIN 字に満たなければ
-    推しの尾として読まず、尾が崩れていると note に言う。question は尾を含む文の全体のまま（次の依頼の答えは文の全文一致で項目に当たる）"""
+def item_draft(text: str, node: str, *, read_tail: bool) -> dict:
+    """承認ノードの項目の文の答えの下書き。read_tail は、この文の出どころを無人の抜け方（row_push・passage）が推しとして読むか。
+    True なら文の末尾の推しの尾（_push の形）を push_rec で読み戻せれば、その推しが答え。読めない文は text を空にし、世界の解・
+    狭めない案の尾と文に書かれた推しを note に置く。尾の形でも note・why が RECOMMEND_MIN 字に満たなければ推しの尾として読まず、
+    尾が崩れていると note に言う。False は抜け方に掛からず最後の承認ノードで必ず止まる出どころ（役が書いた行）の文で、末尾が尾の形でも
+    push_rec を読まず、text は空。question はどちらも尾を含む文の全体のまま（次の依頼の答えは文の全文一致で項目に当たる）"""
+    if not read_tail:
+        return _unpushed_draft(text, node, short_tail=False)
     rec = push_rec(text)
     mark = {RECOMMEND: {k: rec[k] for k in RECOMMEND_KEYS}} if rec is not None else {}
     if rec is not None and recommend_of(mark) is None:

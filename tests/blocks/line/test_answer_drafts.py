@@ -7,6 +7,8 @@ docs/design/README.md の 9.5）。新しい形では下書きの材料を、承
 読み戻して答えにする（test_gate_item_push_tail_becomes_the_draft_answer）。尾の無い項目は text が空で、文に書かれた推しと、文の
 世界の解・狭めない案の尾（gates が付けた物を item_draft が読み戻す）を note に置き、人が答えを書く
 （test_gate_item_without_push_tail_keeps_what_its_text_says。元 test_no_narrow_and_face_rows_give_their_marks の働き）。
+R4 の問いの行は尾の形でも答えにしない（抜け方に掛からない出どころなので read_tail=False。
+test_r4_question_push_tail_is_not_the_draft_answer）。
 推しで抜けるかは test_gate_drafts.py。
 """
 import json
@@ -130,6 +132,24 @@ class AnswerDraftsCase(unittest.TestCase):
         self.assertIn("recommend", pushed["source"])
         bare = by_question["狭めるか"]
         self.assertEqual(bare["text"], "")
+
+    def test_r4_question_push_tail_is_not_the_draft_answer(self):
+        """R4 の問いの行は役が書いた文なので、末尾が推しの尾（_push の形）でも答えにしない（text は空で、question は尾を含む文の全体）。
+        同じ run の、載せなかった修正前の項目の推しの尾は今どおり答えになる"""
+        rec = {"answer": "continue", "note": "空の列は 0 を返す形で通す", "why": "呼び手が 0 を前提に書かれている"}
+        means = {"source": self.gm.MEANS_KIND, "item": 1, "why": [self.gm.MEANS_WHY],
+                 "mark": {"decided_by": "リポジトリの決まりが別の層に置く", "recommend": rec},
+                 "text": "修正案 1 は頼みの解き方 M1「分母を直す」に従うが、独立設計と食い違う——別の層に置く"}
+        rounds = {"ok": True, "status": "ok", "round": 1, "deviations": [means],
+                  "asks": [{"kind": "regression", "text": "狭めるか", "decided": False}]}
+        r4_row = "守りを触ってよいか" + self.gm._push({self.gm.RECOMMEND: rec})
+        drafts = self.drafts({"eyes": {"questions": [r4_row]}}, values={"ask_before_fix": self.stopped_gate(rounds)},
+                             gates={"gate-before-fix": None}, unattended=True)
+        by_question = {d["question"]: d for d in drafts}
+        self.assertIn(r4_row, by_question, "R4 の行は尾を含む文の全体を question にする")
+        self.assertEqual(by_question[r4_row]["text"], "")
+        pushed = [d["text"] for q, d in by_question.items() if q not in (r4_row, "狭めるか")]
+        self.assertEqual(pushed, ["continue: 空の列は 0 を返す形で通す（推す理由: 呼び手が 0 を前提に書かれている）"])
 
     def test_gate_item_without_push_tail_keeps_what_its_text_says(self):
         """推しの尾（_push の形）を持たない項目は text が空で、機械は推しを作らない。構造の目の設計の行は文に書かれた推し（chosen）を

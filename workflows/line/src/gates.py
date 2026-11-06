@@ -223,7 +223,7 @@ def design_items(rows: list, answers=()) -> list:
             continue
         rej = "・".join(f"{x.get('option')}（代償: {x.get('cost')}）" for x in r.get("rejected") or [] if isinstance(x, dict))
         text = (f"{gatemarks.DESIGN_HEAD} {r.get('unit_id')}: {r.get('undecided_because') or r.get('route_reason') or ''}"
-                f"／捨てた案: {rej or '（無し）'}／推し: {r.get('chosen') or '構造の目が書いていない'}"
+                f"／捨てた案: {rej or '（無し）'}／推し: {r.get('chosen') or gatemarks.NO_CHOSEN}"
                 + (f"（{r['chosen_reason']}）" if r.get("chosen_reason") else ""))
         if not _continued(answers, text):
             out.append((gatemarks.DESIGN_KIND, text))
