@@ -39,6 +39,8 @@ DIFF_ASK = "How to read the diffs:"
 LATER_ITEM_ASK = 'When the item file has "#### Diff since the previous pass"'
 DESIGN_DIFF_ASK = "From the second pass on, compare with the design only the sentences the diffs added and removed"
 SPAWNS = "If you start a sub-agent, put this whole block of rules"
+READ_BEFORE_HEAD = "### Files read in a previous pass"
+UNCHANGED = "（unchanged since pass {k}）"
 
 
 def fetch_ids(text: str) -> list:
@@ -579,6 +581,129 @@ class TreeCase(TreeBase):
         self.assertEqual(row["outcome"], self.converge.CLEAN)
         self.assertEqual([(h["id"], h.get("carried")) for h in row["items"][1]["hits"]], [("h1", 1)])
 
+    # ---- 前の往復で読んだファイルの覚え（file_notes）。項目 2 だけが毎往復 block を挙げて開いたままになる
+    def plan_pass(self, k) -> str:
+        """k 往復目の支度（k が 2 以上なら、前の往復の block を直した案を入れる）。返りは支度の指示の字"""
+        f = self.flow
+        f.inputs["tree"] = "on"
+        if k > 1:
+            f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
+                                             approach=f"clamp の直しその {k}: 上限の枝で hi を返し、境の値はそのまま返す")],
+                   rnd=k, answers=[{"key": f"item2-clamp-pass-{k - 1}", "handled": "fixed", "how": "上限の枝を直し、境の値の扱いを書いた"}])
+        return self.prepped()
+
+    def answer_pass(self, k, notes):
+        """k 往復目の項目 2 の下請けの答え（notes を file_notes に書く）を受け、往復の記録に足す。項目 2 は新しい block を挙げて開いたまま"""
+        f = self.flow
+        block = face(f"item2-clamp-pass-{k}", UNIT_CLAMP)
+        if k == 1:
+            rows = {1: answer(1, file_notes=[]), 2: answer(2, faces=[block], file_notes=list(notes))}
+            said = {1: [], 2: [block["key"]]}
+        else:
+            rows = {2: {**answer(2, faces=[block], resolved=[f"item2-clamp-pass-{k - 1}"], file_notes=list(notes)), "hits": []}}
+            said = {2: [block["key"]]}
+        self.write_answers(rows)
+        self.ok(f.accept(tree=summary(said)))
+        return f.carry()
+
+    def listed_notes(self, text) -> list:
+        """項目の材料の字の『前の往復で読んだファイル』の節の行（見出しが無ければ空）"""
+        if READ_BEFORE_HEAD not in text:
+            return []
+        part = text[text.index(READ_BEFORE_HEAD) + len(READ_BEFORE_HEAD):].split("\n\n### ", 1)[0]
+        return [line for line in part.splitlines() if line.startswith("- ")]
+
+    def test_second_pass_item_file_lists_unchanged_files_read_before(self):
+        """1 往復目の下請けの答えに file_notes（stats.py と分かった事）を書いて受け付け、line の書き手で記録に足した後、2 往復目の
+        開いた項目の材料に見出しと『- stats.py（unchanged since pass 1）: <分かった事>』の行が載る"""
+        learned = "clamp の上限の枝だけが hi でなく lo を返し、mean の分母は別の関数に在る"
+        self.plan_pass(1)
+        self.answer_pass(1, [{"path": "stats.py", "learned": learned}])
+        self.plan_pass(2)
+        text = self.item_text(2)
+        self.assertIn(READ_BEFORE_HEAD, text)
+        self.assertEqual(self.listed_notes(text), [f"- stats.py{UNCHANGED.format(k=1)}: {learned}"])
+
+    def test_changed_file_read_before_is_not_listed(self):
+        """1 往復目に file_notes に書いたファイルの中身を 2 往復目の前に変えると、2 往復目の材料にそのファイルの行が載らない
+        （中身の変わらない別のファイルの行は載る）"""
+        f = self.flow
+        edited = "clamp の上限の枝だけが hi でなく lo を返すと stats.py の 12 行で分かった"
+        kept = "clamp の試験は上限を超えた値の期待だけを断言している"
+        self.plan_pass(1)
+        self.answer_pass(1, [{"path": "stats.py", "learned": edited}, {"path": "test_stats.py", "learned": kept}])
+        path = f.repo / "stats.py"
+        path.write_text(path.read_text(encoding="utf-8") + "\n# 往復の間に足した行\n", encoding="utf-8")
+        self.plan_pass(2)
+        self.assertEqual(self.listed_notes(self.item_text(2)), [f"- test_stats.py{UNCHANGED.format(k=1)}: {kept}"])
+
+    def test_files_read_before_follow_the_item_id(self):
+        """2 往復目に案の項目の並びを入れ替えても、前の往復で読んだファイルの行は項目の id で引かれ、同じ単位の項目の材料に載る
+        （別の項目の材料には載らない）"""
+        f = self.flow
+        mean_block = face("item1-mean-pass-1", UNIT_MEAN)
+        clamp_block = face("item2-clamp-pass-1", UNIT_CLAMP)
+        mean_learned = "mean は合計を len(xs) - 1 で割っていて、空の列の扱いは書かれていない"
+        clamp_learned = "clamp の下限の枝は正しく、上限の枝だけが lo を返している"
+        self.prepped()
+        self.write_answers({1: answer(1, faces=[mean_block], file_notes=[{"path": "stats.py", "learned": mean_learned}]),
+                            2: answer(2, faces=[clamp_block], file_notes=[{"path": "test_stats.py", "learned": clamp_learned}])})
+        self.ok(f.accept(tree=summary({1: [mean_block["key"]], 2: [clamp_block["key"]]})))
+        f.carry()
+        swapped = RIPPLE["items"][::-1]
+        f.ripple({**RIPPLE, "items": [{**swapped[0], "item": 1}, {**swapped[1], "item": 2}]})
+        f.plan([item(UNIT_CLAMP, 1, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す"),
+                item(UNIT_MEAN, 2, approach="mean の分母を len(xs) にする")], rnd=2,
+               answers=[{"key": x["key"], "handled": "fixed", "how": "枝を直した"} for x in (mean_block, clamp_block)])
+        self.prepped()
+        self.assertEqual(self.listed_notes(self.item_text(1)), [f"- test_stats.py{UNCHANGED.format(k=1)}: {clamp_learned}"])
+        self.assertEqual(self.listed_notes(self.item_text(2)), [f"- stats.py{UNCHANGED.format(k=1)}: {mean_learned}"])
+
+    def test_item_answer_without_file_notes_is_refused(self):
+        """file_notes の欄を持たない項目の答えは受け付けが拒み、その項目の答えのファイルを名指す拒否の理由に file_notes の欠けが出る"""
+        f = self.flow
+        self.prepped()
+        bare = {n: {k: v for k, v in answer(n).items() if k != "file_notes"} for n in (1, 2)}
+        self.write_answers(bare, syn=synergy())
+        got = f.accept(tree=summary({1: [], 2: []}))
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(self.take.TREE_REJECT), got["reason"])
+        self.assertIn(f"項目 1（{self.tree.answer_file(self.b(), 1)}）: $: 必須の欄 'file_notes' が無い", got["reason"])
+        self.assertIn(f"項目 2（{self.tree.answer_file(self.b(), 2)}）: $: 必須の欄 'file_notes' が無い", got["reason"])
+
+    def test_absolute_and_relative_paths_carry_as_one_root_relative_row(self):
+        """1 往復目の答えの file_notes に作業ツリーの絶対パスの stats.py と作業ツリーの外の絶対パスを書いて受け付け carry すると、
+        2 往復目の材料に『- stats.py（unchanged since pass 1）』がちょうど 1 行あり外のパスの行は無い。2 往復目に同じファイルを
+        相対パス stats.py で書くと、3 往復目の材料の stats.py の行は根からの相対パスの 1 つの形でだけ出る"""
+        f = self.flow
+        first = "絶対パスで書いた覚え: clamp の上限の枝だけが lo を返している"
+        second = "相対パスで書いた覚え: clamp の下限の枝は正しく動いている"
+        outside = f.place / "items" / "brief.md"
+        self.plan_pass(1)
+        self.answer_pass(1, [{"path": str(f.repo / "stats.py"), "learned": first},
+                             {"path": str(outside), "learned": "作業ツリーの外の指示のファイルを読んだ覚え"}])
+        self.plan_pass(2)
+        lines = self.listed_notes(self.item_text(2))
+        self.assertEqual(lines, [f"- stats.py{UNCHANGED.format(k=1)}: {first}"])
+        self.answer_pass(2, [{"path": "stats.py", "learned": second}])
+        self.plan_pass(3)
+        lines = self.listed_notes(self.item_text(2))
+        self.assertEqual(lines, [f"- stats.py{UNCHANGED.format(k=1)}: {first}", f"- stats.py{UNCHANGED.format(k=2)}: {second}"])
+        self.assertNotIn(str(f.repo), "\n".join(lines))
+
+    def test_notes_from_every_pass_with_same_content_are_listed(self):
+        """1 往復目に stats.py の learned を A、2 往復目に中身の同じ stats.py の learned を B で受け付けて carry した後、3 往復目の
+        項目の材料に A と B の両方の覚えが stats.py の行として往復の順に載る"""
+        a = "1 往復目の覚え: clamp の上限の枝だけが hi でなく lo を返している"
+        b = "2 往復目の覚え: 下限の枝の docstring は境の値の扱いを言っていない"
+        self.plan_pass(1)
+        self.answer_pass(1, [{"path": "stats.py", "learned": a}])
+        self.plan_pass(2)
+        self.answer_pass(2, [{"path": "stats.py", "learned": b}])
+        self.plan_pass(3)
+        self.assertEqual(self.listed_notes(self.item_text(2)),
+                         [f"- stats.py{UNCHANGED.format(k=1)}: {a}", f"- stats.py{UNCHANGED.format(k=2)}: {b}"])
+
     def test_design_elements_count_all_item_answers_and_closed_item_refs(self):
         """元 test_design_elements_count_all_item_answers_and_closed_item_refs: 独立設計の要素の網羅は、今の往復の全部の項目の答えの
         design_ref に、閉じた項目が前の往復で受けた design_ref（往復の記録の refs）を合わせて数える"""
@@ -1041,6 +1166,24 @@ class BriefCase(TreeBase):
         self.assertTrue(self.flow.text("items/synergy.md").startswith(brief))
         for n in (1, 2):
             self.assertNotIn(brief[:200], self.item_text(n))
+
+    def test_brief_names_reading_start_points_and_file_notes_why(self):
+        """下請けの指示は読む起点の 3 つ（項目の案〔2 往復目からは差分〕の files・波及の一覧・材料が名指すパス）、行の範囲から始めて要れば
+        ファイルの全体を読んでよいこと、起点の外か全体を読んだ時に file_notes の why を書くことを名指し、古い括弧の字を持たない"""
+        self.prepped()
+        brief = self.brief()
+        self.assertNotIn("do read the code you need as evidence", brief)
+        for phrase in ("Where to start reading: the files in `files` of your item's plan (or, from the second pass on, its diff)",
+                       f'the places of the hits in "{self.material.LABELS["ripple"].format(n="n").split(" (")[0]}"', "the paths the material names",
+                       "use Grep and Glob first", "(`offset` and `limit`)", "you may Read the whole file",
+                       "outside these start points is not forbidden", "also write in `why` of that file's row"):
+            self.assertIn(phrase, brief)
+        self.assertEqual(brief.count("`file_notes`"), 2)   # 書き方の決まりの段落 1 つ（書く義務と why）と、相乗りの答えに無いこと
+        # 前の往復で読んだファイルの節の行は、その節の段落の読み方が先に立つ（読み方の段落は節の見出しを名指し、節の段落は file_notes の書き方を持たない）
+        self.assertIn('The files listed under "### Files read in a previous pass" are read as the paragraph about that section says', brief)
+        note_para = next(p for p in brief.split("\n\n") if p.startswith('Lines under "### Files read in a previous pass"'))
+        self.assertIn("do not Read a whole file again", note_para)
+        self.assertNotIn("file_notes", note_para)
 
     def test_item_files_carry_no_instruction_text(self):
         """項目の材料のファイルは指示の文を持たない: 見出しは ITEM_HEADS と材料の札だけで、下請けの指示の文（読み方・答え方・先行例の

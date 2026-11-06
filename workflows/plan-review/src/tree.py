@@ -11,13 +11,15 @@ resolved・当たりの答え・相乗り・出自の申告を審査の返答に
 通った項目は済んだ下請けに並べて起こし直させない。
 
 - write_tree(place, b, intake, material_path, n) -> (values, when): items/ と answers/ を書き、prompts/review-tree.md の値と when を返す
-- tree_merge(b, bare, tree, resolved) -> {review, resolved, synergy, hits, refs, origins, files, gaps, precedents}
+- tree_merge(b, bare, tree, resolved) -> {review, resolved, synergy, hits, refs, file_notes, origins, files, gaps, precedents}
 - check_item・item_answer_gaps・item_schema・synergy_schema・precedent_plan・save_precedents・carried_hits・answer_file・synergy_file
 """
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import os
 import pathlib
 
 import prompt
@@ -45,6 +47,7 @@ ITEM_HEADS = {
     "units": f"### Units of {converge.ITEM_CITE} (judgment)",
     "precedents": "### Precedent sources of this item",
     "carried": "### Hits answered in a previous pass",
+    "read_before": "### Files read in a previous pass",
     "history": "### Previous passes' owed holes of this item",
     "errors": "### Errors in the previous answer",
     "synergy": "## This sub-agent's review: synergy",
@@ -79,13 +82,19 @@ def _faces_schema(b) -> tuple[dict, dict]:
 
 
 def item_schema(b) -> dict:
-    """項目の下請けの答えのファイルの型（faces・shrink は事前審査の役の型の物。precedents は開けと言われた先行例の出典の確かめ）"""
+    """項目の下請けの答えのファイルの型（faces・shrink は事前審査の役の型の物。precedents は開けと言われた先行例の出典の確かめ。
+    file_notes は必須の欄で、この往復で読んだ対象のリポジトリのファイルと分かった事を書く（何も読まなかった時は空の []）。
+    why は起点の外のファイルか全体を読んだ時の訳）"""
     faces, shrink = _faces_schema(b)
     return {"type": "object", "additionalProperties": False,
-            "required": ["item", "checked", "hits", "faces", "shrink", "resolved"],
+            "required": ["item", "checked", "hits", "faces", "shrink", "resolved", "file_notes"],
             "properties": {"item": {"type": "integer", "minimum": 1}, "checked": {"type": "string", "minLength": 10},
                            "hits": copy.deepcopy(converge.HITS_SCHEMA), "faces": faces, "shrink": shrink,
                            "resolved": {"type": "array", "items": {"type": "string"}},
+                           "file_notes": {"type": "array", "items": {
+                               "type": "object", "additionalProperties": False, "required": ["path", "learned"],
+                               "properties": {"path": {"type": "string", "minLength": 1},
+                                              "learned": {"type": "string", "minLength": 10}, "why": {"type": "string"}}}},
                            converge.DESIGN_MAP: copy.deepcopy(converge.DESIGN_MAP_SCHEMA),
                            converge.ORIGINS: copy.deepcopy(converge.ORIGIN_SCHEMA),
                            **{name: copy.deepcopy(files.node_schema("review")["properties"][name]) for name in take.MEANS_ROWS},
@@ -287,17 +296,61 @@ def check_item(b, n: int, rip: dict, pre: list | None = None) -> tuple:
     return (None if errs else got), errs, False, dropped
 
 
+# ---------------------------------------------------------------- 読んだファイルの覚え
+def _root(b) -> pathlib.Path:
+    """作業ツリーの根（view の入力 cwd）"""
+    return pathlib.Path(b.state["inputs"]["cwd"])
+
+
+def _notes_sha(path: pathlib.Path) -> str | None:
+    """ファイルの中身の sha256（無い・読めないファイルは None）"""
+    try:
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 16), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def _root_relative(root: pathlib.Path, path: str) -> str | None:
+    """作業ツリーの根からの相対パス（POSIX の形）。根の外のパスは None（絶対パスも相対パスも同じ 1 つの形に揃える）"""
+    base = pathlib.Path(os.path.abspath(root))
+    full = pathlib.Path(os.path.abspath(base / path))
+    for top in (base, base.resolve()):
+        try:
+            rel = full.relative_to(top)
+        except ValueError:
+            continue
+        return rel.as_posix() if rel.parts else None
+    return None
+
+
+def _note_rows(b, got: dict, k: int) -> list:
+    """項目の下請けの答え got の file_notes から往復の記録に置く行 [{path, sha256, learned, pass}]。path は根からの相対パスに揃え、
+    根の外のパスの行は答えを拒まずに落とす。sha256 は受け付けが今の中身から測る（無い・読めないファイルは null で行を残す）"""
+    root = _root(b)
+    out = []
+    for r in got.get("file_notes") or []:
+        rel = _root_relative(root, r["path"])
+        if rel is not None:
+            out.append({"path": rel, "sha256": _notes_sha(root / rel), "learned": r["learned"], "pass": k})
+    return out
+
+
 def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     """事前審査の受け付けの木のまとめ（機械）。intake の tree が真の往復（束ね役の組 review-tree／review-tree-fix の返答）だけで
     呼ばれる。束ね役の返答の外した写し bare・束ね役の欄 tree（items・推し）・束ね役の resolved から、
     {review, resolved, synergy（相乗りの審査の face の key）, hits（{項目: 当たりの答え}）, refs（{項目: 答えの対応表の design_ref の並び}）,
+    file_notes（{項目: 下請けが読んだファイルの覚えの行 _note_rows}）,
     origins（新しい block の出自の申告の行。下請けと相乗りの答えの物を集める）, files（往復の記録に写す答えのファイル）,
     gaps（拒む理由の行。在れば他は使わない）, precedents（save_precedents に渡す物）} を返す。faces・shrink・origins・resolved は
     下請けの答えのファイルから組み、束ね役の型はそれらを持たない（node の output_format が拒む）。開いた項目の答えのファイルが
     無ければ、その項目の下請けを起こせと拒む"""
     k = converge.pass_no(b)
     rip = material._ripple(pathlib.Path(b.dir))
-    base = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "origins": [], "files": {}, "gaps": []}
+    base = {"review": bare, "resolved": resolved, "synergy": [], "hits": {}, "file_notes": {}, "origins": [], "files": {}, "gaps": []}
     plan = converge.read(b)["plan"]
     opened = converge.open_items(b)
     gaps, answers = [], {}
@@ -364,7 +417,9 @@ def tree_merge(b, bare: dict, tree: dict, resolved: list) -> dict:
     return {"review": review, "resolved": list(dict.fromkeys(x for n in opened for x in answers[n]["resolved"])),
             "synergy": [f["key"] for f in (syn or {}).get("faces") or []],
             "origins": [o for x in [*(answers[n] for n in opened), syn or {}] for o in x.get(converge.ORIGINS) or []],
-            "hits": {n: _hit_rows(b, n, rip, answers[n]["hits"]) for n in opened}, "files": out_files, "gaps": [],
+            "hits": {n: _hit_rows(b, n, rip, answers[n]["hits"]) for n in opened},
+            "file_notes": {n: _note_rows(b, answers[n], k) for n in opened},
+            "files": out_files, "gaps": [],
             "refs": {n: refs[n] for n in opened}, "precedents": (precedent_plan(b, opened), answers, k)}
 
 
@@ -404,6 +459,24 @@ def _carried_part(b, n: int, rip: dict) -> str:
     return ITEM_HEADS["carried"] + "\n\n" + "\n".join(f"- {i}: {h['answer']}（{h['why']}）" for i, h in rows.items())
 
 
+def _file_notes_part(b, n: int) -> str:
+    """前の往復の同じ項目（id）の下請けが読んだファイルのうち、中身が今の作業ツリーと変わっていない物の覚え（行は
+    『- <path>（unchanged since pass <k>）: <learned>』。パスごとにまとめて往復の順。中身が変わった・消えた・印の無い行は載せない）"""
+    root = _root(b)
+    now: dict = {}
+    by_path: dict = {}
+    for r in converge.answered_file_notes(b, n):
+        path = r.get("path")
+        if isinstance(path, str) and r.get("sha256"):
+            if path not in now:
+                now[path] = _notes_sha(root / path)
+            if now[path] == r["sha256"]:
+                by_path.setdefault(path, []).append(r)
+    lines = [f"- {path}（unchanged since pass {r.get('pass')}）: {oneline.one_line(r.get('learned'))}"
+             for path, rs in by_path.items() for r in rs]
+    return ITEM_HEADS["read_before"] + "\n\n" + "\n".join(lines) if lines else ""
+
+
 def _errors_part(n: int, path: pathlib.Path, errs: list) -> str:
     doc = {"item": n, "file": str(path), "errors": errs}
     return f"{ITEM_HEADS['errors']}\n\n{_json(doc)}"
@@ -411,13 +484,15 @@ def _errors_part(n: int, path: pathlib.Path, errs: list) -> str:
 
 def _item_material(b, n: int, it: dict, doc: dict, pre: list, errs: list) -> str:
     """項目 n の材料のファイルの本文: 項目の見出し・答えのファイル・案（2 往復目からは差分）・単位・design_map の鍵の一覧・
-    先行例の出典の行・波及の一覧の項目の節・前の往復で答えた当たり・前の往復の答えの要る穴と修正案の役の答え・前の答えの誤り"""
+    先行例の出典の行・波及の一覧の項目の節・前の往復で答えた当たり・前の往復で読んだファイルの覚え（中身が変わっていない物）・
+    前の往復の答えの要る穴と修正案の役の答え・前の答えの誤り"""
     return "\n\n".join(x for x in (
         ITEM_HEADS["item"].format(n=n), ITEM_HEADS["answer"].format(path=answer_file(b, n)),
         material._item_plan_part(b, n, it),
         f"{ITEM_HEADS['units'].format(n=n)}\n\n{_json(_item_units(b, it.get('unit_keys')))}",
         material.map_items_section(b, [n], material.ITEM_MAP_OTHERS, carried=False, kept=material.kept_keys(b, [n])),
         _precedent_part(pre, n), material.ripple_section(doc, n), _carried_part(b, n, doc),
+        _file_notes_part(b, n),
         _item_history(b, it.get("unit_keys") or []),
         _errors_part(n, answer_file(b, n), errs) if errs else "") if x) + "\n"
 

@@ -99,7 +99,7 @@ def uncovered(doc, n) -> list:
 def answer(n, doc=RIPPLE, faces=(), resolved=(), why=NO_EFFECT, **extra) -> dict:
     """項目 n の下請けの答え（覆っていない当たりは全部 no_effect）"""
     return {"item": n, "checked": CHECKED, "faces": list(faces), "shrink": [], "resolved": list(resolved),
-            "hits": [{"id": h["id"], "answer": "no_effect", "why": why} for h in uncovered(doc, n)], **extra}
+            "file_notes": [], "hits":[{"id": h["id"], "answer": "no_effect", "why": why} for h in uncovered(doc, n)], **extra}
 
 
 def synergy(faces=()) -> dict:

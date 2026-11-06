@@ -138,6 +138,38 @@
         }
       }
     },
+    "file_notes": {
+      "type": "object",
+      "description": "下請けが読んだファイルの覚えと受け付けが測った sha256（{項目の番号: 行の並び}）。フックの読んだ証拠 reads とは別物",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "作業ツリーの根からの相対パス（POSIX の形）"
+              },
+              "sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "受け付けが測った、読んだ時のファイルの中身の sha256（無い・読めないファイルは null）"
+              },
+              "learned": {
+                "type": "string"
+              },
+              "pass": {
+                "type": "integer",
+                "description": "覚えを書いた往復の番号"
+              }
+            }
+          }
+        }
+      }
+    },
     "origins": {
       "type": "array",
       "items": {
