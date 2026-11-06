@@ -67,9 +67,20 @@ change_named_or_gone.paragraph = "rules_named"   # 書き手に evidence.named �
 
 def keep_same_result(f: dict) -> list:
     """変えない段の箱の義務（2.4 の同じ結果の照らしのうち、居なくなった試験）: 起点で通っていて返した木の同じ選びの回に居ない試験は、
-    どれも permits の remove の行の中（受け付けの新しい赤の照らしは今の selected_problems が持つ）"""
-    allowed = {r.get("test") for r in f.get("permits") or [] if r.get("kind") == "remove"}
-    gone = [k for k in f.get("vanished") or [] if k not in allowed]
+    どれも permits の remove の行の試験と同じ試験の時だけ通す（受け付けの新しい赤の照らしは今の selected_problems が持つ）。
+    同じ試験かは baseline_red.match_case の後ろ側の一致で見る（居なくなった試験の鍵は JUnit の classname::name で、classname は
+    モジュールの名でもパスでも、許しはファイルのパス形でも当たる）。場合の許し（`t.py::test_x[1]`）はその場合だけ、関数の許し
+    （`t.py::test_x`）は全部の場合を覆う"""
+    import baseline_red   # lib/
+    from src import common
+    allowed = [common._norm_id(r.get("test")) for r in f.get("permits") or [] if r.get("kind") == "remove"]
+
+    def permitted(k: str) -> bool:
+        case = common._case_of(k)
+        cases = [case, {**case, "name": case["name"].split("[", 1)[0]}]
+        return k in allowed or any(baseline_red.match_case(i, cases) for i in allowed)
+
+    gone = [k for k in f.get("vanished") or [] if not permitted(k)]
     return [f"起点で通っていた試験が返した木で居なくなった: {gone[:10]}（振る舞いを変えない段は試験を消さない。消すのは消す名の許しの中だけ）"] \
         if gone else []
 
