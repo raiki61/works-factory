@@ -1809,8 +1809,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     {ok: False, stop: True, reason} で組を止める（tdd-start.json に no_suite を書く。呼び手は出し直させずに輪を抜ける）。型の義務が名指しの
     直す前の結末を引けず、それが単位の義務を決める時（duties の seen の no_before）も、全部の照らしの後に同じ止めを使う: ほかの拒みが
     無い回か、最後の回でほかの拒みの単位を諦めて戻した後は止め（訳に引けない訳・使った元の結末のファイル・実行器の出力の置き場と、
-    ほかの拒み・諦めた単位の理由を並べる）、途中の回にほかの拒みが在れば先に出し直させる。保留の単位は最後の回の諦めに巻き込まず
-    （結べない行の結び先と写しの拒否の全部止めから除く）、ほかの拒みの単位と足跡を共にして分けて戻せない時は戻さずに止める。
+    ほかの拒み・諦めた単位の理由を並べる）、途中の回にほかの拒みが在れば先に出し直させる。
     元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
     from src import basecase, consult, duties, orders
@@ -1924,11 +1923,19 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
 
     def again(r, gone):
         return accept_reply(r, place, repo, **kw, reverted=gone, trail=trail)
+    held = duty_seen.get("no_before")
+    held_keys: set = set()
+    others = found
+    if held:
+        held_keys = {k for t in held["texts"] for k in declared.get(t, ()) if k}
+        others = [(c, t) for c, t in found if t not in held["texts"]]
+        if others and last:
+            found = list(others)   # 最後の回は保留の行を除いた残りを諦めの道へ。保留の単位は諦めに巻き込まない
     asks = gather_overflow(scope_note, frozen_over, gates, place, rev, repo)
     over, rest = split_rows(found, asks)
     if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
         got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
-                              pass_=pass_, ask=not parked, again=again)
+                              pass_=pass_, ask=not parked and not held, again=again)
         if got is not None and got.get("queued"):   # 積んだ回: 拒否の形に単位の結末を足す（盤面の結末は前の拒否と同じ）
             return {**got, "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
                     "parked": parked}
@@ -1952,16 +1959,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                 "rejects": [{"check": c, "text": t} for c, t in fix_reject_rows(found)], "reply": reply,
                 "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
                 "parked": parked, "conflicted": False}
-    held = duty_seen.get("no_before")
-    held_keys: set = set()   # 直す前の結末を引けず保留にした単位（最後の回の諦めに巻き込まない）
-    others = found
-    if held:
-        held_keys = {k for t in held["texts"] for k in declared.get(t, ()) if k}
-        others = [(c, t) for c, t in found if t not in held["texts"]]
 
     def stop_held(*shared):
-        """保留の行で組を止める: 訳に引けない訳・使った元の結末のファイル・実行器の出力の置き場と、同じ回のほかの拒み・前の回までに
-        諦めた単位の理由・足跡を共にして分けて戻せない訳 shared を並べる"""
         rows = ([fix_reject_text(others)] if others else []) + [f"{k}: {v}" for k, v in parked.items()] + list(shared)
         why = NO_SUITE_BEFORE.format(why="；".join(held["texts"]), base=picked or "（無い）", log=held["log"]) \
             + (NO_SUITE_OTHERS.format(rows="\n".join(rows)) if rows else "")
@@ -1972,14 +1971,6 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
             return stop_held()
         if not last:
             return rejected()
-        found = list(others)   # 最後の回は保留の行を除いた残りを諦めの道へ。保留の単位は諦めに巻き込まない
-        over, rest = split_rows(found, asks)
-        if over and not rest:
-            got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
-                                  pass_=pass_, ask=False, again=again)
-            if got is not None:
-                return got
-            over, rest = split_rows(found, asks)
     if not found:
         return accepted(reply)
     if not last:
@@ -2018,8 +2009,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     if not settled.park:
         return stop_held() if held else rejected(NOT_SETTLED)
     dragged = held_keys & set(settled.park)   # 足跡を共にするだけで巻き込まれた保留の単位: ファイルは単位ごとに分けて戻せないので戻さずに止める
-    # 理由は閉包で入った SHARED と、義務の外の単位とも足跡を共にする時に足される SHARED_OUT だけ（保留の単位を名指す本物の拒みの理由は含まない）
-    if dragged and all(r.startswith((parking.SHARED, parking.SHARED_OUT)) for k in dragged for r in settled.park[k]):
+    if dragged and all(parking.only_shared(settled.park[k]) for k in dragged):
         return stop_held(*(r for k in sorted(dragged) for r in settled.park[k]))
     now, _ = park_units(place, repo, settled, head or rev, iteration=iteration, pass_=pass_)
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,

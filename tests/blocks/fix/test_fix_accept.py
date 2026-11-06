@@ -3076,20 +3076,27 @@ class FixAcceptSeamCase(SeamTemp):
     OTHER = "型 variant の単位 beta-unit の義務: ほかの義務の行"
     UNBOUND = "どの単位の key もパスも名指さない拒みの行"
 
-    def _last_turn_with_a_held_unit(self, *, files, other):
-        """単位 alpha-unit（files[0] を書いた）は直す前の結末を引けず保留の行を返し、単位 beta-unit（files[1] を書いた）には
-        other の行（拒みの文。None なら結べない文の行）が並ぶ最後の回の受け付け。返りは (受け付けの返り, 元の結末のパス)。
+    def _last_turn_with_a_held_unit(self, *, files, other, dropped=None):
+        """単位 alpha-unit（files[0] のファイルを書いた）は直す前の結末を引けず保留の行を返し、単位 beta-unit（files[1] のファイルを
+        書いた）には other の行（拒みの文。None なら結べない文の行）が並ぶ最後の回の受け付け。dropped {単位: 足跡のファイル} の単位は
+        前の回に諦めて義務の外に在り、輪の記録の足跡を持つ。返りは (受け付けの返り, 元の結末のパス)。
         ほかの拒みの行は beta-unit の行が返答に在る間だけ返す"""
+        dropped = dropped or {}
         (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": "alpha-unit", "label": "block"},
                                                                         {"key": "beta-unit", "label": "block"}]}), encoding="utf-8")
         head = leftovers.snapshot(self.repo)
-        for name in dict.fromkeys(files):
+        for name in dict.fromkeys(n for names in files for n in names):
             (self.repo / name).write_text(f"{name}\n", encoding="utf-8")
+        if dropped:
+            loop = self.place / "tdd-1"
+            loop.mkdir()
+            (loop / self.m.common.RECORD).write_text(json.dumps({"units": {k: {"files": v} for k, v in dropped.items()}, "frozen": {}}),
+                                                     encoding="utf-8")
         how = {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"], "count": "lines"}
-        reply = {"changes": [{"unit_key": key, "what": "足した", "files": [name], "coverage": {"how": how, "counts": "population"},
+        reply = {"changes": [{"unit_key": key, "what": "足した", "files": names, "coverage": {"how": how, "counts": "population"},
                               "closure": {"sites": []}, **SELF_REPORT}
-                             for key, name in zip(("alpha-unit", "beta-unit"), files)],
-                 "interactions": [{"surface": files[0], "checked": "2 つの単位の足した物は別の物で、順序を入れ替えても結果が同じ"}]}
+                             for key, names in zip(("alpha-unit", "beta-unit"), files)],
+                 "interactions": [{"surface": files[0][0], "checked": "2 つの単位の足した物は別の物で、順序を入れ替えても結果が同じ"}]}
         base_file = self.place / "base.json"
         base_file.write_text(json.dumps({"exe": ""}), encoding="utf-8")
 
@@ -3100,7 +3107,7 @@ class FixAcceptSeamCase(SeamTemp):
         with mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")), \
                 mock.patch.object(self.m.duties, "accept_problems", duties_run):
             got = self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=3, owed=["alpha-unit", "beta-unit"],
-                                      judged=[], head=head, skip=SKIP)
+                                      judged=[], head=head, skip=SKIP, parked=dict.fromkeys(dropped, "前の回に諦めた"))
         return got, base_file
 
     def test_a_missing_before_on_the_last_attempt_gives_up_the_other_unit_before_it_stops(self):
@@ -3108,7 +3115,7 @@ class FixAcceptSeamCase(SeamTemp):
         段の頭の木に戻して諦めてから組を止める。alpha-unit の直しだけが作業ツリーに残り、訳に保留の行・元の結末のパス・実行器の出力の置き場・
         beta-unit の拒みの理由が並ぶ"""
         import conflict
-        got, base_file = self._last_turn_with_a_held_unit(files=["a.txt", "b.txt"], other=self.OTHER)
+        got, base_file = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=self.OTHER)
         self.assertTrue(got.get("stop") and got["ok"] is False, got)
         self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "given_up"}, got["units"])
         self.assertFalse((self.repo / "b.txt").exists(), "諦めた単位の誤った直しは作業ツリーに残さない")
@@ -3122,7 +3129,7 @@ class FixAcceptSeamCase(SeamTemp):
     def test_an_unbound_line_on_the_last_attempt_does_not_give_up_the_held_unit(self):
         """最後の回に、保留の行（alpha-unit）と、どの単位の key もパスも名指さない拒みの行が並ぶと、その行は義務の全部でなく保留の単位を
         除いた beta-unit にだけ結んで戻して諦める。alpha-unit は戻さず、組は止まる"""
-        got, _ = self._last_turn_with_a_held_unit(files=["a.txt", "b.txt"], other=None)
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=None)
         self.assertTrue(got.get("stop") and got["ok"] is False, got)
         self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "given_up"}, got["units"])
         self.assertTrue((self.repo / "a.txt").exists(), "結べない行が保留の単位の直しを戻さない")
@@ -3132,44 +3139,18 @@ class FixAcceptSeamCase(SeamTemp):
     def test_a_held_unit_sharing_files_with_the_rejected_unit_stops_without_reverting(self):
         """保留の単位 alpha-unit と拒まれた単位 beta-unit が同じファイルを書いていると、ファイルは単位ごとに分けて戻せないので、何も戻さず
         諦めずに組を止める。訳に保留の行・beta-unit の拒み・alpha-unit を一緒に止めることになる訳（足跡を共にするパス）が並ぶ"""
-        got, _ = self._last_turn_with_a_held_unit(files=["shared.txt", "shared.txt"], other=self.OTHER)
+        got, _ = self._last_turn_with_a_held_unit(files=(["shared.txt"], ["shared.txt"]), other=self.OTHER)
         self.assertTrue(got.get("stop") and got["ok"] is False, got)
         self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "not_done"}, got["units"])
         self.assertTrue((self.repo / "shared.txt").exists(), "分けて戻せないファイルは戻さない")
         for want in (self.HELD, self.OTHER, self.m.parking.SHARED, "shared.txt"):
             self.assertIn(want, got["reason"])
 
-    def last_turn_with_a_held_unit_beside_a_dropped_unit(self):
-        """最後の回の受け付け。単位 alpha-unit（shared.txt と x.txt を書いた）は直す前の結末を引けず保留の行を返し、単位 beta-unit
-        （shared.txt を書いた）には拒みの行が並ぶ。単位 x-unit は前の回に諦めて義務の外に在り、輪の記録の足跡は x.txt。
-        返りは受け付けの返り"""
-        (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": "alpha-unit", "label": "block"},
-                                                                        {"key": "beta-unit", "label": "block"}]}), encoding="utf-8")
-        head = leftovers.snapshot(self.repo)
-        for name in ("shared.txt", "x.txt"):
-            (self.repo / name).write_text(f"{name}\n", encoding="utf-8")
-        loop = self.place / "tdd-1"
-        loop.mkdir()
-        (loop / self.m.common.RECORD).write_text(json.dumps({"units": {"x-unit": {"files": ["x.txt"]}}, "frozen": {}}), encoding="utf-8")
-        how = {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"], "count": "lines"}
-        reply = {"changes": [{"unit_key": key, "what": "足した", "files": names, "coverage": {"how": how, "counts": "population"},
-                              "closure": {"sites": []}, **SELF_REPORT}
-                             for key, names in (("alpha-unit", ["shared.txt", "x.txt"]), ("beta-unit", ["shared.txt"]))],
-                 "interactions": [{"surface": "shared.txt", "checked": "2 つの単位が同じファイルを足したが、順序を入れ替えても結果が同じ"}]}
-        (self.place / "base.json").write_text(json.dumps({"exe": ""}), encoding="utf-8")
-
-        def duties_run(place, repo, rev, reply, **kw):
-            kw["seen"]["no_before"] = {"texts": [self.HELD], "log": str(pathlib.Path(place) / "duties")}
-            return [("alpha-unit", self.HELD), ("beta-unit", self.OTHER)]
-        with mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")), \
-                mock.patch.object(self.m.duties, "accept_problems", duties_run):
-            return self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=3, owed=["alpha-unit", "beta-unit"],
-                                       judged=[], head=head, skip=SKIP, parked={"x-unit": "前の回に諦めた"})
-
     def test_a_held_unit_sharing_files_with_a_unit_outside_the_duty_is_not_given_up_either(self):
         """保留の単位 alpha-unit が、拒まれた単位 beta-unit と shared.txt を、前の回に諦めて義務の外に在る単位 x-unit と x.txt を共にしていても、
         alpha-unit に付くのは足跡を共にする訳だけで、誤りと決まった単位でない: 戻さず諦めずに組を止める。x-unit は諦めたまま"""
-        got = self.last_turn_with_a_held_unit_beside_a_dropped_unit()
+        got, _ = self._last_turn_with_a_held_unit(files=(["shared.txt", "x.txt"], ["shared.txt"]), other=self.OTHER,
+                                                  dropped={"x-unit": ["x.txt"]})
         self.assertTrue(got.get("stop") and got["ok"] is False, got)
         self.assertEqual({k: v["status"] for k, v in got["units"].items()},
                          {"alpha-unit": "not_done", "beta-unit": "not_done", "x-unit": "given_up"}, got["units"])

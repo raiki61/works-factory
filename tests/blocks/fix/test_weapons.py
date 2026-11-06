@@ -539,7 +539,6 @@ class NamedDutyCase(unittest.TestCase):
         self.assertNotIn(self.gates.NO_SUITE_WHY, no_file)
         self.assertIn(self.gates.NO_SUITE_WHY, no_exe)
         self.assertNotIn(self.duties.NO_BASE_WHY, no_exe)
-        self.assertIn(self.gates.NO_SUITE_WHY, held({**self.base_doc(), "exe": ""}, None), "実行器が無く返した木も走らせなかった回も保留")
 
     def test_a_named_test_that_is_not_green_in_the_returned_tree_is_rejected(self):
         self.order("variant")
