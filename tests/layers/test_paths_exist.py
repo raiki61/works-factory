@@ -1,7 +1,8 @@
 """工場の中の字が書くリポジトリのパスは、在る物を指す（根の `AGENTS.md` の E26 の機械の行）。
 
 - 照らすファイルは `bin/`・`lib/`（試験の `lib/tests/` と借りた写しの `lib/borrow/` を除く）・`workflows/`・見る道具（フォルダ `viewer`）・
-  文書 `docs/`（実装の計画 `docs/plans/` を除く。計画は書いた時の木を語る記録で、終わった計画は消す）の下の全部と、どの階層の `AGENTS.md` も。
+  文書 `docs/`（実装の計画 `docs/plans/` を除く。計画は書いた時の木を語る記録で、終わった計画は消す）の下の全部と、git が知る（追跡中と、無視されない未追跡の）
+  どの階層の `AGENTS.md` も（`.git` の中と、無視される追跡外のフォルダの写しは読まない。根が git のリポジトリでなければ、黙って歩かず例外で止まる）。
 - パスは、根の直下のフォルダの名（`.` で始まる物を除く。名の表は持たず、根を読んで決める）で始まり `/` が続く字の並び。
   前が英数字・`_`・`.`・`/`・`-` の所は別の語の途中なので数えない（`src/lib/x.py` の `lib/` など）。
 - 在るとは、パスそのもの・`.py` を足した物（モジュールの名 `lib/rolekit`）が在るか、最後の段の `.` の前に `.py` を足した物が在って
@@ -14,10 +15,17 @@
 - 許すパスの表は持たない（憲法 6）。わざと無いパスを書く例（対象のリポジトリの例の `lib/x.py`、fixture の偽の対象のパス）は、
   根の直下のフォルダの名で始まらない形に書く。消えた物を語る時は、パスでなく名で書く（どこに在ったかは git の履歴が持つ）。
 """
+import inspect
+import os
 import pathlib
 import re
+import subprocess
+import tempfile
 import unittest
+from unittest import mock
 
+from tests.bin import gitkit
+from tests.layers import trees
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -37,7 +45,7 @@ def _scanned(root: pathlib.Path):
         base = root / scope
         if base.is_dir():
             seen.update(p for p in base.rglob("*") if p.is_file())
-    seen.update(root.rglob("AGENTS.md"))
+    seen.update(trees.agents_files(root))
     for path in sorted(seen):
         rel = path.relative_to(root).as_posix()
         if any(part in NOT_FILES for part in path.relative_to(root).parts):
@@ -89,7 +97,7 @@ class PathsExistTest(unittest.TestCase):
             "docs/here.md": "",
             "AGENTS.md": "- `docs/gone2.md` を読む\n",
         }
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), ["AGENTS.md:1: docs/gone2.md", "lib/a.py:1: lib/gone.py", "lib/a.py:1: docs/gone.md"])
 
     def test_present_paths_and_patterns_pass(self):
@@ -100,7 +108,7 @@ class PathsExistTest(unittest.TestCase):
             "docs/here.md": "",
             "workflows/AGENTS.md": "",
         }
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), [])
 
     def test_folder_of_same_name_does_not_make_missing_file_present(self):
@@ -110,7 +118,7 @@ class PathsExistTest(unittest.TestCase):
             "docs/design/x.md": "",
             "bin/kit/x.py": "",
         }
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), ["lib/a.py:1: workflows/fix.yaml", "lib/a.py:1: docs/design.md",
                                               "lib/a.py:1: bin/kit.py"])
 
@@ -119,19 +127,46 @@ class PathsExistTest(unittest.TestCase):
             "lib/reads.py": "def collect():\n    pass\n# gone は無い\n",
             "lib/a.py": "# lib/reads.md・lib/reads.json・lib/reads.gone・lib/reads.collect\n",
         }
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), ["lib/a.py:1: lib/reads.md", "lib/a.py:1: lib/reads.json",
                                               "lib/a.py:1: lib/reads.gone"])
 
     def test_tests_and_borrow_of_lib_are_not_scanned(self):
         files = {"lib/tests/test_a.py": "# docs/gone.md\n", "lib/borrow/x.md": "docs/gone.md\n", "docs/here.md": ""}
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), [])
 
     def test_docs_are_scanned_but_plans_are_not(self):
         files = {"docs/design/a.md": "- `lib/gone.py` を読む\n", "docs/plans/p.md": "- `lib/gone.py` を読む\n", "lib/here.py": ""}
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), ["docs/design/a.md:1: lib/gone.py"])
+
+    def test_copy_under_git_dir_and_ignored_folder_are_not_scanned(self):
+        self.assertTrue(hasattr(trees, "agents_files"), "tests.layers.trees に agents_files が無い")
+        files = {"docs/here.md": "", ".gitignore": "backup/\n", "backup/AGENTS.md": "- `docs/gone.md` を読む\n"}
+        with tree(files) as root:
+            gitkit.git(root, "init", "-q")
+            copy = root / ".git" / "company" / "old" / "AGENTS.md"
+            copy.parent.mkdir(parents=True)
+            copy.write_text("- `docs/gone.md` を読む\n", encoding="utf-8")
+            self.assertEqual(problems(root), [])
+
+    def test_root_that_is_not_a_git_repo_is_an_error(self):
+        self.assertTrue(hasattr(trees, "agents_files"), "tests.layers.trees に agents_files が無い")
+        with tree({"AGENTS.md": ""}) as root, mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(root.parent)}):
+            with self.assertRaises(subprocess.CalledProcessError):
+                problems(root)
+
+    def test_user_global_excludes_do_not_hide_fixture_agents_md(self):
+        self.assertTrue(hasattr(trees, "agents_files"), "tests.layers.trees に agents_files が無い")
+        self.assertIn("git_init", inspect.signature(tree).parameters, "tests.layers.trees.tree に git_init が無い")
+        with tempfile.TemporaryDirectory() as home:
+            ignore = pathlib.Path(home) / "git" / "ignore"
+            ignore.parent.mkdir()
+            ignore.write_text("AGENTS.md\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home, "HOME": home}):
+                with tree({"AGENTS.md": "- `docs/gone.md` を読む\n", "docs/here.md": ""}, git_init=True) as root:
+                    self.assertEqual(problems(root), ["AGENTS.md:1: docs/gone.md"])
 
 
 if __name__ == "__main__":

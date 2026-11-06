@@ -9,7 +9,7 @@ import pathlib
 import re
 import unittest
 
-from tests.bin.gitkit import git
+from tests.bin import gitkit
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TREE = re.compile(r"^## リポジトリの形\n.*?^```text\n(.*?)^```", re.M | re.S)
@@ -74,7 +74,7 @@ def problems(paths, agents_md):
 
 
 def real_paths():
-    return [p for p in git(ROOT, "ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0") if p]
+    return gitkit.known_files(ROOT)
 
 
 def agents_md():

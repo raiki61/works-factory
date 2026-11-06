@@ -8,6 +8,7 @@
 入口 `bin/`（殻 2 つ・`bin/_lib/` の直下・`bin/_lib/no-post-bin/works-gh`）の Python の文字列・docstring・コメントの全部。旧い語は #115 の対応表の左の全部で、部分一致で探す。外す規則は `EXCEPT` の 1 か所。
 """
 import ast
+import inspect
 import io
 import pathlib
 import re
@@ -18,7 +19,8 @@ from unittest import mock
 
 import yaml
 
-from tests.bin import copyledger
+from tests.bin import copyledger, gitkit
+from tests.layers import trees
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -61,9 +63,9 @@ EXCEPT = {
 
 
 def guides(root):
-    """決まりの文書: ASF の物を除く全部の階層の `AGENTS.md` と根の `ROOT_DOCS`"""
+    """決まりの文書: ASF の物を除く、git が知る（追跡中と、無視されない未追跡の）全部の階層の `AGENTS.md` と根の `ROOT_DOCS`"""
     root = pathlib.Path(root)
-    found = [p for p in root.rglob("AGENTS.md") if p.relative_to(root).parts[0] not in ASF_DIRS]
+    found = [p for p in trees.agents_files(root) if p.relative_to(root).parts[0] not in ASF_DIRS]
     return found + [p for name in ROOT_DOCS for p in root.glob(name)]
 
 
@@ -181,18 +183,18 @@ class WordsTest(unittest.TestCase):
 
     def test_keep_row_skips_its_literal_and_a_stale_row_is_red(self):
         row = ("lib/a.py", '"関所"')
-        with mock.patch.dict(EXCEPT["keep"], {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "関所"\n'}) as root:
+        with mock.patch.dict(EXCEPT["keep"], {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "関所"\n'}, git_init=True) as root:
             self.assertEqual((problems(root), stale_keep(root)), ([], []))
-        with mock.patch.dict(EXCEPT["keep"], {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "承認ノード"\n'}) as root:
+        with mock.patch.dict(EXCEPT["keep"], {row: "前の run の記録から読み戻す語"}, clear=True), tree({"lib/a.py": 'X = "承認ノード"\n'}, git_init=True) as root:
             self.assertEqual(stale_keep(root), ["keep: lib/a.py の '\"関所\"' が木の文字列に当たらない"])
 
     def red(self, files, where, word):
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             got = problems(root)
         self.assertIn(f"{where}: 旧い語 {word}", got)
 
     def clean(self, files):
-        with tree(files) as root:
+        with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), [])
 
     def test_doc_is_red(self):
@@ -209,14 +211,14 @@ class WordsTest(unittest.TestCase):
     def test_yaml_text_keys_are_red_and_the_rest_is_not(self):
         body = ("name: x\ndescription: 線の部品\n# 輪のコメント\nnodes:\n  - id: a\n    prompt: |\n      読め\n      TDD の輪\n"
                 "    when: \"$x.output.節 == 'y'\"\n")
-        with tree({"workflows/judge/works-factory-judge.yaml": body}) as root:
+        with tree({"workflows/judge/works-factory-judge.yaml": body}, git_init=True) as root:
             got = problems(root)
         self.assertEqual(got, ["workflows/judge/works-factory-judge.yaml:2: 旧い語 線",
                                "workflows/judge/works-factory-judge.yaml:8: 旧い語 輪"])
 
     def test_lib_literal_is_red_but_docstring_and_comment_are_not(self):
         body = '"""節の docstring"""\n# 節のコメント\n\n\ndef f():\n    """輪の docstring"""\n    return f"{1} 個の節"   # 線\n'
-        with tree({"lib/a.py": body}) as root:
+        with tree({"lib/a.py": body}, git_init=True) as root:
             got = problems(root)
         self.assertEqual(got, ["lib/a.py:7: 旧い語 節"])
 
@@ -248,7 +250,7 @@ class WordsTest(unittest.TestCase):
         self.red({"bin/works-factory": '#!/usr/bin/env python3\nraise SystemExit("返りが読めない")\n'}, "bin/works-factory:2", "返り")
         self.red({"bin/_lib/no-post-bin/works-gh": 'print("輪")\n'}, "bin/_lib/no-post-bin/works-gh:1", "輪")
         body = '"""工程の docstring"""\n# 線のコメント\n\n\ndef f():\n    """節の docstring"""\n    return 1   # 輪\n'
-        with tree({"bin/_lib/a.py": body}) as root:
+        with tree({"bin/_lib/a.py": body}, git_init=True) as root:
             got = problems(root)
         self.assertEqual(got, ["bin/_lib/a.py:1: 旧い語 工程", "bin/_lib/a.py:2: 旧い語 線", "bin/_lib/a.py:6: 旧い語 節",
                                "bin/_lib/a.py:7: 旧い語 輪"])
@@ -267,6 +269,30 @@ class WordsTest(unittest.TestCase):
         ledger = "742a61d  元の説明の節\nc.py  src/c.py\n"
         self.clean({"lib/COPIED_FROM.c": ledger, "lib/c.py": 'X = "仕様 3 節"\n'})
         self.red({"lib/COPIED_FROM.c": ledger, "lib/d.py": 'X = "仕様 3 節"\n'}, "lib/d.py:1", "節")
+
+    def test_guides_skip_copy_under_git_dir_and_ignored_folder(self):
+        self.assertTrue(hasattr(trees, "agents_files"), "tests.layers.trees に agents_files が無い")
+        files = {"workflows/AGENTS.md": "", ".gitignore": "backup/\n", "backup/AGENTS.md": ""}
+        with tree(files) as root:
+            gitkit.git(root, "init", "-q")
+            gitkit.git(root, "add", "-f", "--", "workflows/AGENTS.md")
+            copy = root / ".git" / "company" / "old" / "AGENTS.md"
+            copy.parent.mkdir(parents=True)
+            copy.write_text("", encoding="utf-8")
+            self.assertEqual({p.relative_to(root).as_posix() for p in guides(root) if p.name == "AGENTS.md"},
+                             {"workflows/AGENTS.md"})
+
+    def test_guides_skip_tracked_file_removed_from_worktree_and_keep_untracked(self):
+        self.assertTrue(hasattr(trees, "agents_files"), "tests.layers.trees に agents_files が無い")
+        self.assertIn("git_init", inspect.signature(tree).parameters, "tests.layers.trees.tree に git_init が無い")
+        self.assertTrue(hasattr(gitkit, "known_files"), "tests.bin.gitkit に known_files が無い")
+        with tree({"a/AGENTS.md": "", "b/AGENTS.md": ""}, git_init=True) as root:
+            gitkit.git(root, "add", "-f", "--", "a/AGENTS.md")
+            gitkit.git(root, "commit", "-q", "-m", "a")
+            (root / "a" / "AGENTS.md").unlink()
+            self.assertIn("a/AGENTS.md", gitkit.known_files(root))
+            self.assertEqual(trees.agents_files(root), [root / "b" / "AGENTS.md"])
+            self.assertEqual({p.relative_to(root).as_posix() for p in guides(root) if p.name == "AGENTS.md"}, {"b/AGENTS.md"})
 
 
 if __name__ == "__main__":
