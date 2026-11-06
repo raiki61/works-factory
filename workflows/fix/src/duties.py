@@ -16,7 +16,9 @@ no_tests（base.json の印）・absent_at_base（files のうち起点の木に
 走らせていなければ None）・named（その単位の名指しの試験。unit_named が返答の evidence.named・注文の units[].tests・permits の rewrite の行の
 試験・tdd の単位の輪の記録の tests を重ねずに並べる。変える段の型だけ引く）・before（名指し → 起点の木の結末。赤は "failure"。受け付けが
 全部の単位の名指しを集めて gates.named_before を 1 回だけ呼び、事後の関門と同じ事実から引き、走らせを足さない。実行器が無い・走らずに
-引けなければ None）・after（名指し → 返した木の結末。受け付けが走らせた回 cases から引く。居なければ "missing"）・
+引けなければ None）・before_held（accept_problems が載せる。before を引けず、それが単位の義務を決める〔wants_before〕時に真。義務の関数は
+その単位を問題にせず、accept_problems が保留の行を別に返す）・after（名指し → 返した木の結末。受け付けが走らせた回 cases から引く。居なければ "missing"。名指しが在って受け付けが返した木を走らせなかった回
+〔cases が None〕は None で、結末を引いていないことを言う。名指しの無い単位と変える段でない箱は空）・
 removes（注文の units[].removes）・gone（removes のうち起点の木で引けて今の木で引けない物。gone_of）・class_query（注文の units[] の物。無ければ None）・hits（問いの当たりの行
 path:line の集まり。問いを行で結べない単位と問いの無い単位は None）・hunks（since から返した木までの git diff -U0 の新しい側の塊
 {path: [(a, b)]}）と、書き手の返答から組む REPLY_FACTS（kinds_rows〔返答の evidence.kinds の行〕・sites〔単位の行の closure.sites の全部〕・
@@ -36,7 +38,8 @@ BOXES = {"tdd": "change", "variant": "change", "remove": "change", "tidy": "keep
 MODULES = {"tdd": tdd, "variant": variant, "remove": remove, "static": static, "tidy": tidy, "pin": pin, "rebuild": rebuild}
 WEAPONS = tuple(BOXES)
 REJECT = "型 {weapon} の単位 {unit} の義務: {text}"
-NO_BEFORE = "（実行器が無い・走らないので、名指しの試験の起点の木の結末を引けなかった。直しの誤りでなく実行器の失敗）"
+NO_BEFORE = "名指しの試験の起点の木の結末を引けなかった（直しの誤りでなく実行器の失敗。直しは確かめられないまま作業ツリーに残す）"
+NO_BASE_WHY = "元の結末の控え base.json が無いか、読めない・壊れている（実行器の設定の誤りではない。控えを作り直す）"
 
 
 REPLY_FACTS = ("kinds_rows", "sites", "red_seen", "named")   # 書き手の返答から組む事実の名（unit_facts が組む。読む義務の関数は段落の属性 paragraph を持つ。tests/blocks/fix/test_duty_paragraphs.py）
@@ -46,20 +49,45 @@ def box_of(weapon: str) -> str:
     return BOXES[weapon]
 
 
+def _named_left(named: list, f: dict) -> list:
+    """単位の名指し named のうち、注文の permits の remove の行（消す名の許し。義務でない）が覆い、返した木に居ない試験（改名した試験の元
+    など）を除いた物（permits・after は事実 f から読む）"""
+    after = f.get("after") or {}
+    may_go = {r.get("test") for r in f.get("permits") or [] if isinstance(r, dict) and r.get("kind") == "remove"}
+    return [t for t in named if not (t in may_go and after.get(t) == "missing")]
+
+
+def _gone_all(f: dict) -> bool:
+    """消す名の道で通るか: removes が空でなく、その全部が gone に在る（change_named_or_gone と wants_before が同じ決めを使う）"""
+    removes = list(f.get("removes") or [])
+    return bool(removes) and set(removes) <= set(f.get("gone") or [])
+
+
+def wants_before(f: dict) -> bool:
+    """起点の木の結末 before を引けないことが、変える段の箱の義務の通る・拒むを決める単位か: 名指しが残り、before が None で、返した木の
+    結末を引いていない（after が None。受け付けが返した木を走らせなかった回）か名指しが全部返した木で通り、消す名の道でも通らない。
+    起点の木の結末が引けていれば義務を決められ、返した木の結末が引けて緑でない名指しは直しの誤りが確かなので、その単位は含まない"""
+    after = f.get("after")
+    named = _named_left(f.get("named") or [], f)
+    return bool(named) and f.get("before") is None and (after is None or all(after.get(t) == "passed" for t in named)) \
+        and not _gone_all(f)
+
+
 def change_named_or_gone(f: dict) -> list:
     """変える段の箱の義務（2.4）: 単位ごとに、(1) 名指しの試験が 1 つ以上で、どれも起点の木で failure・返した木で通る、か
     (2) 消す名 removes が空でなく、全部が gone に在る、のどちらか。(1) の名指しから、注文の permits の remove の行（消す名の許し。
-    義務でない。下書き 2.1 の permits）が覆い、返した木に居ない試験（改名した試験の元など）は除く"""
+    義務でない。下書き 2.1 の permits）が覆い、返した木に居ない試験（改名した試験の元など）は除く（_named_left）。起点の木の結末を引けず
+    （before_held。受け付けの組み手が wants_before で載せる）それが義務を決める単位は、問題にせず保留にする（受け付けが保留の行を別に返す）"""
+    if f.get("before_held"):
+        return []
     before, after = f.get("before") or {}, f.get("after") or {}
-    may_go = {r.get("test") for r in f.get("permits") or [] if isinstance(r, dict) and r.get("kind") == "remove"}
-    named = [t for t in f.get("named") or [] if not (t in may_go and after.get(t) == "missing")]
+    named = _named_left(f.get("named") or [], f)
     if named and all(before.get(t) == "failure" and after.get(t) == "passed" for t in named):
         return []
-    removes = list(f.get("removes") or [])
-    if removes and set(removes) <= set(f.get("gone") or []):
+    if _gone_all(f):
         return []
     return ["名指しの試験が起点の木で赤（failure）・返した木で緑にならず、消す名も返した木から全部は消えていない"
-            "（変えた動きを試験か機械で示す）" + (NO_BEFORE if named and f.get("before") is None else "")]
+            "（変えた動きを試験か機械で示す）"]
 
 
 change_named_or_gone.paragraph = "rules_named"   # 書き手に evidence.named を書かせる段落（.shared/prompts/writer.md。tests/blocks/fix/test_duty_paragraphs.py）
@@ -350,8 +378,9 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
             named = unit_named(key, weapon, order, evidence, loop, _guard_ids(place, round_))
         if named:
             mine = None if outcomes is None else {t: outcomes[t] for t in named if t in outcomes}
-        if named and cases is not None:
-            after = {t: (c["outcome"] if (c := baseline_red.match_case(t, cases)) else "missing") for t in named}
+        if named:
+            after = None if cases is None else \
+                {t: (c["outcome"] if (c := baseline_red.match_case(t, cases)) else "missing") for t in named}
         removes = _ids(unit.get("removes") or [])
         gone = gone_of(repo, rev, removes) if removes else []
     return {"unit": key, "weapon": weapon, "files": files, "test_files": tests, "kind_by_path": kind_by_path,
@@ -367,19 +396,24 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
             **_reply_facts(rows, (evidence or {}).get("kinds"), named)}
 
 
-def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "", round_: int = 1) -> list:
+def accept_problems(place, repo, rev: str, reply, *, base=None, cases=None, record: str = "", round_: int = 1, seen=None) -> list:
     """共通の受け付けが型の義務の表で照らした問題の [(単位, 文)]（下書き 2.3・2.4。PR A の表は static・tidy・pin・remove の物）。
     型は注文の索引 orders.json の weapons（注文の無い置き場は照らさない）で、義務は単位の行の checked_as（裁定の後の直しの注文の、照らしに
-    使う元の型。下書き 4.1 の 6）が在ればその型で引く（tdd から来た単位に variant の義務を当てない）。cases は受け付けが走らせた回の結末の
-    行（keep の箱の居なくなった試験）。round_ は守りのテストを読む凍結した欄の周（今の board.accept_reply は渡さず、事後の関門 gates.problems と同じ既定の 1）。変える段の単位の名指しは先に
-    全部集め、起点の木の結末 before を gates.named_before の 1 回で引く（実行器を単位の数だけ起こさない）"""
+    使う元の型。下書き 4.1 の 6）が在ればその型で引く（tdd から来た単位に variant の義務を当てない）。元の結末 base は呼び手が
+    board.accept_base で選んだ base.json の中身を渡す（組の子は置き場、裁定の後は bases/<k>/。無ければ None）。ここでは置き場の
+    base.json を自分で読まない（読み口を 2 つにしない）。裁定の後の段も bases/<k>/ の中身を受けるので、base を読む事実（no_tests・keep の
+    vanished・pin の twice）は組の子と同じに裁定の後の段でも効く。cases は受け付けが走らせた
+    回の結末の行（keep の箱の居なくなった試験）。round_ は守りのテストを読む凍結した欄の周（今の board.accept_reply は渡さず、事後の関門
+    gates.problems と同じ既定の 1）。変える段の単位の名指しは先に全部集め、起点の木の結末 before を gates.named_before の 1 回で引く
+    （実行器を単位の数だけ起こさない）。結末を引けず、それが義務を決める単位（wants_before）は、義務の問題にせず保留の行
+    （NO_BEFORE に名指しの試験と引けない訳を足した文）を戻りに足し、seen が dict なら seen["no_before"] = {texts: 保留の行の文の並び,
+    log: 実行器の出力の置き場} を返す（呼び手が全部の照らしの後に組を止める）。seen を渡さない呼び手にも保留の行は返る"""
     from src import basecase, common, gates, orders
     weapons = orders.weapons(place)
     if not weapons or not isinstance(reply, dict):
         return []
     docs = orders.order_docs(place)
     checked = orders.checked_as(place)
-    base = basecase.read(place)
     keys = list(weapons)
     declared = basecase._declared(place, keys, 1)
     by: dict = {}
@@ -392,13 +426,25 @@ def accept_problems(place, repo, rev: str, reply, *, cases=None, record: str = "
     guards = _guard_ids(place, round_)
     by_unit = {k: unit_named(k, w, docs.get(weapons[k]) or {}, evidence, loop, guards) for k, _, w in todo if box_of(w) == "change"}
     named = _ids([t for ts in by_unit.values() for t in ts])
-    exe = str((base or {}).get("exe") or "")
-    before = (gates.named_before(place, repo, rev, exe, named, pathlib.Path(place) / "duties") or None) if named and exe else None
-    out = []
+    work = pathlib.Path(place) / "duties"
+    if not named:
+        before, why = None, []
+    elif base is None:   # 控えが無い・読めない・壊れている回は、実行器が無い回（控えに exe が無い）と訳を分ける
+        before, why = None, [NO_BASE_WHY]
+    else:
+        before, why = gates.named_before(place, repo, rev, str(base.get("exe") or ""), named, work)
+    out, held = [], []
     for k, rows, w in todo:
         facts = unit_facts(pathlib.Path(place), repo, rev, k, w, rows, order=docs.get(weapons[k]) or {}, base=base, cases=cases,
                            declared=declared, evidence=evidence, outcomes=before, named=by_unit.get(k, []))
+        facts["before_held"] = wants_before(facts)
         out += [(k, t) for t in dict.fromkeys(check(w, facts))]
+        if facts["before_held"]:
+            text = REJECT.format(weapon=w, unit=k, text=f"{NO_BEFORE}。名指しの試験 {_named_left(facts['named'], facts)[:10]}。{'; '.join(why)[:300]}")
+            out.append((k, text))
+            held.append(text)
+    if held and isinstance(seen, dict):
+        seen["no_before"] = {"texts": held, "log": str(work)}
     return out
 
 

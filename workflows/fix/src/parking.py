@@ -168,3 +168,9 @@ def _settled(park: dict, absorbed: list, unbound: dict, named: set, feet: dict, 
                 park[p].append(f"{SHARED_OUT}{key}（共にするパス {sorted(feet[p] & feet[key])}）")
     files = set().union(*(feet.get(k, set()) for k in group - out_of_duty)) | named
     return Settlement(park, absorbed, unbound, {p for p in files if _ours(p, skip)}, how)
+
+
+def only_shared(reasons) -> bool:
+    """止める単位の理由の列 reasons が、閉包で入った訳 SHARED と義務の外の単位と足跡を共にする訳 SHARED_OUT だけか（_settled が
+    付ける頭で見分ける）。真なら、その単位は自分を名指す拒みでなく足跡を共にするだけで止める単位に入った"""
+    return all(r.startswith((SHARED, SHARED_OUT)) for r in reasons)

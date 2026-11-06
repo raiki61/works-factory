@@ -1,9 +1,11 @@
 """止めの語 no-suite（docs/plans/2026-10-24-fix-weapons.md の 3.9 と 4.4 の作る物 6）の試験。
 
 試験の実行器が無いか走らない組で、計画の語が static でない単位が在れば、確かめていない直しを書き進めずに組を止め、組の形の出口が
-stopby.NO_SUITE を名乗る。止める所は 3 つ: 組の頭（orders.no_suite_why。実行器が無く元の結末が取れない）・TDD のループ（実行器が
+stopby.NO_SUITE を名乗る。止める所は 4 つ: 組の頭（orders.no_suite_why。実行器が無く元の結末が取れない）・TDD のループ（実行器が
 結末を返さない。tdd._abort の段 runner）・受け付け（board.no_suite_at_accept。実行器が結末を返さないか、試験の無い対象で工場の書いた
-実行器が 0 件を返す）。static だけの組は止めない。下ごしらえ（pin）の設定のファイルの例外は、起点の版に無い物だけを通す（9.1 の 13）。
+実行器が 0 件を返す）・受け付けの型の義務（duties の seen の no_before。名指しの試験の起点の木の結末を実行器が引けず、それが単位の義務を
+決める時。全部の照らしの後に、ほかの拒みが無い回か、最後の回でほかの拒みの単位を諦めて戻した後に止める。保留の単位は最後の回の諦めに
+巻き込まず、足跡を共にして分けて戻せない時は戻さずに止める）。static だけの組は止めない。下ごしらえ（pin）の設定のファイルの例外は、起点の版に無い物だけを通す（9.1 の 13）。
 報告の冒頭の句（line の facts.suite_broken_notes）は tests/blocks/line/test_head_plain.py。
 """
 import json
@@ -26,7 +28,7 @@ if str(ROOT / "lib") not in sys.path:
 import stopby  # noqa: E402
 
 orders = kit.load("fix", "orders")
-from src import basecase, board, duties, pin  # noqa: E402  （kit.load が fix の src を sys.path に入れる）
+from src import basecase, board, duties, gates, pin  # noqa: E402  （kit.load が fix の src を sys.path に入れる）
 
 # 対象のどれかの .py に NOXML の字が在れば JUnit XML を書かずに落ちる実行器（ほかは SUITE と同じ）。組の頭の元の結末は取れ、
 # 後の回で実行器が結末を返さない形を作る
@@ -127,6 +129,62 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         got = self.run_script("finish", art=self.parent)
         self.assertEqual((got["ok"], got["stop_reason"]), (False, stopby.NO_SUITE), got)
         self.assertIn("実行器が結末を返さない", got["reason"])
+
+    def test_a_named_test_the_base_tree_cannot_run_stops_the_group_at_the_accept(self):
+        """今の木では実行器が走るが起点の木（一時の木）では走らない時、名指しが返した木で緑でほかの拒みが無ければ、型の義務の拒みで出し直させずに
+        組を止める。訳は走らなかった理由と、使った元の結末のファイル・実行器の出力の置き場を名指し、組の終わりが stopby.NO_SUITE を名乗る"""
+        flag = self.tmp / "base-tree-down"
+        outside = ('import pathlib, sys\n'
+                   f'if pathlib.Path({str(flag)!r}).exists() and pathlib.Path.cwd().resolve() != pathlib.Path({str(self.repo.resolve())!r}):\n'
+                   '    sys.exit(1)\n') + SUITE
+        runner = self.tmp / "outside.py"
+        runner.write_text(outside, encoding="utf-8")
+        self.parent_inputs(str(runner))
+        self.start()
+        self.step({"phase": "route", "units": [{"unit_key": tg.MEAN, "route": "direct", "why": "先に試験を書けない小さな式の直し"}]})
+        self.assertEqual(json.loads((self.place / "orders.json").read_text(encoding="utf-8"))["weapons"], {tg.MEAN: "variant"})
+        self.assertTrue(self.run_script("fix_prep")["go"])
+        flag.write_text("down\n", encoding="utf-8")
+        stats, test_file = self.repo / "stats.py", self.repo / "test_stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", tg.NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        named = [{"unit_key": tg.MEAN, "test": "test_stats.py::TestStats::test_mean_of_two"}]
+        cover = {"how": {"patterns": ["(len(xs) - 1)"], "fixed": True, "paths": ["stats.py"], "count": "lines"}, "counts": "defects"}
+        change = tg._change(tg.MEAN, ["stats.py", "test_stats.py"], coverage=cover)
+        out = self.accept({"changes": [change], "evidence": {"named": named}})
+        self.assertEqual((out["ok"], out["done"]), (False, True), out)
+        self.assertIn(duties.NO_BEFORE, out["reason"])
+        self.assertIn(gates.NO_RUN, out["reason"])
+        self.assertIn(str(self.place / "base.json"), out["reason"])
+        self.assertIn(str(self.place / "duties"), out["reason"])
+        self.assertNotIn("名指しの試験が起点の木で赤（failure）", out["reason"])
+        self.assertFalse(self.run_script("fix_prep")["go"], "止めた後に修正役を起こし直さない")
+        self.assert_stopped(duties.NO_BEFORE)
+
+    def test_the_ruled_accept_draws_the_named_before_from_the_copied_base(self):
+        """裁定の後の受け付けは、親の置き場に base.json が無く組の子から写した bases/<k>/base.json だけが在っても、名指しの試験の起点の木の
+        結末を実行器を起こして引き（親の置き場に duties/ ができる）、結末を引けなかったと拒まない"""
+        import leftovers
+        self.parent_inputs(str(self.suite))
+        self.start()
+        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
+        self.parent_groups(result["start_tree"])
+        leftovers.record_ignored(self.parent, self.repo)
+        self.run_script("join", art=self.parent)
+        since = git(self.repo, "rev-parse", "HEAD").strip()
+        orders.write_ruled(self.parent, [tg.MEAN], since=since)
+        self.assertFalse((self.parent / "base.json").exists())
+        self.assertTrue((self.parent / "bases" / "1" / "base.json").is_file())
+        stats, test_file = self.repo / "stats.py", self.repo / "test_stats.py"
+        stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
+        test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", tg.NEW_TEST + "\n\nif __name__"), encoding="utf-8")
+        named = [{"unit_key": tg.MEAN, "test": "test_stats.py::TestStats::test_mean_of_two"}]
+        out = self.run_script("fix_ruled_accept", art=self.parent, consulted="false", iteration="1",
+                              reply_variant=support.reply_json({"changes": [tg._change(tg.MEAN, ["stats.py", "test_stats.py"])],
+                                                                "evidence": {"named": named}}))
+        self.assertNotIn(duties.NO_BEFORE, out["reason"])
+        self.assertNotIn("名指しの試験が起点の木で赤（failure）", out["reason"])
+        self.assertTrue((self.parent / "duties").is_dir(), "名指しの起点の木の結末を実行器を起こして引いた")
 
 
 class AcceptStopCase(unittest.TestCase):

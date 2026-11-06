@@ -72,7 +72,7 @@ def main() -> dict:
 
 def _finish(place, got: dict, iteration: int, name: str) -> dict:
     board.merge_units(place, board.FIX_UNITS_FILE, got["units"])
-    if got.get("stop"):   # 実行器が結末を返さない・試験を拾わない（board.no_suite_at_accept）: 出し直させずに輪を抜ける
+    if got.get("stop"):   # board.accept_reply の stop
         board.trace(place, "fix_ruled_stopped", node=name, iteration=iteration, reason=got["reason"])
         return {"ok": False, "done": True, "reason": got["reason"], "reason_file": ""}
     if got["ok"]:

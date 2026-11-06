@@ -10,6 +10,7 @@
   受け付けの名指しの出どころ（orders.named_tests）（4.4 の 4）
 - 受け付け（fix-accept）を通して、返しの控えの凍結の照らしと注文の名指しが効くこと（AcceptWiringCase。組の子の scripts で回す）
 """
+import inspect
 import json
 import os
 import pathlib
@@ -420,10 +421,15 @@ class NamedDutyCase(unittest.TestCase):
         return [{"classname": ".".join(t.partition("::")[0][:-3:].split("/") + t.split("::")[1:-1]), "name": t.rsplit("::", 1)[1],
                  "outcome": "passed"} for t in tests]
 
-    def texts(self, named=(), files=("stats.py",), cases=None, record="", reply_extra=None, round_=1):
+    def base_doc(self):
+        """置き場に置いた元の結末（受け付けの組み手が accept_base で選んで accept_problems に渡す物の代わり）"""
+        return json.loads((self.place / "base.json").read_text(encoding="utf-8"))
+
+    def texts(self, named=(), files=("stats.py",), cases=None, record="", reply_extra=None, round_=1, seen=None):
         reply = {"changes": [{"unit_key": "U", "files": list(files)}],
                  "evidence": {"named": [{"unit_key": "U", "test": t} for t in named]}, **(reply_extra or {})}
-        got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, cases=cases, record=record, round_=round_)
+        got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, base=self.base_doc(), cases=cases, record=record,
+                                          round_=round_, seen=seen)
         return [t for k, t in got if k == "U"]
 
     def rejected(self, texts) -> bool:
@@ -436,18 +442,103 @@ class NamedDutyCase(unittest.TestCase):
         self.assertTrue(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
 
     def test_a_named_test_that_already_passes_at_the_base_is_rejected(self):
-        """名指しの試験が起点の木で通る（赤を見ていない）単位: 返した木で緑でも拒む。実行器が無い・走らない回は起点の木の結末を引けずに拒み、
-        拒否の文にそれが実行器の失敗だと書き分ける"""
+        """名指しの試験が起点の木で通る（赤を見ていない）単位: 返した木で緑でも拒む。実行器が無い・走らない回は起点の木の結末を引けず、
+        名指しが返した木で緑なら、拒みでなく保留の行（NO_BEFORE）を返し、呼び手へ seen の no_before で訳を渡す"""
         self.order("variant")
         self.fix_mean()
         self.assertTrue(self.rejected(self.texts(named=[self.CLAMP], cases=self.passed(self.CLAMP))))
-        base = json.loads((self.place / "base.json").read_text(encoding="utf-8"))
-        self.put("base.json", {**base, "exe": ""})
-        got = self.texts(named=[self.MEAN3], cases=self.passed(self.MEAN3))
-        self.assertTrue(self.rejected(got) and any(self.duties.NO_BEFORE in t for t in got), got)
-        self.put("base.json", {**base, "exe": str(self.tmp / "no-such-suite.py")})
-        got = self.texts(named=[self.MEAN3], cases=self.passed(self.MEAN3))
-        self.assertTrue(self.rejected(got) and any(self.duties.NO_BEFORE in t for t in got), got)
+        base = self.base_doc()
+        for exe in ("", str(self.tmp / "no-such-suite.py")):
+            self.put("base.json", {**base, "exe": exe})
+            seen: dict = {}
+            got = self.texts(named=[self.MEAN3], cases=self.passed(self.MEAN3), seen=seen)
+            held = [t for t in got if self.duties.NO_BEFORE in t]
+            self.assertFalse(self.rejected(got), got)
+            self.assertEqual(len(held), 1, got)
+            self.assertEqual(seen["no_before"]["texts"], held)
+            self.assertEqual(seen["no_before"]["log"], str(self.place / "duties"))
+        self.put("base.json", {**base, "exe": str(self.suite)})
+        self.assertTrue(self.rejected(self.texts(named=[self.CLAMP], cases=self.passed(self.CLAMP))), "起点の木で通る名指しの拒みはそのまま")
+
+    def test_only_a_unit_whose_duty_hangs_on_the_missing_before_is_held_for_the_runner(self):
+        """元の結末の実行器が無い回（base={'exe': ''}）: (a) 消す名が全部消えた単位は、名指しが返した木で緑でも義務が結末に頼らず、
+        保留も問題も無い。(b) 名指しが返した木で緑でない単位は直しの誤りが確かなので、保留でなく従来の拒みを返す（実行器の失敗と書かない）。
+        (c) 名指しが返した木で緑の単位は義務が結末で決まるので保留の行を返し、seen の no_before に同じ文と実行器の出力の置き場を返す。
+        seen を渡さない呼びでも保留の行は返る。(d) 注文の permits の remove の行が覆い返した木に居ない名指し（改名した試験の元）が
+        名指しに混ざっても、残りの名指しが返した木で緑なら保留の行を 1 つ返し、その文は残りの名指しを挙げて元の id を挙げない。
+        (e) 受け付けが返した木を走らせなかった回（cases が None）も、起点の木の結末を引けなければ直しの誤りでなく保留の行を返す"""
+        params = inspect.signature(self.duties.accept_problems).parameters
+        self.assertTrue({"base", "seen"} <= set(params), "元の結末は呼び手が渡し、保留の訳は seen で返す")
+        self.order("remove", {"removes": ["legacy.py"]})
+        no_exe = {**self.base_doc(), "exe": ""}
+
+        def run(reply, seen, cases):
+            return self.duties.accept_problems(self.place, self.repo, self.rev, reply, base=no_exe, cases=cases, seen=seen)
+        (self.repo / "legacy.py").unlink()
+        seen: dict = {}
+        gone_reply = {"changes": [{"unit_key": "U", "files": ["legacy.py"]}],
+                      "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
+        self.assertEqual(run(gone_reply, seen, self.passed(self.MEAN3)), [])
+        self.assertNotIn("no_before", seen)
+
+        self.order("variant")
+        self.fix_mean()
+        reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}], "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
+        seen = {}
+        got = [t for _, t in run(reply, seen, [{**c, "outcome": "failure"} for c in self.passed(self.MEAN3)])]
+        self.assertTrue(self.rejected(got) and not any(self.duties.NO_BEFORE in t for t in got), got)
+        self.assertNotIn("no_before", seen)
+
+        seen = {}
+        got = [t for _, t in run(reply, seen, self.passed(self.MEAN3))]
+        held = [t for t in got if self.duties.NO_BEFORE in t]
+        self.assertFalse(self.rejected(got), got)
+        self.assertEqual(len(held), 1, got)
+        self.assertIn(self.MEAN3, held[0])
+        self.assertEqual(seen["no_before"], {"texts": held, "log": str(self.place / "duties")})
+        self.assertTrue(any(self.duties.NO_BEFORE in t for _, t in run(reply, None, self.passed(self.MEAN3))),
+                        "seen を渡さなくても確かめていない直しを黙って通さない")
+
+        renamed = "test_stats.py::TestStats::test_mean_before_the_rename"
+        self.order("variant", permits=[{"kind": "remove", "duty": False, "test": renamed, "source": "plan"}])
+        reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}],
+                 "evidence": {"named": [{"unit_key": "U", "test": renamed}, {"unit_key": "U", "test": self.MEAN3}]}}
+        seen = {}
+        got = [t for _, t in run(reply, seen, self.passed(self.MEAN3))]
+        held = [t for t in got if self.duties.NO_BEFORE in t]
+        self.assertFalse(self.rejected(got), got)
+        self.assertEqual(len(held), 1, got)
+        self.assertIn(self.MEAN3, held[0])
+        self.assertNotIn(renamed, held[0])
+        self.assertEqual(seen["no_before"], {"texts": held, "log": str(self.place / "duties")})
+
+        reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}], "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
+        seen = {}
+        got = [t for _, t in run(reply, seen, None)]
+        held = [t for t in got if self.duties.NO_BEFORE in t]
+        self.assertFalse(self.rejected(got), got)
+        self.assertEqual(len(held), 1, got)
+        self.assertEqual(seen["no_before"], {"texts": held, "log": str(self.place / "duties")})
+
+    def test_a_missing_or_broken_base_file_is_named_apart_from_a_missing_runner(self):
+        """元の結末の控えが無い・読めない回（base が None）の保留の訳は、実行器が無い回（控えに exe が無い）の訳と別の文にする。
+        控えが無い回は受け付けが返した木も走らせない（cases が None）ので、その組み合わせでも保留の行になり、直しの誤りの拒みは出ない"""
+        self.order("variant")
+        self.fix_mean()
+        reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}], "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
+
+        def held(base, cases):
+            seen: dict = {}
+            got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, base=base, cases=cases, seen=seen)
+            self.assertFalse(self.rejected([t for _, t in got]), got)
+            self.assertIn("no_before", seen, got)
+            return "".join(seen["no_before"]["texts"])
+        no_file = held(None, None)
+        no_exe = held({**self.base_doc(), "exe": ""}, self.passed(self.MEAN3))
+        self.assertIn(self.duties.NO_BASE_WHY, no_file)
+        self.assertNotIn(self.gates.NO_SUITE_WHY, no_file)
+        self.assertIn(self.gates.NO_SUITE_WHY, no_exe)
+        self.assertNotIn(self.duties.NO_BASE_WHY, no_exe)
 
     def test_a_named_test_that_is_not_green_in_the_returned_tree_is_rejected(self):
         self.order("variant")
@@ -493,12 +584,13 @@ class NamedDutyCase(unittest.TestCase):
                    units=[{"key": "U", "removes": [], "tests": [self.MEAN3]}, {"key": "V", "removes": [], "tests": []}])
         self.assertFalse(self.rejected(self.texts(cases=self.passed(self.MEAN3))))
         got = self.duties.accept_problems(self.place, self.repo, self.rev, {"changes": [{"unit_key": "V", "files": ["stats.py"]}]},
-                                          cases=self.passed(self.MEAN3))
+                                          base=self.base_doc(), cases=self.passed(self.MEAN3))
         self.assertTrue(any(k == "V" and self.NAMED in t for k, t in got), got)
         both = {"changes": [{"unit_key": "U", "files": ["stats.py"]}, {"unit_key": "V", "files": ["stats.py"]}],
                 "evidence": {"named": [{"unit_key": "V", "test": self.CLAMP}]}}
         with unittest.mock.patch.object(self.gates, "named_before", wraps=self.gates.named_before) as nb:
-            got = self.duties.accept_problems(self.place, self.repo, self.rev, both, cases=self.passed(self.MEAN3, self.CLAMP))
+            got = self.duties.accept_problems(self.place, self.repo, self.rev, both, base=self.base_doc(),
+                                              cases=self.passed(self.MEAN3, self.CLAMP))
         self.assertEqual(nb.call_count, 1, "全部の単位の名指しを集めて実行器を 1 回だけ起こす")
         self.assertEqual(set(nb.call_args.args[4]), {self.MEAN3, self.CLAMP})
         self.assertFalse(any(k == "U" and self.NAMED in t for k, t in got), got)

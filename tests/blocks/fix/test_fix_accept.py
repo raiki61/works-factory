@@ -506,7 +506,7 @@ class RedGreenKeptCase(FixGatesCase):
 
     # ---- 受け付けが直す前の結末を引く口 named_before（F2 の作る物の 3）。事後の関門と同じ named_facts を同じ控えで呼ぶ
     def before(self, ids):
-        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")
+        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")[0]
 
     def test_named_before_reads_the_loop_red_tree_for_a_name_the_loop_recorded_red(self):
         """輪が赤を記録した名指しは輪の赤の木で見る（起点の木では実装が無く一式の結末に居ないが、赤の木では failure）。赤の木が通る記録は
@@ -540,15 +540,26 @@ class RedGreenKeptCase(FixGatesCase):
         self.assertEqual(got, {_l_MEAN_ID: "failure", "test_stats.py::TestStats::test_clamp_inside": "passed",
                                "test_stats.py::TestStats::test_absent": "missing"})
 
-    def test_named_before_is_empty_when_the_executor_cannot_run(self):
+    def test_named_before_names_why_when_the_executor_cannot_run(self):
+        """名指しが空なら ({}, [])、実行器が空なら (None, [実行器が無い訳])、起点の木で実行器が走らなければ (None, [NO_RUN で始まる理由])"""
         self.ready_with_fields()
         self.add_test_mean_of_two()
-        self.assertEqual(fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties"), {})
-        self.assertEqual(self.before([]), {})
+        no_exe = fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties")
+        no_names = fixgates.named_before(self.board, self.repo, self.base, self.SUITE, [], self.board / "duties")
+        no_both = fixgates.named_before(self.board, self.repo, self.base, "", [], self.board / "duties")
         real = fixgates.tddloop.run_suite
         with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=lambda exe, repo, *a, **k:
                                (None, None, ["起動できない"]) if pathlib.Path(repo).resolve() != self.repo.resolve() else real(exe, repo, *a, **k)):
-            self.assertEqual(self.before([_l_MEAN_ID]), {}, "起点の木が走らない回は空（義務は拒む側に倒れる）")
+            cannot_run = fixgates.named_before(self.board, self.repo, self.base, self.SUITE, [_l_MEAN_ID], self.board / "duties")
+        for got in (no_exe, no_names, no_both, cannot_run):
+            self.assertIsInstance(got, tuple, "結末（か None）と引けない訳の並びの組を返す")
+        self.assertEqual(no_exe, (None, [fixgates.NO_SUITE_WHY]))
+        self.assertEqual(no_names, ({}, []))
+        self.assertEqual(no_both, ({}, []))
+        got, why = cannot_run
+        self.assertIsNone(got)
+        self.assertEqual(len(why), 1)
+        self.assertTrue(why[0].startswith(fixgates.NO_RUN) and "起動できない" in why[0], why)
 
     def test_the_gate_reads_the_base_tree_the_named_before_already_took(self):
         """受け付けの型の義務（named_before）が引いた起点の木の結末は控えに残り、後の事後の関門は同じ名指しの起点の木を走らせ直さない"""
@@ -2993,6 +3004,229 @@ class FixAcceptSeamCase(SeamTemp):
                                 base_rev=self.rev, skip=SKIP, tests_record=str(record))
         self.assertEqual(got["named"], [plan, rewrite, "test_other.py::test_said", "test_new.py::test_added"])
         self.assertEqual((got["record"], got["duty_record"]), (str(record), str(record)))
+
+    def test_a_missing_before_rejects_with_the_other_lines_early_and_stops_on_the_last_attempt(self):
+        """型の義務が名指しの直す前の結末を引けず保留の行を返した受け付け（duties の seen の no_before）の、全部の照らしの後の振り分け:
+        途中の回はほかの拒み（ほかの単位の義務の行・後の照らし plan_faces の行）が在れば止めずに保留の行と並べて出し直させ、無ければ止める。
+        最後の回にほかの拒みが在れば、その単位を諦めて戻してから止める（別の試験）。ほかの拒みが無い最後の回は止め、訳に保留の行・
+        受け付けが選んだ元の結末のパス・実行器の出力の置き場を並べる。ほかの拒みの単位が保留の単位と足跡を共にする最後の回は、
+        分けて戻せないので戻さずに止め、訳にほかの拒みと足跡を共にする訳を並べる"""
+        held, other = "型 variant の単位 U の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）", "型 variant の単位 V の義務: ほかの義務の行"
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        rows = {"other": False}
+
+        def duties_run(place, repo, rev, reply, **kw):
+            self.assertIsInstance(kw.get("seen"), dict, "受け付けは保留の訳を受ける seen を渡す")
+            kw["seen"]["no_before"] = {"texts": [held], "log": str(pathlib.Path(place) / "duties")}
+            return [(R_MEAN, held)] + ([(R_CLAMP, other)] if rows["other"] else [])
+
+        def accept(iteration, *, other_row=False, face=()):
+            rows["other"] = other_row
+            with mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")), \
+                    mock.patch.object(self.m.duties, "accept_problems", duties_run), \
+                    mock.patch.object(self.b, "plan_face_errors", return_value=list(face)):
+                return self.b.accept_reply(_fix_ok(), self.place, self.repo, pass_="first", iteration=iteration, owed=[R_MEAN, R_CLAMP],
+                                           judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        start = self.place / self.b.TDD_START_FILE
+
+        got = accept(1, other_row=True)
+        self.assertFalse(got.get("stop"), got["reason"])
+        texts = [r["text"] for r in got["rejects"]]
+        self.assertIn(held, texts)
+        self.assertIn(other, texts)
+        self.assertFalse(start.exists(), "途中の回にほかの拒みが在れば止めない")
+        got = accept(1, face=["面の行"])
+        self.assertFalse(got.get("stop"), got["reason"])
+        self.assertEqual([r["check"] for r in got["rejects"]], ["duties", "plan_faces"], "型の義務の後の照らしの行も出し直させる")
+        self.assertFalse(start.exists())
+
+        got = accept(1)
+        self.assertTrue(got["stop"] and got["ok"] is False and got["rejects"] == [], got)
+        self.assertIn(held, got["reason"])
+        self.assertNotIn(other, got["reason"])
+        marked = json.loads(start.read_text(encoding="utf-8"))
+        self.assertEqual((marked["no_suite"], marked["reason"]), (True, got["reason"]))
+
+        base_file = self.place / "base.json"
+        base_file.write_text(json.dumps({"exe": ""}), encoding="utf-8")
+        got = accept(3)
+        self.assertTrue(got["stop"], got["reason"])
+        for want in (held, str(base_file), str(self.place / "duties")):
+            self.assertIn(want, got["reason"])
+        base_file.unlink()
+        copied = self.place / "bases" / "1"
+        copied.mkdir(parents=True)
+        (copied / "base.json").write_text(json.dumps({"exe": ""}), encoding="utf-8")
+        got = accept(3)
+        self.assertIn(str(copied / "base.json"), got["reason"], "裁定の後の置き場は bases/<k>/ の元の結末を名指す")
+
+        got = accept(3, other_row=True)
+        self.assertTrue(got["stop"], got["reason"])
+        for want in (held, other, self.m.parking.SHARED):
+            self.assertIn(want, got["reason"], "ほかの拒みの単位が保留の単位と足跡を共にする（どちらも stats.py）時は、分けて戻せないので"
+                                               "戻さずに止め、訳にほかの拒みと一緒に止める訳を並べる")
+
+    HELD = "型 variant の単位 alpha-unit の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）"
+    OTHER = "型 variant の単位 beta-unit の義務: ほかの義務の行"
+    UNBOUND = "どの単位の key もパスも名指さない拒みの行"
+    HELD_BETA = "型 variant の単位 beta-unit の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）"
+
+    def _last_turn_with_a_held_unit(self, *, files, other, dropped=None, held=("alpha-unit",), extra=(), asks=(), copy_rows=()):
+        """単位 alpha-unit（files[0] のファイルを書いた）は直す前の結末を引けず保留の行を返し、単位 beta-unit（files[1] のファイルを
+        書いた）には other の行（拒みの文。None なら結べない文の行、False なら行を並べない）が並ぶ最後の回の受け付け。held は保留の行を
+        返す単位（beta-unit を入れると beta-unit も保留の行を返す）。dropped {単位: 足跡のファイル} の単位は前の回に諦めて義務の外に在り、
+        輪の記録の足跡を持つ。extra はいつも並べる型の義務の行 (単位の key か None, 文)。asks ははみ出しの頼み（gather_overflow の形）で、
+        頼みのパスが全部作業ツリーに在る間だけ、受け付けが頼みの文を型の義務の行に積み、はみ出しとして見つける。copy_rows は写しの照らし
+        （recount.accept_fix）が拒む文。返りは (受け付けの返り, 元の結末のパス)。保留の行とほかの拒みの行は、その単位の行が返答に在る
+        間だけ返す"""
+        dropped = dropped or {}
+        (self.place / "judgment.json").write_text(json.dumps({"units": [{"key": "alpha-unit", "label": "block"},
+                                                                        {"key": "beta-unit", "label": "block"}]}), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        for name in dict.fromkeys(n for names in files for n in names):
+            (self.repo / name).write_text(f"{name}\n", encoding="utf-8")
+        if dropped:
+            loop = self.place / "tdd-1"
+            loop.mkdir()
+            (loop / self.m.common.RECORD).write_text(json.dumps({"units": {k: {"files": v} for k, v in dropped.items()}, "frozen": {}}),
+                                                     encoding="utf-8")
+        how = {"patterns": ["zzz-none"], "fixed": True, "paths": ["stats.py"], "count": "lines"}
+        reply = {"changes": [{"unit_key": key, "what": "足した", "files": names, "coverage": {"how": how, "counts": "population"},
+                              "closure": {"sites": []}, **SELF_REPORT}
+                             for key, names in zip(("alpha-unit", "beta-unit"), files)],
+                 "interactions": [{"surface": files[0][0], "checked": "2 つの単位の足した物は別の物で、順序を入れ替えても結果が同じ"}]}
+        base_file = self.place / "base.json"
+        base_file.write_text(json.dumps({"exe": ""}), encoding="utf-8")
+        texts = {"alpha-unit": self.HELD, "beta-unit": self.HELD_BETA}
+
+        def live():
+            return [a for a in asks if all((self.repo / p).exists() for p in a["paths"])]
+
+        def duties_run(place, repo, rev, reply, **kw):
+            keys = {c.get("unit_key") for c in reply.get("changes") or []}
+            rows = [(k, texts[k]) for k in held if k in keys]
+            if rows:
+                kw["seen"]["no_before"] = {"texts": [t for _, t in rows], "log": str(pathlib.Path(place) / "duties")}
+            if "beta-unit" in keys and other is not False:
+                rows.append((None if other is None else "beta-unit", other or self.UNBOUND))
+            return rows + list(extra) + [("beta-unit", a["line"]) for a in live()]
+        patches = [mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")),
+                   mock.patch.object(self.m.duties, "accept_problems", duties_run)]
+        if asks:
+            patches.append(mock.patch.object(self.b, "gather_overflow", lambda *a, **k: live()))
+        if copy_rows:
+            import recount
+            patches.append(mock.patch.object(recount, "accept_fix", lambda *a, **k: {"ok": False, "problems": list(copy_rows)}))
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            got = self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=3, owed=["alpha-unit", "beta-unit"],
+                                      judged=[], head=head, skip=SKIP, parked=dict.fromkeys(dropped, "前の回に諦めた"))
+        return got, base_file
+
+    def test_a_missing_before_on_the_last_attempt_gives_up_the_other_unit_before_it_stops(self):
+        """最後の回に、直す前の結末を引けない保留の行（単位 alpha-unit）とほかの単位 beta-unit の拒みが並ぶと、beta-unit を既存の諦めの道で
+        段の頭の木に戻して諦めてから組を止める。alpha-unit の直しだけが作業ツリーに残り、訳に保留の行・元の結末のパス・実行器の出力の置き場・
+        beta-unit の拒みの理由が並ぶ"""
+        import conflict
+        got, base_file = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=self.OTHER)
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "given_up"}, got["units"])
+        self.assertFalse((self.repo / "b.txt").exists(), "諦めた単位の誤った直しは作業ツリーに残さない")
+        self.assertTrue((self.repo / "a.txt").exists(), "保留の単位の直しは残す")
+        self.assertEqual([r["unit_key"] for r in conflict.items(self.place)], ["beta-unit"])
+        for want in (self.HELD, self.OTHER, str(base_file), str(self.place / "duties")):
+            self.assertIn(want, got["reason"])
+        marked = json.loads((self.place / self.b.TDD_START_FILE).read_text(encoding="utf-8"))
+        self.assertEqual((marked["no_suite"], marked["reason"]), (True, got["reason"]))
+
+    def test_an_unbound_line_on_the_last_attempt_does_not_give_up_the_held_unit(self):
+        """最後の回に、保留の行（alpha-unit）と、どの単位の key もパスも名指さない拒みの行が並ぶと、その行は義務の全部でなく保留の単位を
+        除いた beta-unit にだけ結んで戻して諦める。alpha-unit は戻さず、組は止まる"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=None)
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "given_up"}, got["units"])
+        self.assertTrue((self.repo / "a.txt").exists(), "結べない行が保留の単位の直しを戻さない")
+        self.assertFalse((self.repo / "b.txt").exists())
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_a_held_unit_sharing_files_with_the_rejected_unit_stops_without_reverting(self):
+        """保留の単位 alpha-unit と拒まれた単位 beta-unit が同じファイルを書いていると、ファイルは単位ごとに分けて戻せないので、何も戻さず
+        諦めずに組を止める。訳に保留の行・beta-unit の拒み・alpha-unit を一緒に止めることになる訳（足跡を共にするパス）が並ぶ"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["shared.txt"], ["shared.txt"]), other=self.OTHER)
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "not_done"}, got["units"])
+        self.assertTrue((self.repo / "shared.txt").exists(), "分けて戻せないファイルは戻さない")
+        for want in (self.HELD, self.OTHER, self.m.parking.SHARED, "shared.txt"):
+            self.assertIn(want, got["reason"])
+
+    def test_a_held_unit_sharing_files_with_a_unit_outside_the_duty_is_not_given_up_either(self):
+        """保留の単位 alpha-unit が、拒まれた単位 beta-unit と shared.txt を、前の回に諦めて義務の外に在る単位 x-unit と x.txt を共にしていても、
+        alpha-unit に付くのは足跡を共にする訳だけで、誤りと決まった単位でない: 戻さず諦めずに組を止める。x-unit は諦めたまま"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["shared.txt", "x.txt"], ["shared.txt"]), other=self.OTHER,
+                                                  dropped={"x-unit": ["x.txt"]})
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()},
+                         {"alpha-unit": "not_done", "beta-unit": "not_done", "x-unit": "given_up"}, got["units"])
+        for name in ("shared.txt", "x.txt"):
+            self.assertTrue((self.repo / name).exists(), "分けて戻せないファイルは戻さない")
+        for want in (self.HELD, self.OTHER, self.m.parking.SHARED, self.m.parking.SHARED_OUT):
+            self.assertIn(want, got["reason"])
+        marked = json.loads((self.place / self.b.TDD_START_FILE).read_text(encoding="utf-8"))
+        self.assertEqual((marked["no_suite"], marked["reason"]), (True, got["reason"]))
+
+    def test_a_held_unit_with_only_overflow_on_the_last_attempt_reverts_the_overflow_without_asking_and_stops(self):
+        """最後の回に、保留の行（alpha-unit）と範囲の外のはみ出しの行（beta-unit の c.txt）だけが並ぶと、はみ出しは相談に積まず聞かずに
+        戻して通し直し、残った保留の行で組を止める（相談の周へ回すと、保留の単位が在る回を止めずに次の周へ送る）"""
+        line = "承認済みの修正案の範囲の外: c.txt"
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt", "c.txt"]), other=False,
+                                                  asks=[{"line": line, "item": None, "paths": ["c.txt"], "tests": [], "new_tests": [],
+                                                         "ref": None}])
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertFalse(got.get("queued"), "保留の単位が在る最後の回は、はみ出しを相談に積まない")
+        self.assertFalse((self.repo / "c.txt").exists(), "はみ出しは聞かずに戻す")
+        for name in ("a.txt", "b.txt"):
+            self.assertTrue((self.repo / name).exists())
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_a_line_bound_only_to_a_unit_outside_the_duty_does_not_let_a_held_unit_be_accepted(self):
+        """最後の回に、保留の行（alpha-unit）と、前の回に諦めて義務の外に在る単位 x-unit の足跡 x.txt だけを名指す行が並ぶと、その行は
+        数えないが、保留の単位が残るので受けずに組を止める（受けると確かめていない直しを黙って通す）"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=False, dropped={"x-unit": ["x.txt"]},
+                                                  extra=[(None, "x.txt の行がまだ残る")])
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()},
+                         {"alpha-unit": "not_done", "beta-unit": "not_done", "x-unit": "given_up"}, got["units"])
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_a_copy_line_bound_only_outside_the_duty_gives_up_the_rest_but_not_the_held_unit(self):
+        """最後の回に、保留の行（alpha-unit）と、義務の外の単位 x-unit の足跡 x.txt だけを名指す写しの拒否の行が並ぶと、義務の残りを全部
+        止める道（parking.park_owed）は保留の単位を除いた beta-unit だけを戻して諦め、alpha-unit は戻さずに組を止める"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["a.txt"], ["b.txt"]), other=False, dropped={"x-unit": ["x.txt"]},
+                                                  copy_rows=["写しの照らし: x.txt の数えが合わない"])
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()},
+                         {"alpha-unit": "not_done", "beta-unit": "given_up", "x-unit": "given_up"}, got["units"])
+        self.assertTrue((self.repo / "a.txt").exists(), "保留の単位の直しは義務の残りの全部止めで戻さない")
+        self.assertFalse((self.repo / "b.txt").exists())
+        self.assertIn(self.HELD, got["reason"])
+
+    def test_one_held_unit_dragged_only_by_shared_files_stops_even_if_another_held_unit_is_rejected(self):
+        """保留の単位が 2 つ在り、beta-unit は保留の行のほかに自分を名指す拒みも受け、alpha-unit は beta-unit と shared.txt を共にするだけで
+        閉包に入る最後の回: 足跡を共にするだけで入った保留の単位が 1 つでも在れば、何も戻さず諦めずに組を止める"""
+        got, _ = self._last_turn_with_a_held_unit(files=(["shared.txt"], ["shared.txt"]), other=self.OTHER,
+                                                  held=("alpha-unit", "beta-unit"))
+        self.assertTrue(got.get("stop") and got["ok"] is False, got)
+        self.assertEqual({k: v["status"] for k, v in got["units"].items()}, {"alpha-unit": "not_done", "beta-unit": "not_done"}, got["units"])
+        self.assertTrue((self.repo / "shared.txt").exists(), "分けて戻せないファイルは戻さない")
+        for want in (self.HELD, self.HELD_BETA, self.OTHER, self.m.parking.SHARED):
+            self.assertIn(want, got["reason"])
 
     def test_accept_reply_saves_the_closure_table_it_recounted(self):
         """受けた返答は閉鎖の数え直し（closure_reply）を通り、単位ごとの表を置き場に置く（querytest.save_closure）"""
