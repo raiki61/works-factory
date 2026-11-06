@@ -1804,7 +1804,10 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     書き込みの記録のファイル（factchecks.check_writes。None なら置き場の既定）。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。変更に当たる試験を走らせた回が no_suite_at_accept に当たれば、型の義務より前に
-    {ok: False, stop: True, reason} で組を止める（tdd-start.json に no_suite を書く。呼び手は出し直させずに輪を抜ける）。
+    {ok: False, stop: True, reason} で組を止める（tdd-start.json に no_suite を書く。呼び手は出し直させずに輪を抜ける）。型の義務が名指しの
+    直す前の結末を引けず、それが単位の義務を決める時（duties の seen の no_before）も、全部の照らしの後に同じ止めを使う: ほかの拒みが
+    無い回か最後の回は止め（訳に引けない訳・使った元の結末のファイル・実行器の出力の置き場とほかの拒みを並べる）、途中の回にほかの拒みが
+    在れば先に出し直させる。
     元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
     from src import basecase, consult, duties, orders
@@ -1864,17 +1867,23 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     else:
         duty, excused = fix_duty(place, owed)
     picked = accept_base(place)   # 元の結末 base.json で選んで走らせる（下書き 2.1）。輪が名指した試験だけ輪の記録から足す
+    base = basecase.read_file(picked)   # 型の義務へ同じ元の結末を渡す
     seen: dict = {}
     red, tests_note = common.selected_problems(picked, repo, rev, named=[*orders.named_tests(place), *duties.reply_named(place, repo, rev, reply)],
                                                record=record or tests_record, accept=place, seen=seen)
+
+    def stopped(why):
+        return {"ok": False, "stop": True, "reason": why, "rejects": [], "reply": reply,
+                "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
+                "parked": parked, "conflicted": False}
     stop = no_suite_at_accept(place, seen)   # 型の義務より前に、事実 1 つで止める（下書き 3.9 の止め方の 2・3）
     if stop:
         mark_no_suite(place, stop)
-        return {"ok": False, "stop": True, "reason": stop, "rejects": [], "reply": reply,
-                "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
-                "parked": parked, "conflicted": False}
+        return stopped(stop)
     note("tests", red)
-    for key, text in duties.accept_problems(place, repo, rev, reply, cases=seen.get("cases"), record=record or tests_record):   # 型の義務の表（下書き 2.4）
+    duty_seen: dict = {}
+    for key, text in duties.accept_problems(place, repo, rev, reply, base=base, cases=seen.get("cases"), record=record or tests_record,
+                                            seen=duty_seen):   # 型の義務の表（下書き 2.4）
         note("duties", text)
         declared.setdefault(text, set()).add(key)
     tests_trace(place, picked, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
@@ -1940,6 +1949,14 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                 "rejects": [{"check": c, "text": t} for c, t in fix_reject_rows(found)], "reply": reply,
                 "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
                 "parked": parked, "conflicted": False}
+    held = duty_seen.get("no_before")
+    if held:
+        others = [(c, t) for c, t in found if t not in held["texts"]]
+        if not others or last:
+            why = NO_SUITE_BEFORE.format(why="；".join(held["texts"]), base=picked or "（無い）", log=held["log"]) \
+                + (NO_SUITE_OTHERS.format(rows=fix_reject_text(others)) if others else "")
+            mark_no_suite(place, why)
+            return stopped(why)
     if not found:
         return accepted(reply)
     if not last:
@@ -2184,6 +2201,8 @@ def stage_head(place, name: str = "") -> str:
 
 
 NO_SUITE_RUNNER = "受け付けで変更に当たる試験を走らせたが、実行器が結末を返さない（{why}。ログ {log}）"
+NO_SUITE_BEFORE = "受け付けで型の義務が名指しの試験の起点の木の結末を引けない（{why}。元の結末 {base}。実行器の出力 {log}）"
+NO_SUITE_OTHERS = "\n同じ回のほかの拒み: {rows}"
 NO_SUITE_ZERO = ("試験の無い対象（{decided}）で、工場が書いた実行器が、型が試験を足した後の回も 0 件を返した——実行器が足した試験を"
                  "拾わない（ログ {log}）")
 NO_SUITE_LIST = "対象の宣言の一覧が試験の有無を決められない（{why}）。{hint}"

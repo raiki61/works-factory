@@ -76,6 +76,7 @@ NO_SUITE = "テストの実行器（入力 tdd_suite）が無い組（static だ
 REJECT = "修正の後の木に、ループの中の関門が通さない物が在る（事後の関門の束）: "
 REDO = ("——red_green の行を全部直してから、返答を丸ごと出し直せ（受け入れのテストは base で failure の赤・今の木で緑。"
         "案の前提が誤りなら conflicts で申し出よ）")   # 出し直しの頼みは成り立たない行（red_green）にだけ。test_edits の行は相談に回る（overflow_asks）
+NO_SUITE_WHY = "実行器が無い（元の結末に exe が無い）"
 NO_RUN = "受け入れのテストの事後の赤緑を確かめられない"   # skipped の頭（実行器が走らない・base の木を作れない）
 EDITED = "名指しの外の既存のテストの本体を変えた・消した（変えてよいのは修正案の rewrite_tests の名指しと、修正案が消す名を名指すテストと、裁定 fix_test_scope の範囲だけ）"
 OUT_OF_DUTY = "直す義務の外の単位（止めた・答え待ち・人に回した）だけを名指す項目——受け入れのテストの事後の赤緑は確かめない"
@@ -362,20 +363,23 @@ def named_rows(tests: list, now: list, facts: dict) -> tuple[list, list]:
     return rows, guards
 
 
-def named_before(board_dir, repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathlib.Path) -> dict:
-    """名指し ids の『直す前の結末』{id: "failure" か、赤でない時の結末の語（passed・error・…。結末に居なければ missing）}（受け付けの型の
-    義務の事実 before。duties.unit_facts）。事後の関門と同じ named_facts の事実（走らせを足さない: 控え BASE_CACHE を同じ置き場から読み、
-    輪が赤を記録した名指し〔_red_units〕は輪の赤の木、ほかは base の木）。『failure』は赤の判定（common.red_check の問題の文が空）が通った
-    時だけ。輪の赤の木で見る名指しは、base の木で passed なら（既存の実装を壊して作った偽の赤。事後の関門が拒む物）failure にしない。
-    実行器が走らない・base の木を作れない時は {}（呼び手が義務を拒む側に倒す）"""
+def named_before(board_dir, repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathlib.Path) -> tuple:
+    """(名指し ids の『直す前の結末』か None, 引けない訳の並び)（受け付けの型の義務の事実 before。duties.unit_facts）。結末は
+    {id: "failure" か、赤でない時の結末の語（passed・error・…。結末に居なければ missing）}。事後の関門と同じ named_facts の事実（走らせを
+    足さない: 控え BASE_CACHE を同じ置き場から読み、輪が赤を記録した名指し〔_red_units〕は輪の赤の木、ほかは base の木）。『failure』は
+    赤の判定（common.red_check の問題の文が空）が通った時だけ。輪の赤の木で見る名指しは、base の木で passed なら（既存の実装を壊して作った
+    偽の赤。事後の関門が拒む物）failure にしない。名指しが空なら ({}, [])。実行器が無い（suite が空）なら (None, [実行器が無い訳])、実行器が
+    走らない・base の木を作れない時は named_facts の NO_RUN で始まる理由をそのまま返して (None, 理由)（呼び手の受け付けが、全部の照らしの後に訳つきで組を止める）"""
     b, repo = pathlib.Path(board_dir), pathlib.Path(repo)
     ids = [i for i in dict.fromkeys(ids) if isinstance(i, str) and i.strip()]
-    if not ids or not suite:
-        return {}
+    if not ids:
+        return {}, []
+    if not suite:
+        return None, [NO_SUITE_WHY]
     suite = str(tddloop.exe_path(repo, suite))
-    facts, _ = named_facts(repo, rev, suite, ids, pathlib.Path(work), _base_cache(b), _red_units(b, repo), common.snapshot(repo))
+    facts, gaps = named_facts(repo, rev, suite, ids, pathlib.Path(work), _base_cache(b), _red_units(b, repo), common.snapshot(repo))
     if facts is None:
-        return {}
+        return None, gaps
     out = {}
     for i, f in facts.items():
         base = (f["base"] or {}).get("outcome") or "missing"
@@ -383,7 +387,7 @@ def named_before(board_dir, repo: pathlib.Path, rev: str, suite: str, ids: list,
             out[i] = "not_red" if f["red"] else ("passed" if base == "passed" else "failure")
         else:
             out[i] = "failure" if not f["probs"] else base
-    return out
+    return out, []
 
 
 def _red_key(repo: pathlib.Path, suite: str, test_id: str, u: dict) -> str:

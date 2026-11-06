@@ -506,7 +506,7 @@ class RedGreenKeptCase(FixGatesCase):
 
     # ---- 受け付けが直す前の結末を引く口 named_before（F2 の作る物の 3）。事後の関門と同じ named_facts を同じ控えで呼ぶ
     def before(self, ids):
-        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")
+        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")[0]
 
     def test_named_before_reads_the_loop_red_tree_for_a_name_the_loop_recorded_red(self):
         """輪が赤を記録した名指しは輪の赤の木で見る（起点の木では実装が無く一式の結末に居ないが、赤の木では failure）。赤の木が通る記録は
@@ -540,15 +540,26 @@ class RedGreenKeptCase(FixGatesCase):
         self.assertEqual(got, {_l_MEAN_ID: "failure", "test_stats.py::TestStats::test_clamp_inside": "passed",
                                "test_stats.py::TestStats::test_absent": "missing"})
 
-    def test_named_before_is_empty_when_the_executor_cannot_run(self):
+    def test_named_before_names_why_when_the_executor_cannot_run(self):
+        """名指しが空なら ({}, [])、実行器が空なら (None, [実行器が無い訳])、起点の木で実行器が走らなければ (None, [NO_RUN で始まる理由])"""
         self.ready_with_fields()
         self.add_test_mean_of_two()
-        self.assertEqual(fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties"), {})
-        self.assertEqual(self.before([]), {})
+        no_exe = fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties")
+        no_names = fixgates.named_before(self.board, self.repo, self.base, self.SUITE, [], self.board / "duties")
+        no_both = fixgates.named_before(self.board, self.repo, self.base, "", [], self.board / "duties")
         real = fixgates.tddloop.run_suite
         with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=lambda exe, repo, *a, **k:
                                (None, None, ["起動できない"]) if pathlib.Path(repo).resolve() != self.repo.resolve() else real(exe, repo, *a, **k)):
-            self.assertEqual(self.before([_l_MEAN_ID]), {}, "起点の木が走らない回は空（義務は拒む側に倒れる）")
+            cannot_run = fixgates.named_before(self.board, self.repo, self.base, self.SUITE, [_l_MEAN_ID], self.board / "duties")
+        for got in (no_exe, no_names, no_both, cannot_run):
+            self.assertIsInstance(got, tuple, "結末（か None）と引けない訳の並びの組を返す")
+        self.assertEqual(no_exe, (None, [fixgates.NO_SUITE_WHY]))
+        self.assertEqual(no_names, ({}, []))
+        self.assertEqual(no_both, ({}, []))
+        got, why = cannot_run
+        self.assertIsNone(got)
+        self.assertEqual(len(why), 1)
+        self.assertTrue(why[0].startswith(fixgates.NO_RUN) and "起動できない" in why[0], why)
 
     def test_the_gate_reads_the_base_tree_the_named_before_already_took(self):
         """受け付けの型の義務（named_before）が引いた起点の木の結末は控えに残り、後の事後の関門は同じ名指しの起点の木を走らせ直さない"""
@@ -2993,6 +3004,65 @@ class FixAcceptSeamCase(SeamTemp):
                                 base_rev=self.rev, skip=SKIP, tests_record=str(record))
         self.assertEqual(got["named"], [plan, rewrite, "test_other.py::test_said", "test_new.py::test_added"])
         self.assertEqual((got["record"], got["duty_record"]), (str(record), str(record)))
+
+    def test_a_missing_before_rejects_with_the_other_lines_early_and_stops_on_the_last_attempt(self):
+        """型の義務が名指しの直す前の結末を引けず保留の行を返した受け付け（duties の seen の no_before）の、全部の照らしの後の振り分け:
+        途中の回はほかの拒み（ほかの単位の義務の行・後の照らし plan_faces の行）が在れば止めずに保留の行と並べて出し直させ、無ければ止める。
+        最後の回はほかの拒みが在っても止め、訳に保留の行・ほかの拒み・受け付けが選んだ元の結末のパス・実行器の出力の置き場を並べる"""
+        held, other = "型 variant の単位 U の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）", "型 variant の単位 V の義務: ほかの義務の行"
+        (self.place / "judgment.json").write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
+        head = leftovers.snapshot(self.repo)
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in R_FIXED.items():
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        rows = {"other": False}
+
+        def duties_run(place, repo, rev, reply, **kw):
+            self.assertIsInstance(kw.get("seen"), dict, "受け付けは保留の訳を受ける seen を渡す")
+            kw["seen"]["no_before"] = {"texts": [held], "log": str(pathlib.Path(place) / "duties")}
+            return [(R_MEAN, held)] + ([(R_CLAMP, other)] if rows["other"] else [])
+
+        def accept(iteration, *, other_row=False, face=()):
+            rows["other"] = other_row
+            with mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")), \
+                    mock.patch.object(self.m.duties, "accept_problems", duties_run), \
+                    mock.patch.object(self.b, "plan_face_errors", return_value=list(face)):
+                return self.b.accept_reply(_fix_ok(), self.place, self.repo, pass_="first", iteration=iteration, owed=[R_MEAN, R_CLAMP],
+                                           judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+        start = self.place / self.b.TDD_START_FILE
+
+        got = accept(1, other_row=True)
+        self.assertFalse(got.get("stop"), got["reason"])
+        texts = [r["text"] for r in got["rejects"]]
+        self.assertIn(held, texts)
+        self.assertIn(other, texts)
+        self.assertFalse(start.exists(), "途中の回にほかの拒みが在れば止めない")
+        got = accept(1, face=["面の行"])
+        self.assertFalse(got.get("stop"), got["reason"])
+        self.assertEqual([r["check"] for r in got["rejects"]], ["duties", "plan_faces"], "型の義務の後の照らしの行も出し直させる")
+        self.assertFalse(start.exists())
+
+        got = accept(1)
+        self.assertTrue(got["stop"] and got["ok"] is False and got["rejects"] == [], got)
+        self.assertIn(held, got["reason"])
+        self.assertNotIn(other, got["reason"])
+        marked = json.loads(start.read_text(encoding="utf-8"))
+        self.assertEqual((marked["no_suite"], marked["reason"]), (True, got["reason"]))
+
+        base_file = self.place / "base.json"
+        base_file.write_text(json.dumps({"exe": ""}), encoding="utf-8")
+        got = accept(3, other_row=True)
+        self.assertTrue(got["stop"], got["reason"])
+        for want in (held, other, str(base_file), str(self.place / "duties")):
+            self.assertIn(want, got["reason"])
+        base_file.unlink()
+        copied = self.place / "bases" / "1"
+        copied.mkdir(parents=True)
+        (copied / "base.json").write_text(json.dumps({"exe": ""}), encoding="utf-8")
+        got = accept(3, other_row=True)
+        self.assertIn(str(copied / "base.json"), got["reason"], "裁定の後の置き場は bases/<k>/ の元の結末を名指す")
 
     def test_accept_reply_saves_the_closure_table_it_recounted(self):
         """受けた返答は閉鎖の数え直し（closure_reply）を通り、単位ごとの表を置き場に置く（querytest.save_closure）"""
