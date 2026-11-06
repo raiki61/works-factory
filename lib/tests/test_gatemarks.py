@@ -305,15 +305,16 @@ class GateTextCase(unittest.TestCase):
         return line
 
     def test_the_pass_line_says_a_redirecting_note_stops(self):
-        """修正前の承認ノードの通す行は、仕様駆動の run と写しの run では計画と違う向きの一言（向きが読めない一言も）が修正へ進まずに止まり
-        次の依頼の下書きに回ること、ほかの run では修正役に届くことを言う。仕様の承認ノードは向きを照らさないので、今の文のまま"""
+        """修正前の承認ノードの通す行は、仕様駆動の run と写しの run では計画と違う向きの一言（向きが読めない一言・判定が落ちた時も）が修正へ進まずに止まり
+        次の依頼の下書きに回ること、それ以外の一言は修正役に届くことを言う。仕様の承認ノードは向きを照らさないので、今の文のまま"""
         spec_approve = kit_load("spec", "files").APPROVE
         before_fix = self.pass_line(gatemarks.GATE_NODE, "run の置き場の gates/gate-before-fix.json")
         self.assertIn(self.CHECKED, before_fix)
         self.assertIn("仕様駆動の run と写しの run", before_fix)
         self.assertIn("向きが読めない", before_fix)
         self.assertIn("修正へ進まず", before_fix)
-        self.assertIn("ほかの run では修正役に届く", before_fix)
+        self.assertIn("判定が落ちた", before_fix)
+        self.assertIn("それ以外の一言は修正役に届く", before_fix)
         self.assertIn("gates/gate-before-fix.json", before_fix)
         spec = self.pass_line(spec_approve, "process.spec.approval")
         self.assertNotIn(self.CHECKED, spec)

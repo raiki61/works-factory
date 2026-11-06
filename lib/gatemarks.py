@@ -183,7 +183,7 @@ PASSED_BY = "decided"
 PASSED_BY_HUMAN = "human"               # 修正の後の関所で、修正前の関所で人が通した行と同じなので聞き直さなかった
 PASSED_BY_PUSH = "push"                 # 同じく、修正前の関所を無人の run が推しで通した行と同じなので聞き直さなかった
 GATE_NODE = "p2.human_gate"
-DIRECTION_STOPS = ("仕様駆動の run と写しの run では、計画と違う向きを選ぶ一言（向きが読めない一言も）は修正へ進まずに止まり、"
+DIRECTION_STOPS = ("仕様駆動の run と写しの run では、計画と違う向きを選ぶ一言（向きが読めない一言・向きの判定が落ちた時も）は修正へ進まずに止まり、"
                    "次の依頼の下書きに回る。")   # 修正前の承認ノードの通す行の約束（向きを照らすのはその承認ノードだけ。仕様の承認ノードの文には足さない）
 START_GATE_NODE = "始めの承認ノード"   # 始めの承認の答えの行の札（lib の語。始めの承認は review-graph の節に当たらないので p0.* の形にしない）
 R4_GATE_NODE = "r4.human_gate"
@@ -370,7 +370,7 @@ def gate_text(asking: dict, *, run_id: str, node: str, record_name: str) -> str:
         lines += [ASK_GATE_HEAD, ""]
     lines += ["問いの文（記録のまま引く）:", *quote(asking.get("question")), QUOTE_NOTE, "", f"項目（{len(items)} 件）:"]
     lines += [f"- {x}" for x in items] or ["- （無し）"]
-    reaches = ("に残る。" + DIRECTION_STOPS + "ほかの run では修正役に届く" if node == GATE_NODE else "に残り、修正役に届く")
+    reaches = ("に残る。" + DIRECTION_STOPS + "それ以外の一言は修正役に届く" if node == GATE_NODE else "に残り、修正役に届く")
     lines += ["", "答え方（人が決める承認ノード。依頼者に聞いて、その言葉で答える）:",
               f"- 通す: {answer.line(run_id, 'continue', '<通す範囲と条件>')}（一言は run の記録（記録の名 {record_name}）{reaches}）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]

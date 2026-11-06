@@ -950,12 +950,15 @@ class ScriptCase(unittest.TestCase):
         self.assertTrue(fresh["open"], fresh)
         self.assertEqual(fresh.get("plan"), lines)
         empty = json.loads(self.put("plan/empty.json", {"plan": []}))
+        broken = json.loads(self.put("plan/broken.json", {"plan": "形に合わない"}))
         for name, given in (("planless", json.dumps(rounds(asks=[ask_row()]))), ("no items", json.dumps(rounds(asks=[ask_row()], fix_plan=empty))),
-                            ("absent", "null")):
+                            ("absent", "null"), ("broken", json.dumps(rounds(asks=[ask_row()], fix_plan=broken)))):
             with self.subTest(name):
                 out = self.run.script("ask_before_fix", request=handed({}), rounds=given, structure="null", judge=judge, record=record,
                                       ports=self.ports())
                 self.assertEqual(out.get("plan"), [], out)
+                if name == "broken":   # 形に合わない修正案の控えは本線でも関所を止めない（読みの誤りを受けて空にする）
+                    self.assertTrue(out["open"], out)
         carried = self.put("fixture-carried.json", {"judge": {"judgment": None, "answer_ties": None, "materials": None},
                                                      "structure": {"structure": None},
                                                      "gate_rounds": rounds(asks=[ask_row()], fix_plan=plan)})

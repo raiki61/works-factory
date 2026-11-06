@@ -27,6 +27,11 @@ WORDS = frozenset({
     "works:rule-give-up", "works:clash-ruled-give-up", "works:judge", "works:judge-verify", "works:spec", "works:material", "works:request",
     "works:spec-entry", "works:spec-mismatch", "works:spec-objection",
 })
+# 人の答えを待つ語の字（WAITING。報告の結末の語と、次の run の依頼の下書きの前の失敗の行を分ける。外すと人待ちが機械の止めと書かれる）
+WAITING_WORDS = frozenset({
+    "works:answer-redirected", "works:conflict", "works:needs-human", "works:replan", "works:spec-changed", "works:tdd-repeat",
+    "works:unrestored",
+})
 # 線の script と境（workflows/line/scripts/・workflows/.shared/）で止めの語の字の写しを持ってよい所: lib を読めない時の返り
 # （lib を読めないので stopby を引けない）。値は stopby の定数と同じでなければならない
 COPIES = {
@@ -152,6 +157,11 @@ class Pack(unittest.TestCase):
         m = stopby()
         got = {m.HEAD + n for n in m.REASONS} | {m.HEAD + n for _, n, _ in declares()}
         self.assertEqual(got, WORDS)
+
+    def test_waiting_words_unchanged(self):
+        """人の答えを待つ語の集まり WAITING は WAITING_WORDS と同じ（足す・外すなら WAITING_WORDS も直す）"""
+        m = stopby()
+        self.assertEqual(m.WAITING, WAITING_WORDS)
 
     def test_attributes_exist(self):
         """pack が引く stopby.<名> は住処に在る（字の誤りを走る前に見る）"""
