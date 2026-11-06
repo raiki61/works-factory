@@ -85,14 +85,14 @@ run の結末の語（10 語のどれか）と止めた段の語を、line が�
 - `no_fix`: boolean。既定 false。直す物が無い周（今 `_no_fix`）。
 - `left`: `[{where, text, unmeasured}]`。既定 []。fixed を名乗らせない残りの行（今 `residue` から受け止めた落ちの行を除いた物。`unmeasured` は測れていない素材の行か。今 `_is_material_row`）。
 - `proved`: boolean。既定 false。最後のテストの ok と green と封じの ok が真か（今 `_proved`）。
-- `head`: `{before, stopped, after, notices}`（どれも字の配列。既定 []）。冒頭 1 行目の結末の語の後ろに `。` でつなぐ句。`before` は今の `split_line`・`_pushed_said`、`stopped` は今の `_stopped_why`（止まった結末の時だけ使う）、`after` は `stop_reason_notes`（止めた段の訳。入口が入力を断った時は次にすることの句つき。直す前の試験の関門が止めた訳も。長い訳は 120 字で切り、全文は `notes` に `stop_reason_full` が出す）・`suite_broken_notes`・`ran_notes`・`_suite_note`・`_user_env_note`。`notices` は冒頭の下に 1 行ずつ載る起こす前の注意（今の line の `notices`）。
+- `head`: `{before, stopped, after, notices}`（どれも字の配列。既定 []）。冒頭 1 行目の結末の語の後ろに `。` でつなぐ句。`before` は今の `split_line`・`_pushed_said`、`stopped` は今の `_stopped_why`（止まった結末の時だけ使う）、`after` は `stop_reason_notes`（入口が入力を断った訳〔次にすることの句つき〕と直す前の試験の関門が止めた訳）・`suite_broken_notes`・`ran_notes`・`_suite_note`・`_user_env_note`。`notices` は冒頭の下に 1 行ずつ載る起こす前の注意（今の line の `notices`）。
 - `asks`: `[{kind, text, title?}]`。既定 []。`title` は決める中身を言う短い平易な題で、本文を書いた所が一緒に書く（#812。AI の役が本文を書く項目はその役の返りの形に題の欄を持ち、機械が組む項目は組むコードが決まった字で出す）。無い（古い記録・題を返さなかった役）時は種の名に戻す。人が決める物のうち、結末に依らない物（今 `_decisions` の `asks` から、種 `report.CHECKS_LEFT`・「直しきれずに残った物」・「記録が通らないこと」の 3 つを除いた物。問いの種の推しの尾は付けた後の字）。
 - `tallied`: `{<種>: 整数}`。既定 {}。行の数でなく全件の数で数える種（今の `tallied`。守りのパスに当たった差分）。
 - `counted_left`: 字の配列。既定 []。結末が round_limit の時に「直しきれずに残った物」から外す `where`（今 `counted_units`。直す義務に戻せなかった単位）。
 - `decisions`: `{before, after, outside}`（どれも字の配列。既定 []）。節「1. 人が決めること」の line の行。`before` は今の `_pushed_lines`・`unrestored_lines`・`backed_out_lines` と、`_decisions` の行のうち問いと種の塊（結末に依らない種だけ）、`after` は `_decisions` の残りの行（保留の答え方の行から後の全部）、`outside` は目的の外の所見の件数の行（今 `_outside` の 3 つ目。次の run の依頼の下書きのファイルの名を持たない字にする）。
 - `apply`: `{sealed, placed, redesign, said, pr, commits}`。既定 `{sealed: false, placed: false, redesign: "", said: "", pr: null, commits: []}`。`sealed`・`placed` は今 `_seal_state`、`redesign` は R2 が作り直しが要ると言った時のその語（今 `seal.REDESIGN`。言わなければ空）、`said` は止まった run の人の一言（今 `_apply_lines` の `said`。無ければ空）、`pr` は出口の語 pr の run の `{act, url, number, is_draft, reason}`（今 `applied-diff` の `deliver`）か null、`commits` は今 `_pr_commit_lines` の行。
 - `carry`: `{findings, prior, drafts, constraints}`（どれもオブジェクトの配列。既定 []）。次の run に渡す物。今 `runreport.next_request`・`prior_failures`・`answer_drafts`・`carry.carried_constraints` の返り。
-- `stop_lines`: `{before, after}`（字の配列。既定 []）。節「2. 止めたか」の line の行。`before` は今 `_stop_lines` の line の止めの語の行・承認ノードの行・封じと置きの ok でない行、`after` は続きの切れ目の行（`chain_notes`）。
+- `stop_lines`: `{before, after}`（字の配列。既定 []）。節「2. 止めたか」の line の行。`before` は今 `_stop_lines` の line の止めの語の行・block の止め（judge・spec check など）の訳の行「<node の名> の止めた訳: <訳>」（頭には出さない）・承認ノードの行・封じと置きの ok でない行、`after` は続きの切れ目の行（`chain_notes`）。
 - `outcome_parts`: `{gate, eyes, data}`（字。既定 ""）。節「模型」の結末の行の句。今 `_outcome_line` の最後の承認ノードの句・独立の目の句・`data_places`。
 - `round`: 整数か null。既定 null。計画の何回目の案か（今 `outcome.planned(returns).round`）。
 - `line_rev`: 字。既定 ""。メイングラフの版（今 `versions.line_rev(start.versions)`）。
