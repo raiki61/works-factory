@@ -206,6 +206,7 @@ class PushRecCase(unittest.TestCase):
         self.assertEqual((got["question"], got["text"]), (text, ""))
         self.assertIn("文に書かれた推し", got["note"])
         self.assertIn("空の列は 0 を返す", got["note"])
+        self.assertNotIn("尾が無い", got["source"] + got["note"], "尾の見える文に尾が無いとは言わない")
         self.assertTrue(gatemarks.item_draft(text, gatemarks.GATE_NODE, read_tail=True)["text"].startswith("continue: "))
 
     def test_reason_head_in_why_keeps_the_cut(self):

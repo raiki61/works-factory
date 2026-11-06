@@ -1029,23 +1029,30 @@ def _draft(question: str, text: str, source: str, note: str = "") -> dict:
 NO_TAIL_NOTE = "通す・止めるの推しの尾が無いので答えにしない。項目の文に書かれた推し・世界の解・狭めない案を見て人が答えを text に書く"
 SHORT_TAIL_NOTE = ("推しの尾の形は読めたが、note か why が " + str(RECOMMEND_MIN) + " 字に満たず推しとして読めないので答えにしない。"
                    "項目の文に書かれた推し・世界の解・狭めない案を見て人が答えを text に書く")
+UNREAD_TAIL_NOTE = ("この出どころの行は末尾を推しの尾として読まない（無人の抜け方も読まず、最後の承認ノードで止まる）ので答えにしない。"
+                    "項目の文に書かれた推し・世界の解・狭めない案を見て人が答えを text に書く")
+# 推しの読めない訳ごとの (note の頭, source の括弧の句)。鍵は _unpushed_draft の tail
+_UNPUSHED = {"none": (NO_TAIL_NOTE, "推しの尾が無い"), "short": (SHORT_TAIL_NOTE, "推しの尾が崩れている"),
+             "unread": (UNREAD_TAIL_NOTE, "推しの尾を読まない出どころ")}
 
 
-def _unpushed_draft(text: str, node: str, short_tail: bool) -> dict:
+def _unpushed_draft(text: str, node: str, tail: str) -> dict:
     """推しの読めない項目の下書き（推しの無い行の下書きを知る唯一の所）: text は空（機械は文から推しを作らない）。note には文の
     世界の解・狭めない案の尾（_world・_no_narrow の形）を読み戻し、文に書かれた推し（報告と同じ PUSH_IN の読み）を名指す。
-    short_tail は尾の形は読めたが欄が RECOMMEND_MIN 字に満たなかった時（尾が元から無い文と言い分ける）"""
+    tail は読めない訳（_UNPUSHED の鍵）: none は尾が元から無い、short は尾の形は読めたが欄が RECOMMEND_MIN 字に満たない、
+    unread は尾を読まない出どころ（item_draft の read_tail=False）"""
     said = _text_pushes(text)
-    note = ((SHORT_TAIL_NOTE if short_tail else NO_TAIL_NOTE) + "".join(f"——{name}: {value}" for name, value in _tail_values(text))
+    head, why = _UNPUSHED[tail]
+    note = (head + "".join(f"——{name}: {value}" for name, value in _tail_values(text))
             + (f"——文に書かれた推し: {'；'.join(dict.fromkeys(said))}" if said else ""))
-    return _draft(text, "", f"{named(node)}の行（{'推しの尾が崩れている' if short_tail else '推しの尾が無い'}）", note)
+    return _draft(text, "", f"{named(node)}の行（{why}）", note)
 
 
 def _gate_draft(text: str, mark: dict, node: str) -> dict:
     """関所の項目 1 つの下書き: 渡された mark の推し（recommend）が在ればその答え、無ければ推しの読めない項目の下書き"""
     rec = recommend_of(mark)
     if rec is None:
-        return _unpushed_draft(text, node, short_tail=False)
+        return _unpushed_draft(text, node, "none")
     answer, note, why = (rec[k] for k in RECOMMEND_KEYS)
     return _draft(text, f"{answer}: {_squeeze(note)}（推す理由: {_squeeze(why)}）", f"{named(node)}の行の {RECOMMEND}")
 
@@ -1057,11 +1064,11 @@ def item_draft(text: str, node: str, *, read_tail: bool) -> dict:
     尾が崩れていると note に言う。False は抜け方に掛からず最後の承認ノードで必ず止まる出どころ（役が書いた行）の文で、末尾が尾の形でも
     push_rec を読まず、text は空。question はどちらも尾を含む文の全体のまま（次の依頼の答えは文の全文一致で項目に当たる）"""
     if not read_tail:
-        return _unpushed_draft(text, node, short_tail=False)
+        return _unpushed_draft(text, node, "unread")
     rec = push_rec(text)
     mark = {RECOMMEND: {k: rec[k] for k in RECOMMEND_KEYS}} if rec is not None else {}
     if rec is not None and recommend_of(mark) is None:
-        return _unpushed_draft(text, node, short_tail=True)
+        return _unpushed_draft(text, node, "short")
     return _gate_draft(text, mark, node)
 
 
