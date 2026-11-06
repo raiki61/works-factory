@@ -27,6 +27,7 @@ import suitewrite  # noqa: E402
 CMD = "make check"
 BODY = "#!/bin/sh\nmake check JUNIT=\"$1\"\n"
 PASSED = {"exit": 1, "problems": [], "count": 1}
+STAMP, OTHER = "a1", "b2"   # 実行器を書く指示の版（lib は値の中身を知らず、取り置きの名に入れるだけ）
 
 
 class SuiteWriteCase(unittest.TestCase):
@@ -47,15 +48,17 @@ class SuiteWriteCase(unittest.TestCase):
     def mark(self) -> dict:
         return self.record()[suitewrite.KEY]
 
-    def kept(self) -> pathlib.Path:
-        return self.keep / hashlib.sha256(CMD.encode("utf-8")).hexdigest()
+    def kept(self, stamp: str | None = STAMP) -> pathlib.Path:
+        """版つきの名 <sha256(test_cmd)>.<版>（stamp が None なら版の無い前の形の名）"""
+        name = hashlib.sha256(CMD.encode("utf-8")).hexdigest()
+        return self.keep / (name if stamp is None else f"{name}.{stamp}")
 
-    def put_kept(self, body: str = BODY) -> None:
-        self.kept().parent.mkdir(parents=True, exist_ok=True)
-        self.kept().write_text(body, encoding="utf-8")
+    def put_kept(self, body: str = BODY, stamp: str | None = STAMP) -> None:
+        self.kept(stamp).parent.mkdir(parents=True, exist_ok=True)
+        self.kept(stamp).write_text(body, encoding="utf-8")
 
-    def prepare(self) -> dict:
-        return suitewrite.prepare(self.file, self.folder, self.keep, self.root)
+    def prepare(self, stamp: str = STAMP) -> dict:
+        return suitewrite.prepare(self.file, self.folder, self.keep, self.root, stamp=stamp)
 
     def written(self) -> None:
         self.assertTrue(self.prepare()["write"])
@@ -71,9 +74,9 @@ class SuiteWriteCase(unittest.TestCase):
         self.assertEqual((self.mark()["ok"], self.mark()["checked"], self.mark()["stored"]), (True, False, False))
         self.assertFalse(self.kept().exists())
         self.assertIn(suitewrite.UNCHECKED, suitewrite.head_note(self.record()))
-        self.assertTrue(suitewrite.keep_runner(self.keep, f"  {CMD}\n", runner))
+        self.assertTrue(suitewrite.keep_runner(self.keep, f"  {CMD}\n", runner, stamp=STAMP))
         self.assertTrue(self.kept().is_file())
-        suitewrite.drop_runner(self.keep, CMD, runner)
+        suitewrite.drop_runner(self.keep, CMD, runner, stamp=STAMP)
         self.assertFalse(self.kept().exists())
 
     def test_need_only_for_base_without_suite_and_without_mark(self):
@@ -112,7 +115,48 @@ class SuiteWriteCase(unittest.TestCase):
         for test_cmd, keep in (("", self.keep), (CMD, None)):
             with self.subTest(test_cmd=test_cmd, keep=keep):
                 jsonfile.write(self.file, {"run_id": "r", "test_cmd": test_cmd, "tdd_suite": ""}, indent=2, parents=True)
-                self.assertTrue(suitewrite.prepare(self.file, self.folder, keep, self.root)["write"])
+                self.assertTrue(suitewrite.prepare(self.file, self.folder, keep, self.root, stamp=STAMP)["write"])
+
+    def test_prepare_does_not_use_a_kept_runner_with_another_stamp(self):
+        """同じ test_cmd でも別の版の名の取り置きしか無ければ、書き手を起こす。その取り置きは消さずに残す"""
+        self.put_kept(stamp=OTHER)
+        got = self.prepare()
+        self.assertTrue(got["write"])
+        self.assertEqual(self.mark()["from"], suitewrite.FROM_AI)
+        self.assertFalse((self.folder / suitewrite.RUNNER).exists())
+        self.assertEqual(self.kept(OTHER).read_text(encoding="utf-8"), BODY)
+        self.assertFalse(self.kept().exists())
+
+    def test_prepare_does_not_use_a_kept_runner_without_a_stamp(self):
+        """版の無い前の形の名 <sha256> の取り置きは使わず、書き手を起こす。その物は消さない（古い版の工場はそれを使い続ける）"""
+        self.put_kept(stamp=None)
+        self.assertTrue(self.prepare()["write"])
+        self.assertFalse((self.folder / suitewrite.RUNNER).exists())
+        self.assertEqual(self.kept(None).read_text(encoding="utf-8"), BODY)
+
+    def test_keep_runner_keeps_one_runner_per_writer_stamp(self):
+        """版ごとに 1 本の名で取り置く: 版 A と版 B は並び、前の形の名は残る。同じ版の名は置き換える（本番の道。fix の settle_kept が
+        keep_runner・drop_runner で呼ぶ）。prepare は呼んだ版の物だけを写し、drop_runner は同じ版の同じバイトの物だけを消す"""
+        old, new, mine, theirs = "#!/bin/sh\nold\n", "#!/bin/sh\nnew\n", self.tmp / "a", self.tmp / "b"
+        self.put_kept(old, stamp=None)
+        self.put_kept(old)   # 版 A の古い取り置き
+        mine.write_text(new, encoding="utf-8")
+        theirs.write_text("#!/bin/sh\nother\n", encoding="utf-8")
+        self.assertTrue(suitewrite.keep_runner(self.keep, CMD, mine, stamp=STAMP))
+        self.assertTrue(suitewrite.keep_runner(self.keep, CMD, theirs, stamp=OTHER))
+        self.assertEqual(self.kept().read_text(encoding="utf-8"), new, "同じ版の名は新しい本文で置き換わる")
+        self.assertEqual(self.kept(OTHER).read_text(encoding="utf-8"), "#!/bin/sh\nother\n")
+        self.assertEqual(self.kept(None).read_text(encoding="utf-8"), old, "前の形の名は残る")
+        self.assertEqual(self.prepare(STAMP), {"write": False, "brief_file": ""})
+        self.assertEqual((self.folder / suitewrite.RUNNER).read_text(encoding="utf-8"), new)
+        suitewrite.drop_runner(self.keep, CMD, theirs, stamp=STAMP)   # 同じ版の名の中身は theirs と違う
+        self.assertTrue(self.kept().is_file())
+        suitewrite.drop_runner(self.keep, CMD, mine, stamp=STAMP)
+        self.assertFalse(self.kept().exists())
+        self.assertTrue(self.kept(OTHER).is_file() and self.kept(None).is_file(), "ほかの版と前の形の名は残る")
+        for bad in ("", "a/b", "..", "a b", None):   # 版の値は名に入れるだけなので、空や区切りを含む値は受けない
+            with self.subTest(stamp=bad), self.assertRaises(ValueError):
+                suitewrite.keep_runner(self.keep, CMD, mine, stamp=bad)
 
     def test_prepare_does_nothing_with_a_named_suite(self):
         jsonfile.write(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": "run-tests.sh"}, indent=2, parents=True)
@@ -143,7 +187,7 @@ class SuiteWriteCase(unittest.TestCase):
 
     def test_settle_binds_and_keeps_a_written_runner_with_cases_whatever_its_exit(self):
         self.written()
-        self.assertEqual(suitewrite.settle(self.file, PASSED, self.keep), {"done": True, "ok": True, "why": ""})
+        self.assertEqual(suitewrite.settle(self.file, PASSED, self.keep, stamp=STAMP), {"done": True, "ok": True, "why": ""})
         runner = str((self.folder / suitewrite.RUNNER).resolve())
         self.assertEqual((self.record()["tdd_suite"], self.mark()["ok"], self.mark()["stored"]), (runner, True, True))
         self.assertEqual(self.kept().read_text(encoding="utf-8"), BODY)
@@ -156,7 +200,7 @@ class SuiteWriteCase(unittest.TestCase):
             with self.subTest(why=why):
                 jsonfile.write(self.file, {"run_id": "r", "test_cmd": CMD, "tdd_suite": ""}, indent=2, parents=True)
                 self.written()
-                self.assertEqual(suitewrite.settle(self.file, ran, self.keep), {"done": True, "ok": False, "why": why})
+                self.assertEqual(suitewrite.settle(self.file, ran, self.keep, stamp=STAMP), {"done": True, "ok": False, "why": why})
                 self.assertEqual((self.record()["tdd_suite"], self.mark()["ok"], self.mark()["why"]), ("", False, why))
                 self.assertFalse(self.kept().exists())
 
@@ -164,13 +208,13 @@ class SuiteWriteCase(unittest.TestCase):
         """取り置きが照らしを通らなければ捨て（done: false）、次の周は書き手を起こし、書き直した物が通れば取り置き直す"""
         self.put_kept("#!/bin/sh\nexit 0\n")
         self.prepare()
-        got = suitewrite.settle(self.file, {"exit": 0, "problems": [], "count": 0}, self.keep)
+        got = suitewrite.settle(self.file, {"exit": 0, "problems": [], "count": 0}, self.keep, stamp=STAMP)
         self.assertEqual(got, {"done": False, "ok": False, "why": suitewrite.NO_CASES})
         self.assertFalse(self.kept().exists())
         self.assertEqual(self.record()["tdd_suite"], "")
         self.written()
         self.assertEqual(self.mark()["dropped"], suitewrite.NO_CASES)
-        self.assertTrue(suitewrite.settle(self.file, PASSED, self.keep)["ok"])
+        self.assertTrue(suitewrite.settle(self.file, PASSED, self.keep, stamp=STAMP)["ok"])
         self.assertEqual(self.kept().read_text(encoding="utf-8"), BODY)
         self.assertIn(suitewrite.NO_CASES, suitewrite.head_note(self.record()))
 
@@ -178,14 +222,15 @@ class SuiteWriteCase(unittest.TestCase):
         self.put_kept("#!/bin/sh\nold\n")
         self.prepare()
         self.put_kept()
-        suitewrite.settle(self.file, None, self.keep)
+        suitewrite.settle(self.file, None, self.keep, stamp=STAMP)
         self.assertEqual(self.kept().read_text(encoding="utf-8"), BODY)
 
     def test_settle_leaves_a_settled_mark_alone(self):
         self.prepare()
         before = self.record()
-        self.assertEqual(suitewrite.settle(self.file, PASSED, self.keep), {"done": True, "ok": False, "why": suitewrite.NO_REPLY})
+        self.assertEqual(suitewrite.settle(self.file, PASSED, self.keep, stamp=STAMP), {"done": True, "ok": False, "why": suitewrite.NO_REPLY})
         self.assertEqual(self.record(), before)
+        self.assertFalse(self.kept().exists())
 
     def test_head_note_names_kept_written_or_not_made(self):
         def note(**mark):

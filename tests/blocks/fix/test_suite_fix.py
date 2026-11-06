@@ -46,8 +46,16 @@ class SuiteFixCase(tg.GroupChildScriptsCase):
         path.write_text(body, encoding="utf-8")
         path.chmod(0o755)
 
+    @staticmethod
+    def stamp() -> str:
+        """実行器を書く指示の今の版の値（取り置きの名に入る）"""
+        if str(kit.SHARED) not in sys.path:
+            sys.path.append(str(kit.SHARED))
+        import prompt
+        return prompt.digest(prompt.RUNNER_WRITER)
+
     def kept(self, cmd: str) -> pathlib.Path:
-        return self.keep / hashlib.sha256(cmd.encode("utf-8")).hexdigest()
+        return self.keep / f"{hashlib.sha256(cmd.encode('utf-8')).hexdigest()}.{self.stamp()}"
 
     def started(self) -> dict:
         return json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))

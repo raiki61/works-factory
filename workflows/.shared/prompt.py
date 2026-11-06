@@ -10,6 +10,10 @@
 - render_shared(name, values, when=None) -> str: pack の .shared/prompts/<name>.md を、render と同じ決まりで組んだ字（呼んだ block を問わない）。
   2 つ以上の block が使う、AI の node でない物の指示を md から組む（書き手の型の block 全部が起こす下請けのファイルなど。本体 writerblock が呼ぶ）。
   共通の断片は {part:…} を持たない。頭の印 <!-- required-for-tools: … -->・<!-- required-for-fields: … --> は差し込む時と同じく落とす
+- digest(name) -> str: 共通の断片 .shared/prompts/<name>.md と、それを取り込む指示の版の値（sha256 の 16 進）。断片（頭の印を落とし、中の
+  {shared:…} を展開した字）と、pack の各 block の prompts/ の下の md（parts と .system.md を含む）のうち展開の中で {shared:<name>} に届く
+  物を、その block で展開した字（パスの行つき）を入力にする。断片も、それを取り込む指示も、字が変われば値が変わる。無い断片は PromptError。
+  定数 RUNNER_WRITER は実行器の契約と書き方の断片の名（取り置いた実行器が、今の書き方の指示で書いた物かを見分ける版の値に使う）
 - round_of(node_id) -> int: place に在る <node_id>-prompt-<n>.md の数 + 1（emit に渡す、輪の何回目か）
 - lang(raw) -> str: 人に見せる欄の言語の値（port lang。空なら共通の断片 .shared/prompts/lang-default.md の文）
 
@@ -29,6 +33,7 @@ md の書き方:
 system の md の中も数える）・使われない値を渡された・when の名がどの md の if にも無い・md の if の名が when に無い・if と end が
 組にならない・値が字と整数の外。
 """
+import hashlib
 import re
 from pathlib import Path
 
@@ -42,6 +47,7 @@ NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
 LANG_DEFAULT = "lang-default"   # 共通の断片の名（lib/rolekit.py の LANG_DEFAULT と同じ意味の英語の文）
 SYSTEM = ".system"
+RUNNER_WRITER = "runner-writer"   # 共通の断片の名（実行器の契約と書き方。test-gate の書き手と fix の書き直し役が取り込む）
 
 
 class PromptError(ValueError):
@@ -64,9 +70,11 @@ def _unmarked(text: str) -> str:
     return REQUIRED_FOR.sub("", text + "\n", count=1).rstrip("\n")
 
 
-def _expand(text: str, block: Path, stack: tuple, in_shared: bool) -> str:
+def _expand(text: str, block: Path, stack: tuple, in_shared: bool, reached: set | None = None) -> str:
     def one(match: re.Match) -> str:
         kind, name = match.groups()
+        if reached is not None and kind == "shared":
+            reached.add(name)
         if kind == "part" and in_shared:
             raise PromptError(f"共通の断片 {stack[-1]} が block の断片 {{part:{name}}} を差し込む（.shared の断片は part を持たない）")
         key = f"{kind}:{name}"
@@ -75,7 +83,7 @@ def _expand(text: str, block: Path, stack: tuple, in_shared: bool) -> str:
         path = (ports.SHARED / "prompts" if kind == "shared" else block / "prompts" / "parts") / f"{name}.md"
         body = _read(path, "断片")
         body = _unmarked(body) if kind == "shared" else body
-        return _expand(body, block, stack + (key,), in_shared or kind == "shared")
+        return _expand(body, block, stack + (key,), in_shared or kind == "shared", reached)
     return FRAGMENT.sub(one, text)
 
 
@@ -155,6 +163,24 @@ def render_part(name: str, values: dict, when: dict | None = None) -> str:
 
 def render_shared(name: str, values: dict, when: dict | None = None) -> str:
     return _compose(ports.SHARED, name, values, when, shared=True)["prompt"]
+
+
+def digest(name: str) -> str:
+    """共通の断片 name と、それを取り込む指示の版の値。入力は、断片を展開した字と、pack の各 block の prompts/ の下の md のうち展開の中で
+    {shared:<name>} に届く物を、その block で展開した字（pack からの相対パスの行つき。パスの順）。取り込む md の一覧は持たない"""
+    pack = ports.SHARED.parent
+    head = _expand(_unmarked(_read(ports.SHARED / "prompts" / f"{name}.md", "断片")), ports.SHARED, (f"shared:{name}",), True)
+    hasher = hashlib.sha256()
+    hasher.update(f"shared:{name}\n{head}\n".encode("utf-8"))
+    for path in sorted(pack.glob("*/prompts/**/*.md")):
+        block = pack / path.relative_to(pack).parts[0]
+        if block == ports.SHARED:
+            continue
+        reached: set = set()
+        text = _expand(_read(path, "指示の md"), block, (), False, reached)
+        if name in reached:
+            hasher.update(f"{path.relative_to(pack).as_posix()}\n{text}\n".encode("utf-8"))
+    return hasher.hexdigest()
 
 
 def emit(node_id: str, values: dict, when: dict | None, n: int) -> dict:
