@@ -278,8 +278,7 @@ def _spent(con) -> dict[str, float]:
     """run ごとの費用の和（DB のノードの終わりと後から書く費用の出来事のうち、自前の費用の行〔own_spend〕の和。run 自身の行だけを足す）。
     compose_fan_out の instance の終わりの行はその中の全部の正で、中の行は外す。費用の欄を持つ行が 1 つも無い run は和を出さない
     （bash だけの run を無料の AI の run に見せない。persistRunUsage と同じ）。
-    子の run の費用は、親の run の子の run を起こすノード（workflow）の行が accounting を node にして子の総額を載せ、TOTAL_COST もこの行を
-    通して子の分を含む。子の run の行を別に足すと二重に数える"""
+    費用と子の run の数え方の決まりは docs/design/archon.md の「使用量（トークンと費用）の数え方」の箇条"""
     rows, scopes = {}, {}
     for rid, kind, step, data in con.execute(f"select workflow_run_id, event_type, step_name, data from {EVENT_TABLE} "
                                              "where event_type in (?, ?, ?)", (OUTPUT_EVENT, NODE_FAILED_EVENT, DEFERRED_EVENT)):
