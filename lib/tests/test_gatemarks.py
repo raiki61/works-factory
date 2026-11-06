@@ -151,6 +151,49 @@ class PushRecCase(unittest.TestCase):
                                "why": "呼び手が 0 を前提に書かれている"})
         self.assertEqual(gatemarks.push_rec(self.row(answer="stop"))["answer"], "stop")
 
+    def test_item_draft_reads_the_push_tail(self):
+        """尾を読み戻せる文は推しが下書きの答えになり（question は尾を含む文のまま）、読めない文は text が空で、文に書かれた推しを note が名指す"""
+        self.assertTrue(callable(getattr(gatemarks, "item_draft", None)), "項目の文の下書きの口 item_draft が在る")
+        text = self.row()
+        got = gatemarks.item_draft(text, gatemarks.GATE_NODE)
+        self.assertEqual(got["question"], text)
+        self.assertEqual(got["text"], "continue: 空の列は 0 を返す・形で通す（推す理由: 呼び手が 0 を前提に書かれている）")
+        self.assertIn(gatemarks.RECOMMEND, got["source"])
+        self.assertTrue(gatemarks.item_draft(self.row(answer="stop"), gatemarks.GATE_NODE)["text"].startswith("stop: "))
+        bare = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE)
+        self.assertEqual((bare["question"], bare["text"]), (self.BODY, ""))
+        self.assertNotIn("役が書いていない", bare["note"])
+        said = gatemarks.item_draft(self.BODY + "／推し: 案A", gatemarks.GATE_NODE)
+        self.assertEqual(said["text"], "")
+        self.assertIn("案A", said["note"])
+        self.assertNotIn("役が書いていない", said["note"])
+        short = gatemarks.item_draft(self.BODY + "／推し: 通す（continue）——短（理由: 呼び手が 0 を前提に書かれている）", gatemarks.GATE_NODE)
+        self.assertEqual(short["text"], "")
+        self.assertNotIn("役が書いていない", short["note"])
+        self.assertIn("崩れ", short["source"], "尾の形は読めたが欄が短い文は、尾が元から無い文と言い分ける")
+        self.assertNotIn("崩れ", bare["source"])
+        self.assertNotIn("尾が無い", short["note"])
+        unchosen = gatemarks.item_draft(self.BODY + "／推し: " + gatemarks.NO_CHOSEN, gatemarks.GATE_NODE)
+        self.assertNotIn("文に書かれた推し:", unchosen["note"])
+
+    def test_item_draft_notes_world_and_no_narrow_tails(self):
+        """推しの尾の無い文は、_world・_no_narrow が付けた尾の値を note が名指す。欄の無い行の置き字は値として置かない。
+        推しの尾も在る文は答えが推しのまま"""
+        self.assertTrue(callable(getattr(gatemarks, "item_draft", None)), "項目の文の下書きの口 item_draft が在る")
+        mark = {"decided_by": "x", "world": "W（括弧つき）", gatemarks.NO_NARROW: "N"}
+        why = "（人に聞く訳: 2 つの形が割れる）"
+        text = self.BODY + gatemarks._world(mark) + gatemarks._no_narrow(mark) + why
+        got = gatemarks.item_draft(text, gatemarks.GATE_NODE)
+        self.assertEqual((got["question"], got["text"]), (text, ""))
+        self.assertIn("世界の解: W（括弧つき）", got["note"])
+        self.assertIn("狭めない案: N", got["note"])
+        self.assertNotIn("人に聞く訳", got["note"])
+        unsaid = gatemarks.item_draft(self.BODY + gatemarks._world({"decided_by": "x"}) + why, gatemarks.GATE_NODE)
+        self.assertNotIn("世界の解:", unsaid["note"], "欄の無い行の置き字は値として写さない")
+        self.assertNotIn("役が書いていない", unsaid["note"])
+        pushed = gatemarks.item_draft(text + gatemarks._push({gatemarks.RECOMMEND: self.REC}), gatemarks.GATE_NODE)
+        self.assertTrue(pushed["text"].startswith("continue: "))
+
     def test_rows_without_an_answer_word_are_not_pushes(self):
         for text in (self.BODY, f"{gatemarks.DESIGN_HEAD}x／推し: 案 A", f"x／推し: {gatemarks.NO_PUSH}",
                      "x／推し: 止める（continue）——a（理由: b）"):
