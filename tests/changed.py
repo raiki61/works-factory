@@ -12,7 +12,10 @@
 - 選べない時（選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時）も全部は回さず、
   選べた範囲と層の柵だけを回し、全部の試験は CI に寄せると訳を出す（持ち主の決め full-suite-in-ci。docs/owner-decisions.md）
 - 出力: 選んだモジュール・回さないモジュールの数・訳を先に標準出力へ出し、最後は unittest の数え（Ran N tests）のまま
+- JUnit XML: --junit-xml <パス> を足すと、選んだ試験の結末を 1 本ずつその置き場へ JUnit XML で書く（相対のパスは呼んだ所から）。
+  印字と終了の値は変わらない。tests/shard.py へそのまま渡す。ほかの引数は読まずに捨て、その旨を標準エラーに出す
 """
+import argparse
 import pathlib
 import subprocess
 import sys
@@ -58,7 +61,16 @@ def choose():
     return paths, sel["reasons"] if sel["run_all"] else []
 
 
-def main():
+def main(argv: list[str]) -> int:
+    # -h/--help を argparse に取らせない（取らせると試験を 1 本も回さず 0 で終わる）。略（--junit など）も許さず、字どおりの --junit-xml だけ読む
+    parser = argparse.ArgumentParser(prog="tests/changed.py", add_help=False, allow_abbrev=False,
+                                     description="変更に当たる試験と層の柵だけを回す。引数が無ければ印字も終了の値も従来どおり")
+    parser.add_argument("--junit-xml", type=pathlib.Path, metavar="PATH",
+                        help="選んだ試験の結末を 1 本ずつこの置き場へ JUnit XML で書く（相対のパスは呼んだ所から。印字と終了の値は変わらない）。"
+                             "ほかの引数は読まずに捨て、その旨を標準エラーに出す")
+    args, unread = parser.parse_known_args(argv)
+    if unread:
+        print(f"changed.py: 読まない引数: {' '.join(unread)}（選びは変更から決める）", file=sys.stderr)
     started = time.monotonic()
     paths, reasons = choose()
     print(f"changed.py: 選びに {time.monotonic() - started:.1f} 秒")
@@ -66,8 +78,9 @@ def main():
         print(f"{IN_CI}。選べなかった訳:")
         print("\n".join(f"  {r}" for r in reasons))
     sys.stdout.flush()
-    return subprocess.run([sys.executable, "-m", "tests.shard", "--paths", *paths], cwd=ROOT).returncode
+    report = ["--junit-xml", str(args.junit_xml.absolute())] if args.junit_xml else []   # 子は cwd=ROOT で走るので、呼び手の所から絶対パスに直す
+    return subprocess.run([sys.executable, "-m", "tests.shard", "--paths", *paths, *report], cwd=ROOT).returncode
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

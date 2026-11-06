@@ -11,6 +11,8 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 出力の最後は unittest の数え（Ran N tests）で、数えの形 COUNT が最初に当たるのもその行
 - 試験は既定で子 WORKERS 個に並べて回す。並べても、選んだモジュールの名と回さないモジュールの数・回った数は 1 つの子で順に回した時と
   同じで、落ちた試験は名と traceback が出て、最後は FAILED。2 つのモジュールは別の子で走り、並べる数の上書き（環境変数）は試験を回す口まで届く
+- --junit-xml <パス>: 選んだ試験が 1 本ずつ XML に載り（印字と終了の値は無しの時と同じ）、相対のパスは呼んだ所から。読まない引数は
+  標準エラーに 1 行の注記を出して捨て、選びと回しは続く
 """
 import pathlib
 import re
@@ -19,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from xml.etree import ElementTree
 
 from tests.bin import hermetic
 from tests.bin.gitkit import git
@@ -71,10 +74,12 @@ class ChangedTest(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
-    def run_changed(self, **overrides):
+    def run_changed(self, *args, cwd=None, **overrides):
+        """殻を子の過程として起こす。args は殻の引数、cwd は呼び手の作業ディレクトリ（既定は木の根）。
+        (終了の値, 標準出力, 標準出力 + 標準エラー) を返す"""
         env = hermetic.child_env(**{"WORKS_FACTORY_TEST_WORKERS": WORKERS, **overrides})
-        done = subprocess.run([sys.executable, "tests/changed.py"], cwd=self.repo, capture_output=True, text=True,
-                              encoding="utf-8", env=env)
+        done = subprocess.run([sys.executable, str(self.repo / "tests/changed.py"), *map(str, args)], cwd=cwd or self.repo,
+                              capture_output=True, text=True, encoding="utf-8", env=env)
         return done.returncode, done.stdout, done.stdout + done.stderr
 
     def ran(self, out):
@@ -257,6 +262,63 @@ class ChangedTest(unittest.TestCase):
         rc, _stdout, out = self.run_changed(WORKS_FACTORY_TEST_WORKERS="0")
         self.assertNotEqual(rc, 0, out)
         self.assertIn("1 以上の整数", out)
+
+    def cases(self, report):
+        return {(c.get("classname"), c.get("name")): c for c in ElementTree.parse(report).getroot().iter("testcase")}
+
+    def test_junit_xml_lists_every_selected_test_without_changing_the_output(self):
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        report = self.repo.parent / "out" / "report.xml"
+        plain_rc, plain_stdout, plain_out = self.run_changed()
+        self.assertFalse(report.exists())
+        rc, stdout, out = self.run_changed("--junit-xml", report)
+        self.assertEqual((rc, stdout.split("\n", 1)[1]), (plain_rc, plain_stdout.split("\n", 1)[1]), out)   # 1 行目は選びの秒数
+        self.assertEqual(self.ran(out), self.ran(plain_out), out)
+        self.assertTrue(report.exists(), out)
+        cases = self.cases(report)
+        self.assertEqual(sorted(cases), [("lib.tests.test_alpha.T", "test_one"), ("tests.layers.test_fence.T", "test_one")])
+        self.assertEqual([list(c) for c in cases.values()], [[], []])
+        self.write("lib/alpha.py", "def value():\n    return 2\n")
+        rc, _stdout, out = self.run_changed("--junit-xml", report)
+        self.assertEqual(rc, 1, out)
+        cases = self.cases(report)
+        self.assertEqual([e.tag for e in cases[("lib.tests.test_alpha.T", "test_one")]], ["failure"])
+        self.assertEqual(list(cases[("tests.layers.test_fence.T", "test_one")]), [])
+
+    def test_relative_junit_xml_path_is_from_the_callers_directory(self):
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        rc, _stdout, out = self.run_changed("--junit-xml", "report.xml", cwd=tmp.name)
+        self.assertEqual(rc, 0, out)
+        self.assertTrue((pathlib.Path(tmp.name) / "report.xml").exists(), out)
+        self.assertFalse((self.repo / "report.xml").exists())
+
+    def test_unread_arguments_are_dropped_with_a_note_and_the_run_goes_on(self):
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        report = self.repo.parent / "report.xml"
+        rc, stdout, out = self.run_changed("--junit-xml", report, "tests/test_x.py::T::test_one", "-k", "foo")
+        self.assertTrue(report.exists(), out)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("lib.tests.test_alpha", stdout)
+        notes = [line for line in out[len(stdout):].splitlines() if line.startswith("changed.py: 読まない引数")]
+        self.assertEqual(len(notes), 1, out)
+        for dropped in ("tests/test_x.py::T::test_one", "-k", "foo"):
+            self.assertIn(dropped, notes[0])
+        self.assertNotIn("読まない引数", self.run_changed()[2])
+
+    def test_help_and_an_abbreviated_option_are_dropped_not_obeyed(self):
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        report = self.repo.parent / "abbrev.xml"
+        rc, stdout, out = self.run_changed("-h", "--help", "--junit", report)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 2, out)   # -h で止まらず、選びどおり回る
+        self.assertIn("lib.tests.test_alpha", stdout)
+        self.assertFalse(report.exists(), out)   # 略は --junit-xml と読まない
+        notes = [line for line in out[len(stdout):].splitlines() if line.startswith("changed.py: 読まない引数")]
+        self.assertEqual(len(notes), 1, out)
+        for dropped in ("-h", "--help", "--junit", str(report)):
+            self.assertIn(dropped, notes[0])
 
 
 if __name__ == "__main__":
