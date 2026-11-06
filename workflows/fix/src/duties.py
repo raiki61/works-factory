@@ -17,7 +17,8 @@ no_tests（base.json の印）・absent_at_base（files のうち起点の木に
 試験・tdd の単位の輪の記録の tests を重ねずに並べる。変える段の型だけ引く）・before（名指し → 起点の木の結末。赤は "failure"。受け付けが
 全部の単位の名指しを集めて gates.named_before を 1 回だけ呼び、事後の関門と同じ事実から引き、走らせを足さない。実行器が無い・走らずに
 引けなければ None）・before_held（accept_problems が載せる。before を引けず、それが単位の義務を決める〔wants_before〕時に真。義務の関数は
-その単位を問題にせず、accept_problems が保留の行を別に返す）・after（名指し → 返した木の結末。受け付けが走らせた回 cases から引く。居なければ "missing"）・
+その単位を問題にせず、accept_problems が保留の行を別に返す）・after（名指し → 返した木の結末。受け付けが走らせた回 cases から引く。居なければ "missing"。名指しが在って受け付けが返した木を走らせなかった回
+〔cases が None〕は None で、結末を引いていないことを言う。名指しの無い単位と変える段でない箱は空）・
 removes（注文の units[].removes）・gone（removes のうち起点の木で引けて今の木で引けない物。gone_of）・class_query（注文の units[] の物。無ければ None）・hits（問いの当たりの行
 path:line の集まり。問いを行で結べない単位と問いの無い単位は None）・hunks（since から返した木までの git diff -U0 の新しい側の塊
 {path: [(a, b)]}）と、書き手の返答から組む REPLY_FACTS（kinds_rows〔返答の evidence.kinds の行〕・sites〔単位の行の closure.sites の全部〕・
@@ -63,12 +64,13 @@ def _gone_all(f: dict) -> bool:
 
 
 def wants_before(f: dict) -> bool:
-    """起点の木の結末 before を引けないことが、変える段の箱の義務の通る・拒むを決める単位か: 名指しが残り、before が None で、名指しが
-    全部返した木で通り、消す名の道でも通らない。結末が引けていれば義務を決められ、返した木で緑でない名指しは直しの誤りが確かなので、
-    その単位は含まない"""
-    after = f.get("after") or {}
+    """起点の木の結末 before を引けないことが、変える段の箱の義務の通る・拒むを決める単位か: 名指しが残り、before が None で、返した木の
+    結末を引いていない（after が None。受け付けが返した木を走らせなかった回）か名指しが全部返した木で通り、消す名の道でも通らない。
+    起点の木の結末が引けていれば義務を決められ、返した木の結末が引けて緑でない名指しは直しの誤りが確かなので、その単位は含まない"""
+    after = f.get("after")
     named = _named_left(f.get("named") or [], f)
-    return bool(named) and f.get("before") is None and all(after.get(t) == "passed" for t in named) and not _gone_all(f)
+    return bool(named) and f.get("before") is None and (after is None or all(after.get(t) == "passed" for t in named)) \
+        and not _gone_all(f)
 
 
 def change_named_or_gone(f: dict) -> list:
@@ -376,8 +378,9 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
             named = unit_named(key, weapon, order, evidence, loop, _guard_ids(place, round_))
         if named:
             mine = None if outcomes is None else {t: outcomes[t] for t in named if t in outcomes}
-        if named and cases is not None:
-            after = {t: (c["outcome"] if (c := baseline_red.match_case(t, cases)) else "missing") for t in named}
+        if named:
+            after = None if cases is None else \
+                {t: (c["outcome"] if (c := baseline_red.match_case(t, cases)) else "missing") for t in named}
         removes = _ids(unit.get("removes") or [])
         gone = gone_of(repo, rev, removes) if removes else []
     return {"unit": key, "weapon": weapon, "files": files, "test_files": tests, "kind_by_path": kind_by_path,

@@ -461,9 +461,12 @@ class NamedDutyCase(unittest.TestCase):
         self.assertTrue(self.rejected(self.texts(named=[self.CLAMP], cases=self.passed(self.CLAMP))), "起点の木で通る名指しの拒みはそのまま")
 
     def test_only_a_unit_whose_duty_hangs_on_the_missing_before_is_held_for_the_runner(self):
-        """元の結末の実行器が無い回（base={'exe': ''}）: (a) 消す名が全部消えた単位は義務が結末に頼らず、保留も問題も無い。(b) 名指しが
-        返した木で緑でない単位は直しの誤りが確かなので、保留でなく従来の拒みを返す（実行器の失敗と書かない）。(c) 名指しが返した木で緑の単位は
-        義務が結末で決まるので保留の行を返し、seen の no_before に同じ文と実行器の出力の置き場を返す。seen を渡さない呼びでも保留の行は返る"""
+        """元の結末の実行器が無い回（base={'exe': ''}）: (a) 消す名が全部消えた単位は、名指しが返した木で緑でも義務が結末に頼らず、
+        保留も問題も無い。(b) 名指しが返した木で緑でない単位は直しの誤りが確かなので、保留でなく従来の拒みを返す（実行器の失敗と書かない）。
+        (c) 名指しが返した木で緑の単位は義務が結末で決まるので保留の行を返し、seen の no_before に同じ文と実行器の出力の置き場を返す。
+        seen を渡さない呼びでも保留の行は返る。(d) 注文の permits の remove の行が覆い返した木に居ない名指し（改名した試験の元）が
+        名指しに混ざっても、残りの名指しが返した木で緑なら保留の行を 1 つ返し、その文は残りの名指しを挙げて元の id を挙げない。
+        (e) 受け付けが返した木を走らせなかった回（cases が None）も、起点の木の結末を引けなければ直しの誤りでなく保留の行を返す"""
         params = inspect.signature(self.duties.accept_problems).parameters
         self.assertTrue({"base", "seen"} <= set(params), "元の結末は呼び手が渡し、保留の訳は seen で返す")
         self.order("remove", {"removes": ["legacy.py"]})
@@ -473,7 +476,9 @@ class NamedDutyCase(unittest.TestCase):
             return self.duties.accept_problems(self.place, self.repo, self.rev, reply, base=no_exe, cases=cases, seen=seen)
         (self.repo / "legacy.py").unlink()
         seen: dict = {}
-        self.assertEqual(run({"changes": [{"unit_key": "U", "files": ["legacy.py"]}]}, seen, []), [])
+        gone_reply = {"changes": [{"unit_key": "U", "files": ["legacy.py"]}],
+                      "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
+        self.assertEqual(run(gone_reply, seen, self.passed(self.MEAN3)), [])
         self.assertNotIn("no_before", seen)
 
         self.order("variant")
@@ -494,22 +499,47 @@ class NamedDutyCase(unittest.TestCase):
         self.assertTrue(any(self.duties.NO_BEFORE in t for _, t in run(reply, None, self.passed(self.MEAN3))),
                         "seen を渡さなくても確かめていない直しを黙って通さない")
 
+        renamed = "test_stats.py::TestStats::test_mean_before_the_rename"
+        self.order("variant", permits=[{"kind": "remove", "duty": False, "test": renamed, "source": "plan"}])
+        reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}],
+                 "evidence": {"named": [{"unit_key": "U", "test": renamed}, {"unit_key": "U", "test": self.MEAN3}]}}
+        seen = {}
+        got = [t for _, t in run(reply, seen, self.passed(self.MEAN3))]
+        held = [t for t in got if self.duties.NO_BEFORE in t]
+        self.assertFalse(self.rejected(got), got)
+        self.assertEqual(len(held), 1, got)
+        self.assertIn(self.MEAN3, held[0])
+        self.assertNotIn(renamed, held[0])
+        self.assertEqual(seen["no_before"], {"texts": held, "log": str(self.place / "duties")})
+
+        reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}], "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
+        seen = {}
+        got = [t for _, t in run(reply, seen, None)]
+        held = [t for t in got if self.duties.NO_BEFORE in t]
+        self.assertFalse(self.rejected(got), got)
+        self.assertEqual(len(held), 1, got)
+        self.assertEqual(seen["no_before"], {"texts": held, "log": str(self.place / "duties")})
+
     def test_a_missing_or_broken_base_file_is_named_apart_from_a_missing_runner(self):
-        """元の結末の控えが無い・読めない回（base が None）の保留の訳は、実行器が無い回（控えに exe が無い）の訳と別の文にする"""
+        """元の結末の控えが無い・読めない回（base が None）の保留の訳は、実行器が無い回（控えに exe が無い）の訳と別の文にする。
+        控えが無い回は受け付けが返した木も走らせない（cases が None）ので、その組み合わせでも保留の行になり、直しの誤りの拒みは出ない"""
         self.order("variant")
         self.fix_mean()
         reply = {"changes": [{"unit_key": "U", "files": ["stats.py"]}], "evidence": {"named": [{"unit_key": "U", "test": self.MEAN3}]}}
 
-        def held(base):
+        def held(base, cases):
             seen: dict = {}
-            self.duties.accept_problems(self.place, self.repo, self.rev, reply, base=base, cases=self.passed(self.MEAN3), seen=seen)
+            got = self.duties.accept_problems(self.place, self.repo, self.rev, reply, base=base, cases=cases, seen=seen)
+            self.assertFalse(self.rejected([t for _, t in got]), got)
+            self.assertIn("no_before", seen, got)
             return "".join(seen["no_before"]["texts"])
-        no_file = held(None)
-        no_exe = held({**self.base_doc(), "exe": ""})
+        no_file = held(None, None)
+        no_exe = held({**self.base_doc(), "exe": ""}, self.passed(self.MEAN3))
         self.assertIn(self.duties.NO_BASE_WHY, no_file)
         self.assertNotIn(self.gates.NO_SUITE_WHY, no_file)
         self.assertIn(self.gates.NO_SUITE_WHY, no_exe)
         self.assertNotIn(self.duties.NO_BASE_WHY, no_exe)
+        self.assertIn(self.gates.NO_SUITE_WHY, held({**self.base_doc(), "exe": ""}, None), "実行器が無く返した木も走らせなかった回も保留")
 
     def test_a_named_test_that_is_not_green_in_the_returned_tree_is_rejected(self):
         self.order("variant")
