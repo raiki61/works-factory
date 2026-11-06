@@ -540,14 +540,20 @@ def recommend_of(mark: dict):
     return got if got is not None and not _recommend_gap(got) else None
 
 
+REASON_HEAD = "（理由: "  # 推しの尾で note と why を分ける区切り
+REASON_SAFE = "（理由："  # why の中の REASON_HEAD をこの字に替える（全角の colon）
+
+
 def _push(mark: dict) -> str:
-    """人に回す行の尾: 役が推しを書いた行だけに「／推し: 通す（continue）——<note>（理由: <why>）」（PUSH_IN が拾う形で末尾に置く）"""
+    """人に回す行の尾: 役が推しを書いた行だけに「／推し: 通す（continue）——<note>（理由: <why>）」（PUSH_IN が拾う形で末尾に置く）。
+    why の中の「（理由: 」は「（理由：」に替える（note は替えない。読み手は最後の区切りで切る）"""
     rec = recommend_of(mark)
     if rec is None:
         return ""
     answer = rec[RECOMMEND_KEYS[0]]
     note, why = (_tail_text(rec[k]) for k in RECOMMEND_KEYS[1:])
-    return f"／{PUSH}{RECOMMEND_WORDS[answer]}（{answer}）——{note}（理由: {why}）"
+    why = why.replace(REASON_HEAD, REASON_SAFE)
+    return f"／{PUSH}{RECOMMEND_WORDS[answer]}（{answer}）——{note}{REASON_HEAD}{why}）"
 
 
 # ---------------------------------------------------------------- 頼みの解き方の外れ（計画 means-answers の 3.2 の 8・3.3）
@@ -609,8 +615,9 @@ def _tail_text(v) -> str:
     return _squeeze(v).replace("／", "・")
 
 
+# note は欲張りで、最後の REASON_HEAD で切る。why は _push が中和するので区切りを含まない
 _PUSH_REC = re.compile("／" + re.escape(PUSH) + "(" + "|".join(RECOMMEND_WORDS.values()) + ")（(" + "|".join(RECOMMEND_ANSWERS)
-                       + ")）——([^／\n]*)（理由: ([^／\n]*)）$")
+                       + ")）——([^／\n]*)" + re.escape(REASON_HEAD) + "([^／\n]*)）$")
 
 
 def push_rec(text) -> dict | None:

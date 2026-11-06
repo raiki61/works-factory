@@ -194,6 +194,18 @@ class PushRecCase(unittest.TestCase):
         pushed = gatemarks.item_draft(text + gatemarks._push({gatemarks.RECOMMEND: self.REC}), gatemarks.GATE_NODE)
         self.assertTrue(pushed["text"].startswith("continue: "))
 
+    def test_reason_head_in_why_keeps_the_cut(self):
+        """why が「（理由: 」を含んでも、note は書いたとおり戻り、why は区切りを中和した字で戻る（note に why の断片が混ざらない）"""
+        got = gatemarks.push_rec(self.row(note="空の列は 0 を返す形で通す", why="呼び手が前提にする（理由: 0 を返す）"))
+        self.assertEqual((got["note"], got["why"]), ("空の列は 0 を返す形で通す", "呼び手が前提にする（理由：0 を返す）"))
+
+    def test_reason_head_in_note_and_why_round_trips(self):
+        """note と why の両方が「（理由: 」を含むと、note は書いたとおり、why は中和した字で戻って崩れない"""
+        got = gatemarks.push_rec(self.row(note="空の列は 0 を返す（理由: 呼び手の都合）形で通す",
+                                          why="呼び手が前提にする（理由: 0 を返す）"))
+        self.assertEqual((got["note"], got["why"]),
+                         ("空の列は 0 を返す（理由: 呼び手の都合）形で通す", "呼び手が前提にする（理由：0 を返す）"))
+
     def test_rows_without_an_answer_word_are_not_pushes(self):
         for text in (self.BODY, f"{gatemarks.DESIGN_HEAD}x／推し: 案 A", f"x／推し: {gatemarks.NO_PUSH}",
                      "x／推し: 止める（continue）——a（理由: b）"):
