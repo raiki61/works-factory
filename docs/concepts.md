@@ -176,9 +176,9 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 ### `test-files` テストのファイルの見分け
 
 - 状態: 住処あり
-- 住処: 名の慣習は `lib/impact.py` の `is_test`（`TEST_NAME`・`TEST_STEM`。言語の表でなく名の形）、宣言と慣習を合わせた見分けは同じ `impact.py` の `is_test_file(path, declared)`。TDD のループの宣言の組は `workflows/fix/src/tdd.py` の `declared_test_files`
+- 住処: 名の慣習は `lib/impact.py` の `is_test`（`TEST_NAME`・`TEST_STEM`。言語の表でなく名の形）、宣言と慣習を合わせた見分けは同じ `impact.py` の `is_test_file(path, declared)`、既知のコードの拡張子かの見分けは同じ `impact.py` の `is_code`。試験のデータの置き場の名（`TEST_DATA_DIRS`）とその見分け `is_test_data` も `impact.py` が持つ。TDD のループの宣言の組は `workflows/fix/src/tdd.py` の `declared_test_files`
 - 約束: 文書の宣言は対象の git の属性 `linguist-documentation`（`impact` が読む）
-- 知ってよい所: 住処だけが名の型を書く。修正の `workflows/fix/src/common.py` の `PYTEST_FILE` は pytest の既定の python_files（実行器が pytest の時の名指しの型）で、知ってよい所に置く。使う所（`workflows/fix/src/gates.py`・`workflows/plan/src/ripple.py`・`workflows/plan/src/take.py`・run の広さを数える `workflows/line/src/tiers.py`）は住処の口を呼び、宣言と慣習を合わせる式を自分で組まない
+- 知ってよい所: 住処だけが名の型を書く。修正の `workflows/fix/src/common.py` の `PYTEST_FILE` は pytest の既定の python_files（実行器が pytest の時の名指しの型）で、知ってよい所に置く。使う所（`workflows/fix/src/gates.py`・`workflows/plan/src/ripple.py`・`workflows/plan/src/take.py`・run の広さを数える `workflows/line/src/tiers.py`）は住処の口を呼び、宣言と慣習を合わせる式を自分で組まない。例外は TDD のループの住処 `workflows/fix/src/tdd.py` の `_split_claims` で、住処の口（`is_test_file`・`is_test` の support・`is_test_data`・`is_code`）と出どころの条件（承認済みの修正案が新しく作ると書いた行のパス〔拡張子に依らない〕のうち単位の頭の木に無いか）で、凍らせる申告（コードの仮の実装を外す）を決める。拡張子と名の型の知識は `impact.py` の側だけが持つ
 - 今: `workflows/gate-efficacy/src/signals.py` の `GATE_FILE_PATTERNS`（検証ゲートの定義のファイルの広めの型）は別の考えで、テストの名の型の字を含む（柵の表の既知の漏れ）
 
 ### `red-check` TDD の赤の判定（事実と失敗の文の引用）

@@ -196,6 +196,38 @@ class TestIsTest(unittest.TestCase):
                 self.assertTrue(impact.is_test_file(path, set()))
         self.assertFalse(impact.is_test_file("stats.py", set()))
 
+    def test_is_code_known_code_extensions_only(self):
+        """is_code は既知のコードの拡張子（Python と、import を読まない言語の表と、mentions がコードと数えるシェルなどの拡張子）
+        だけに真を返す。文書とデータ・設定・知らない拡張子・拡張子の無い名は偽"""
+        self.assertTrue(hasattr(impact, "is_code"), "impact に is_code が無い")
+        for path in ("stats.py", "pkg/types.pyi", "web/app.js", "web/app.ts", "web/App.tsx", "cmd/main.go", "src/Main.java",
+                     "lib/tool.rb", "src/lib.rs", "bin/run.sh", "scripts/x.bash", "build.mk"):
+            with self.subTest(path=path, want=True):
+                self.assertTrue(impact.is_code(path))
+        for path in ("__snapshots__/x.snap", "docs/guide.md", "testdata/case.txt", "testdata/rows.csv", "expected.json",
+                     "conf/ci.yaml", "golden/out.golden", "testdata/input", "Makefile"):
+            with self.subTest(path=path, want=False):
+                self.assertFalse(impact.is_code(path))
+        # コードかどうかの分けは、mentions（コード）と refs（設定・文書）の分け（REF_EXT）と割れない
+        for ext in impact.PY_EXT | impact.OTHER_CODE_EXT | impact.PATHREF_EXT | impact.DOC_EXT:
+            with self.subTest(ext=ext):
+                if impact.is_code("a." + ext):
+                    self.assertNotIn(ext, impact.REF_EXT)
+
+
+    def test_is_test_data_under_data_dirs(self):
+        """is_test_data は、親のフォルダのどれかが試験のデータの置き場の名（testdata・fixtures・__fixtures__・__snapshots__・golden）
+        のパスに真を返す。実装・試験のフォルダのコードは偽。is_test は広げず、データの置き場の下のコードは None のまま"""
+        self.assertTrue(hasattr(impact, "is_test_data"), "impact に is_test_data が無い")
+        for path in ("testdata/expected.go", "__fixtures__/expected.ts", "fixtures/expected_out.py", "__snapshots__/a.ts",
+                     "golden/out.go", "pkg/testdata/deep/expected.go"):
+            with self.subTest(path=path, want=True):
+                self.assertTrue(impact.is_test_data(path))
+        for path in ("stats.py", "src/app.go", "tests/test_x.py", "testdata.py", "pkg/golden_out.go"):
+            with self.subTest(path=path, want=False):
+                self.assertFalse(impact.is_test_data(path))
+        self.assertIsNone(impact.is_test("testdata/expected.go"))
+
 
 class UnanalysableCase(RepoCase):
     def test_unknown_language_seed_requires_all(self):

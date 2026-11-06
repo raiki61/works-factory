@@ -9,6 +9,11 @@
       "description": "輪で緑になった単位のテストのファイル → 輪が済んだ時の中身の sha256（16 進。ファイルが無ければ null）",
       "patternProperties": {"^.+$": {"type": ["string", "null"]}}
     },
+    "frozen_by": {
+      "type": "object",
+      "description": "凍ったテストのファイル → それを赤の段で test_files に申告した単位の鍵の並び（一緒に閉じた単位は含めない。古い記録には無い）",
+      "patternProperties": {"^.+$": {"type": "array", "items": {"type": "string"}}}
+    },
     "frozen_tree": {"type": "string", "description": "輪が済んだ時の作業ツリーの版（木の sha）。凍結の差分の起点"},
     "handoff": {"type": "string", "description": "最後に突き合わせを通した（機械が戻した）作業ツリーの版。次の輪の起点の木"},
     "suite_made": {"type": "array", "items": {"type": "string"}, "description": "一式・test_cmd を走らせて出来たファイル（書き込みの出どころの照合と凍結の照らしから外す）"},
