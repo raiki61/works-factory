@@ -1,5 +1,5 @@
-"""書き込みの記録（writes.jsonl）の置き場の決め方の 1 か所。作業の場ごとの置き場の決め方（鍵・控え・片付け）は、読んだ証拠の
-記録（lib/reads.py の reads.jsonl。根は別の works-reads）も同じ物を使う。
+"""作業の場ごとの置き場の決め方（鍵・控え・片付け）の 1 か所。書き込みの記録（writes.jsonl）・読んだ証拠の記録（lib/reads.py の
+reads.jsonl。根は別の works-reads）・役の道具の cache（根は run の置き場の role-cache）が使う。
 
 記録のフック（bin/_lib/record-write.py。Claude の設定の PostToolUse:Edit|Write|NotebookEdit）が書き、書く役の受け付け
 （writes.check）が読む。フックは道具の呼び出しのたびに起きるので、このモジュールは標準ライブラリだけを読む（重い部品を import しない）。
@@ -7,7 +7,8 @@
 - ROOT: 記録の根の名（Claude の設定の置き場の下。起動が作り、無ければ記録の無い run）
 - root(config_dir) -> Path: Claude の設定の置き場 config_dir の下の記録の根
 - log_path(root, cwd, name=LOG) -> Path: 根 root の下の、役の作業の場 cwd（実パス）ごとの記録のファイル name
-- open_log(root, cwd, name=LOG) -> Path: log_path の置き場を作り、作業の場の実パスを控え（WHERE）に書いて記録のファイルを返す
+- open_place(root, cwd) -> Path: 根 root の下の作業の場 cwd の置き場を作り、作業の場の実パスを控え（WHERE）に書いてそのフォルダを返す
+- open_log(root, cwd, name=LOG) -> Path: open_place の置き場の中の記録のファイル name を返す
 - log_here(cwd=None)・open_here(): このプロセスの Claude の設定の置き場（CLAUDE_CONFIG_DIR）の下の、作業の場 cwd（既定は今の cwd）の
   記録のファイルと、その記録を空で作る口。記録の根が無い起動は None・何もしない（記録の無い run）
 - sweep(root) -> (list[Path], list[OSError]): 控えの作業の場がもう無い置き場を消し、消した置き場と消せなかった置き場の誤りを返す
@@ -36,13 +37,17 @@ def log_path(root, cwd, name: str = LOG) -> pathlib.Path:
     return pathlib.Path(root) / _key(cwd) / name
 
 
-def open_log(root, cwd, name: str = LOG) -> pathlib.Path:
-    log = log_path(root, cwd, name)
-    log.parent.mkdir(exist_ok=True)
-    where = log.parent / WHERE
+def open_place(root, cwd) -> pathlib.Path:
+    held = pathlib.Path(root) / _key(cwd)
+    held.mkdir(exist_ok=True)
+    where = held / WHERE
     if not where.exists():
         where.write_text(os.path.realpath(str(cwd)), encoding="utf-8", errors="surrogateescape")
-    return log
+    return held
+
+
+def open_log(root, cwd, name: str = LOG) -> pathlib.Path:
+    return open_place(root, cwd) / name
 
 
 def _here_root() -> pathlib.Path | None:

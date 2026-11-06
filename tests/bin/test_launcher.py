@@ -16,7 +16,7 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import auth_launch, launcher, place, recordroot, specreviews, toolset
+from bin._lib import auth_launch, isolate, launcher, place, recordroot, specreviews, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
 from tests import archon
 from tests.bin import fakelaunch, hermetic
@@ -1175,6 +1175,54 @@ class LauncherTest(unittest.TestCase):
         records = str(self.default_home(self.target) / launcher.FENCE_DIR / "launches.jsonl")
         self.assertEqual(argv[argv.index("--records") + 1], records)
         self.assertEqual(env[launcher.FENCE_RECORDS_ENV], records, "script のノードが包みの記録を読めない（包みの宣言が無い）")
+
+    def test_fence_names_the_role_cache_root_of_the_run_home(self):
+        """包みの殻は --role-cache を 1 つ持つ。そのパスは run の置き場の下の在るフォルダで、隔離した置き場（Archon の家・Claude の設定・
+        xdg-cache など）と --own のどれの下にも無い（役が起動ごとの cache を書けるよう、守る所の外に置く）"""
+        env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
+        argv = self.fence_of(env)
+        self.assertEqual(argv.count("--role-cache"), 1, argv)
+        root = pathlib.Path(argv[argv.index("--role-cache") + 1])
+        home = self.default_home(self.target)
+        self.assertTrue(root.is_dir(), root)
+        self.assertTrue(root.is_relative_to(home), root)
+        for sub in isolate.DIRS.values():
+            self.assertFalse(root.is_relative_to(home / sub), (root, sub))
+        for own in (argv[i + 1] for i, a in enumerate(argv) if a == "--own"):
+            self.assertFalse(root.is_relative_to(own), (root, own))
+
+    def test_executing_launch_sweeps_role_caches_of_gone_workspaces(self):
+        """工程を走らせる命令は、役の cache の根の下のうち作業の場が無くなった置き場を消し、生きた作業の場の置き場は残し、片付けた件数を
+        1 行で告げる"""
+        root = self.default_home(self.target) / "role-cache"
+
+        def place_of(workspace):
+            held = writelog.log_path(root, workspace).parent
+            (held / "launch-x").mkdir(parents=True)
+            (held / writelog.WHERE).write_text(os.path.realpath(workspace), encoding="utf-8")
+            return held
+
+        gone = self.tmp / "gone-run"
+        gone.mkdir()
+        dead, live = place_of(gone), place_of(self.target)
+        gone.rmdir()
+        done = self.launch("workflow", "run", "works-factory-line")
+        self.reached(done)
+        self.assertFalse(dead.exists(), "作業の場の無い役の cache が残った")
+        self.assertTrue((live / "launch-x").is_dir())
+        self.assertIn("役の道具の cache を 1 件片付けた", done.stderr)
+
+    def test_sweep_does_not_stop_when_the_role_cache_root_cannot_be_made(self):
+        """役の cache の根が作れない（その名でファイルが居座る）時も、片付けは run を止めず、根を作ろうとして何も増やさない"""
+        home = self.tmp / "run-home"
+        home.mkdir()
+        (home / "role-cache").write_text("file", encoding="utf-8")
+        launcher.sweep_logs(str(self.tmp / "config"), home)
+        self.assertTrue((home / "role-cache").is_file())
+        empty = self.tmp / "empty-home"
+        empty.mkdir()
+        launcher.sweep_logs(str(self.tmp / "config"), empty)
+        self.assertFalse((empty / "role-cache").exists(), "片付けが根を作った")
 
     def test_fence_denies_what_later_launches_run_outside_the_sandbox(self):
         """後の役の起動と次の起動が sandbox の外で走らせる物（殻・gh の口・本物の claude・包みを起こす Python・取り置いた Archon の源・

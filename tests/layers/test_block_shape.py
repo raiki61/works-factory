@@ -599,11 +599,41 @@ CHECKS = (check_prompt_from_prep, check_prompt_files, check_standalone_renders, 
           check_required_in_properties)
 
 
+SANDBOX_SHELL = BLOCKS / SHARED / "prompts" / "sandbox-shell.md"
+HERE_WORDS = re.compile(r"\b(?:heredoc|here-doc|here-document|here document|here-string|here string)\b", re.IGNORECASE)
+HERE_SHAPES = re.compile(r"<<<|<<-?\s*['\"]?[A-Z][A-Z0-9_]*['\"]?")   # 終わりの印は大文字だけ（`a << b` には当たらない）
+
+
+def here_document_in(text: str) -> bool:
+    """here-document・here-string を、語（語の境目つき・大小を問わない）でも字の形でも拾う"""
+    return bool(HERE_WORDS.search(text) or HERE_SHAPES.search(text))
+
+
 class RealTreeCase(unittest.TestCase):
     def test_blocks_hold_every_shape(self):
         for check in CHECKS:
             with self.subTest(check=check.__name__):
                 self.assertEqual(check(BLOCKS), [])
+
+    def test_bash_roles_take_the_sandbox_shell_rules(self):
+        self.assertTrue(SANDBOX_SHELL.is_file(), "sandbox の中の shell の書き方の断片 sandbox-shell.md が無い")
+        text = SANDBOX_SHELL.read_text(encoding="utf-8")
+        m = REQUIRED_FOR.match(text)
+        self.assertIsNotNone(m, "頭の 1 行に required-for-tools の印が無い")
+        self.assertEqual((m.group(1), set(m.group(2).split())), ("tools", {"Bash"}))
+        self.assertNotIn("If you start a sub-agent", text, "下請けへ写す文は断片に置かない")
+
+    def test_no_instruction_offers_a_here_document(self):
+        for text, want in (("cat <<'EOF'", True), ("python3 - <<EOF", True), ("grep <<< x", True), ("Use a Heredoc", True),
+                           ("a here-string", True), ("where documents", False), ("where strings", False), ("a << b", False)):
+            with self.subTest(sample=text):
+                self.assertEqual(here_document_in(text), want)
+        offenders = []
+        for path in sorted(BLOCKS.rglob("*.md")):
+            if "prompts" in path.relative_to(BLOCKS).parts and path != SANDBOX_SHELL:
+                if here_document_in(path.read_text(encoding="utf-8")):
+                    offenders.append(str(path.relative_to(BLOCKS)))
+        self.assertEqual(offenders, [], "指示の md が here-document・here-string を書き方に挙げている")
 
     def test_uv_script_heads(self):
         for folder in folders(BLOCKS):

@@ -278,6 +278,24 @@ class FlowCase(unittest.TestCase):
         self.assertIn("general-purpose child", section)
         self.assertNotIn("A lens whose name starts with `/` is a skill, started with Skill.", got)
 
+    def test_sandbox_shell_rules_ride_in_the_section_copied_to_helpers(self):
+        """Agent の子へ丸ごと写す節 `## Reading borrowed skills` の中に、sandbox の中の shell の書き方の断片が在る"""
+        fragment = kit.SHARED / "prompts" / "sandbox-shell.md"
+        self.assertTrue(fragment.is_file(), "sandbox の中の shell の書き方の断片 sandbox-shell.md が無い")
+        body = fragment.read_text(encoding="utf-8").split("\n", 1)[1].strip()   # 頭の印の行は組み上がりに残らない
+        self.intake()
+        got = self.prep()["prompt"]
+        self.assertIn("## Reading borrowed skills", got)
+        self.assertIn(body, got[got.index("## Reading borrowed skills"):])
+        # shell の決まりは借りたスキルを読むかどうかに依らず効く: 読み替えの本文の前に置き、頭の 1 文もそう言う
+        overlay_head = "# 借りた superpowers のスキルを無人の役で読むときの読み替え"
+        self.assertIn(overlay_head, got)
+        self.assertLess(got.index("## Reading borrowed skills"), got.index(body))
+        self.assertLess(got.index(body), got.index(overlay_head))
+        lead = got[got.index("## Reading borrowed skills"):got.index(body)]
+        self.assertIn("Follow the shell rules below whenever you run a shell command.", lead)
+        self.assertIn("When you read a borrowed skill (superpowers), also follow the reading rules below.", lead)
+
     def test_lang_reaches_the_prompt(self):
         self.intake(lang="Japanese")
         self.assertIn("in Japanese.", self.prep()["prompt"])

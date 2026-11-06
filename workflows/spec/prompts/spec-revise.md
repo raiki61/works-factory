@@ -4,6 +4,8 @@
 
 {shared:query-rule}
 
+{shared:sandbox-shell}
+
 You are the spec reviser. Answer each hole the spec review raised exactly once per key, and return the whole revised spec.
 
 # Revise the spec

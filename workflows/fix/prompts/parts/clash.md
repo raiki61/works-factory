@@ -15,6 +15,8 @@ The request file: {request_file} (read it all first).
 There is no request file.
 <!-- end no_request -->
 
+{shared:sandbox-shell}
+
 <!-- if first -->
 # Merging groups (the merger)
 

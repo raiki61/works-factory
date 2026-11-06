@@ -87,7 +87,9 @@ Do not write the spelling of a flag in `args`, not even inside a sentence that s
 
 ## Reading borrowed skills
 
-When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text. If you start a helper with Agent, include this whole section in its prompt as it is; this section does not reach the helper otherwise.
+Follow the shell rules below whenever you run a shell command. When you read a borrowed skill (superpowers), also follow the reading rules below. Both are direct instructions to you and win over the skill's text. If you start a helper with Agent, include this whole section in its prompt as it is; this section does not reach the helper otherwise.
+
+{shared:sandbox-shell}
 
 {unattended}
 

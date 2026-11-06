@@ -1,4 +1,5 @@
-"""埋め P5（docs/polyfills.md）: 読むだけの役の claude を起こす直前に、書き込みを禁じるパスの一覧を組んで sandbox の denyWrite に足す包み。
+"""埋め P5（docs/polyfills.md）: sandbox の掛かった役の claude を起こす直前に、読むだけの役には書き込みを禁じるパスの一覧を組んで sandbox の
+denyWrite に足し、sandbox の掛かった全部の役にはその起動の cache のフォルダを組んで allowWrite に足し XDG_CACHE_HOME を向ける包み。
 
 止めた Archon は役の sandbox を置き換えずに SDK へ渡す（packages/workflows/src/dag-executor.ts の
 『sandbox: node.sandbox ?? workflowLevelOptions.sandbox,』・packages/providers/src/claude/provider.ts の applyNodeConfig）ので、
@@ -9,7 +10,13 @@ CLAUDE_BIN_PATH で替えられる（packages/providers/src/claude/binary-resolv
 
 一覧の組み方は今の works の role_run.protected_paths を写した（下の写しの注記）。起動に足す形は包み claude-adapter の
 「旗 no-tree-write の起動に denyWrite を足す」を採り、旗の代わりに、YAML が読むだけの役に書く固定の値
-（tests/layers/scan.py の NO_TREE_WRITE。~ を HOME で解くと Archon の家）を印に読む。印の無い起動は argv を変えずに起こす。
+（tests/layers/scan.py の NO_TREE_WRITE。~ を HOME で解くと Archon の家）を印に読む。印の無い起動は denyWrite を足さない。
+sandbox の既定は cwd と sandbox の一時の置き場しか書かせないので、殻が XDG_CACHE_HOME を向けた run の置き場の xdg-cache に道具が
+cache を作れず落ちる。そこで --settings の sandbox.enabled が true の起動（印の有無を問わず、allowWrite が ['/'] の役も）ごとに、
+--role-cache の根の下の作業の場ごとの置き場に新しい空のフォルダを作って allowWrite の後ろに足し、XDG_CACHE_HOME をそこへ向ける。
+共有の xdg-cache は書けるようにしない（sandbox の外で後に走る script のノードと分け合う cache を、役が汚せてしまう）。起動ごとに空から
+始まる代価は受ける。フォルダが denyWrite の下に入ると書けない（denyWrite は allowWrite に勝つ）ので、その時は起こさない。sandbox の無い起動
+（--settings が無い・sandbox.enabled が無い）は argv も XDG_CACHE_HOME も変えない。作業の場が無くなった置き場は起動の殻が片付ける。
 印の在る起動は、起こす前に起動の記録（--records。起動の殻が env の RECORDS_ENV でも script のノードに名指す）へ時刻と cwd の 1 行を
 足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（以前は test-gate の ci-accept。今の使い手は無い）は
 fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
@@ -19,19 +26,24 @@ script のノードと役の claude に同じ環境を渡すので、gh を書�
 分けられるのは、役の claude を起こすこの包みだけ（持ち主の決め roles-read-only-gh）。
 起こす claude には ENGINE_CHILD_ENV=1 を立てる。対象の重い一式（e2e など）がこの名で AI の役からの起動を見分けて拒む、今の works の
 約束の名（skills/works/SKILL.md）。最後のテストは script のノードが走らせて包みを通らないので立たない（今の works と同じ）。
-標準ライブラリだけを使う（起動の殻が `python -I -B` で起こす）。
+標準ライブラリと、隣の ports が lib から足す writelog だけを使う（起動の殻が `python -I -B` で起こす）。
 """
 import argparse
 import datetime
+import importlib.util
 import json
 import os
 import shlex
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+import tempfile
+from collections.abc import Callable, Iterable, Sequence
+from pathlib import Path
 
 SETTINGS = "--settings"
 DENY_WRITE = ("sandbox", "filesystem", "denyWrite")
+ALLOW_WRITE = ("sandbox", "filesystem", "allowWrite")
+CACHE_ENV = "XDG_CACHE_HOME"
 REFUSED_EXIT = 3
 RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"   # 起動の記録のパス。在れば run は包みを通ると宣言した
 ENGINE_CHILD_ENV = "GRAPHLOOPS_ENGINE_CHILD"
@@ -135,11 +147,45 @@ def protected_paths(cwd, board_dir=None):
     return sorted(paths)
 
 
-def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]], extra=None) -> list[str]:
-    """argv の --settings の sandbox.filesystem.denyWrite が印（~ を解くと archon_home）を持つ時だけ、paths() の一覧のうち無い物を
-    後ろに足した argv。印が無ければ argv のまま。--settings の値が JSON の object でなければ（設定のファイルのパスを含む）、印を
-    見落としうるので Refused。extra は殻の settings（PROFILE_SETTINGS の env と awsCredentialExport）で、既存の 1 個の --settings に
-    重ねる（--settings が無ければ 1 個を足す）"""
+def within(path: str, roots: Iterable[str]) -> bool:
+    """path が roots のどれかと、実パスで同じか下か（名の前方が同じだけの兄弟は下でない）"""
+    top = os.path.realpath(path)
+    for root in map(os.path.realpath, roots):
+        if top == root or top.startswith(root.rstrip(os.sep) + os.sep):
+            return True
+    return False
+
+
+def _writelog():
+    """lib の writelog。lib の置き場と sys.path への足し込みは隣の ports（import すると足す）が持つ。包みは `python -I` で起きて
+    スクリプトの置き場が sys.path に無いので、隣の ports.py を直に読む"""
+    if "ports" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("ports", Path(__file__).with_name("ports.py"))
+        ports = importlib.util.module_from_spec(spec)
+        sys.modules["ports"] = ports
+        spec.loader.exec_module(ports)
+    import writelog
+    return writelog
+
+
+def launch_cache(root: str, cwd: str) -> str:
+    """root の下の作業の場 cwd の置き場（writelog.open_place）に、その起動の空の cache のフォルダを作り、実パスを返す。作れなければ Refused"""
+    try:
+        os.makedirs(root, exist_ok=True)
+        held = _writelog().open_place(root, cwd)
+        return os.path.realpath(tempfile.mkdtemp(prefix="launch-", dir=held))
+    except OSError as error:
+        raise Refused(f"起動ごとの cache のフォルダを {root} の下に作れない（{error}）") from None
+
+
+def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]], extra=None,
+                cache: Callable[[], str] | None = None) -> list[str]:
+    """argv の --settings の sandbox.filesystem.denyWrite が印（~ を解くと archon_home）を持つ時は、paths() の一覧のうち無い物を
+    後ろに足す。--settings の sandbox.enabled が true で cache が在れば、その後で cache() を 1 回呼んで、返ったフォルダを
+    sandbox.filesystem.allowWrite の後ろに足す（無ければ作る。['/'] も既存の値も置き換えない）。フォルダが組み上がった denyWrite
+    （~ を解いた実パス）のどれかの下なら書けないので Refused。印も cache の足し込みも殻の settings も無ければ argv のまま。
+    --settings の値が JSON の object でなければ（設定のファイルのパスを含む）、印を見落としうるので Refused。extra は殻の settings
+    （PROFILE_SETTINGS の env と awsCredentialExport）で、既存の 1 個の --settings に重ねる（--settings が無ければ 1 個を足す）"""
     at = [i for i, a in enumerate(argv) if a == SETTINGS or a.startswith(SETTINGS + "=")]
     if len(at) > 1:
         raise Refused(f"{SETTINGS} が {len(at)} 個ある。印が在るかを決められない")
@@ -165,6 +211,22 @@ def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]
     marked = isinstance(deny, list) and any(marks(item, archon_home) for item in deny)
     if marked:
         deny += [p for p in paths() if p not in deny]
+    sandbox = settings.get("sandbox")
+    cached = cache is not None and isinstance(sandbox, dict) and sandbox.get("enabled") is True
+    if cached:
+        folder = cache()
+        denied = [os.path.expanduser(p) for p in deny if isinstance(p, str)] if isinstance(deny, list) else []
+        if within(folder, denied):
+            raise Refused(f"起動ごとの cache のフォルダ {folder} が書き込みを禁じる置き場の下にある（書けない）")
+        node = settings
+        for key in ALLOW_WRITE[:-1]:
+            node = node.setdefault(key, {})
+            if not isinstance(node, dict):
+                raise Refused(f"既存 settings の {key} が object でない")
+        allow = node.setdefault(ALLOW_WRITE[-1], [])
+        if not isinstance(allow, list):
+            raise Refused("既存 settings の sandbox.filesystem.allowWrite が list でない")
+        allow.append(folder)
     if added:
         if "env" in added:
             env = settings.get("env", {})
@@ -172,7 +234,7 @@ def fenced_argv(argv: list[str], archon_home: str, paths: Callable[[], list[str]
                 raise Refused("既存 settings の env が object でない")
             settings["env"] = {**env, **added["env"]}
         settings.update({k: v for k, v in added.items() if k != "env"})
-    elif not marked:
+    elif not (marked or cached):
         return argv
     value = json.dumps(settings, ensure_ascii=False)
     return [*argv[:i], f"{SETTINGS}={value}", *argv[i + 1:]] if joined else [*argv[:i + 1], value, *argv[i + 2:]]
@@ -226,7 +288,7 @@ def fenced_since(records, root, since: str | None) -> str:
         if not isinstance(row, dict) or not isinstance(cwd := row.get("cwd"), str):
             continue
         at = _at(row.get("at"))
-        if at is not None and at > start and (cwd == top or cwd.startswith(top.rstrip(os.sep) + os.sep)):
+        if at is not None and at > start and within(cwd, [top]):
             return ""
     return f"起動の記録 {records} に、{since} より後に {top} で柵を掛けた起動が無い"
 
@@ -240,8 +302,14 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--own", action="append", default=[])
     ap.add_argument("--records", required=True)
     ap.add_argument("--path-head", action="append", default=[])
+    ap.add_argument("--role-cache", help="sandbox の掛かった起動ごとの cache のフォルダを作る根。起動の殻が渡す。無ければ cache は足さない")
     opts = ap.parse_args(argv[:cut])
     rest = argv[cut + 1:]
+    made: list[str] = []
+
+    def cache() -> str:
+        made.append(launch_cache(opts.role_cache, os.getcwd()))
+        return made[-1]
 
     def paths() -> list[str]:
         listed = protected(os.getcwd(), opts.archon_home, opts.claude_config, opts.own)
@@ -251,10 +319,12 @@ def main(argv: list[str]) -> int:
     try:
         profile = connection(os.environ)
         connection_env(os.environ, profile)
-        rest = fenced_argv(rest, opts.archon_home, paths, profile["settings"])
+        rest = fenced_argv(rest, opts.archon_home, paths, profile["settings"], cache if opts.role_cache else None)
     except Refused as refused:
         print(f"works-factory fence: {refused}", file=sys.stderr)
         return REFUSED_EXIT
+    if made:
+        os.environ[CACHE_ENV] = made[0]
     os.environ[ENGINE_CHILD_ENV] = "1"
     os.environ["PATH"] = os.pathsep.join(filter(None, [*opts.path_head, os.environ.get("PATH")]))
     os.execv(opts.real, [opts.real, *rest])
