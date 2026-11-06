@@ -1148,11 +1148,11 @@
   ]
  },
  {
-  "id": "W35",
+  "id":  "W35",
   "to": "共通",
   "from": "writer",
   "text": [
-   "- **Write the working tree's files with Edit and Write.** The acceptance compares the change from the version with the answer's declarations (`changes[].files` and `bash_writes`) and rejects undeclared changes. Write with Bash (heredoc `python3 -`, `cat >`, `sed -i`, formatters, and the like) only for execute permissions, binaries, or large mechanical replacements, and then write the path and the reason, one by one, in the answer field `bash_writes`."
+   "- **Write the working tree's files with Edit and Write.** The acceptance compares the change from the version with the answer's declarations (`changes[].files` and `bash_writes`) and rejects undeclared changes. Write with Bash (`cat >`, `sed -i`, formatters, and the like) only for execute permissions, binaries, or large mechanical replacements, and then write the path and the reason, one by one, in the answer field `bash_writes`."
   ]
  },
  {

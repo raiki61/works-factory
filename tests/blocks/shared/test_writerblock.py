@@ -197,6 +197,15 @@ class SubagentCase(Base):
         self.assertTrue(v.startswith(f"- 項目 1: 実装役 {self.art / 'g1-impl-1.md'}・審査役 {self.art / 'g1-review-1.md'}・差分のコマンド `"), v)
         self.assertTrue(seen["when"]["g1"])
 
+    def test_each_subagent_file_takes_the_sandbox_shell_rules(self):
+        fragment = kit.SHARED / "prompts" / "sandbox-shell.md"
+        self.assertTrue(fragment.is_file(), "sandbox の中の shell の書き方の断片 sandbox-shell.md が無い")
+        body = fragment.read_text(encoding="utf-8").split("\n", 1)[1].strip()   # 頭の印の行は組み上がりに残らない
+        self.spawn(BRIEFED)
+        for name in ("g1-impl-1.md", "g1-review-1.md"):
+            with self.subTest(name=name):
+                self.assertIn(body, (self.art / name).read_text(encoding="utf-8"))
+
     def test_the_reviewer_reads_the_diff_against_the_base_and_not_a_commit_range(self):
         self.spawn(BRIEFED)
         review = (self.art / "g1-review-1.md").read_text(encoding="utf-8")

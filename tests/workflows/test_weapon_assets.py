@@ -83,6 +83,7 @@ SHARED_PARTS = {"brief-reading.md", "rejected.md"}   # A.3 の .shared/prompts �
 REWORDED = {   # 移す時に字を替えた行: 番号 → (表の字, PIN の字)
     "W21": ("one of the kinds below", "one of the 6 below"),   # 申し出の種類に red_at_base を足した（PR B の控え）
     "F135": ("`clean` without ever having seen red is rejected.", "clean without ever having seen red is rejected"),   # F135 の文を rules_red の段落へ切り出した
+    "W35": ("Write with Bash (`cat >`", "Write with Bash (heredoc `python3 -`, `cat >`"),   # REWORDED の対: here-document の例を消し、書き方の決まりを共通の断片 sandbox-shell に移した
 }
 COUNTS = {"共通": 156, "variant": 29, "変える": 4, "消す": 11}   # 付録 A の A.1・1.4.2 の数（全部で 200）
 ADDED_PINS = {"A.9": "c18a3f3c99b09a17cbeeeb711d82f836c51cea7e"}   # 型を分けた後に段落を足した節 → 節の置き場の足した後の版（git の blob。F2 の後始末の後の writer.md）
@@ -113,6 +114,10 @@ RENDERS = {d.name: kit.load(d.name, "render") for d in sorted(kit.BLOCKS.glob("w
 writers = kit.load("fix", "writers")
 prompts = kit.load("fix", "prompts")
 kit.load("fix", "duties")   # prompts.writer_when が遅れて import する（読んだ後の src を fix の物に保つ）
+
+
+def setUpModule():
+    kit.load("fix", "duties")   # 同じプロセスで先に別の block の src を読んだ後でも、src を fix の物に戻す
 
 
 def nodes() -> dict:
@@ -193,6 +198,12 @@ def inside_spawn_paragraphs(row: dict) -> bool:
     node, weapon = sorted(nodes().items())[0]
     on, off = assembled(node, weapon, True), assembled(node, weapon, False)
     return all(flat(line) in on and flat(line) not in off for line in row["text"])
+
+
+@functools.lru_cache(maxsize=None)
+def every_writer_text() -> str:
+    """型ごとの書き手の組み上がった指示の全部を、空白をそろえて 1 つにつないだ字"""
+    return " ".join(flat(assembled(n, w)) for n, w in nodes().items())
 
 
 def g1_text() -> str:
@@ -333,6 +344,8 @@ class TableCase(unittest.TestCase):
                 with self.subTest(row=r["id"]):
                     self.assertIn(r["id"], sources, "付録 A の本文に置き場の行の引きが無い")
                     new, old = REWORDED.get(r["id"], ("", ""))
+                    if new:   # 字を替えた行は、替えた後の字が今の書き手の指示に在り、替える前の字が PIN の版に在る
+                        self.assertIn(flat(new), every_writer_text(), "字を替えた行の新しい字が、書き手の組み上がった指示に無い")
                     want = flat(line.replace(new, old) if new else line).strip()
                     places = [flat(" ".join(" ".join(cache.setdefault((p, h), pinned_lines(p, h))[a - 1:b]) for p, a, b, h in refs))
                               for refs in sources[r["id"]]]
@@ -349,6 +362,9 @@ class TableCase(unittest.TestCase):
             with self.subTest(row=r["id"], what="空でない"):
                 self.assertTrue(r["text"] and all(line.strip() for line in r["text"]), "機械の行でない行の文が空")
             new, old = REWORDED.get(r["id"], ("", ""))
+            if new:   # 字を替えた行の置き場の行は、替えた後の字が今の書き手の指示に在ることで覆う（替える前の字は下の残りの照らしで引く）
+                with self.subTest(row=r["id"], what="替えた後の字"):
+                    self.assertIn(flat(new), every_writer_text(), "字を替えた行の新しい字が、書き手の組み上がった指示に無い")
             texts = r["text"] + r.get("rest", []) + ([G18] if r["id"] == "G16〜G19" else [])   # G18 は表の G16〜G19 の行に無い（消す。下の G18）
             for refs in sources.get(r["id"], []):
                 for ref in refs:
@@ -369,6 +385,9 @@ class AssetCase(unittest.TestCase):
         cls.g1 = g1_text()
 
     def test_every_row_that_is_not_removed_is_in_its_writers(self):
+        for rid, (new, _old) in sorted(REWORDED.items()):
+            with self.subTest(row=rid, what="替えた後の字"):
+                self.assertIn(flat(new), every_writer_text(), "字を替えた行の新しい字が、書き手の組み上がった指示に無い")
         for r in ROWS:
             if r["to"] == "消す" or r["from"] == "machine":
                 continue

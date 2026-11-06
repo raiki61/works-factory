@@ -755,8 +755,10 @@ class PromptCase(_Case):
         text = self.fix_prep("write")["prompt"]
         self.assertTrue(text.startswith("Your previous answer was rejected by the machine's check."), text[:60])
         self.assertIn("return `{}`", text, "二重の波括弧は字の {} になる")
-        for role in ("review", "revise"):
-            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n\n{shared:query-rule}\n\n{shared:plain-ask}\n")
+        self.assertEqual((BLOCK / "prompts" / "spec-review-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n\n{shared:query-rule}\n\n{shared:plain-ask}\n")
+        for role in ("revise", "write"):   # sandbox の中で Bash を打つ役は sandbox-shell の断片も読む
+            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"),
+                             "{shared:resubmit}\n\n{shared:query-rule}\n\n{shared:sandbox-shell}\n\n{shared:plain-ask}\n")
 
 
 class ShapeCase(unittest.TestCase):

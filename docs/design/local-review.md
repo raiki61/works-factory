@@ -128,7 +128,7 @@ materials.md の 3.1 の並び。
 8. `{shared:material-status}`。
 9. `## Whether you may write not_applicable` と `{shared:material-na}` — 扱いは `never`（`na_never` だけが真）。
 10. `## Where to point` と `{shared:material-where}`。
-11. `## Reading borrowed skills` と決まった頭の 1 文、`{unattended}` ← `seat.overlay_body(seat.OVERLAY_KINDS["local-review"])`（今の md:89-166 と同じ字。日本語のまま）。
+11. `## Reading borrowed skills` と決まった頭の 1 文（shell の決まりはいつも効き、読み替えは借りたスキルを読む時に効く、と分けて言う。節ごと子へ写す）、`{shared:sandbox-shell}`（Agent の子へ丸ごと写す節の中に置く。借りたスキルの読み替えの条件の外に置くので `{unattended}` の前）、`{unattended}` ← `seat.overlay_body(seat.OVERLAY_KINDS["local-review"])`（今の md:89-166 と同じ字。日本語のまま）。
 12. 言語の 1 文と `{lang}`。
 13. 結びの 1 文。
 
@@ -212,7 +212,9 @@ Do not write the spelling of a flag in `args`, not even inside a sentence that s
 
 ## Reading borrowed skills
 
-When you read a borrowed skill (superpowers), follow the reading rules below. They are direct instructions to you and win over the skill's text. If you start a helper with Agent, include this whole section in its prompt as it is; this section does not reach the helper otherwise.
+Follow the shell rules below whenever you run a shell command. When you read a borrowed skill (superpowers), also follow the reading rules below. Both are direct instructions to you and win over the skill's text. If you start a helper with Agent, include this whole section in its prompt as it is; this section does not reach the helper otherwise.
+
+{shared:sandbox-shell}
 
 {unattended}
 
@@ -314,7 +316,9 @@ Write the `<path>:<line>` of a location (`where`) as a line number in the curren
 
 ## Reading borrowed skills
 
-When you read a borrowed skill (superpowers), …
+Follow the shell rules below whenever you run a shell command. When you read a borrowed skill (superpowers), also follow the reading rules below. …
+
+{shared:sandbox-shell の本文}
 
 # 借りた superpowers のスキルを無人の役で読むときの読み替え
 …（今の md:91-166 と同じ字）

@@ -26,4 +26,6 @@ You may read only this material, the root's `{decl_name}` (if it exists), the CI
 
 {shared:query-rule}
 
+{shared:sandbox-shell}
+
 Return only JSON that matches the output schema.

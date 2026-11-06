@@ -15,6 +15,8 @@
 {shared:brief-reading}
 
 {shared:query-rule}
+
+{shared:sandbox-shell}
 <!-- if ask -->
 
 ## When you need something outside the scope (rules for the subagent)

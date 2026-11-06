@@ -1,4 +1,4 @@
-"""読むだけの役の claude の包み（pack の .shared/fence.py。埋め P5）を確かめる。
+"""sandbox の掛かった役の claude の包み（pack の .shared/fence.py。埋め P5）を確かめる。起動ごとの cache の足し込みの試験もここに収める。
 
 一覧の組み方・argv の書き換え・main は使い捨ての git の木と偽の claude で確かめる。RealClaudeTest は本物の claude を偽の API で起こし、
 sandbox が包みの足した一覧への書き込みを本当に止めることを確かめる。起こす前に、共有の部品 tests/bin/sandbox_probe.py で sandbox の
@@ -18,6 +18,7 @@ import unittest
 from unittest import mock
 
 from bin._lib import isolate, launcher, place
+from lib import writelog
 from tests.bin import hermetic, sandbox_probe
 from tests.bin.gitkit import git
 from tests.archon import WORKFLOWS
@@ -200,9 +201,22 @@ class FencedArgvTest(unittest.TestCase):
     ARCHON = "/h/archon-home"
     PATHS = ["/w", "/w/.git"]
 
-    def fenced(self, argv):
+    def fenced(self, argv, cache=None):
         with mock.patch.dict(os.environ, {"HOME": self.HOME}):
-            return fence.fenced_argv(argv, self.ARCHON, lambda: self.PATHS)
+            return fence.fenced_argv(argv, self.ARCHON, lambda: self.PATHS, **({"cache": cache} if cache else {}))
+
+    def cached(self, argv, folder="/c/launch-x"):
+        """cache の口（呼ばれた回数を数える）を渡して組んだ argv の --settings の JSON と、口が呼ばれた回数"""
+        calls = []
+
+        def cache():
+            calls.append(folder)
+            return folder
+
+        got = self.fenced(argv, cache)
+        at = next(i for i, a in enumerate(got) if a == "--settings" or a.startswith("--settings="))
+        raw = got[at].removeprefix("--settings=") if got[at] != "--settings" else got[at + 1]
+        return json.loads(raw), len(calls)
 
     def test_marked_settings_get_the_list_in_both_spellings(self):
         settings = settings_with(["/w", scan.NO_TREE_WRITE])
@@ -218,13 +232,76 @@ class FencedArgvTest(unittest.TestCase):
                 self.assertEqual(fs["allowWrite"], ["/"])
 
     def test_unmarked_launches_are_unchanged(self):
-        writer = json.dumps({"sandbox": {"enabled": True, "allowUnsandboxedCommands": False}})
-        for argv in (["-p", "x", "--settings", writer],
-                     ["-p", "x", "--settings", settings_with(["~/../other"])],
-                     ["--settings=" + settings_with(["/elsewhere"])],
-                     ["--version"]):
+        """sandbox の無い起動は argv が同一物のまま返り、cache の口も呼ばれない。sandbox が有効な起動は、印が無くても allowWrite に
+        口のフォルダが足される以外は同じで、印の denyWrite の足し込みは起きない"""
+        writer = {"sandbox": {"enabled": True, "allowUnsandboxedCommands": False}}
+        denied = json.loads(settings_with(["~/../other"]))
+        elsewhere = json.loads(settings_with(["/elsewhere"]))
+        for argv in (["--version"], ["-p", "x", "--settings", json.dumps({"permissions": {"deny": ["Bash(x)"]}})]):
             with self.subTest(argv=argv):
-                self.assertIs(self.fenced(argv), argv)
+                calls = []
+                self.assertIs(self.fenced(argv, lambda: calls.append(1) or "/c/launch-x"), argv)
+                self.assertEqual(calls, [])
+        want_writer = {"sandbox": {**writer["sandbox"], "filesystem": {"allowWrite": ["/c/launch-x"]}}}
+        want_denied = json.loads(settings_with(["~/../other"]))
+        want_denied["sandbox"]["filesystem"]["allowWrite"].append("/c/launch-x")
+        want_elsewhere = json.loads(settings_with(["/elsewhere"]))
+        want_elsewhere["sandbox"]["filesystem"]["allowWrite"].append("/c/launch-x")
+        for argv, want in ((["-p", "x", "--settings", json.dumps(writer)], want_writer),
+                           (["-p", "x", "--settings", json.dumps(denied)], want_denied),
+                           (["--settings=" + json.dumps(elsewhere)], want_elsewhere)):
+            with self.subTest(argv=argv):
+                got, called = self.cached(argv)
+                self.assertEqual(got, want)
+                self.assertEqual(called, 1)
+
+    def test_sandboxed_launch_gets_its_own_writable_cache(self):
+        """sandbox が有効な --settings は、印の無い書き手の形・印の在る形・allowWrite が ['/'] の形・既存の allowWrite を持つ形のどれも、
+        cache の口が返したフォルダが allowWrite の後ろに 1 つ足される（置き換えない）。denyWrite・印・ほかの鍵は保たれる。口は 1 起動に 1 回"""
+        writer = {"sandbox": {"enabled": True, "allowUnsandboxedCommands": False}, "permissions": {"deny": ["Bash(x)"]}}
+        with self.subTest("印の無い書き手の形は filesystem ごと作る"):
+            got, called = self.cached(["-p", "x", "--settings", json.dumps(writer)])
+            self.assertEqual(got["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False,
+                                              "filesystem": {"allowWrite": ["/c/launch-x"]}})
+            self.assertEqual(got["permissions"], writer["permissions"])
+            self.assertEqual(called, 1)
+        with self.subTest("印の在る形は一覧の足し込みと両立する"):
+            got, called = self.cached(["--settings", settings_with(["/w", scan.NO_TREE_WRITE])])
+            fs = got["sandbox"]["filesystem"]
+            self.assertEqual(fs["denyWrite"], ["/w", scan.NO_TREE_WRITE, "/w/.git"])
+            self.assertEqual(fs["allowWrite"], ["/", "/c/launch-x"])
+            self.assertEqual(called, 1)
+        with self.subTest("既存の allowWrite の値は残す"):
+            kept = {"sandbox": {"enabled": True, "filesystem": {"allowWrite": ["/keep"], "denyRead": ["/r"]}}}
+            got, called = self.cached(["--settings", json.dumps(kept)])
+            self.assertEqual(got["sandbox"]["filesystem"], {"allowWrite": ["/keep", "/c/launch-x"], "denyRead": ["/r"]})
+        with self.subTest("allowWrite が list でなければ決められない"):
+            for bad in ("/", {"a": 1}, None):
+                with self.assertRaises(fence.Refused):
+                    self.cached(["--settings", json.dumps({"sandbox": {"enabled": True, "filesystem": {"allowWrite": bad}}})])
+        with self.subTest("sandbox の無い起動では口が呼ばれず argv がそのまま返る"):
+            for argv in (["--version"], ["--settings", "{}"], ["--settings", json.dumps({"sandbox": {"enabled": False}})],
+                         ["--settings", json.dumps({"sandbox": {"filesystem": {"allowWrite": ["/"]}}})]):
+                calls = []
+                self.assertIs(self.fenced(argv, lambda: calls.append(1) or "/c/launch-x"), argv)
+                self.assertEqual(calls, [], argv)
+
+    def test_cache_inside_a_denied_place_is_refused(self):
+        """cache の口が返したフォルダが、組み上がった denyWrite のどれか（~ を解いた実パス）の下なら Refused で止める（denyWrite は
+        allowWrite に勝つので書けない）。名の前方が同じだけの兄弟は止めない"""
+        for name, settings, folder in (
+                ("印の在る起動で一覧に足された置き場の下", settings_with([scan.NO_TREE_WRITE]), "/w/.git/cache"),
+                ("印の在る起動で一覧の置き場そのもの", settings_with([scan.NO_TREE_WRITE]), "/w"),
+                ("印の無い起動の denyWrite の下", settings_with(["/denied"]), "/denied/sub/cache"),
+                ("~ を解いた denyWrite の下", settings_with(["~/blocked"]), f"{self.HOME}/blocked/c")):
+            with self.subTest(name):
+                with self.assertRaises(fence.Refused):
+                    self.cached(["--settings", settings], folder)
+        for settings, folder in ((settings_with(["/denied"]), "/denied-sibling/cache"),
+                                 (settings_with([scan.NO_TREE_WRITE]), "/wx/cache")):
+            with self.subTest(sibling=folder):
+                got, _ = self.cached(["--settings", settings], folder)
+                self.assertEqual(got["sandbox"]["filesystem"]["allowWrite"], ["/", folder])
 
     def test_undecidable_settings_are_refused(self):
         marked = settings_with([scan.NO_TREE_WRITE])
@@ -250,6 +327,8 @@ with open(os.environ["FAKE_REAL_LOG"] + ".env", "w", encoding="utf-8") as f:
     json.dump({{k: v for k, v in os.environ.items() if k.startswith("GRAPHLOOPS_")}}, f)
 with open(os.environ["FAKE_REAL_LOG"] + ".path", "w", encoding="utf-8") as f:
     f.write(os.environ.get("PATH", ""))
+with open(os.environ["FAKE_REAL_LOG"] + ".cache", "w", encoding="utf-8") as f:
+    json.dump(os.environ.get("XDG_CACHE_HOME"), f)
 """
 
 
@@ -263,12 +342,14 @@ class MainTest(unittest.TestCase):
         self.log = self.tmp / "argv.json"
         self.records = self.tmp / "run-home" / launcher.FENCE_DIR / "launches.jsonl"
 
-    def run_fence(self, *argv, path=None, records=None, heads=()):
+    def run_fence(self, *argv, path=None, records=None, heads=(), role_root=None, xdg=None):
         child = self.tree["child"]
-        env = hermetic.child_env(HOME=child["HOME"], FAKE_REAL_LOG=str(self.log), **({"PATH": path} if path else {}))
+        env = hermetic.child_env(HOME=child["HOME"], FAKE_REAL_LOG=str(self.log), **({"PATH": path} if path else {}),
+                                 **({"XDG_CACHE_HOME": xdg} if xdg else {}))
         return subprocess.run([sys.executable, str(FENCE), "--real", str(self.real), "--archon-home", child["ARCHON_HOME"],
                                "--claude-config", child["CLAUDE_CONFIG_DIR"], "--own", self.tree["own"][0],
-                               "--records", str(records or self.records), *(a for h in heads for a in ("--path-head", h)),
+                               "--records", str(records or self.records), *(["--role-cache", str(role_root)] if role_root else []),
+                               *(a for h in heads for a in ("--path-head", h)),
                                "--", *argv],
                               cwd=self.tree["linked"], env=env, capture_output=True, text=True, encoding="utf-8",
                               timeout=60)
@@ -308,11 +389,48 @@ class MainTest(unittest.TestCase):
                 self.assertEqual(path, [*heads, "/usr/bin", "/bin"])
 
     def test_unmarked_launch_reaches_claude_unchanged(self):
-        argv = ["-p", "x", "--settings", json.dumps({"sandbox": {"enabled": True}})]
-        done = self.run_fence(*argv)
+        """印の無い sandbox の起動は、allowWrite に起動ごとのフォルダが足される以外は渡した argv のまま届き、起動の記録は作られない"""
+        settings = {"sandbox": {"enabled": True}}
+        done = self.run_fence("-p", "x", "--settings", json.dumps(settings), role_root=self.tmp / "role-cache")
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(json.loads(self.log.read_text(encoding="utf-8")), argv)
+        got = json.loads(self.log.read_text(encoding="utf-8"))
+        self.assertEqual(got[:3], ["-p", "x", "--settings"])
+        folder = json.loads(pathlib.Path(f"{self.log}.cache").read_text(encoding="utf-8"))
+        self.assertEqual(json.loads(got[3]), {"sandbox": {"enabled": True, "filesystem": {"allowWrite": [folder]}}})
         self.assertFalse(self.records.exists(), "印の無い起動を記録した")
+
+    def test_sandboxed_launch_reaches_claude_with_its_own_cache(self):
+        """--role-cache の根（symlink を通した根も含む）の下の、作業の場ごとの置き場（控え cwd つき）の中の空のフォルダの実パスが、偽の
+        claude が受けた XDG_CACHE_HOME で、--settings の allowWrite の最後の項目と等しい。起動ごとに別のフォルダ。sandbox の無い起動は渡した
+        XDG_CACHE_HOME のまま"""
+        real_root = self.tmp / "real-role-cache"
+        real_root.mkdir()
+        link = self.tmp / "link-role-cache"
+        link.symlink_to(real_root)
+        settings = json.dumps({"sandbox": {"enabled": True, "allowUnsandboxedCommands": False}})
+        seen = []
+        for _ in range(2):
+            done = self.run_fence("-p", "x", "--settings", settings, role_root=link, xdg="/shell/xdg-cache")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            got = json.loads(self.log.read_text(encoding="utf-8"))
+            folder = json.loads(pathlib.Path(f"{self.log}.cache").read_text(encoding="utf-8"))
+            allow = json.loads(got[got.index("--settings") + 1])["sandbox"]["filesystem"]["allowWrite"]
+            self.assertEqual(allow[-1], folder)
+            self.assertEqual(folder, os.path.realpath(folder))
+            self.assertTrue(pathlib.Path(folder).is_relative_to(real_root.resolve()), folder)
+            self.assertEqual(os.listdir(folder), [])
+            place = pathlib.Path(folder).parent
+            self.assertEqual(place.parent, real_root.resolve())
+            self.assertEqual((place / writelog.WHERE).read_text(encoding="utf-8"), os.path.realpath(self.tree["linked"]))
+            seen.append(folder)
+        self.assertEqual(len(set(seen)), 2, "起動ごとに別のフォルダになっていない")
+        with self.subTest("sandbox の無い起動"):
+            done = self.run_fence("-p", "x", role_root=link, xdg="/shell/xdg-cache")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(json.loads(self.log.read_text(encoding="utf-8")), ["-p", "x"])
+            self.assertEqual(json.loads(pathlib.Path(f"{self.log}.cache").read_text(encoding="utf-8")), "/shell/xdg-cache")
+            self.assertEqual(set(os.listdir(pathlib.Path(seen[0]).parent)), {writelog.WHERE, *map(os.path.basename, seen)},
+                             "sandbox の無い起動がフォルダを足した")
 
     def test_unwritable_record_stops_before_claude(self):
         """記録を書けなければ、柵が掛かった証が残らないので claude を起こさない"""
@@ -559,6 +677,30 @@ class RealClaudeTest(unittest.TestCase):
         self.assertEqual(got[str(self.outside)], "WROTE", "柵の外まで書けない（試験の道具が書き込みを試していない）")
         rows = [json.loads(line) for line in launcher.fence_records(home).read_text(encoding="utf-8").splitlines()]
         self.assertIn(os.path.realpath(self.tree["linked"]), [r["cwd"] for r in rows])
+
+    def test_fenced_role_writes_its_own_cache_but_not_the_run_cache(self):
+        """書き手の形の sandbox（enabled・allowUnsandboxedCommands: false だけ）の役の Bash は、包み越しに起きると $XDG_CACHE_HOME の下に
+        書けて、run の置き場の xdg-cache には書けない"""
+        home = self.tmp / "run-home"
+        child = self.tree["child"]
+        run_cache = pathlib.Path(child["XDG_CACHE_HOME"])
+        wrote, blocked = sandbox_probe.WROTE, sandbox_probe.BLOCKED
+        targets = ['"$XDG_CACHE_HOME/fence-probe"', shlex.quote(str(run_cache / "fence-probe"))]
+        command = "; ".join(f"if (echo x > {t}) 2>/dev/null; then echo {wrote} {i}; else echo {blocked} {i}; fi"
+                            for i, t in enumerate(targets))
+        env = hermetic.child_env(HOME=child["HOME"], CLAUDE_CONFIG_DIR=child["CLAUDE_CONFIG_DIR"],
+                                 XDG_CACHE_HOME=child["XDG_CACHE_HOME"])
+        shell = launcher.write_fence(home, self.claude, child, self.cache, self.keep, [])
+        talk = sandbox_probe.converse([shell], {"sandbox": {"enabled": True, "allowUnsandboxedCommands": False}}, ("Bash",),
+                                      [("Bash", {"command": command, "description": "probe"})], self.tree["linked"], env)
+        self.assertEqual(talk.returncode, 0, talk.error or talk.stdout + talk.stderr)
+        text = "".join(sandbox_probe.text_of(r) for r in talk.results)
+        said = {}
+        for line in text.splitlines():
+            verdict, _, index = line.partition(" ")
+            if verdict in (wrote, blocked):
+                said[index] = verdict
+        self.assertEqual(said, {"0": wrote, "1": blocked}, text)
 
     def test_without_the_fence_the_main_tree_is_writable(self):
         got = self.probe([self.claude])

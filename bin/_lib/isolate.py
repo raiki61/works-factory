@@ -16,6 +16,8 @@ git の全体の設定に safe.directory を書かない。ARCHON_HOME を殻を
 子ごとに GIT_CONFIG_GLOBAL を替えられない。前もって家の .gitconfig に親のフォルダを入れても、Archon は作業場のパスそのままの
 行しか済みと見ない（作業場のパスは前もって分からないので、先に書き終えておく道も無い）。落ちた子を起こし直す道は、Archon が
 workflow: のノードの retry: を拒むので、グラフの中に置けない。試験は tests/bin/test_isolate.py の ParallelWorktreeGrantCase。
+cache の置き場は 2 通り。script のノードと Archon は DIRS の xdg-cache を使い、sandbox の掛かった役の起動は役の cache の根
+（role_cache_root）の下の起動ごとのフォルダを使う。根は Archon の家・Claude の設定・xdg-cache・殻の口の兄弟で、どれの下でもない。
 """
 from collections.abc import Mapping
 from pathlib import Path
@@ -31,6 +33,14 @@ DIRS = {
     "XDG_CACHE_HOME": "xdg-cache",
     "XDG_STATE_HOME": "xdg-state",
 }
+ROLE_CACHE = "role-cache"
+
+
+def role_cache_root(run_home: Path) -> Path:
+    """sandbox の掛かった役の起動ごとの cache のフォルダを作る根（run_home の下。作る）"""
+    root = run_home / ROLE_CACHE
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def isolate(env: Mapping[str, str], run_home: Path) -> dict[str, str]:

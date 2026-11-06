@@ -54,7 +54,8 @@ ARCHON_CWD_ENV_FILES = (".env", ".env.local", ".env.development", ".env.producti
 # 書く役の sandbox の Bash が書ける置き場（Claude の一時の置き場）。家・対象・取り置きがこの下だと、書く役が書き込みの記録・控え・DB・
 # 対象の .git・取り置いた Archon の源（次の起動が sandbox の外で起こす）を書き換えられる。形は今の works の dev/guard.sh の
 # works_dev_refuse_claude_tmp と同じ（実パスで照らす。* は / も越える）。読むだけの役（allowWrite が / ）はどこでも書けるので、
-# この照らしでは守れない。その役からは write_fence の --own が取り置きと工場の根を守る
+# この照らしでは守れない。その役からは write_fence の --own が取り置きと工場の根を守る。run の置き場を役の sandbox から書かせない
+# 決めの例外は、包みが起動ごとに作る空の cache のフォルダ 1 つだけ（isolate.role_cache_root の下。docs/polyfills.md の P5）
 SANDBOX_WRITABLE = ("/tmp/claude-*", "/private/tmp/claude-*")
 # 実行する run の起動で毎回出す 1 行（持ち主の決め target-user-env）。tree_run.outside_env の env で起こす対象のコマンド（数え上げは
 # docs/design/archon.md の「対象のコマンドの環境と準備」）は利用者の HOME・XDG で走る。コマンドごとの守りは工場が作らない（隔離が要る人は工場ごと包む）
@@ -198,7 +199,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     if executing or argv[:1] == ["validate"]:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
     if executing:
-        sweep_logs(child["CLAUDE_CONFIG_DIR"])
+        sweep_logs(child["CLAUDE_CONFIG_DIR"], home)
         keep = suite_keep(user)
         keep.mkdir(parents=True, exist_ok=True)
         child[SUITE_KEEP_ENV] = str(keep)
@@ -540,6 +541,7 @@ def sandbox_writable(path) -> bool:
 
 
 def refuse_sandbox_writable(what: str, path) -> None:
+    """run の置き場は役の sandbox から書かせない。例外は包みが起動ごとに作る空の cache のフォルダ 1 つだけ（根は isolate.role_cache_root）"""
     if sandbox_writable(path):
         raise Stop(f"{what} の置き場 {os.path.realpath(path)} は /tmp/claude-* の下で、役の sandbox の Bash が書ける。"
                    "ほかの置き場を選ぶ")
@@ -597,18 +599,20 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, ke
     ROOT を import の先頭に置くので、根に新しく置いた shlex.py や bin.py が次の起動の import に勝つ。
     本物の claude は実パスで起こす（包みは --own を実パスに解いて禁じるので、symlink を通して起こすと symlink 自身は書ける）。
     --records は印の在る起動の記録（fence_records。--own の top の下なので役は書き換えられない）。
+    --role-cache は sandbox の掛かった起動ごとの cache のフォルダを作る根（isolate.role_cache_root。守る所の外）。
     --path-head は役の claude の PATH の頭に足す置き場（path_heads。読むだけの gh の口の置き場）"""
     top = home / FENCE_DIR
     real = os.path.realpath(real)
     on_path = [found for folder in child.get("PATH", "").split(os.pathsep) if (found := on_absolute_path("claude", folder))]
     own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, *map(os.path.realpath, on_path), cache, keep, ROOT]
     body = ("#!/bin/sh\n"
-            "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: 読むだけの役の claude の sandbox に、起こす直前に組んだ\n"
-            "# 書き込みを禁じるパスの一覧を足す\n"
+            "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: sandbox の掛かった役の claude の sandbox に、起こす直前に組んだ\n"
+            "# 書き込みを禁じるパスの一覧（読むだけの役）と、その起動の cache の置き場（書き込みを許す）を足す\n"
             + "exec " + shlex.join([sys.executable, "-I", "-B", str(FENCE), "--real", real,
                                     "--archon-home", child["ARCHON_HOME"], "--claude-config", child["CLAUDE_CONFIG_DIR"],
                                     *(arg for path in dict.fromkeys(map(str, own)) for arg in ("--own", path)),
                                     "--records", str(fence_records(home)),
+                                    "--role-cache", str(isolate.role_cache_root(home)),
                                     *(arg for head in path_heads for arg in ("--path-head", head))])
             + ' -- "$@"\n')
     return hostgh.place_shim(top, "claude", body)
@@ -618,10 +622,12 @@ def fence_records(home: Path) -> Path:
     return home / FENCE_DIR / FENCE_RECORDS
 
 
-def sweep_logs(config: str) -> None:
-    """作業の場が無くなった run の書き込みと読んだ証拠の記録を片付ける（writelog.sweep）。片付けは run の正しさに効かないので、
-    しくじっても止めない"""
-    for what, root in (("書き込みの記録", writelog.root(config)), ("読んだ証拠の記録", reads.root(config))):
+def sweep_logs(config: str, home: Path) -> None:
+    """作業の場が無くなった run の書き込みの記録・読んだ証拠の記録・役の道具の cache を片付ける（writelog.sweep）。片付けは run の
+    正しさに効かないので、しくじっても止めない。並んで走る run の生きた作業の場の置き場は消さない。役の cache の根は作らずに
+    パスだけ組む（まだ無ければ片付ける物が無い。作るのは isolate.role_cache_root で、作れない時に片付けが run を止めないため）"""
+    for what, root in (("書き込みの記録", writelog.root(config)), ("読んだ証拠の記録", reads.root(config)),
+                       ("役の道具の cache ", home / isolate.ROLE_CACHE)):   # 末尾の空白は、後ろの「を」の前の半角語の区切り
         try:
             gone, failed = writelog.sweep(root)
         except OSError as error:

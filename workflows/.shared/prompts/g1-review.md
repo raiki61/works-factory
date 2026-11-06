@@ -15,3 +15,5 @@
 {shared:brief-reading}
 
 {shared:query-rule}
+
+{shared:sandbox-shell}
