@@ -1,8 +1,8 @@
 <!-- coldwrite:skip 設計の一部。語は docs/design/README.md の頭の語の一覧で定義 -->
 # 見る道具（`viewer/`）の設計書
 
-- 何の話か: run（工場の 1 回の実行）の記録を OpenTelemetry のトレースにして、利用者が手元に置いた既製の画面（Arize Phoenix など）へ送る道具の設計。置き場の決めは持ち主の決め `viewer-in-repo` と `run-trace-otlp`、決まりは `viewer/AGENTS.md` の E25。
-- 今在る物: 入口 `runtrace.py` の 1 本と、読む部品（作りの読み `src/shape.py`・Archon の記録の読み `src/runread.py`・会話の記録の読み `src/session.py`・段の集計 `src/stages.py` と段の表 `stages.json`）と、トレースの部品（span の木の組み `src/trace.py`〔8 章〕・送り先の決め `src/sendto.py`・OTLP での送り `src/otlp.py`〔8.1〕）。自前の HTML のページ（作りの図と run の再生を 1 枚にする物）は、決め `run-trace-otlp` の 6 で捨てた。run を見る画面は Phoenix に任せる。
+- 何の話か: run（工場の 1 回の実行）の記録を OpenTelemetry のトレースにして、利用者が手元に置いた既製の画面（Arize Phoenix など）へ送る道具と、run を 1 枚の HTML のページにする道具（9 章）の設計。置き場の決めは持ち主の決め `viewer-in-repo`・`run-trace-otlp`・`run-page-v4`、決まりは `viewer/AGENTS.md` の E25。
+- 今在る物: 入口 `runtrace.py` の 1 本と、読む部品（作りの読み `src/shape.py`・Archon の記録の読み `src/runread.py`・会話の記録の読み `src/session.py`・段の集計 `src/stages.py` と段の表 `stages.json`）と、トレースの部品（span の木の組み `src/trace.py`〔8 章〕・送り先の決め `src/sendto.py`・OTLP での送り `src/otlp.py`〔8.1〕）。自前の HTML のページ（作りの図と run の再生を 1 枚にする物）は、決め `run-trace-otlp` の 6 で捨てた。その後、リポジトリの外の試作の 4 版を、入口 `runpage.py` とページだけが使う部品（`src/page.py`・`src/fill.py`・`src/ioflow.py`・雛形と埋める物の `page/`）として戻した（決め `run-page-v4`。9 章）。Phoenix へ送る道は残し、並べて持つ。
 
 ## 1 E11 の 3 つの答え
 
@@ -22,7 +22,7 @@
 工場の clone の根から `uv run --isolated --extra trace python3 viewer/runtrace.py --target <対象> [--run <run の id か頭の字>] [--endpoint <URL>] [--remote]`（8.1）。
 
 - `--run` が無ければ一番新しい親の run を送る。
-- 網に出るのは `src/otlp.py` だけで、`src/sendto.py` の答えの送り先へ送る（8.1）。ファイルは書かない。
+- 網に出るのは `src/otlp.py` だけで、`src/sendto.py` の答えの送り先へ送る（8.1）。ファイルは書かない。ページの入口 `runpage.py` も同じ読み（`runtrace.read`）を使い、ページを標準出力に出す（9 章）。
 - 組みに渡すデータ（`runtrace.read`）の欄: `shape`（作りの読み。run の写しが在れば写しから、無ければ今の木から。4 章）・`shape_from`（作りを写しから読んだか今の木から読んだか。`"run-copy"` か `"tree"`）・`run`（選んだ run。5 章。会話の読み `sessions` を足す。6 章）・`texts`（会話の字を 1 つにした表。会話の欄は番号で指す）・`stages`（段ごとの集計 `run`。6.5）。
 
 ## 4 作りの読み（`src/shape.py`）
@@ -76,6 +76,7 @@
 7. 送り先の決めの照らし（`tests/viewer/test_sendto.py`。SDK が要らず、CI の分けでも `tests/changed.py` でも見送らない）: 8.1 の送り先の名指しの順と空の値・答えの URL（土台の env だけ `/v1/traces` を足し、`/` を重ねない）・手元でない送り先の拒みと `--remote`・手元の見分け（`localhost` と loopback の番地の v4 と v6 だけ）・手元では proxy の env を使わない答え・headers は env の送り先にだけ付き信号ごとの名が勝ち、percent の符号を解く・形の違う headers の項と解いた後に制御文字を持つ項（端に在る物も）を値を出さずに拒み、項の前後の空白とタブは通す・URL の全体に `\`・空白・制御文字を持つ URL と番地の部分が形でない URL（userinfo の `@`・形の崩れた `[...]`）と query か fragment を持つ URL を `--remote` が在っても訳に URL を出さずに拒む・手元でない送り先の拒みも訳に送り先の名を出さない・`http/protobuf` 以外の送りの形の拒み・外す名の選びが `OTEL_` で始まる名の全部。env は dict で渡し、過程の env を読まない。
 8. 入口の順の照らし（`tests/viewer/test_runtrace.py`。SDK が要らない）: 入口を子のプロセスで起こし、送り先が無い時と手元でない送り先で `--remote` が無い時に、run を読まずに `sendto` の拒む訳の 1 行と終了の値 2 で止まり、`sys.modules` に `opentelemetry` と `viewer.src.otlp` が無い。入口が `sendto.py` を通らずに送る形や、頭で `otlp.py` を読む形に戻すと落ちる。時刻の無い span は一番近い時刻の在る祖先の時刻で埋まり、印 `works_factory.time_from_ancestor`（名は `trace.TIME_FROM_ANCESTOR`）を持ち、埋めた数が読めなかった物とは別に返る（`runtrace.timed`。SDK が要らないので同じプロセスで照らす）。
 9. 送りの照らし（`tests/viewer/test_otlp.py`。extra `trace` が無ければ名前つきで見送り、CI の job `trace` は旗 `WORKS_FACTORY_TRACE_REQUIRED` で見送りを赤にする）: 試験の中で 127.0.0.1 に立てた受け口に、組んだ span が数と親子と時刻と id のまま protobuf で圧縮なしに届く。env で名指した送り先には env の headers が付く。入口を子で起こし（run の家は `WORKS_FACTORY_HOME` で一時のフォルダ）、子の env に `OTEL_EXPORTER_OTLP_HEADERS`・`OTEL_EXPORTER_OTLP_COMPRESSION=gzip` と届かない proxy を置き、`NO_PROXY`・`no_proxy` を空にしても、`--endpoint` の手元の受け口に headers なし・圧縮なしで届く。外の網には出ない。
+10. ページの照らし（`tests/viewer/test_runpage.py`。9 章。SDK が要らない）: 雛形と埋める物（`page/` の全部）に `<script src`・`import(`・`fetch(` が無い（E25 の 3）。一時の run の家の小さな line の run（ノードの出力に `</script>` と `<!--` を含む）で、入口を子で起こすと終了の値 0 でページが標準出力に出て、データの script の中身が記録の字で閉じず JSON として読み戻せ、run の入力の数（`node_counts`）が要約に届く。DB の無い対象では標準出力に何も出さず終了の値 2。見た目は縛らない（E25 の 4）。
 
 ## 8 トレースへの組み（`src/trace.py`）
 
@@ -164,3 +165,22 @@
   5. run の間ずっと受け口が起きている必要があり、無いと送りの失敗が役の stderr に出る。過去の run は見られない。
 - 両方を同じ project に送ると往復と費用が二重になる。走っている run を見たい要望が出たら、別の project に送る形で足す。
 - 採ると決めた時だけの確かめ: 小さな graph（AI のノード 1 つ・下請け 1 つ）を、run の設定の層の env にテレメトリの名を書いて 1 回回し、手元の Phoenix に `claude_code.*` の span が届くかを見る。見込みの費用 0.1〜0.5 USD。今は回さない。
+
+## 9 run を 1 枚で見るページ（`runpage.py`・`src/page.py`・`src/fill.py`・`src/ioflow.py`・`page/`）
+
+- 何の物か: 1 本の run を、工場の作りの単位（段 → block → ループ → ノード）で畳んだ図と、block の入出力・分岐・リジェクト・承認の回答・修正と検証の道を、1 枚の HTML のページにする。持ち主が「前の自作よりもフェニックスよりもすごいいい感じ」と見たリポジトリの外の試作の 4 版を、組みの形のまま戻した物（持ち主の決め `run-page-v4`）。Phoenix へ送る道（8 章）は残し、並べて持つ。#982 で消した前のページ（作りの図と run の再生の入口・日本語の写し・訳の控え）は戻さない。
+- 起こし方: 工場の clone の根から `uv run --isolated python3 viewer/runpage.py --target <対象> [--run <run の id か頭の字>] > <ページ.html>`。ページは標準出力に出し、ファイルは書かない（E25 の 2。置き場は利用者がリダイレクトで決める）。外へは何も送らない。止まる時は 1 行の訳を標準エラーに出し、終了の値 2 で標準出力に何も出さない。extra `trace` は要らない。
+- 読み: `runtrace.read`（3 章）をそのまま使う。DB の欄のうちページだけが読む物（run の入力 `inputs`・ノードの状態ごとの数 `node_counts`・置き場の根 `output_root`）は、Archon の名の 1 か所 `src/runread.py` の `run` が返す（`runread.INPUTS`・`runread.NODE_COUNTS`。`run_config` は読まない）。ほかに読むのは雛形と、run の入力 `request` が指す頼みの JSON と、run の写しの中の pack（指示の md の断片と筋書きの名）だけ。
+- 組み（`src/page.py` の `render`）:
+  - 木: line の run は段の表（6.5）で一番上のノードを段に畳む。ほかの graph の run は一番上のノードを根の下に並べる。
+  - 出入口と分岐（`src/ioflow.py`）: block を呼ぶ所の `with` から入口ごとの値と出どころを、graph の `returns` のノードの出力から返した欄を出す。実行条件（`when`）は記録の値で解き直し、Archon が実際に走らせたかと突き合わせる（食い違いは要約に出す）。Archon が長い出力を切って記録した物は、切れる前に閉じた一番上の欄だけを読む。同じ親の中で同じ値を見て違う値で分かれる兄弟は、1 つの分岐の合成ノード（Archon のノードではない、表示だけの物）にまとめる。
+  - 指示の値（`src/fill.py`）: Claude Code の会話の記録に残る、AI へ送った指示の全文と、ノードの指示の md（断片まで開いた物）を突き合わせ、プレースホルダに入った値を切り出す。
+  - 要約: run の入力と頼み・ノードの状態ごとの数・承認の回答・リジェクト（受け付けの script が `ok=false` を返した周）・失敗・AI の費用の上位・実行条件の食い違い。
+  - 修正と検証の道: block ごとに設計書・YAML・指示の md・筋書き・試験のフォルダと、記録した入力でその block だけを回し直す命令の下書きを出す。命令は試していない（回すと費用がかかり、対象に作業ツリーができる）。入口が置き場のファイルを指す値で、そのファイルが消えていれば「今は無い」と出す。
+- ページ（`page/`）: 雛形 `page.tpl.html` の `/*TOKENS*/`・`/*DAGRE*/`・`/*DATA*/` を、色と字の値 `tokens.css`・図の配置のライブラリ `dagre.js`（@dagrejs/dagre 3.1.1、MIT。注記とライセンスの文つきの写しで、手で直さない）・データの JSON で埋める。データの `<` は `<` にして script の中身を閉じない。雛形は Content-Security-Policy で外の読み込みを閉じ、スクリプトはページの中だけに書く（E25 の 3）。試作の試験用の口 `window.WF` は外した（読む試験が無い）。
+- 層と頼り: 2 章のまま。殻の口は `launcher.target_root`・`Stop`（`runtrace.read` を通して `run_home`・`isolate.DIRS` も）。入口は読みに `runtrace.read`・`runtrace.PACK`・`runtrace.Refused` を使う（読みを 2 つに分けない）。
+- 残り（試作の控えから。決めの外）: 古い run の置き場のファイルが消えると、回し直しの命令の入口が無い（置き場をどれだけ残すかは決めていない）。つなぎの script を通って来る入口の出どころは一部しか block まで辿れない。走っている run を追う形は無い。
+- E11 の 3 つの答え:
+  1. Archon が持っているか → 持っていない。止めた Archon の Web の画面（1 章）はノードの状態の図とログを持つが、include を開いた平たい図で、block の入出力・実行条件を記録の値で解いた分岐・工場の段の畳みは無い。
+  2. ASF が持っているか → 持っていない（1 章と同じ）。
+  3. 本当に要るか → 要る。持ち主が試作の 4 版を「前の自作よりもフェニックスよりも」良いと見た。Phoenix のトレースは span の木と会話を見るのに向くが、工場の作りの単位（block の入口と返す欄・分岐）で run を読む形を持たない（持ち主の言葉「ようはinoutってことでしょ」「あとは分岐と」）。keep-essence では `MISSION.md` の「グラフそのもの」が 1 回の run でどう動いたかを見る口（1 章の 3 と同じ）。元の works と graphloops に同じ場面の物は無い。
