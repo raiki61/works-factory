@@ -540,26 +540,47 @@ class CollectScriptCase(unittest.TestCase):
     def args(self, values) -> dict:
         return {name: "null" if values.get(name) is None else json.dumps(values[name], ensure_ascii=False) for name in INPUTS}
 
-    def test_writes_both_files_and_returns_pointers(self):
+    def seeded_run(self) -> "kit.Run":
         run = kit.Run(self, BLOCK)
         seed(run)
         (run.artifacts / "r1").mkdir()
         (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        return run
+
+    def test_writes_both_files_and_returns_pointers(self):
+        run = self.seeded_run()
         v = passing()
         got = run.script("collect", **self.args(v))
-        self.assertEqual(set(got), {"sections", "facts"})
+        self.assertEqual(set(got), {"sections", "facts", "digest"})
         facts = json.loads((run.artifacts / got["facts"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual(check(facts, FACTS_SCHEMA), [])
         self.assertTrue(facts["start_ok"])
         self.assertEqual(got["facts"]["path"], "report-in/facts.json")
 
+    def test_same_inputs_give_the_same_return(self):
+        """同じ入力で hash の種の違う子のプロセスを 2 本回すと、返りは digest まで等しい（書き手だけが落ちた run の resume で報告の事実の段が
+        再生される。resume の子は種を新しく引き、親が種を立てていれば子へそのまま渡るので、種を名指して替える）"""
+        returns = []
+        for seed in ("0", "1"):
+            with mock.patch.dict("os.environ", {"PYTHONHASHSEED": seed}):
+                returns.append(self.seeded_run().script("collect", **self.args(passing())))
+        first, second = returns
+        self.assertEqual(first, second)
+        self.assertRegex(first["digest"], r"^[0-9a-f]{64}$")
+
+    def test_changed_facts_change_the_digest(self):
+        """facts の材料を 1 か所変えると、pointer の path は同じまま digest が変わる（中身が変わった時に report が回し直る値の変化）"""
+        run = self.seeded_run()
+        before = run.script("collect", **self.args(passing()))
+        changed = {**passing(), "notices": "注意（test_cmd）: 別の注意"}
+        after = run.script("collect", **self.args(changed))
+        self.assertEqual(before["facts"]["path"], after["facts"]["path"])
+        self.assertNotEqual(before["digest"], after["digest"])
+
     def test_the_not_run_section_reaches_the_report_through_collect(self):
         """試験の関門の返りの related は、collect の受け皿の欄を通って報告の節「走らせなかった範囲」に届く（欄の一覧から外れると、絞った run
         でも走らせ方の行に落ち、「工場は絞らない」と誤って出る）"""
-        run = kit.Run(self, BLOCK)
-        seed(run)
-        (run.artifacts / "r1").mkdir()
-        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        run = self.seeded_run()
         v = passing()
         rel = {"applied": True, "whole": False, "files": ["tests/test_a.py"], "left": ["tests/test_b.py"], "far": [], "reasons": [], "ran": "related"}
         v["test_gate_base"] = {**v["test_gate_base"], "related": rel, "suites_line": "走らせた: x"}
@@ -573,10 +594,7 @@ class CollectScriptCase(unittest.TestCase):
 
     def test_returns_use_the_last_round_eyes(self):
         """collect の script は eyes_back が在れば、その最後の周の目と試験と合わせを報告に使う（返さなかった run は最初の物）"""
-        run = kit.Run(self, BLOCK)
-        seed(run)
-        (run.artifacts / "r1").mkdir()
-        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        run = self.seeded_run()
         v = passing()
         last_eyes = {**v["eyes"], "report": ["- 最後の周の目: 通した"], "sections": [{"title": "独立の目 R1 最小性とコメント", "lines": ["- 最後の周の R1 通した"]}]}
         items = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]

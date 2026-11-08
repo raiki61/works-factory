@@ -3,13 +3,13 @@
 # dependencies = []
 # ///
 """report へ渡す 2 つの形（sections・facts）を組んで place に書く node collect（docs/design/line.md の 7 節。trigger_rule: all_done・
-always_run: true）。sections は src/sections.py、facts は src/facts.py が組み、place の src.files.SECTIONS・FACTS に書いて pointer を返す。
+always_run: true）。sections は src/sections.py、facts は src/facts.py が組み、place の src.files.SECTIONS・FACTS に書いて、2 つの pointer と、書いた中身の指紋 digest を返す。
 
 受け皿の got・返し・承認の答え・line の script の出力を `{from, if_skipped: null}` で受ける（飛んだ物は null）。block の返り（受け皿の
 got）は要る欄を全部名指して読む（欄の欠けた前の版の返りを resume で受けたら空と読まない。integration.md 4.3-12）。固定材料の run は
 判定・計画が飛ぶので、fix-in が運んだ写し（received）で埋める（facts.returns_of・sections.build）。
 
-落ちない: 組めない時も fallback が訳だけの sections と facts（problems に訳。結末は record_invalid）を書いて pointer を返す。facts の
+落ちない: 組めない時も fallback が訳だけの sections と facts（problems に訳。結末は record_invalid）を書く。facts の
 部分ごとの組めなさは facts.build が訳を problems・notes に足す。
 
 入力（with:）: notices（testcmd の注意の字）・start・answer_start・tiers・owed・structure_in・design_in・ask_before_fix・answer_before_fix・
@@ -19,6 +19,7 @@ parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・me
 テーマの run の theme_world_in・theme_blind（受け皿の got）・theme_design_in・theme_rounds（受け皿の got）・theme_descend・request_in・theme_return・
 直す前で止まった写しの run の fixture_ask_before_fix・fixture_answer_before_fix（src.fixture.collect_values が今の欄の名に重ねる）
 """
+import hashlib
 import json
 import os
 import sys
@@ -133,10 +134,15 @@ def write(name: str, doc) -> Path:
 
 
 def pointers(secs, doc) -> dict:
-    """report に渡す 2 つの pointer（書いた後に report の port の形で照らす）"""
+    """report に渡す 2 つの pointer と、書いた 2 つのファイルの中身だけから組む指紋 digest（書いた後に report の port の形で照らす）。
+    digest は resume で中身が変わった時だけ値が変わり report を走り直させる（書き手だけが落ちた run では中身が同じなので facts は再生される）ので消さない"""
     from src import files
-    return {"sections": ports.pointer(write(files.SECTIONS, secs), "json(shared:sections.schema.json)"),
-            "facts": ports.pointer(write(files.FACTS, doc), "json(shared:facts.schema.json)")}
+    sections_path = write(files.SECTIONS, secs)
+    facts_path = write(files.FACTS, doc)
+    digest = hashlib.sha256(sections_path.read_bytes() + b"\0" + facts_path.read_bytes()).hexdigest()
+    return {"sections": ports.pointer(sections_path, "json(shared:sections.schema.json)"),
+            "facts": ports.pointer(facts_path, "json(shared:facts.schema.json)"),
+            "digest": digest}
 
 
 def compute():

@@ -2291,7 +2291,8 @@ nodes:
       got: "$merge-apply.output"
       names: "mode ok hash diff protected_hits protected_count reason deliver report"
   # 25 報告へ渡す 2 つの形（sections・facts）を組む（docs/design/line.md の 7 節）。前の段が落ちても飛ばされても走る。resume でも
-  # 回し直す（always_run。report は include で、Archon は include の always_run を捨てるので、collect の返りが変われば report が回し直る）
+  # 回し直す（always_run。report は include で、Archon は include の always_run を捨てるので、collect の返りが変われば report が回し直る。pointer の path は決まった名で
+  # 中身が変わっても値が変わらないので、返りは書いた 2 つのファイルの中身の指紋 digest を持つ）
   - id: collect
     script: collect
     runtime: uv
@@ -2374,7 +2375,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [sections, facts]
+      required: [sections, facts, digest]
       properties:
         sections:
           <<: *pointer_or_null
@@ -2384,6 +2385,9 @@ nodes:
           <<: *pointer_or_null
           type: object
           description: 'json(shared:facts.schema.json): 結末と冒頭 3 行を決める事実（report-in/facts.json）'
+        digest:
+          type: string
+          description: '書いた 2 つのファイルの中身の sha256。中身が変われば値が変わり、resume で report が回し直る'
   # 26 報告（どの道でも走る）
   - id: report
     include: works-factory-report
