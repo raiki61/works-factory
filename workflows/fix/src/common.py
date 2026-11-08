@@ -933,7 +933,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
     実行器が選んだ試験の引数を受けず結末を返さない時と、予約の 1 件だけを返した時（baseline_red.synthesized）は、引数なしの一式で
     1 度回し直す（実行器の約束は受けられない引数を落とすこと）。
-    赤は 1 件ごとの行（baseline_red.reported）だけで数える。予約の 1 件は元の結末の鍵に無く版の姿と比べられないので、いつも
+    赤は 1 件ごとの行（baseline_red.reported）だけで数える。落ちた予約の 1 件（baseline_red.synth_reds）は元の結末の鍵に無く版の姿と比べられないので、いつも
     比べられない赤として扱う（下の uncompared の決めと同じ。訳は baseline_red.SYNTH_CAUSE）。
     実行器の無い run（状態が無い）・当たる試験が無い・実行器が走らない・選んだ試験が 1 件も走らなかった時は赤にせず知らせだけ。
     元の結末に無い試験の赤は、版の写しでその試験を名指しで回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
@@ -1009,8 +1009,8 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
             and st["baseline"].get(_key(c)) not in ("failure", "error")}
     red = list(reds)
     fresh = [k for k in red if k not in st["baseline"]]
-    # 予約の行（baseline_red.synthesized の回の行）は、版の姿で名指しで回しても比べられない赤（元の結末にも入れない）
-    synth_rows = {_key(c): c for c in cases if c not in rows and c["outcome"] in ("failure", "error")}
+    # 落ちた予約の行（baseline_red.synth_reds。本物の行に混ざっていても）は、版の姿で名指しで回しても比べられない赤（元の結末にも入れない）
+    synth_rows = {_key(c): c for c in baseline_red.synth_reds(cases)}
     tail = ""
     if fresh:
         base, why = _base_reds(st, repo, rev, [reds[k] for k in fresh])

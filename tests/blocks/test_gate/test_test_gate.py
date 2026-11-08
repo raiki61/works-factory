@@ -220,9 +220,37 @@ class EvidenceRowsCase(unittest.TestCase):
         for base_cases, now_cases in (([reserved], [passed]), ([passed], [reserved]), ([reserved], [reserved])):
             with self.subTest(base=base_cases, now=now_cases):
                 got, out = certify.test_outcomes({"exit": 1, "cases": base_cases}, {**run, "cases": now_cases})
-                self.assertIsNone(got)
+                self.assertEqual(got, base_cases)   # 赤の原因の照らしには元の結末を渡す（introduced の分けは classify の 1 か所）
                 self.assertEqual(out["rows"], [])
                 self.assertNotEqual(out["unmeasured"], "")
+
+    def test_a_run_with_the_reserved_case_mixed_in_is_not_compared_per_test(self):
+        """元か今の結末に本物の行と予約の行が混ざった回も、試験ごとに比べず（rows を空）、元の結末は赤の原因の照らしに渡し、
+        unmeasured に予約の行が在った側を書く（本物の行から黙って消さない）"""
+        certify = kit.load("test-gate", "certify")
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error",
+                    "fail_message": "exit 1"}
+        passed = {"classname": "t", "name": "a", "outcome": "passed"}
+        run = {"suite": {"exit": 1, "problems": []}, "cases": [], "runs": [], "junit_steps": [], "junit_unran": []}
+        unmeasured = {}
+        for side, base_cases, now_cases in (("base", [passed, reserved], [passed]), ("now", [passed], [passed, reserved])):
+            with self.subTest(side):
+                got, out = certify.test_outcomes({"exit": 1, "cases": base_cases}, {**run, "cases": now_cases})
+                self.assertEqual(got, base_cases)
+                self.assertEqual(out["rows"], [])
+                self.assertIn(baseline_red.SYNTH_CAUSE, out["unmeasured"])
+                unmeasured[side] = out["unmeasured"]
+        self.assertNotEqual(unmeasured.get("base", ""), unmeasured.get("now", ""), "予約の行が在った側（元か今か）を書き分ける")
+
+    def test_a_run_that_exits_0_with_a_reserved_case_is_not_clean(self):
+        """実行器が終了コード 0 で終わっても、結末に予約の行が在れば clean と言わず、found にして予約の行の訳を detail に書く"""
+        certify = kit.load("test-gate", "certify")
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        passed = {"classname": "t", "name": "a", "outcome": "passed"}
+        run = {"suite": {"exit": 0, "problems": []}, "cases": [passed, reserved], "runs": [], "junit_steps": [], "junit_unran": []}
+        material = certify.runner_material("final", run)
+        self.assertEqual(material["status"], "found")
+        self.assertIn(baseline_red.SYNTH_CAUSE, material["detail"])
 
     def test_e2e_evidence_rows_start_with_the_prefixes(self):
         certify = kit.load("test-gate", "certify")
@@ -1432,12 +1460,40 @@ class PromptCase(ScriptCase):
         self.assertIn("its own temporary file", text)
         self.assertIn("even if an earlier part is red", text)
         self.assertIn("`testsuites`", text)
-        self.assertIn("a `<error>` testcase", text)
-        self.assertIn("Put only the part's number in its name", text)
-        self.assertIn("exit code in the `message` of the `<error>`", text)
+        self.assertIn("the reserved testcase of the section above", text)
+        self.assertIn("`<n>` is the exit code the chain itself exits with", text)
+        self.assertNotIn("Put only the part's number in its name", text)
+        self.assertNotIn("a `<error>` testcase", text)
         self.assertIn("a part to which you added the JUnit option", text)
         self.assertIn("first non-zero", text)
         self.assertIn("The machine treats a runner that contains the test_cmd as typed as the same thing as the test_cmd", text)
+
+    CHAIN_CMD = "make build && pytest -q tests/a && pytest -q tests/b"
+
+    @staticmethod
+    def chain_section(text: str) -> str:
+        """鎖の節（『joined only by `&&` at the top level』から『2. If there is no test_cmd』まで）"""
+        head = text.index("joined only by `&&` at the top level")
+        return text[head:text.index("2. If there is no test_cmd", head)]
+
+    def test_suite_write_prompt_applies_the_126_127_rule_to_each_chain_part(self):
+        """JUnit の option を足した部品が 126・127 で終わったら、集めたファイルを書かず、その部品の終了コードで終わる。
+        テストでない部品が落ちて止まる回は、第 1 引数に何も書かない"""
+        chain = self.chain_section(self.write_prompt(test_cmd=self.CHAIN_CMD))
+        self.assertIn("exited 126 or 127", chain)
+        self.assertIn("do not write the gathered file to the first argument", chain)
+        self.assertIn("exit with the code of the first part that exited 126 or 127", chain)
+        self.assertIn("stop there, write nothing to the first argument, and exit with its non-zero code", chain)
+
+    def test_suite_write_prompt_writes_one_reserved_case_for_every_silent_chain_part(self):
+        """結末を書かずに終わった部品には、終了コードを問わず予約の 1 件を当てる。いくつあっても 1 件で、本文に全部の部品の番号を並べる"""
+        chain = self.chain_section(self.write_prompt(test_cmd=self.CHAIN_CMD))
+        self.assertIn("whatever its exit code (0 included)", chain)
+        self.assertIn(f'`classname="{baseline_red.SYNTH_CLASSNAME}"`', chain)
+        self.assertIn(f'`name="{baseline_red.SYNTH_NAME}"`', chain)
+        self.assertIn("write this testcase once", chain)
+        self.assertIn("list every such part's number, exit code and log place in its body", chain)
+        self.assertNotIn("in its name", chain)
 
     def test_suite_write_prompt_names_the_reserved_case_for_a_red_without_junit(self):
         """試験の道具が JUnit XML を書かずに 0 でない値で終わった時に、予約の classname と name の testcase に error を 1 件書く決まりと、

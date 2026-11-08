@@ -36,7 +36,7 @@ ONLY_ENV = "TDD_SUITE_ONLY"
 
 # 試験の道具が JUnit XML を書く前に赤で終わった時、実行器が書く 1 件の予約の classname と name。実行器の約束（workflows/.shared/
 # prompts/runner-writer.md）の差し込み口 {synth_classname}・{synth_name} に contract_values が渡す。この行は試験 1 件ごとの結末ではなく、
-# SYNTH_CAUSE という 1 件の知らせで、読む側は reported・synthesized でだけ見分ける
+# SYNTH_CAUSE という 1 件の知らせで、読む側は reported・synthesized・synth_reds でだけ見分ける
 SYNTH_CLASSNAME = "junit-synthesized"
 SYNTH_NAME = "suite-exited-without-junit"
 SYNTH_CAUSE = "試験の道具が 1 件ごとの結末を書く前に赤で終わった"   # 予約の 1 件の意味の文。読む側は字で写さずこの名で引く
@@ -55,6 +55,19 @@ def _is_synth(c) -> bool:
 def reported(cases) -> list:
     """結末の行のうち、試験 1 件ごとの事実の行（予約の行でない物）の並び"""
     return [c for c in cases or [] if not _is_synth(c)]
+
+
+def synth_reds(cases) -> list:
+    """結末の行のうち、落ちた（failure・error）予約の行。本物の行に混ざっていても、予約の行だけの回でも返す。
+    予約の行は 1 件ごとの結末でなく元の結末とも比べられないので、読む側はこの行を比べられない赤として別に扱い、ほかを壊した
+    赤とも元でも落ちた赤とも読まない。訳は SYNTH_CAUSE"""
+    return [c for c in cases or [] if _is_synth(c) and c.get("outcome") in FAILED]
+
+
+def _synth_problems(cases) -> list:
+    """落ちた予約の行が在れば、比べられない赤の問題の 1 行（赤と緑の確認が同じ文を返す）。なければ空"""
+    reds = synth_reds(cases)
+    return [f"名指しの外の {_key(reds[0])} は{SYNTH_CAUSE}——1 件ごとの結末が無く比べられない赤（壊した赤とは読まない）"] if reds else []
 
 
 def synthesized(cases) -> bool:
@@ -143,15 +156,17 @@ def _must_pass(c, baseline):
 
 
 def _broken_others(cases, baseline, hit, scope=None):
-    """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（_must_pass）——赤と緑の確認が同じ 1 本を読む
+    """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（_must_pass）——赤と緑の確認が同じ 1 本を読む。
+    予約の行は 1 件ごとの結末でないので数えない（比べられない赤として _synth_problems が別に言う）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:102-104）"""
-    return [c for c in cases if id(c) not in hit and c["outcome"] in FAILED and _must_pass(c, baseline)
+    return [c for c in cases if id(c) not in hit and not _is_synth(c) and c["outcome"] in FAILED and _must_pass(c, baseline)
             and (scope is None or _key(c) in scope)]
 
 
 def red_problems(named, cases, exit_code, baseline=None):
     """赤の確認: 名指しのテストが全部 failure で落ち、名指しの外で通っていなければならない物（_must_pass）は通る。
     一式は 0 以外で終わる（名指しが落ちたのに 0 を返す実行器は結末を映していない）。baseline＝元の結末（_key → outcome）
+    落ちた予約の行は「ほかを壊した」に数えず、比べられない赤の問題 1 行にする（_synth_problems。足した物）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:107-129）"""
     probs, hit = [], set()
     if not named:
@@ -172,7 +187,7 @@ def red_problems(named, cases, exit_code, baseline=None):
             probs.append(f"{t}: 飛ばされた——赤でも緑でもない")
     probs += [f"名指しの外の {_key(c)} が {c['outcome']}——テストだけを書く段がほかを壊した（元は通っていた・この周に足した物は緑のまま）"
               for c in _broken_others(cases, baseline, hit)]
-    return probs
+    return probs + _synth_problems(cases)
 
 
 def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narrow=False, also=()):
@@ -181,6 +196,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
     narrow が真（元の結末が変更に関わる試験だけで、今の回は全部の試験を走らせた。持ち主の決め related-tests-only）なら、比べるのは元の結末に
     載った試験と名指しと also（前の単位が赤から緑にした試験の id）だけ: 元の結末に無い試験の赤は問わず、一式の終了コードも、その範囲の結果が
     全部通っていれば問わない
+    落ちた予約の行は、narrow の絞りの前の cases 全体から、比べられない赤の問題 1 行にする（_synth_problems。足した物）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:132-147）"""
     scope = None
     if narrow and baseline is not None:
@@ -197,7 +213,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
             probs.append(f"{t}: {'一式の結末に居ない' if c is None else c['outcome']}——名指しのテストが緑でない")
     probs += [f"{_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
               for c in _broken_others(cases, baseline, hit, scope)]
-    return probs
+    return probs + _synth_problems(cases)   # scope の絞りの前の cases 全体に当てる（narrow の回でも抜けない）
 
 
 def nice19() -> None:

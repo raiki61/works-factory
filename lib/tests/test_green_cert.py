@@ -273,6 +273,24 @@ class ClassifyCase(unittest.TestCase):
         self.assertEqual(cause, "")
         self.assertIn(gatemarks.BASELINE_UNVERIFIED, summary)
 
+    def test_reserved_row_mixed_with_inherited_reds_is_not_inherited(self):
+        """元の結末も今の結末も「元でも落ちた本物の行 + 予約の行」の回は、予約の行が 1 件ごとの事実でないので、残りが全部元でも落ちて
+        いても受け継いだ赤とは言わず、原因の無い赤にして予約の行の訳を添える"""
+        synth = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        cause, summary = classify("found", [RED_UNIT], [case("t", "failure"), synth], [case("t", "failure"), synth], ["unit"])
+        self.assertEqual(cause, "")
+        self.assertIn(baseline_red.SYNTH_CAUSE, summary)
+        self.assertIn(gatemarks.BASELINE_UNVERIFIED, summary)
+
+    def test_real_red_missing_from_a_base_with_a_reserved_row_is_not_introduced(self):
+        """元の結末に予約の行が在れば、元に無い本物の行の赤は、結末を書けなかった部品の試験かもしれず introduced と言わない。
+        元で通っていた本物の行が今落ちた回は、予約の行が混ざっていても introduced"""
+        synth = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        cause, _ = classify("found", [RED_UNIT], [case("new", "failure")], [synth], ["unit"])
+        self.assertEqual(cause, "")
+        cause, _ = classify("found", [RED_UNIT], [case("t", "failure"), synth], [case("t", "passed"), synth], ["unit"])
+        self.assertEqual(cause, "introduced")
+
     def test_summary_lists_ten_keys_and_counts_the_rest(self):
         """赤の原因の要約は落ちた試験の鍵を 10 件まで並べ、超えた分は「ほか N 件」と数える"""
         failed = [case(f"t{i:02d}", "failure") for i in range(12)]
