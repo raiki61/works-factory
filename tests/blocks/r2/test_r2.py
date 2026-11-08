@@ -103,7 +103,8 @@ class CompareRoadCase(_RepoCase):
 
     def test_settle_table_covers_every_status_and_kind(self):
         """settle の表（上から順）を、返答の語と違いの種の組ごとに intake → compare_prep → save → finish で回す。block の status は
-        どの組でも ran。作り残しだけの返答は fix-needed で、reason の尾に行の where と text が付く"""
+        どの組でも ran。作り残しだけの返答は fix-needed で、reason の尾に行の where と text が付く。構造の行が 1 つでも在れば、返答の語が
+        pass でも redesign-needed（安全の側に倒す。指示の「構造の行を付けると機械が redesign-needed にする」と同じ）"""
         steps = kit.load("r2", "steps")
         unfinished, structure, wording = steps.UNFINISHED_KIND, "構造", "表現"
         row = {unfinished: {"kind": unfinished, "text": "上限の確かめが無い", "where": "app.py:12"}, structure: {"kind": structure, "text": "継ぎ目が違う"},
@@ -112,7 +113,8 @@ class CompareRoadCase(_RepoCase):
         raised = steps.RAISED_BY_UNFINISHED
         cases = [
             ("fix-needed", [unfinished], "fix-needed", "R" + tail),
-            ("pass", [structure], "pass", "R"),
+            ("pass", [structure], "redesign-needed", "R（構造の違い: 継ぎ目が違う）"),
+            ("pass", [structure, unfinished], "redesign-needed", "R（構造の違い: 継ぎ目が違う）"),
             ("pass", [unfinished], "fix-needed", raised.format(word="通った（pass）") + "R" + tail),
             ("fix-needed", [structure, unfinished], "redesign-needed", "R（構造の違い: 継ぎ目が違う）"),
             ("fix-needed", [wording], "redesign-needed", steps.NO_UNFINISHED + "R"),

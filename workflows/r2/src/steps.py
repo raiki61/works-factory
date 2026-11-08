@@ -218,17 +218,17 @@ def settle(doc: dict) -> dict:
     status と違いの行の種（構造・表現・作り残し）から、上から順に:
     0. status が unverifiable ならそのまま（役の型には無い語）
     1. reason が KEEP_HEADS のどれかで始まれば redesign-needed（行に依らず作り直しのまま）
-    2. status が pass でなく、種が構造の行が在れば redesign-needed（行の text を reason の尾「（構造の違い: …）」に足す）
+    2. 種が構造の行が在れば redesign-needed（返答の語が pass でも。安全の側に倒す。行の text を reason の尾「（構造の違い: …）」に足す）
     3. 種が作り残しの行が在れば fix-needed（返答が別の語なら頭に RAISED_BY_UNFINISHED。尾「（作り残し: …）」に行の where と text を足す）
     4. status が fix-needed なのに作り残しの行が無ければ redesign-needed（頭に NO_UNFINISHED。名指しが無い物は修正の段へ返せない）
-    5. ほかは返答のまま（pass に本質でない構造の行だけ・redesign-needed に表現の行だけ・行が無い時）"""
+    5. ほかは返答のまま（redesign-needed に表現の行だけ・pass に表現の行だけ・行が無い時）"""
     status, reason = doc["status"], str(doc.get("reason"))
     structure, unfinished = _rows(doc, STRUCTURE_KIND), _rows(doc, UNFINISHED_KIND)
     if status == seal.UNVERIFIABLE:
         return {"status": status, "reason": reason}
     if reason.startswith(KEEP_HEADS):
         return {"status": seal.REDESIGN, "reason": reason}
-    if status != seal.PASSED and structure:
+    if structure:
         return {"status": seal.REDESIGN, "reason": reason + _tail("構造の違い", structure)}
     if unfinished:
         head = "" if status == seal.FIX_NEEDED else RAISED_BY_UNFINISHED.format(word=gatemarks.status_named(status))
