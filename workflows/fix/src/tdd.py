@@ -111,7 +111,7 @@ from src import common  # noqa: E402
 from src.common import (  # noqa: E402
     Broken, GATE_OFF, GATE_ON, MIN_WHY, QUOTES_FIELD, UNSENT, _abs_ids, _abs_paths, _blank, _cmd_run, _contract, _id_base,
     PROMPT, RECORD, _key, _load, _mark_parked, _norm_id, _owed, _plan_tdd, _reached, _save, _unit, _unnamed_edits, _verified, hashes, id_path,
-    red_check, restore, retry_max, rules, snapshot, touched)
+    base_synth_of, red_check, restore, retry_max, rules, snapshot, touched)
 
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
 ROUTES = fixnames.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
@@ -797,7 +797,8 @@ def _test(st, reply, repo) -> list:
             return [f"名指しの外の既存のテスト {frozen[:10]} の本体を書き換えた——書き換えてよいのは修正案の rewrite_tests の名指しだけ"
                     "（それ以外を変えるなら phase conflict で申し出よ）"]
     cases, code = _run(st, repo, tests)
-    probs, unchecked = red_check(tests, cases, code, st["baseline"], quotes, st["last_run"]["log"])
+    probs, unchecked = red_check(tests, cases, code, st["baseline"], quotes, st["last_run"]["log"],
+                                 base_synth=base_synth_of(st))
     if probs and any((c := rules().match_case(t, cases)) is None or c["outcome"] == "error" for t in tests):
         probs.append(NOT_RAN)
     probs = probs or _vanished_problems(st, u, cases, tests, repo)
@@ -826,7 +827,7 @@ def _green(st, u, repo) -> list:
     rel = st.get("related") or {}
     narrow = bool(full and rel.get("applied") and not rel.get("whole"))   # 元の結末が関わる試験だけで、今の回は全部の試験
     return rules().green_problems(u["tests"], cases, code, st["baseline"], st["baseline_exit"], narrow=narrow,
-                                  also=sorted(_verified(st))) \
+                                  also=sorted(_verified(st)), base_synth=base_synth_of(st)) \
         or _vanished_problems(st, u, cases, st["last_run"]["args"], repo) or _test_cmd_problems(st, repo)
 
 

@@ -1476,13 +1476,20 @@ class PromptCase(ScriptCase):
         return text[head:text.index("2. If there is no test_cmd", head)]
 
     def test_suite_write_prompt_applies_the_126_127_rule_to_each_chain_part(self):
-        """JUnit の option を足した部品が 126・127 で終わったら、集めたファイルを書かず、その部品の終了コードで終わる。
-        テストでない部品が落ちて止まる回は、第 1 引数に何も書かない"""
+        """JUnit の option を足した部品が 126・127 で終わったら、集めたファイルを書かず、その部品の終了コードで終わる（終わりの値の
+        決まりにも外し書きが在る）。テストでない部品が落ちて止まる回は、126・127 なら第 1 引数に何も書かず、ほかの値なら予約の 1 件
+        （message は exit <n>）を書く（単独の道具が中の build で落ちた時と同じく赤と読ませ、実行器が走らないと読ませない）"""
         chain = self.chain_section(self.write_prompt(test_cmd=self.CHAIN_CMD))
         self.assertIn("exited 126 or 127", chain)
         self.assertIn("do not write the gathered file to the first argument", chain)
         self.assertIn("exit with the code of the first part that exited 126 or 127", chain)
-        self.assertIn("stop there, write nothing to the first argument, and exit with its non-zero code", chain)
+        self.assertIn("The one exception is a part that exited 126 or 127", chain)
+        build = chain[chain.index("If a part that does not run tests"):]
+        build = build[:build.index("\n")]
+        self.assertIn("If that code is 126 or 127, write nothing to the first argument", build)
+        self.assertIn("holds the reserved testcase of the section above once", build)
+        self.assertIn("`exit <n>` with that part's exit code", build)
+        self.assertNotIn("stop there, write nothing to the first argument", build)
 
     def test_suite_write_prompt_writes_one_reserved_case_for_every_silent_chain_part(self):
         """結末を書かずに終わった部品には、終了コードを問わず予約の 1 件を当てる。いくつあっても 1 件で、本文に全部の部品の番号を並べる"""

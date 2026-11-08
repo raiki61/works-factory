@@ -64,9 +64,11 @@ def synth_reds(cases) -> list:
     return [c for c in cases or [] if _is_synth(c) and c.get("outcome") in FAILED]
 
 
-def _synth_problems(cases) -> list:
-    """落ちた予約の行が在れば、比べられない赤の問題の 1 行（赤と緑の確認が同じ文を返す）。なければ空"""
-    reds = synth_reds(cases)
+def _synth_problems(cases, base_synth=False) -> list:
+    """落ちた予約の行が在れば、比べられない赤の問題の 1 行（赤と緑の確認が同じ文を返す）。なければ空。元の結末にも落ちた予約の行が
+    在った回（base_synth）も空: 直す前から結末を書かない部品の在る対象で、どの単位の赤・緑の確認も必ず落ちる形にしない（_must_pass と
+    同じ決め）。この赤は輪では問わず、最後の試験の段が自分の取った直す前の結末で読む（green_cert.classify の base_blind。原因の無い赤）"""
+    reds = [] if base_synth else synth_reds(cases)
     return [f"名指しの外の {_key(reds[0])} は{SYNTH_CAUSE}——1 件ごとの結末が無く比べられない赤（壊した赤とは読まない）"] if reds else []
 
 
@@ -163,10 +165,12 @@ def _broken_others(cases, baseline, hit, scope=None):
             and (scope is None or _key(c) in scope)]
 
 
-def red_problems(named, cases, exit_code, baseline=None):
+def red_problems(named, cases, exit_code, baseline=None, base_synth=False):
     """赤の確認: 名指しのテストが全部 failure で落ち、名指しの外で通っていなければならない物（_must_pass）は通る。
     一式は 0 以外で終わる（名指しが落ちたのに 0 を返す実行器は結末を映していない）。baseline＝元の結末（_key → outcome）
-    落ちた予約の行は「ほかを壊した」に数えず、比べられない赤の問題 1 行にする（_synth_problems。足した物）
+    落ちた予約の行は「ほかを壊した」に数えず、比べられない赤の問題 1 行にする（_synth_problems。足した物）。base_synth は元の結末に
+    落ちた予約の行が在ったか（呼び手が元の結末の行から synth_reds で引く。outcomes は予約の鍵を落とすので baseline からは引けない）で、
+    真なら問題にしない（元から在る赤は _must_pass と同じく問わない）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:107-129）"""
     probs, hit = [], set()
     if not named:
@@ -187,16 +191,17 @@ def red_problems(named, cases, exit_code, baseline=None):
             probs.append(f"{t}: 飛ばされた——赤でも緑でもない")
     probs += [f"名指しの外の {_key(c)} が {c['outcome']}——テストだけを書く段がほかを壊した（元は通っていた・この周に足した物は緑のまま）"
               for c in _broken_others(cases, baseline, hit)]
-    return probs + _synth_problems(cases)
+    return probs + _synth_problems(cases, base_synth)
 
 
-def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narrow=False, also=()):
+def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narrow=False, also=(), base_synth=False):
     """緑の確認: 名指しのテストが全部通り、名指しの外で通っていなければならない物（_must_pass）も通る。一式が 0 で終わる
     （JUnit に載らない失敗——件数の柵など——も拾う）。元の一式が 0 で終わっていなかったなら終了コードは問わない
     narrow が真（元の結末が変更に関わる試験だけで、今の回は全部の試験を走らせた。持ち主の決め related-tests-only）なら、比べるのは元の結末に
     載った試験と名指しと also（前の単位が赤から緑にした試験の id）だけ: 元の結末に無い試験の赤は問わず、一式の終了コードも、その範囲の結果が
     全部通っていれば問わない
-    落ちた予約の行は、narrow の絞りの前の cases 全体から、比べられない赤の問題 1 行にする（_synth_problems。足した物）
+    落ちた予約の行は、narrow の絞りの前の cases 全体から、比べられない赤の問題 1 行にする（_synth_problems。足した物）。base_synth は
+    red_problems と同じ（真なら問題にしない）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:132-147）"""
     scope = None
     if narrow and baseline is not None:
@@ -213,7 +218,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
             probs.append(f"{t}: {'一式の結末に居ない' if c is None else c['outcome']}——名指しのテストが緑でない")
     probs += [f"{_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
               for c in _broken_others(cases, baseline, hit, scope)]
-    return probs + _synth_problems(cases)
+    return probs + _synth_problems(cases, base_synth)
 
 
 def nice19() -> None:

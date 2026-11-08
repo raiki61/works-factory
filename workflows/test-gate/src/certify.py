@@ -170,6 +170,8 @@ def with_rerun(base, run: dict):
     """元の結末 base（read_baseline の返りか None）に、最後のテストが修正前の版で走らせ直した結末（run.json の base_rerun）を足した物。
     走らせ直した試験は、その結末で元の結末の行を置き換える。走らせ直しは最後と同じ走らせ方なので、落ちた試験のうち走らせ直しの結末にも
     元の結末にも居ない物は修正前の版に無かった試験で、元に無かった物として introduced と読んでよい（narrow を偽にする）。
+    ただし足した結末（元の結末の残りの行か走らせ直しの結末）に落ちた予約の行（baseline_red.synth_reds）が在る回は成り立たない: 居ない
+    試験は結末を書けなかった部品の試験かもしれないので、green_cert.classify が base_blind で introduced と読まず、原因の無い赤にする。
     走らせ直していない・結末が取れなかった時は base のまま"""
     rerun = run.get("base_rerun") or {}
     cases = rerun.get("cases")

@@ -289,6 +289,22 @@ class JudgeCase(unittest.TestCase):
                 self.assertEqual(len(probs), 1, probs)
                 self.assertIn(baseline_red.SYNTH_CAUSE, probs[0])
 
+    def test_a_reserved_row_already_in_the_baseline_is_not_a_problem(self):
+        """直す前の結末にも落ちた予約の行が在った回（base_synth）: 今の結末の同じ予約の行は赤・緑の確認の問題にしない（直す前から結末を
+        書かない部品の在る対象で、どの単位も通らない形にしない。_must_pass と同じ決め）。元に無く今だけ在る回は今どおり拒む"""
+        named = ["test_a.py::TestA::test_x"]
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        base = {"test_a.TestA::test_x": "passed"}
+        red = [row("test_x", "failure"), reserved]
+        green = [row("test_x", "passed"), reserved]
+        self.assertEqual(baseline_red.red_problems(named, red, 1, base, base_synth=True), [])
+        self.assertEqual(baseline_red.green_problems(named, green, 1, base, baseline_exit=1, base_synth=True), [])
+        self.assertEqual(baseline_red.green_problems(named, green, 1, base, 0, narrow=True, base_synth=True), [])
+        for probs in (baseline_red.red_problems(named, red, 1, base),
+                      baseline_red.green_problems(named, green, 1, base, baseline_exit=1)):
+            self.assertEqual(len(probs), 1, probs)
+            self.assertIn(baseline_red.SYNTH_CAUSE, probs[0])
+
     def test_green_problems_narrow_compares_only_what_the_baseline_measured(self):
         """元の結末が変更に関わる試験だけで、今の回が全部の試験（narrow）の時: 元の結末に無い試験の赤と、それが理由の一式の終了コードで、
         正しい修正を拒まない。元の結末に載った試験・名指し・also（前の単位が赤→緑にした試験）の赤は今までどおり拒む"""
