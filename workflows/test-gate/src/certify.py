@@ -54,8 +54,10 @@ def suite_exit(run: dict):
 
 def test_outcomes(base, run: dict) -> tuple:
     """(赤の原因の照らしに渡す元の 1 件ごとの結末か None, 返りの欄 test_outcomes {rows, unmeasured})。元の結末と今の結末を比べて
-    よいのは、元の結末が 1 件ごとの結末を取り（exit が None でない）、今の一式も取れた（suite_exit）時だけ。元か今が予約の 1 件だけの回
-    （baseline_red.synthesized）でも比べない。比べない時は rows を空にして訳を unmeasured に書く"""
+    よいのは、元の結末が 1 件ごとの結末を取り（exit が None でない）、今の一式も取れた（suite_exit）時だけ。元か今の結末に落ちた予約の行
+    （baseline_red.synth_reds。本物の行に混ざっていても、予約の行だけの回でも）が在れば比べず、結末を書けなかった部品の試験を行から黙って
+    消さない。比べない時は rows を空にして訳を unmeasured に書く（予約の行が在った側も書く）。予約の行の回は、元の結末を赤の原因の照らしに
+    渡し続ける（元で通っていた本物の行の赤を持ち込んだ赤と分けるのは classify の 1 か所）"""
     import baseline_red
     if base is None:
         why = "base の実測（baseline）が無い（実行器の無い run か、base のテストが走っていない）"
@@ -63,10 +65,12 @@ def test_outcomes(base, run: dict) -> tuple:
         why = "base のテストは 1 件ごとの結末を取っていない"
     elif suite_exit(run) is None:
         why = "最後のテストは 1 件ごとの結末を取っていない"
-    elif baseline_red.synthesized(base["cases"]) or baseline_red.synthesized(run["cases"]):
-        why = f"{baseline_red.SYNTH_CAUSE}回があり、元と今を試験ごとに比べられない"
     else:
-        return base["cases"], {"rows": baseline_red.test_outcomes(base["cases"], run["cases"]), "unmeasured": ""}
+        sides = [side for side, cases in (("元", base["cases"]), ("今", run["cases"])) if baseline_red.synth_reds(cases)]
+        if not sides:
+            return base["cases"], {"rows": baseline_red.test_outcomes(base["cases"], run["cases"]), "unmeasured": ""}
+        why = f"{'・'.join(sides)}の結末に{baseline_red.SYNTH_CAUSE}行があり、元と今を試験ごとに比べられない"
+        return base["cases"], {"rows": [], "unmeasured": why}
     return None, {"rows": [], "unmeasured": why}
 
 
@@ -112,21 +116,25 @@ def _brief_rerun(rerun: dict) -> dict:
 
 def runner_material(mode: str, run: dict) -> dict:
     """by role_needed の run の素材（機械が実行器の結果から組む）。実行器が走って結末が取れた（suite_exit が None でない）なら、終了コード
-    0 は clean、ほかは found（count は落ちた件数、最低 1。試験の件数は 1 件ごとの行 baseline_red.reported で数え、予約の 1 件だけの回
-    （baseline_red.synthesized）は試験を走らせた件数に数えず、その旨を detail に書く）。変更に関わる試験が無く走らせなかったなら not_applicable。実行器が無い・走らな
+    0 で、落ちた予約の行（baseline_red.synth_reds）も無ければ clean、ほかは found（count は落ちた件数、最低 1。試験の件数は 1 件ごとの行
+    baseline_red.reported で数え、予約の 1 件だけの回（baseline_red.synthesized）は試験を走らせた件数に数えず、その旨を detail に書く。
+    予約の行が混ざった回は、終了コードが 0 でも clean と言わず、detail に baseline_red.SYNTH_CAUSE を書く）。変更に関わる試験が無く走らせなかったなら not_applicable。実行器が無い・走らな
     かった・結末が取れないなら、base は awaiting_human、final は not_run（緑を仮定しない）"""
     import baseline_red
     code = suite_exit(run)
     all_cases = run.get("cases") or []
     cases = baseline_red.reported(all_cases)
     if code is not None:
-        if code == 0:
+        synth = baseline_red.synth_reds(all_cases)
+        if code == 0 and not synth:
             return {"status": "clean", "checked": f"AI が書いた実行器が試験 {len(cases)} 件を走らせた（終了コード 0）"}
         if baseline_red.synthesized(all_cases):
             return {"status": "found", "count": 1,
                     "detail": f"AI が書いた実行器の{baseline_red.SYNTH_CAUSE}（終了コード {code}）"}
         failed = sum(1 for c in cases if c.get("outcome") in baseline_red.FAILED)
-        return {"status": "found", "count": max(failed, 1), "detail": f"AI が書いた実行器が試験 {len(cases)} 件を走らせ、終了コード {code}"}
+        mixed_note = f"。結末に{baseline_red.SYNTH_CAUSE}行が混ざっている" if synth else ""
+        return {"status": "found", "count": max(failed, 1),
+                "detail": f"AI が書いた実行器が試験 {len(cases)} 件を走らせ、終了コード {code}{mixed_note}"}
     related = run.get("related") or {}
     if related.get("applied") and not related.get("whole") and not related.get("files"):
         return {"status": "not_applicable", "reason": "変更に関わる試験が無いので試験を走らせなかった。全体の試験は CI と人に任せる"}
@@ -162,6 +170,8 @@ def with_rerun(base, run: dict):
     """元の結末 base（read_baseline の返りか None）に、最後のテストが修正前の版で走らせ直した結末（run.json の base_rerun）を足した物。
     走らせ直した試験は、その結末で元の結末の行を置き換える。走らせ直しは最後と同じ走らせ方なので、落ちた試験のうち走らせ直しの結末にも
     元の結末にも居ない物は修正前の版に無かった試験で、元に無かった物として introduced と読んでよい（narrow を偽にする）。
+    ただし足した結末（元の結末の残りの行か走らせ直しの結末）に落ちた予約の行（baseline_red.synth_reds）が在る回は成り立たない: 居ない
+    試験は結末を書けなかった部品の試験かもしれないので、green_cert.classify が base_blind で introduced と読まず、原因の無い赤にする。
     走らせ直していない・結末が取れなかった時は base のまま"""
     rerun = run.get("base_rerun") or {}
     cases = rerun.get("cases")

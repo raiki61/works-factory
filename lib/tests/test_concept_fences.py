@@ -213,7 +213,7 @@ class FenceCase(unittest.TestCase):
                   'row.setdefault("properties", {}).update(fields)', "{k: row.pop(k) for k in names if k in row}"],
         "plan-scope": ["any(glob_match(path, g) for g in item_globs(it))"],
         "test-files": [r'TEST_STEM = re.compile(r"^(test_[^.]+|[^.]+_test|.+\.(test|spec))$")'],
-        "red-check": ['QUOTES_FIELD = "red_quotes"', "probs = list(rules().red_problems(named, cases, code, baseline))",
+        "red-check": ['QUOTES_FIELD = "red_quotes"', "probs = list(rules().red_problems(named, cases, code, baseline, base_synth=base_synth))",
                       r'ANSI = re.compile(r"\x1b\[[0-9;]*m")'],
         "carry-over": ['NEXT_REQUEST_FILE = "next-request.json"'],
         "world": ['WORLD_FILE = "world.jsonl"'],

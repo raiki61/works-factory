@@ -217,15 +217,16 @@ def _quote_problem(t: str, entry, target: str) -> str:
     return ""
 
 
-def red_check(named: list, cases: list, code, baseline, quotes=None, log=None) -> tuple[list, list]:
+def red_check(named: list, cases: list, code, baseline, quotes=None, log=None, base_synth=False) -> tuple[list, list]:
     """赤の判定の唯一の口（輪の test の段・事後の関門が呼ぶ）——（問題の文, 引用を照らせなかった名指し）。
     事実は言語に依らず、baseline_red の red_problems が見る物だけ: 名指しが全部 failure で落ちる（error・一式に居ない・もう通る・飛ばされた
     は拒む）・名指しの外は元（baseline）のまま・一式が 0 以外で終わる。返す文は事実だけで、言い足しは足さない。
     quotes（{名指しの id: {quote, why}}。None は引用を見ない）が在れば、事実が通った failure の名指しごとに、quote が failure の
     message と本文を寄せた文（cite.quoted_in）に在るか・短すぎないか（MIN_QUOTE）・why が MIN_WHY 字以上かを照らす。両方が空なら
     役が引いた時だけ log（その回のログ）と照らす。照らす先が無い名指し（failure の文が空で、log にも文が無い）は引用が無くても拒まず、
-    unchecked に返す。failure の文が在る名指しは、quotes が渡されていれば引用が要る"""
-    probs = list(rules().red_problems(named, cases, code, baseline))
+    unchecked に返す。failure の文が在る名指しは、quotes が渡されていれば引用が要る。base_synth（元の結末の行に落ちた予約の行が
+    在ったか。base_synth_of）は red_problems へそのまま渡す"""
+    probs = list(rules().red_problems(named, cases, code, baseline, base_synth=base_synth))
     given = {_norm_id(k): v for k, v in (quotes or {}).items() if isinstance(k, str)}
     unchecked = []
     for t in named:
@@ -249,6 +250,12 @@ def red_check(named: list, cases: list, code, baseline, quotes=None, log=None) -
         if bad:
             probs.append(bad)
     return probs, unchecked
+
+
+def base_synth_of(st: dict) -> bool:
+    """輪の状態 st の元の結末の行（baseline_cases）に落ちた予約の行が在るか（baseline_red.synth_reds）。baseline は
+    baseline_red.outcomes で予約の鍵を落とすので、赤・緑の確認にはこの真偽を別に渡す"""
+    return bool(rules().synth_reds(st.get("baseline_cases") or []))
 
 
 RED_TREE_MOVED = "赤の木の中のテストのファイルが赤の記録と違う（赤を確かめ直せない）"
@@ -933,7 +940,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     3 の 1。届いただけの段の外の試験は手元で走らせない）。実行器の既定の一式の中は -k で選んだ全部のモジュールに絞る。
     実行器が選んだ試験の引数を受けず結末を返さない時と、予約の 1 件だけを返した時（baseline_red.synthesized）は、引数なしの一式で
     1 度回し直す（実行器の約束は受けられない引数を落とすこと）。
-    赤は 1 件ごとの行（baseline_red.reported）だけで数える。予約の 1 件は元の結末の鍵に無く版の姿と比べられないので、いつも
+    赤は 1 件ごとの行（baseline_red.reported）だけで数える。落ちた予約の 1 件（baseline_red.synth_reds）は元の結末の鍵に無く版の姿と比べられないので、いつも
     比べられない赤として扱う（下の uncompared の決めと同じ。訳は baseline_red.SYNTH_CAUSE）。
     実行器の無い run（状態が無い）・当たる試験が無い・実行器が走らない・選んだ試験が 1 件も走らなかった時は赤にせず知らせだけ。
     元の結末に無い試験の赤は、版の写しでその試験を名指しで回して、版でも赤なら外す（版の写しの結末は _base_reds が盤面の根に控え、
@@ -1009,8 +1016,8 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
             and st["baseline"].get(_key(c)) not in ("failure", "error")}
     red = list(reds)
     fresh = [k for k in red if k not in st["baseline"]]
-    # 予約の行（baseline_red.synthesized の回の行）は、版の姿で名指しで回しても比べられない赤（元の結末にも入れない）
-    synth_rows = {_key(c): c for c in cases if c not in rows and c["outcome"] in ("failure", "error")}
+    # 落ちた予約の行（baseline_red.synth_reds。本物の行に混ざっていても）は、版の姿で名指しで回しても比べられない赤（元の結末にも入れない）
+    synth_rows = {_key(c): c for c in baseline_red.synth_reds(cases)}
     tail = ""
     if fresh:
         base, why = _base_reds(st, repo, rev, [reds[k] for k in fresh])

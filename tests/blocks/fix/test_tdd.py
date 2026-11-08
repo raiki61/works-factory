@@ -880,7 +880,52 @@ class TestUnitLoop(LoopCase):
         self.assertTrue(got["done"], "max_iterations に届く周で印を立てる（R50）")
         self.assertEqual(tdd.exit_fields(self.loop_start())["units"][0]["gave_up"], "budget")
 
-MEAN_ID = "test_stats.py::TestStats::test_mean_of_two"
+
+# SUITE に、&& でつないだ試験の命令の部品が結末を書かずに終わった時の実行器の約束（予約の 1 件を足して 0 でない値で終わる）を足した物。
+# 予約の行は木の根に part.flag が在る回だけ書く
+CHAIN_PART_SUITE = SUITE.replace(
+    "ET.ElementTree(root).write(out)\n",
+    "import os\nif os.path.exists('part.flag'):\n"
+    f"    ET.SubElement(ET.SubElement(root, 'testcase', classname={baseline_red.SYNTH_CLASSNAME!r}, "
+    f"name={baseline_red.SYNTH_NAME!r}), 'error', message='exit 2')\n"
+    "    ET.ElementTree(root).write(out)\n    sys.exit(2)\n"
+    "ET.ElementTree(root).write(out)\n")
+
+
+class TestReservedRowInBaseline(LoopCase):
+    """直す前の結末にも今の結末にも同じ落ちた予約の行が在る回は、赤・緑の確認がその行で拒まず輪が通る。直す前に無く今だけ在る回は
+    今どおり比べられない赤（SYNTH_CAUSE）で拒む（tdd._red・tdd._green が base_synth_of を渡す）"""
+
+    def setUp(self):
+        super().setUp()
+        self.assertIn("part.flag", CHAIN_PART_SUITE)
+        self.suite.write_text(CHAIN_PART_SUITE, encoding="utf-8")
+
+    def flag(self, commit=True):
+        (self.repo / "part.flag").write_text("", encoding="utf-8")
+        if commit:
+            git(self.repo, "add", "part.flag")
+            git(self.repo, "commit", "-q", "-m", "結末を書かない部品")
+
+    def test_loop_passes_when_the_baseline_has_the_same_reserved_row(self):
+        self.flag()
+        self.restart()
+        self.assertTrue(baseline_red.synth_reds(self.st()["baseline_cases"]), "直す前の結末に予約の行が載っていない")
+        self.route()
+        self.red()
+        got = self.fix_mean()
+        self.assertEqual((got["ok"], got["done"]), (True, True), got)
+
+    def test_reserved_row_only_in_the_current_run_is_rejected(self):
+        self.route()
+        self.flag(commit=False)
+        self.add_test(NEW_TEST)
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [MEAN_ID]})
+        self.assertFalse(got["ok"], got)
+        self.assertIn(baseline_red.SYNTH_CAUSE, got["reason"])
+
+
+MEAN_ID ="test_stats.py::TestStats::test_mean_of_two"
 WRONG_KIND_TEST = "\n    def test_mean_of_two(self):\n        import stats\n        self.assertEqual(stats.mean2([2, 4]), 3)\n"
 
 

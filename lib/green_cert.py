@@ -110,10 +110,12 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran,
        走った赤の段が在れば 4.〜6. で分け、走らなかった段は summary に添える
     4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red._must_pass）が在る → introduced
     5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在って junit_unran に無い → inherited
-    6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None・落ちた物が予約の行（baseline_red.reported に入らない行。
-       baseline_red.synthesized の回）だけ）→ ""（原因の無い赤）。試験に入ったかの証拠が無いので、
-       ran_note は走らなかったと言い切らず UNVERIFIED_RUN と読む（直す前と同じログの赤も、試験が同じに落ちたのと見分けられない）。
-       予約の行は元の結末にも今の結末にも 1 件ごとの事実として数えない（受け継いだ赤とも持ち込んだ赤とも読まない）
+    6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None・今か元の結末に落ちた予約の行（baseline_red.synth_reds）が
+       在って、落ちた本物の行が元に無いか全部元でも落ちている回）→ ""（原因の無い赤。予約の行が在った回は summary に SYNTH_CAUSE を添える）。
+       試験に入ったかの証拠が無いので、ran_note は走らなかったと言い切らず UNVERIFIED_RUN と読む（直す前と同じログの赤も、試験が同じに
+       落ちたのと見分けられない）。予約の行は 1 件ごとの事実として数えず（受け継いだ赤とも持ち込んだ赤とも読まない）、落ちた予約の行が
+       在る回は、元に無い本物の行の赤を持ち込んだ赤と言わず（結末を書けなかった部品の試験かもしれない）、受け継いだ赤とも言わない。
+       元で通っていた本物の行が今落ちた赤は、予約の行が混ざっていても持ち込んだ赤
     baseline_cases は元の結末の cases。呼び手は、元の結末の exit が None の時と、1 件ごとの結末の出どころが無い時に None を渡す。
     baseline_narrow が真（元の結末が変更に関わる試験だけ。持ち主の決め related-tests-only）なら、元の結末に無い試験の赤は introduced と
     読まず、比べる事実が無い赤として 6. に落とす（直しのせいとも元からとも言えない）"""
@@ -135,17 +137,21 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps, narrow=False) ->
     """classify の 4.〜6.（read_steps は試験の報告を読めた段。走らなかった段の赤は受け継いだ赤と言わない）"""
     names = "・".join(str(r.get("name")) for r in reds) or "無し"
     failed = [c for c in baseline_red.reported(cases) if c.get("outcome") in baseline_red.FAILED]
+    base_blind = bool(baseline_red.synth_reds(baseline_cases))
+    blind = base_blind or bool(baseline_red.synth_reds(cases))
     if baseline_cases is not None:
         base = baseline_red.outcomes(baseline_cases)
-        introduced = [c for c in failed if baseline_red._must_pass(c, base) and not (narrow and baseline_red._key(c) not in base)]
+        unmeasured = narrow or base_blind   # 元の結末に無い試験の赤は、比べる事実が無い
+        introduced = [c for c in failed if baseline_red._must_pass(c, base) and not (unmeasured and baseline_red._key(c) not in base)]
         if introduced:
             return INTRODUCED, (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
                                   f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
         inherited = failed and all(base.get(baseline_red._key(c)) in baseline_red.FAILED for c in failed)
-        if inherited and all(r.get("name") in read_steps for r in reds if r not in broken):
+        if inherited and not blind and all(r.get("name") in read_steps for r in reds if r not in broken):
             return INHERITED, (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
-    return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）"
+    blind_note = f"。{baseline_red.SYNTH_CAUSE}行が在る" if blind else ""
+    return "", f"赤の段 {names}: 元の結末と比べる 1 件ごとの事実が無い（{gatemarks.BASELINE_UNVERIFIED}）{blind_note}"
 
 
 def ran_steps(runs, junit_unran) -> dict:

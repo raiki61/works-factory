@@ -264,6 +264,47 @@ class JudgeCase(unittest.TestCase):
         probs = baseline_red.green_problems(named, [row("test_x", "failure"), row("test_new", "failure")], 0, {})
         self.assertEqual(len(probs), 2, probs)
 
+    def test_red_problems_reads_a_reserved_row_as_uncompared_not_broken(self):
+        """名指しが落ち、名指しの外に予約の行が混ざった回: 予約の行は「テストだけを書く段がほかを壊した」ではなく、1 件ごとの結末が無く
+        比べられない赤（SYNTH_CAUSE）の問題 1 つとして返す"""
+        named = ["test_a.py::TestA::test_x"]
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        base = {"test_a.TestA::test_x": "passed"}
+        probs = baseline_red.red_problems(named, [row("test_x", "failure"), reserved], 1, base)
+        self.assertFalse(any("ほかを壊した" in p for p in probs), probs)
+        self.assertEqual(len(probs), 1, probs)
+        self.assertIn(baseline_red.SYNTH_CAUSE, probs[0])
+
+    def test_green_problems_reads_a_reserved_row_as_uncompared_not_broken(self):
+        """名指しが通り、名指しの外に予約の行が混ざった回: 「ほかのテストが緑でない」ではなく比べられない赤の問題 1 つを返す。
+        元の一式が 0 で終わっていない回も、元の結末が名指しだけの narrow の回も同じ"""
+        named = ["test_a.py::TestA::test_x"]
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        cases = [row("test_x", "passed"), reserved]
+        base = {"test_a.TestA::test_x": "passed"}
+        for label, kwargs in (("元の一式が赤", {"baseline_exit": 1}), ("narrow", {"narrow": True, "baseline_exit": 0})):
+            with self.subTest(label):
+                probs = baseline_red.green_problems(named, cases, 1, base, **kwargs)
+                self.assertFalse(any("ほかのテストが緑でない" in p for p in probs), probs)
+                self.assertEqual(len(probs), 1, probs)
+                self.assertIn(baseline_red.SYNTH_CAUSE, probs[0])
+
+    def test_a_reserved_row_already_in_the_baseline_is_not_a_problem(self):
+        """直す前の結末にも落ちた予約の行が在った回（base_synth）: 今の結末の同じ予約の行は赤・緑の確認の問題にしない（直す前から結末を
+        書かない部品の在る対象で、どの単位も通らない形にしない。_must_pass と同じ決め）。元に無く今だけ在る回は今どおり拒む"""
+        named = ["test_a.py::TestA::test_x"]
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        base = {"test_a.TestA::test_x": "passed"}
+        red = [row("test_x", "failure"), reserved]
+        green = [row("test_x", "passed"), reserved]
+        self.assertEqual(baseline_red.red_problems(named, red, 1, base, base_synth=True), [])
+        self.assertEqual(baseline_red.green_problems(named, green, 1, base, baseline_exit=1, base_synth=True), [])
+        self.assertEqual(baseline_red.green_problems(named, green, 1, base, 0, narrow=True, base_synth=True), [])
+        for probs in (baseline_red.red_problems(named, red, 1, base),
+                      baseline_red.green_problems(named, green, 1, base, baseline_exit=1)):
+            self.assertEqual(len(probs), 1, probs)
+            self.assertIn(baseline_red.SYNTH_CAUSE, probs[0])
+
     def test_green_problems_narrow_compares_only_what_the_baseline_measured(self):
         """元の結末が変更に関わる試験だけで、今の回が全部の試験（narrow）の時: 元の結末に無い試験の赤と、それが理由の一式の終了コードで、
         正しい修正を拒まない。元の結末に載った試験・名指し・also（前の単位が赤→緑にした試験）の赤は今までどおり拒む"""
@@ -295,6 +336,17 @@ class MustPassCase(unittest.TestCase):
 
 
 class TestOutcomesCase(unittest.TestCase):
+    def test_synth_reds_returns_reserved_rows_mixed_with_real_rows_or_alone(self):
+        """予約の行で落ちた物は、本物の行に混ざっていても、予約の行だけの回でも返す。本物の行と、通った予約の行は返さない"""
+        synth_reds = getattr(baseline_red, "synth_reds", None)
+        self.assertTrue(callable(synth_reds), "baseline_red.synth_reds が無い")
+        reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
+        self.assertEqual(synth_reds([row("t", "failure"), reserved, row("u", "passed")]), [reserved])
+        self.assertEqual(synth_reds([reserved]), [reserved])
+        self.assertEqual(synth_reds([row("t", "failure"), row("u", "passed")]), [])
+        self.assertEqual(synth_reds([{**reserved, "outcome": "passed"}]), [])
+        self.assertEqual(synth_reds([]), [])
+
     def test_every_test_with_its_base_and_final_outcome(self):
         """issue #384: 赤→緑だけでなく緑→緑・緑→赤・赤→赤も、片側にしか居ないテストも並べる。fail_message は最後に赤なら最後の、
         でなければ base の物"""
