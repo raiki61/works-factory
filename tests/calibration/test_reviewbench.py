@@ -156,14 +156,20 @@ class ConvertCase(unittest.TestCase):
         self.assertEqual(record["unread"], {runner.R4: reviewbench.MISSING})
 
     def test_unread_outcome_is_named_in_why_null(self):
-        """結末の記録が読めない run は、作り手の ended が結末を None で返し、控えが読めなかった訳を why_null に出す"""
+        """結末の記録が読めない run は、作り手の ended が結末を None で返し、控えが読めなかった訳を outcome_why に置き、why_null の
+        結末の部分をそこから組む（集計は結末の訳だけを outcome_why から読む）"""
         def unread(producer, attempt, head):
             ended = producer.ended(attempt / "evidence")
             _, record = self.convert(producer, attempt, head, {**ended, "children": [], "web_calls": None})
             self.assertIsNone(record["outcome"])
             self.assertNotEqual(record.get("outcome_state"), reviewbench.READ_OK)
-            self.assertIn("outcome:", record["why_null"])
+            self.assertEqual(record.get("outcome_why"), ended["outcome_why"])
+            self.assertIn(f"outcome: {ended['outcome_why']}", record["why_null"])
             return record
+
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        _, record = self.convert(runner.WorksFactory, attempt, head)
+        self.assertIsNone(record.get("outcome_why", "欄が無い"))   # 読めた run の結末に訳は無い
 
         parent = "record/parent.json"
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")

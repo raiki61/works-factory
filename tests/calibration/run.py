@@ -44,7 +44,8 @@ node-record-serialization.ts で確かめた）:
   （board）は run の行の output_root の下の artifacts/runs/<id>/board。
 - 結末の語は出来事の列のうち step_name が result（darkfactory.yaml の returns）の最後の node_completed の data の outcome
   （result の output_format の enum で、語は lib/report.py の OUTCOMES と同じ 10 語）。data は output_format を照らした
-  structured_output を先に読み、無ければ node_output の JSON（node_output は 32KB で切られうる）。result は interrupted の時だけ
+  structured_output を先に読み、無ければ node_output の JSON（node_output は 32KB で切られうる。切られた時は印
+  node_output_truncated が立ち、出口の完了の出来事が無い時と訳を分ける）。result は interrupted の時だけ
   終了の値 1 で終わり、Archon は node_failed と空の node_output を書いて run を failed にするが、failed の run は続けて
   終わらなければ変換しないので、変換する run の result はいつも node_completed。読めなければ None と訳。
 - use.sh wait の終了の値: 0 承認で待つ・3 まだ走る（決まった秒数で戻るだけで run の期限ではない）・5 終わった・1 落ちた・6 周の鎖。
@@ -543,14 +544,15 @@ def _read_json(ev: Path, path):
 def _read_outcome(ev: Path, path: str, pick, words) -> dict:
     """ev/path の記録から結末の語を読む。{outcome, outcome_state, outcome_why}。語が読めたら state は READ_OK で why は None、
     読めなければ outcome は None で、state が無い・読めない・欄が無い・空・表に無い語を言い分け、why が読み先と欄と理由を言う。
-    pick は記録の中身から (結末の欄の値, その欄の名) を返す"""
+    pick は記録の中身から (結末の欄の値, その欄の名, 欄が無い訳) を返す。欄が無い訳は None なら「無いか字でない」"""
     doc, why = reviewbench.read_doc(ev / path)
     if why is not None:
         state = reviewbench.MISSING if why == reviewbench.MISSING else reviewbench.UNREADABLE
         return {"outcome": None, "outcome_state": state, "outcome_why": f"{path} が{why}"}
-    value, field = pick(doc)
+    value, field, lack = pick(doc)
     if not isinstance(value, str):
-        return {"outcome": None, "outcome_state": reviewbench.NO_FIELD, "outcome_why": f"{path} の {field} が無いか字でない"}
+        return {"outcome": None, "outcome_state": reviewbench.NO_FIELD,
+                "outcome_why": f"{path} の {field} が{lack or '無いか字でない'}"}
     if not value:
         return {"outcome": None, "outcome_state": reviewbench.BLANK, "outcome_why": f"{path} の {field} が（空）"}
     if value not in words:
@@ -559,29 +561,36 @@ def _read_outcome(ev: Path, path: str, pick, words) -> dict:
     return {"outcome": value, "outcome_state": reviewbench.READ_OK, "outcome_why": None}
 
 
-def _returned_value(doc) -> tuple[object, str]:
+def _returned_value(doc) -> tuple[object, str, None]:
     value = _object(_object(_object(doc).get("terminal_record")).get("returns")).get("value")
-    return (value.get("outcome") if isinstance(value, dict) else None), "terminal_record.returns.value.outcome"
+    return (value.get("outcome") if isinstance(value, dict) else None), "terminal_record.returns.value.outcome", None
 
 
-def _returned_outcome(doc) -> tuple[object, str]:
+def _returned_outcome(doc) -> tuple[object, str, str | None]:
     """今の works の出来事の列のうち、出口のノードの最後の node_completed の出力の outcome。続きで回し直された時のため最後の 1 つ。
-    ほかのノードが持つ outcome の欄は見ない"""
-    field = f"出来事の列の {OldWorks.RETURNS_NODE} ノードの出力の outcome"
-    done = [e for e in _events(doc) if e.get("event_type") == "node_completed" and e.get("step_name") == OldWorks.RETURNS_NODE]
+    ほかのノードが持つ outcome の欄は見ない。structured_output を書かない前の世代の記録は node_output の JSON から読む。
+    出口の完了の出来事が無い時と、node_output が切られて（印 node_output_truncated）JSON として読めない時は、欄が無い訳を分ける"""
+    node = OldWorks.RETURNS_NODE
+    field = f"出来事の列の {node} ノードの出力の outcome"
+    done = [e for e in _events(doc) if e.get("event_type") == "node_completed" and e.get("step_name") == node]
     if not done:
-        return None, field
+        return None, field, f"無い（{node} ノードの node_completed の出来事が無い）"
     data = _object(done[-1].get("data"))
     out = data.get("structured_output")
-    if not isinstance(out, dict):
-        out = _json_or_text(data.get("node_output"))
-    return (out.get("outcome") if isinstance(out, dict) else None), field
+    if isinstance(out, dict):
+        return out.get("outcome"), field, None
+    out = _json_or_text(data.get("node_output"))
+    if isinstance(out, dict):
+        return out.get("outcome"), field, None
+    if data.get("node_output_truncated"):
+        return None, field, "読めない（structured_output が無く、node_output が 32KB で切られて JSON として読めない。node_output_truncated）"
+    return None, field, None
 
 
-def _result_word(doc) -> tuple[str | None, str]:
+def _result_word(doc) -> tuple[str | None, str, None]:
     """claude -p の結果の is_error の真偽を done・error に。欄が無いか真偽でなければ None（本物の結果はいつも真偽を持つ）"""
     flag = _object(doc).get("is_error")
-    return (("error" if flag else "done") if isinstance(flag, bool) else None), "is_error"
+    return (("error" if flag else "done") if isinstance(flag, bool) else None), "is_error", None
 
 
 def _object(value) -> dict:

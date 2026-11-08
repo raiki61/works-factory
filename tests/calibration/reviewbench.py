@@ -278,18 +278,19 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
     if sources and all(why == MISSING for why in unread.values()) and len(unread) == len(sources):
         raise BenchError(f"{producer.name} の読み元が全部無い（{', '.join(unread)}）。置き場の道が run の記録と合っていない。"
                          "0 件で採点を続けない")
-    seconds, usd = ended.get("seconds"), ended.get("usd")
+    seconds, usd, outcome = ended.get("seconds"), ended.get("usd"), ended.get("outcome")
+    outcome_why = None if outcome is not None else ended.get("outcome_why")   # 結末の訳の 1 か所。why_null はここから組む
     usage = {**({"time_in_ms": int(seconds * 1000)} if seconds is not None else {}),
              **({"cost_usd": usd} if usd is not None else {})}
     doc = {"pr": {"repo": entry["repo"], "pr_number": int(entry["pr_number"]), "base": base, "head": head},
            "agent": producer.name, "findings": findings, **({"usage": usage} if usage else {})}
     record = {
         "key": key(entry), "producer": producer.name, "run_id": run_id, "attempt": str(attempt), "base": base, "head": head,
-        "outcome": ended.get("outcome"), "outcome_state": ended.get("outcome_state"),
+        "outcome": outcome, "outcome_state": ended.get("outcome_state"), "outcome_why": outcome_why,
         "seconds": seconds, "usd": usd, "usd_from": ended.get("usd_from"),
         "why_null": "。".join(([] if usd is not None else [f"usd: {ended.get('usd_from')} が読めない"])
                              + ([] if seconds is not None else ["seconds: run の始めと終わりの時刻が読めない"])
-                             + ([] if ended.get("outcome") is not None else [f"outcome: {ended.get('outcome_why')}"])),
+                             + ([] if outcome is not None else [f"outcome: {outcome_why}"])),
         "sources": [s.file for s in sources], "unread": unread,
         "findings": kept, "resolved_count": sum(f["ref_as_written"] is not None for f in kept),
         "dropped": dropped, "dropped_count": len(dropped),

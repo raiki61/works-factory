@@ -159,12 +159,14 @@ if who == "use.sh" and args[0] == "start":
     for n, gate in enumerate(plan.get("asks", []), 1):
         con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'approval_requested', ?, '{}', '', ?)", (rid, gate, n))
     # Archon v0.11.1 の script のノードの行の data: output_format を照らした structured_output と、その JSON の node_output（32KB を
-    # 超えると頭で切られる。truncated）。機械の報告 report の出力を出口 result が結末を替えずに写す
+    # 超えると頭で切られる。truncated）。機械の報告 report の出力を出口 result が結末を替えずに写す。structured を偽にすると
+    # structured_output を書かない前の世代の行、no_result を真にすると出口 result の完了の出来事が無い列
     out = {"ok": True, "outcome": plan.get("outcome", "fixed"), "report_file": "board/report.md"}
     text = json.dumps(out)[:20] if plan.get("truncated") else json.dumps(out)
-    script = {"type": "script", "runtime": "uv", "node_output": text, "structured_output": out,
+    script = {"type": "script", "runtime": "uv", "node_output": text,
+              **({"structured_output": out} if plan.get("structured", True) else {}),
               **({"node_output_truncated": True} if plan.get("truncated") else {})}
-    events = [("node_completed", "report", script), ("node_completed", "result", script)]
+    events = [("node_completed", "report", script), *([] if plan.get("no_result") else [("node_completed", "result", script)])]
     if plan.get("decoy"):   # result の後に済んだ、outcome の欄を持つほかのノード
         events.append(("node_completed", "reporting__collect", {**script, "structured_output": {"ok": True, "outcome": "repaired"}}))
     for n, (kind, step, data) in enumerate(events, 50):
@@ -509,10 +511,11 @@ class RunTest(RunnerCase):
 
     def test_old_works_outcome_comes_from_the_machine_record(self):
         """今の works の結末は、報告の文面でなく、出口のノード result の出力の outcome から読む。node_output が切られても
-        structured_output から読み、ほかのノードの outcome の欄は見ない"""
-        for truncated in (False, True):
-            with self.subTest(truncated=truncated):
-                self.set_plan(outcome="no_fix_needed", decoy=True, truncated=truncated)
+        structured_output から読み、structured_output を書かない前の世代の記録は node_output の JSON から読み、ほかのノードの
+        outcome の欄は見ない"""
+        for plan in ({"truncated": False}, {"truncated": True}, {"structured": False}):
+            with self.subTest(**plan):
+                self.set_plan(outcome="no_fix_needed", decoy=True, **plan)
                 self.assertRan(self.run_tasks("works", self.one))
                 [record] = self.records("works")
                 self.assertEqual((record["outcome"], record.get("outcome_state")), ("no_fix_needed", reviewbench.READ_OK))
@@ -524,6 +527,25 @@ class RunTest(RunnerCase):
         self.assertIsNone(record["outcome"])
         self.assertEqual(record.get("outcome_state"), reviewbench.OFF_TABLE)
         self.assertIn("made_up", record["why_null"])
+
+    def test_old_works_unread_outcome_says_why(self):
+        """前の世代の works で結末が読めない時、出口 result の完了の出来事が無い run と、structured_output が無く node_output が
+        32KB で切られて（印 node_output_truncated）JSON として読めない run を、別の訳で控えに残す"""
+        whys = {}
+        for name, plan in (("no_result", {"no_result": True}), ("truncated", {"structured": False, "truncated": True})):
+            with self.subTest(name):
+                self.set_plan(decoy=True, **plan)
+                self.assertRan(self.run_tasks("works", self.one))
+                [record] = self.records("works")
+                self.assertIsNone(record["outcome"])
+                self.assertEqual(record.get("outcome_state"), reviewbench.NO_FIELD)
+                whys[name] = record["outcome_why"]
+                shutil.rmtree(self.attempts)
+                shutil.rmtree(self.out)
+        self.assertIn("node_completed の出来事が無い", whys["no_result"])
+        self.assertIn("node_output_truncated", whys["truncated"])
+        self.assertNotIn("node_output_truncated", whys["no_result"])
+        self.assertNotIn("node_completed の出来事が無い", whys["truncated"])
 
     def test_paused_run_is_not_answered(self):
         for producer, plan in (("works-factory", {"status": "paused"}),

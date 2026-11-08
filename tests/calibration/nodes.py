@@ -23,6 +23,8 @@ PREFIX = "works-factory-"
 NOTE = "数はノードが何をしたかの事実まで。そのノードのおかげで直ったとは言わない（それはノードを外して回し直す比べで、別に立てる）"
 COUNTED = ("node_completed", "node_failed")
 NO_STATE = "控えに状態が無い"   # 結末の読めた状態を持たない前の版の控え
+NO_WHY = "控えに訳が無い"      # 結末の訳（outcome_why）を持たない前の版の控え
+REREAD = "python3 tests/calibration/run.py convert {producer} --attempts <置き場> --out <置き場> で控えを書き直すと読み直せる"
 
 
 def short(workflow: str) -> str:
@@ -144,17 +146,20 @@ def table(out: Path, producer) -> dict:
     subgraphs: dict = {}
     for r in rows.values():
         subgraphs.setdefault(r.subgraph, Row(None, r.subgraph)).add(r)
-    return {"producer": producer.name, "tasks": len(records), "judged": judged is not None, "note": NOTE, **_outcomes(records),
+    return {"producer": producer.name, "tasks": len(records), "judged": judged is not None, "note": NOTE,
+            **_outcomes(records, producer.name),
             "nodes": [r.view() for r in rows.values()],
             "subgraphs": [{k: v for k, v in r.view().items() if k != "node"} for r in subgraphs.values()]}
 
 
-def _outcomes(records: list[dict]) -> dict:
-    """結末の語ごとの run の数（読めた run だけ）と、結末が読めなかった run の課題・状態・控えの why_null。読めなかった run は
-    どの語にも数えない（状態の語は reviewbench の READ_OK など。状態の無い控えは前の版の物）"""
+def _outcomes(records: list[dict], producer: str) -> dict:
+    """結末の語ごとの run の数（読めた run だけ）と、結末が読めなかった run の課題・状態・控えの結末の訳 outcome_why。読めなかった
+    run はどの語にも数えない（状態の語は reviewbench の READ_OK など）。why_null は費用・秒の訳もつなぐので読まない。状態の無い
+    控えは前の版の物で、convert の命令で書き直せば読み直せると状態に添える。訳の無い控えの why は None（表では NO_WHY）"""
     read = [r for r in records if isinstance(r.get("outcome"), str) and r["outcome"]]
+    stale = f"{NO_STATE}（{REREAD.format(producer=producer)}）"
     return {"outcomes": dict(sorted(Counter(r["outcome"] for r in read).items())),
-            "outcome_unread": [{"task": r["key"], "state": r.get("outcome_state") or NO_STATE, "why": r.get("why_null") or None}
+            "outcome_unread": [{"task": r["key"], "state": r.get("outcome_state") or stale, "why": r.get("outcome_why") or None}
                                for r in records if r not in read]}
 
 
@@ -198,5 +203,5 @@ def markdown(got: dict) -> str:
         lines += ["", "## 値が無い・欠ける訳", "", *whys]
     if got["outcome_unread"]:
         lines += ["", "## 結末が読めなかった run", "",
-                  *(f"- {u['task']}: {u['state']}（{u['why'] or '控えに訳が無い'}）" for u in got["outcome_unread"])]
+                  *(f"- {u['task']}: {u['state']}（{u['why'] or NO_WHY}）" for u in got["outcome_unread"])]
     return "\n".join(lines) + "\n"
