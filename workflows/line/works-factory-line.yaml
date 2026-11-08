@@ -2300,7 +2300,7 @@ nodes:
                  design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
                  delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
-                 eyes-out, back-1-fix-out, back-1-gate-out, back-1-eyes-out, back-2-fix-out, back-2-gate-out, back-2-eyes-out, back-3-fix-out, back-3-gate-out, back-3-eyes-out, eyes-back, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
+                 eyes-out, back-1, back-1-fix-out, back-1-gate-out, back-1-eyes-out, back-2-fix-out, back-2-gate-out, back-2-eyes-out, back-3-fix-out, back-3-gate-out, back-3-eyes-out, eyes-back, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
                  spec-check-out, spec-rounds, spec-ask-before-fix, spec-direction-out, spec-answer-before-fix, fixture-ask-before-fix, fixture-direction-out,
                  fixture-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
                  theme-rounds-out, theme-descend, request-in, theme-return]
@@ -2345,6 +2345,7 @@ nodes:
       eyes_in: {from: "$eyes-in.output", if_skipped: null}
       eyes: {from: "$eyes-out.output.got", if_skipped: null}
       eyes_back: {from: "$eyes-back.output", if_skipped: null}
+      back_1: {from: "$back-1.output", if_skipped: null}
       merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
       ask_final: {from: "$ask-final.output", if_skipped: null}
       answer_final: {from: "$answer-final.output", if_skipped: null}

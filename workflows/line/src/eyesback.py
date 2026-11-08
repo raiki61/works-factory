@@ -14,6 +14,7 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕と、それぞ�
 - turn(...) -> 周の頭の出力: 返すかを決め、返す時は修正の段への入力（only_items・notes・prior ほか）を組む
 - last(heads) -> 集め eyes-back の出力・current(eyes_back, fixed, tests, eyes) -> (fixed, tests, eyes): 最後の周の状態の選びの 1 か所
 - lines(rows, exit_, left) -> 最後の承認ノードと報告が同じ行に読む返した周の行
+- broken(eyes_back, head) -> 集めが飛んだのに周の頭が走ったか（報告が BROKE の 1 行を出す）
 """
 from __future__ import annotations
 
@@ -36,6 +37,7 @@ EXITS = {
 }
 NOT_REVIEWED = "返した段の差分は、段ごとの差分の審査・並行 PR との重なりの確かめ直し・仕様の照らし・異議の再審を通っていない"
 NOTHING = "返す物が無い"
+BROKE = "返す輪が途中で落ちた（下の状態は返す前の物）"   # 集めが飛んだのに周の頭が走った run の報告の 1 行（broken）
 UNRETURNED = "独立の目が返す項目を挙げたが、修正の段へ返さなかった（{why}）——返さなかった項目: {items}"
 UNTIED = "返す項目を修正案の項目に結べなかったので、全部の項目を対象にする"
 NOTE_HEAD = "独立の目"
@@ -228,3 +230,10 @@ def lines(rows, exit_: str = "", left=()) -> list:
     if exit_:
         out.append(f"輪を抜けた訳: {cap_text(left) if exit_ == CAP_WHY else exit_}")
     return out
+
+
+def broken(eyes_back, head) -> bool:
+    """返す輪が途中で落ちたか: 集め eyes-back の記録が無い（null）のに周の頭 back-1 が走った。周の節が中の誤りで落ちると、Archon の
+    none_failed_min_one_success は前が落ちて飛んだ節を落ちた節と同じに数えるので、集め・封じ・最後の承認ノードまで飛ぶ（封じないので
+    差分は当たらない）。報告の状態は current が選ぶ最初の物（返す前の物）になるので、報告がそう言う"""
+    return eyes_back is None and isinstance(head, dict)

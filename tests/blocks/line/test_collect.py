@@ -20,7 +20,7 @@ SECTIONS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "sections.schema.json"
 INPUTS = ("notices", "start", "answer_start", "test_gate_base", "judge", "tiers", "owed", "structure", "structure_in", "independent_design",
           "design_in", "rounds", "ask_before_fix", "answer_before_fix", "fix_in", "fix", "after_fix", "raise", "lens", "lens_in", "delta",
           "replan", "replan_review", "ask_replan", "answer_replan", "refix", "lens_2", "lens_2_in", "delta_2", "fixed", "parallel_after",
-          "rejudge", "spec_check", "judged", "test_gate_final", "eyes_in", "eyes", "eyes_back", "merge_seal", "ask_final", "answer_final", "merge_apply",
+          "rejudge", "spec_check", "judged", "test_gate_final", "eyes_in", "eyes", "eyes_back", "back_1", "merge_seal", "ask_final", "answer_final", "merge_apply",
           "optional")
 
 
@@ -407,6 +407,15 @@ class SectionsCase(unittest.TestCase):
         self.assertLess(titles.index(self.s.EYES), titles.index(self.s.BACK))
         for record in (None, {"rows": [], "exit": "返す物が無い", "left": []}):
             self.assertNotIn(self.s.BACK, [s["title"] for s in self.build({**passing(), "eyes_back": record})])
+
+    def test_broken_loop_is_named_when_a_round_head_ran(self):
+        """周の節が中の誤りで落ちると集め eyes-back が飛ぶ（eyes_back が null）。周の頭 back-1 が走っていれば、返した周の節に「返す輪が途中で
+        落ちた（下の状態は返す前の物）」の 1 行を出す。周の頭も走らなかった run は今どおり節を出さない"""
+        eb = kit.load(BLOCK, "eyesback")
+        got = self.build({**passing(), "eyes_back": None, "back_1": {"go": True, "round": 1}})
+        section = next(s for s in got if s["title"] == self.s.BACK)
+        self.assertEqual(section["lines"], [eb.BROKE])
+        self.assertNotIn(self.s.BACK, [s["title"] for s in self.build({**passing(), "eyes_back": None, "back_1": None})])
 
     def test_order_and_shape(self):
         got = self.build(passing())

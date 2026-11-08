@@ -340,7 +340,7 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
                             _files(("計画", rounds.get("plan"), "json(shared:plan-fields.schema.json)"),
                                    ("波及", rounds.get("ripple"), "json(shared:ripple.schema.json)"),
                                    ("事前審査", rounds.get("review"), "json(shared:plan-review-reply.schema.json)"))))
-    back = back_lines(v.get("eyes_back"))
+    back = [eyesback.BROKE] if eyesback.broken(values.get("eyes_back"), values.get("back_1")) else back_lines(v.get("eyes_back"))
     if back:
         out.append(_section(BACK, back))
     ask = v.get("ask_before_fix")
