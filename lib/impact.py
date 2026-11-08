@@ -23,6 +23,7 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - py_imports(text) -> list | None: Python の file の import の一覧（地図の import の辺と同じ読み取り。libdocs が使う）
 - py_reads(text) -> list | None: Python の file の一番上の READS_DECL（RUNTIME_READS）の宣言の値の字の並び（地図の reads の辺と同じ
   読み取り。読めなければ None。宣言の腐りの柵が使う）
+- is_python(path, data) -> bool: 地図が Python の file と見るか（拡張子か、拡張子の無い file の 1 行目のシバン。宣言の柵が使う）
 - reads_hits(values, files) -> list: 宣言の値に当たる file（値が / で終わればその下、そうでなければそのパスそのもの。
   地図の reads の辺と柵が同じ当て方を使う 1 か所）
 - tree_files(repo) -> list | None: 作業ツリーの file の一覧（追跡中と無視されていない未追跡。git が使えなければ None。libdocs が使う）
@@ -40,7 +41,7 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - reach {path: {depth, lang, test, candidate, parent {from, kind, key, line}}}: 起点から届いた file（起点は含まない）
 - edges [{path, dep, kind, key, candidate, count, hits [[行番号, 行]], resolution?}]: path が dep に依る
   （kind: import・reads（読む部品が一番上の RUNTIME_READS に宣言した、実行時に開く file への依り。宣言した module と、それを直に
-  import する module が依る側）・
+  import する module が依る側。起点の file からだけ張る）・
   path（basename の言及）・stem（拡張子を除いた名が引用符か YAML の値）・module（点の付いたモジュール名）・
   symbol（起点の関数・クラスの名、起点の名前）・conftest（conftest.py の下のテストのモジュールが、その fixture に依る））
 - reverse_imports・tests・mentions・refs: reach の分類（パスの一覧）。mentions はコードの file、refs は
@@ -150,6 +151,7 @@ HEURISTICS = [
     "実行時に開く file への頼り（字の言及で届かない glob や include の展開）は、読む部品の一番上の RUNTIME_READS に書いた物だけを辺にする"
     "（値が / で終わればその下の file 全部、そうでなければそのパスそのもの）。頼る側は宣言した module と、それを直に import する module で、"
     "どちらも深さ 1（宣言は読む部品の 1 か所に置き、使う試験に写さない）。"
+    "この辺は起点の file からだけ張り、辿りの途中で届いた file からは張らない（宣言の下に起点の無い変更の到達を広げない）。"
     "字の言及で届く読みは書かない。宣言の値が木のどの file にも当たらない腐りは層の柵 tests/layers/test_declared_reads.py が赤にする。"
     "宣言の書き忘れはこの地図も柵も見ない",
     "起点の関数・クラスの名は、_ を含む名か、SYMBOL_MIN 字以上で大文字を含む名（DiskBoard など）だけを鍵にする。"
@@ -397,15 +399,28 @@ def reads_hits(values, files):
     return sorted(f for f in files if any(f.startswith(v) if v.endswith("/") else f == v for v in values))
 
 
+def _head(data: bytes):
+    """中身の頭の読み取り: バイナリか・大きすぎるか・1 行目のシバン（バイナリと大きすぎる物は読まない）。_scan と is_python が使う"""
+    rec = {"bin": b"\0" in data[:8192], "large": len(data) > MAX_BYTES}
+    if not (rec["bin"] or rec["large"]):
+        first = data.split(b"\n", 1)[0].decode("utf-8", errors="replace")
+        rec["shebang"] = first if first.startswith("#!") else None
+    return rec
+
+
+def is_python(path, data: bytes) -> bool:
+    """地図が Python の file と見るか（_lang の python と同じ見分け: 拡張子が PY_EXT か、拡張子が無く 1 行目のシバンに python）。
+    宣言の腐りの柵が、地図が宣言を読む file と同じ file を照らすための公開の口"""
+    return _lang(path, _head(data)) == "python"
+
+
 def _scan(data: bytes, want_py: bool):
     """1 つの中身の読み取り（パスに依らない）"""
-    rec = {"bin": b"\0" in data[:8192], "large": len(data) > MAX_BYTES, "hits": {}}
+    rec = {**_head(data), "hits": {}}
     if rec["bin"] or rec["large"]:
         rec["words"] = []
         return rec
     text = data.decode("utf-8", errors="replace")
-    first = text.split("\n", 1)[0]
-    rec["shebang"] = first if first.startswith("#!") else None
     rec["words"] = sorted(_words(text))
     if want_py:
         rec["py"] = _py_facts(text)
@@ -877,7 +892,7 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
             keys = _keys(ix, mods, node, node in seed_set, importers)
         deps += mention_deps(node, keys) if keys else []
         deps += conftest_deps(node) if _base(node) == "conftest.py" else []
-        deps += [] if is_name else reads_deps(node)
+        deps += reads_deps(node) if not is_name and node in seed_set else []   # 宣言の辺は起点の file からだけ張る
         for f, kind, key, line, cand in sorted(deps, key=lambda d: (d[0], d[1] != "import", d[1], d[2])):
             if f in seed_set:
                 continue

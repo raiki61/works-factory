@@ -426,18 +426,25 @@ class RuntimeReadsCase(RepoCase):
         self.assertIn("tests/test_far_uses.py", sel["left"])
         self.assertNotIn("tests/test_uses.py", self.map(["flows2/x.yaml"])["reach"], "宣言の外の file には届かない")
 
-    def test_files_without_a_declaration_keep_their_reach(self):
-        seeds = ["pkg/core.py", "pkg/mid.py"]
+    def test_seeds_outside_the_declaration_keep_their_reach(self):
+        # 宣言の辺は起点の file からだけ張る。起点が宣言の外なら、辿りの途中で宣言の下の file（ここでは深さ 2 の
+        # flows/sub/step.py）に届いても、宣言が無い時と同じ地図になる
+        self.write("flows/sub/step.py", "from pkg.mid import use\n")
+        seeds = ["pkg/core.py"]
         with_decl = self.map(seeds)
-        (self.repo / "tests/test_flow.py").unlink()
+        self.assertEqual(with_decl["reach"]["flows/sub/step.py"]["depth"], 2, "宣言の値の下に辿りの途中で届く木で見る")
+        self.write("tests/test_flow.py", "NOTE = 1\n")
         without = self.map(seeds)
         self.assertEqual(with_decl["reach"], without["reach"])
         self.assertEqual(with_decl["edges"], without["edges"])
-        self.assertEqual([e for e in without["edges"] if e["kind"] == "reads"], [])
-        r = without["reach"]["tests/test_core.py"]
-        self.assertEqual((r["depth"], r["parent"]["from"], r["parent"]["kind"], r["candidate"]),
-                         (1, "pkg/core.py", "import", False))
-        self.assertEqual(without["reach"]["tests/test_mid.py"]["parent"]["kind"], "import")
+        self.assertEqual([e for e in with_decl["edges"] if e["kind"] == "reads"], [])
+        self.assertNotIn("tests/test_flow.py", with_decl["reach"])
+        with self.subTest(case="a seed under the declaration still reaches the reader"):
+            self.assertEqual(self.map(["flows/sub/step.py"])["reach"].get("tests/test_flow.py"), None,
+                             "宣言を消した木では届かない")
+            self.write("tests/test_flow.py", 'RUNTIME_READS = ("flows/",)\n')
+            r = self.map(["flows/sub/step.py"])["reach"]["tests/test_flow.py"]
+            self.assertEqual((r["depth"], r["parent"]["kind"]), (1, "reads"))
 
 
 class PrecisionCase(RepoCase):

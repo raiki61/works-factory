@@ -3,8 +3,8 @@
 - 宣言は、字の言及でも import でも届かない実行時の読み（glob や include の展開）を、読む部品の 1 か所に書く物。変更に当たる試験を選ぶ地図
   （`lib/impact.py`）が、宣言の下の file の変更で、宣言した部品とそれを直に import する試験を選ぶ。宣言の値が値の当て方
   （`impact.reads_hits`）でどの file にも当たらなくなる（置き場の改名・消し）と、その試験は黙って選ばれなくなるので、ここで赤にする。
-- 読む物は git が知る Python の file のうち宣言の名（`impact.READS_DECL`）を字に含む物で、宣言の読み取りは地図と同じ
-  `impact.py_reads`、値の当て方も地図と同じ `impact.reads_hits`。
+- 読む物は git が知る file のうち、地図が Python と見る物（`impact.is_python`。拡張子か、拡張子の無い script の 1 行目のシバン）で
+  宣言の名（`impact.READS_DECL`）を字に含む物。宣言の読み取りは地図と同じ `impact.py_reads`、値の当て方も地図と同じ `impact.reads_hits`。
 - 限り: 宣言の書き忘れは見ない。
 """
 import pathlib
@@ -27,27 +27,36 @@ def problems(root: pathlib.Path) -> list[str]:
         raise RuntimeError(f"git の一覧が取れない: {root}")
     out = []
     for rel in files:
-        if not rel.endswith(".py"):
+        try:
+            data = (root / rel).read_bytes()
+        except OSError:
             continue
-        text = (root / rel).read_text(encoding="utf-8", errors="replace")
-        if impact.READS_DECL not in text:
+        if impact.READS_DECL.encode() not in data or not impact.is_python(rel, data):
             continue
+        text = data.decode("utf-8", errors="replace")
         out += [f"{rel}: {value}" for value in impact.py_reads(text) or [] if not impact.reads_hits([value], files)]
     return out
 
 
 class DeclaredReadsTest(unittest.TestCase):
     def setUp(self):
-        for name in ("READS_DECL", "py_reads", "reads_hits"):
+        for name in ("READS_DECL", "py_reads", "reads_hits", "is_python"):
             self.assertTrue(hasattr(impact, name), f"地図が宣言の読みの口 {name} を公開していない")
 
     def test_real_tree_clean(self):
         self.assertEqual(problems(ROOT), [])
 
     def test_missing_declared_path_is_red(self):
-        files = {"tests/test_x.py": 'RUNTIME_READS = ("gone/", "data/x.json")\n', "data/y.json": "{}\n"}
+        files = {
+            "tests/test_x.py": 'RUNTIME_READS = ("gone/", "data/x.json")\n',
+            "data/y.json": "{}\n",
+            "bin/tool": '#!/usr/bin/env python3\nRUNTIME_READS = ("gone2/",)\n',
+            "bin/tool.sh": '#!/bin/sh\nRUNTIME_READS="gone3/"\n',
+        }
         with tree(files, git_init=True) as root:
-            self.assertEqual(problems(root), ["tests/test_x.py: gone/", "tests/test_x.py: data/x.json"])
+            self.assertEqual(sorted(problems(root)),
+                             ["bin/tool: gone2/", "tests/test_x.py: data/x.json", "tests/test_x.py: gone/"],
+                             "地図と同じく、拡張子の無い python の script の宣言も照らし、シェルの字は照らさない")
 
     def test_declared_folder_with_files_passes(self):
         files = {
