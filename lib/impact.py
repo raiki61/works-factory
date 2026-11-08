@@ -39,7 +39,8 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - key・rev（commit の sha）・rev_name・seeds {given, files, names, from_diff, missing}
 - reach {path: {depth, lang, test, candidate, parent {from, kind, key, line}}}: 起点から届いた file（起点は含まない）
 - edges [{path, dep, kind, key, candidate, count, hits [[行番号, 行]], resolution?}]: path が dep に依る
-  （kind: import・reads（試験が一番上の RUNTIME_READS に宣言した、実行時に開く file への依り。宣言した試験が依る側）・
+  （kind: import・reads（読む部品が一番上の RUNTIME_READS に宣言した、実行時に開く file への依り。宣言した module と、それを直に
+  import する module が依る側）・
   path（basename の言及）・stem（拡張子を除いた名が引用符か YAML の値）・module（点の付いたモジュール名）・
   symbol（起点の関数・クラスの名、起点の名前）・conftest（conftest.py の下のテストのモジュールが、その fixture に依る））
 - reverse_imports・tests・mentions・refs: reach の分類（パスの一覧）。mentions はコードの file、refs は
@@ -130,7 +131,7 @@ MANIFESTS = frozenset({"pyproject.toml", "setup.py", "setup.cfg", "package.json"
 STOP_KEYS = frozenset({"__init__.py", "__main__.py", "__init__", "__main__", "action.yml", "action.yaml"})
 DYNAMIC = {"import_module": 0, "__import__": 0, "spec_from_file_location": 1, "run_path": 0, "run_module": 0,
            "load_source": 1, "SourceFileLoader": 1, "exec": 0}
-READS_DECL = "RUNTIME_READS"   # 試験が実行時に glob や open で開く file を、試験の一番上に文字列の並びで宣言する名
+READS_DECL = "RUNTIME_READS"
 STRUCTURAL = frozenset({"import", "conftest", "reads"})   # 字の一致でない確かな辺（言及の段を足さない・reverse_imports に数える）
 UNANALYSABLE_TRIGGERS = frozenset({"unknown-language", "py-parse-error", "dynamic-import", "too-large", "symlink"})
 HEURISTICS = [
@@ -146,11 +147,11 @@ HEURISTICS = [
     "下のテストへ渡るので、conftest.py に届いたらその下のテストのモジュールにも届いたと数える）。"
     "言及の辺は起点から MENTION_HOPS 本まで（import・conftest・reads の辺は数えない）。"
     "超えた先は not_seen.beyond_mention_hops に数え、そこのテストの名を tests_beyond_mention_hops に並べる",
-    "実行時に開く file への頼り（字の言及で届かない glob や include の展開）は、読む試験の一番上の RUNTIME_READS に書いた物だけを辺にする"
-    "（値が / で終わればその下の file 全部、そうでなければそのパスそのもの。頼る側は宣言した試験で、深さ 1）。"
+    "実行時に開く file への頼り（字の言及で届かない glob や include の展開）は、読む部品の一番上の RUNTIME_READS に書いた物だけを辺にする"
+    "（値が / で終わればその下の file 全部、そうでなければそのパスそのもの）。頼る側は宣言した module と、それを直に import する module で、"
+    "どちらも深さ 1（宣言は読む部品の 1 か所に置き、使う試験に写さない）。"
     "字の言及で届く読みは書かない。宣言の値が木のどの file にも当たらない腐りは層の柵 tests/layers/test_declared_reads.py が赤にする。"
-    "宣言の書き忘れはこの地図も柵も見ない（実行時に YAML を読む助けを使うほかの試験も選ぶかの答えを待つ。答えが出たら宣言を読む助けへ移し、"
-    "宣言した module を直に import する module にも深さ 1 の reads の辺を張る規則と、書き忘れの検査を足す）",
+    "宣言の書き忘れはこの地図も柵も見ない",
     "起点の関数・クラスの名は、_ を含む名か、SYMBOL_MIN 字以上で大文字を含む名（DiskBoard など）だけを鍵にする。"
     "テストのモジュールの名は鍵にしない。起点の関数・クラスの名の言及（symbol）と拡張子を除いた名の言及（stem）は、起点と同じ project（manifest を持つ"
     "一番近い祖先のフォルダ。無ければリポジトリ全体）の中だけ。symbol の当たりは葉（先へ伸ばさない。名前の起点は伸ばす）。"
@@ -772,11 +773,14 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
                 if tgt != p:
                     importers.setdefault(tgt, []).append((p, how, imp[2], imp[3], imp[0] or "." * imp[1]))
 
-    readers = {}   # 実行時に開く file を宣言した Python の file → 宣言の値
+    readers = {}
     for p in sorted(mods.pys & set(ix.files)):
         declared_reads = (ix.rec(p).get("py") or {}).get("reads")
         if declared_reads:
-            readers[p] = declared_reads
+            readers.setdefault(p, {}).update((v, False) for v in declared_reads)
+            for q, how, *_ in importers.get(p, []):
+                got = readers.setdefault(q, {})
+                got.update((v, got.get(v, True) and how == "ambiguous") for v in declared_reads)
     words = ix.word_index()
     edges = {}   # (path, dep, kind, key) → edge
 
@@ -807,13 +811,12 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
         return out
 
     def reads_deps(x):
-        """宣言した試験を、その宣言が当たる file x の依る側にする（確かな辺。字の言及で届かない実行時の読み）"""
         out = []
         for p, values in readers.items():
-            for v in values:
+            for v, cand in values.items():
                 if p != x and reads_hits([v], [x]):
-                    add_edge(p, x, "reads", v, [1, []], False)
-                    out.append((p, "reads", v, None, False))
+                    add_edge(p, x, "reads", v, [1, []], cand)
+                    out.append((p, "reads", v, None, cand))
         return out
 
     def mention_deps(x, keys):

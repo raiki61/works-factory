@@ -8,8 +8,6 @@
 （tests/layers/）だけを unittest で回す（モジュールを子に並べる。並べる数は tests/shard.py の WORKERS_ENV と SHARING）。全部の試験は CI（.github/workflows/tests.yml）が回す。持ち主の決め 2026-10-12（#130）。
 - 選び: lib/impact.py の map が変更に直に当てたファイル（direct。起点か深さ 1）・変わったファイル・層の柵のフォルダを候補にし、
   どれが試験のモジュールかは tests/shard.py --paths が CI と同じ集め方（discover の規則）で決める。
-  試験が実行時に glob や open で開く file（工程の YAML など）は、試験が一番上の RUNTIME_READS に宣言した下の変更で、その試験が direct になる
-  （字の言及や import の辺では届かない読み。宣言の規則は lib/impact.py の HEURISTICS）。
   impact の select_tests は選べたかとその訳、回さない届いた試験（left）と深さ 2 以上の分からない物（far）に使う（impact の試験の名の規則で候補を絞らない）
 - 選べない時（選びが全部が要ると言った時・WHOLE と WHOLE_DIRS の変更・起点が取れない時・選びが落ちた時）も全部は回さず、
   選べた範囲と層の柵だけを回し、全部の試験は CI に寄せると訳を出す（持ち主の決め full-suite-in-ci。docs/owner-decisions.md）

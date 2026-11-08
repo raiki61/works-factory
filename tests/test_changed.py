@@ -146,8 +146,6 @@ class ChangedTest(unittest.TestCase):
         self.assertIn("dynamic-import", stdout)
 
     def commit_deep_chain(self, far_source=None):
-        """lib/alpha を import する lib/mid、それを import する lib/tests/test_far.py（far_source が在れば lib/far.py も）と、
-        lib.mid を import する層の柵の試験を足して、起点を進める"""
         self.write("lib/mid.py", "from lib import alpha\n\n\ndef value():\n    return alpha.value()\n")
         self.write("lib/tests/test_far.py", LIB_TEST.format(name="mid"))
         self.write("tests/layers/test_fence.py", LIB_TEST.format(name="mid"))
@@ -158,7 +156,6 @@ class ChangedTest(unittest.TestCase):
         git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
 
     def block(self, stdout, head):
-        """head を含む行の次から続く字下げの行（欄の中身）。欄が無ければ None"""
         lines = stdout.splitlines()
         for i, line in enumerate(lines):
             if head in line and not line.startswith(" "):
@@ -206,10 +203,11 @@ class ChangedTest(unittest.TestCase):
             self.assertNotIn("lib/tests/test_far.py", self.block(stdout, IN_CI) or [], stdout)
 
     def commit_scenario_copy(self):
-        """実行時に workflows/ を読む筋書きの試験の小さな写しと、線・ブロックの YAML・script を足して、起点を進める。
-        写しは YAML の名を字で書かない（字の言及の辺でなく、宣言の辺で選ばれる事を見るため）"""
+        """実行時に workflows/ を読む助け（宣言を持つ stepnames の写し）とそれを import する筋書きの試験の小さな写しと、
+        線・ブロックの YAML・script を足して、起点を進める。写しは YAML の名を字で書かない（字の言及の辺でなく、宣言の辺で選ばれる事を見るため）"""
+        self.write("tests/bin/stepnames.py", 'RUNTIME_READS = ("workflows/",)\n')
         self.write("tests/e2e/__init__.py", "")
-        self.write("tests/e2e/test_scenario.py", '# 工程の YAML を glob で開く試験の写し\nRUNTIME_READS = ("workflows/",)\n' + ONE_TEST)
+        self.write("tests/e2e/test_scenario.py", "from tests.bin import stepnames  # noqa: F401\n" + ONE_TEST)
         self.write("workflows/line/works-factory-line.yaml", "nodes: []\n")
         self.write("workflows/fix/works-factory-fix.yaml", "nodes: []\n")
         self.write("workflows/fix/scripts/x.py", "VALUE = 1\n")

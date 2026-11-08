@@ -308,7 +308,6 @@ class UnanalysableCase(RepoCase):
         self.assertEqual(near["left"], [])
 
     def test_deferring_caller_keeps_left_and_far_when_run_all(self):
-        # 全部を回さず CI に寄せる呼び手（defer_all）は、全部が要る時も、地図が届いたが直でない試験（left）と深い分からない物（far）を受け取る
         self.assertIn("defer_all", inspect.signature(impact.select_tests).parameters)
         self.write("plug/near.py", "import importlib\nfrom pkg import core\n\n\ndef load(name):\n"
                                    "    return importlib.import_module(name)\n")
@@ -325,7 +324,6 @@ class UnanalysableCase(RepoCase):
         self.assertEqual((plain["left"], plain["far"]), ([], []))
 
     def test_deferring_flag_changes_nothing_when_not_run_all(self):
-        # 全部が要らない変更では、defer_all を渡しても渡さなくても返りの全部の欄が同じ（印は全部の時だけ効く）
         far_only = "import importlib\nfrom pkg import mid\n\n\ndef load(name):\n    return importlib.import_module(name)\n"
         for case, files in (("nothing unreadable near", {}), ("unreadable only two steps away", {"plug/far.py": far_only})):
             with self.subTest(case=case):
@@ -380,12 +378,12 @@ class ConftestCase(RepoCase):
 
 
 class RuntimeReadsCase(RepoCase):
-    """試験が実行時に glob や open で開く file は、字の言及でも import でも届かない。試験が一番上の RUNTIME_READS に宣言した物は、
-    宣言した試験を依る側にした深さ 1 の確かな辺（reads）で届く"""
+    """実行時に glob や open で開く file は、字の言及でも import でも届かない。読む部品が一番上の RUNTIME_READS に宣言した物は、
+    宣言した module と、それを直に import する module を依る側にした深さ 1 の確かな辺（reads）で届く"""
 
     def setUp(self):
         super().setUp()
-        self.write("tests/test_flow.py", '# 実行時に flows の下の YAML を glob で開く\nRUNTIME_READS = ("flows/",)\n')
+        self.write("tests/test_flow.py", 'RUNTIME_READS = ("flows/",)\n')
         self.write("flows/sub/b.yaml", "nodes: []\n")
         self.write("flows2/x.yaml", "nodes: []\n")
 
@@ -414,9 +412,21 @@ class RuntimeReadsCase(RepoCase):
             files = ["a/x.yaml", "a/y/z.yaml", "ab/q", "b.json", "b.json5"]
             self.assertEqual(impact.reads_hits(["a/", "b.json"], files), ["a/x.yaml", "a/y/z.yaml", "b.json"])
 
+    def test_a_test_importing_the_declaring_helper_is_direct(self):
+        self.write("tests/flowread.py", 'RUNTIME_READS = ("flows/",)\n')
+        self.write("tests/test_uses.py", "from tests import flowread\n")
+        self.write("tests/test_far_uses.py", "from tests import test_uses\n")
+        m = self.map(["flows/sub/b.yaml"])
+        r = m["reach"]["tests/test_uses.py"]
+        self.assertEqual((r["depth"], r["parent"]["from"], r["parent"]["kind"]), (1, "flows/sub/b.yaml", "reads"))
+        self.assertFalse(r["candidate"])
+        self.assertEqual(m["reach"]["tests/test_far_uses.py"]["depth"], 2, "宣言を受け継ぐのは直に import する module だけ")
+        sel = impact.select_tests(m, direct_only=True)
+        self.assertIn("tests/test_uses.py", sel["selected"])
+        self.assertIn("tests/test_far_uses.py", sel["left"])
+        self.assertNotIn("tests/test_uses.py", self.map(["flows2/x.yaml"])["reach"], "宣言の外の file には届かない")
+
     def test_files_without_a_declaration_keep_their_reach(self):
-        # 宣言が無ければ辺は import・言及・conftest の規則だけで決まる: 宣言を持つ試験が木に在っても無くても、
-        # 宣言と関わらない起点の reach と edges は同じで、reads の辺は 1 本も無い
         seeds = ["pkg/core.py", "pkg/mid.py"]
         with_decl = self.map(seeds)
         (self.repo / "tests/test_flow.py").unlink()
