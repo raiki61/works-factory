@@ -207,7 +207,7 @@ bin/works-factory workflow run works-factory-merge \
 - seal: `sealed.diff` が消すファイルの行（今の `_tests_head_lines` の `seal.deleted_lines(seal.deleted_paths(<封じた差分の字>), where=<sealed.diff の絶対パス>)`。読めなければ `取り込むと消えるファイル: 封じた差分が読めない（<訳>）`）。
 - apply と check:
   - `deliver.act` が `pr`: `PR を作った: <url>（<下書きの PR か PR> #<number>。merge は対象のレビューと決まりに任せる）`（今の `apply_said` の頭。`runreport.PR_MADE`）。
-  - `stopped`: `PR を作らずに止めた: <reason>`（`PR_STOPPED`）。`unconfirmed`: `PR を作ったと確かめられなかった: <reason>`（`PR_UNCONFIRMED`）。訳 <reason> はこの行の 1 か所だけにあり、report の頭と節「2. 止めたか」には写さない（頭は表の行 `APPLY_PR_STOPPED_*`〔PR の道でない run と同じ答えの前に PR を作らなかったことを足す〕・`APPLY_PR_UNCONFIRMED` の決まった文）。
+  - `stopped`: `PR を作らずに止めた: <reason>`（`PR_STOPPED`）。`unconfirmed`: `PR を作ったと確かめられなかった: <reason>`（`PR_UNCONFIRMED`）。訳 <reason> はこの行の 1 か所だけにあり、report の頭と節「2. 止めたか」には写さない（頭は表の行 `APPLY_PR_STOPPED_*`・`APPLY_PR_UNCONFIRMED_*` の決まった文。どちらも PR の道でない run と同じ答えの前に、PR を作らなかった・作ったと確かめられなかったことを足す）。
   - 積んだ commit の行（今の `_pr_commit_lines` の写し。`PR の commit: 修正案の項目ごとに <n> 本（…）` と項目ごとの `項目 <item>: <head の頭 12 字>（<subject>）`、1 つに倒した時は `PR の commit: 項目ごとに分けなかった（<split>）`）。
 - 守りの当たりの行は `report` に入れない。当たりは「人が決めること」の件数の 1 つで、ほかの block の件数と合わせて数えるので、report が `protected_hits`・`protected_count` の欄から組む（種の名は line の `facts.PROTECTED_HITS_HEAD` の `守ると決めたファイルに当たった差分`〔語の表の語を使わない言い方〕。行は `守ると決めたファイルに当たった差分: <count> 件`）。
 - `bin/apply` の打ち方の行（`差分を対象に当てる: bin/apply <run> …`）も入れない。結末の語と最後の承認ノードの答えで変わる行で、report と line の事実で決まる。

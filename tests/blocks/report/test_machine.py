@@ -251,7 +251,7 @@ class HeadFor19b99137Case(Base):
         _, text = self.build(apply={**sealed, "pr": {"act": "pr", "url": "https://example.test/pr/1", "number": 1, "is_draft": True}})
         self.assertIn("差分を当ててよいか: PR を作った: https://example.test/pr/1（下書きの PR #1。merge は対象のレビューと決まりに任せる）", text)
         for act, said in (("stopped", "PR を作らずに止めた。対象の既定の枝には当てていない。当ててよい。当てる命令"),
-                          ("unconfirmed", "PR を作ったと確かめられなかった。対象の既定の枝には当てていない。差分を手元で当てる命令")):
+                          ("unconfirmed", "PR を作ったと確かめられなかった。対象の既定の枝には当てていない。当ててよい。当てる命令")):
             _, text = self.build(apply={**sealed, "pr": {"act": act, "reason": "push が拒まれた"}})
             self.assertIn(f"差分を当ててよいか: {said}: bin/apply {RUN_ID}", text)
             self.assertNotIn("push が拒まれた", text, "PR を作らなかった訳は merge の節の 1 か所だけ。頭にも 2 節にも写さない")
@@ -322,20 +322,25 @@ class HeadTableCase(Base):
 
     def scenarios(self):
         """結末・差分の状態・PR の道・急ぎ・知らせ・人が決める物を変えた build の引数と、差分の状態を変えたどの場面にも出口の語 pr の道で
-        PR を作らずに止めた（act stopped）写しを足した物。全部の行の種に当たることは試験の中で照らす"""
+        PR を作らずに止めた（act stopped）写しと PR を作ったと確かめられなかった（act unconfirmed）写しを足した物。全部の行の種に当たることは
+        試験の中で照らす"""
         for kw in self.base_scenarios():
             yield kw
-            if self.pr_stoppable(kw):
-                yield self.pr_stopped(kw)
+            if self.pr_variable(kw):
+                yield from (self.pr_variant(kw, act) for act in self.PR_SAID)
+
+    # PR の道で PR を作れなかった・作ったと確かめられなかった run の、差分の答えの前に足す句
+    PR_SAID = {"stopped": "PR を作らずに止めた。対象の既定の枝には当てていない。",
+               "unconfirmed": "PR を作ったと確かめられなかった。対象の既定の枝には当てていない。"}
 
     @staticmethod
-    def pr_stoppable(kw) -> bool:
+    def pr_variable(kw) -> bool:
         return "apply" in kw and "pr" not in kw["apply"]
 
     @staticmethod
-    def pr_stopped(kw) -> dict:
-        """場面 kw を、出口の語 pr の道で merge が PR を作る前に止めた run にした写し"""
-        return {**kw, "apply": {**kw["apply"], "pr": {"act": "stopped", "reason": "訳"}}}
+    def pr_variant(kw, act: str) -> dict:
+        """場面 kw を、出口の語 pr の道で merge が PR を作る前に止めた（stopped）か、PR を作ったと確かめられなかった（unconfirmed）run にした写し"""
+        return {**kw, "apply": {**kw["apply"], "pr": {"act": act, "reason": "訳"}}}
 
     def base_scenarios(self):
         sealed = {"sealed": True, "placed": True}
@@ -374,9 +379,10 @@ class HeadTableCase(Base):
             yield M.writer.machine_head((self.place / "report.md").read_text(encoding="utf-8"))
 
     def test_pr_stopped_keeps_the_apply_answer(self):
-        """出口の語 pr の道で PR を作らずに止めた run の「差分を当ててよいか」の行は、PR の道でない同じ場面の答え（差分が無い・作り直しが要るので
-        当てない・決めてから当てる・--allow-stopped つき…）を変えず、PR を作らなかったことを前に足すだけ（bin/apply が断る命令を案内しない）"""
-        lead, said = "差分を当ててよいか: ", "PR を作らずに止めた。対象の既定の枝には当てていない。"
+        """出口の語 pr の道で PR を作らずに止めた・PR を作ったと確かめられなかった run の「差分を当ててよいか」の行は、PR の道でない同じ場面の答え
+        （差分が無い・作り直しが要るので当てない・決めてから当てる・--allow-stopped つき…）を変えず、PR の道の結果を前に足すだけ（bin/apply が
+        断る命令を案内しない）"""
+        lead = "差分を当ててよいか: "
 
         def apply_row(kw) -> str:
             _, text = self.build(**kw)
@@ -384,10 +390,11 @@ class HeadTableCase(Base):
             return row
 
         for kw in self.base_scenarios():
-            if self.pr_stoppable(kw):
+            if self.pr_variable(kw):
                 base = apply_row(kw)
-                with self.subTest(apply=kw["apply"], asks=bool(kw.get("asks")), outcome=kw.get("outcome")):
-                    self.assertEqual(apply_row(self.pr_stopped(kw)), lead + said + base.removeprefix(lead))
+                for act, said in self.PR_SAID.items():
+                    with self.subTest(act=act, apply=kw["apply"], asks=bool(kw.get("asks")), outcome=kw.get("outcome")):
+                        self.assertEqual(apply_row(self.pr_variant(kw, act)), lead + said + base.removeprefix(lead))
 
     def test_every_line_and_notice_has_exactly_one_row(self):
         H = self.head()

@@ -160,11 +160,12 @@ def apply_said(apply: dict, outcome: str, run_id: str, decisions: int) -> str:
     number = int(number) if isinstance(number, str) and number.isdigit() else number
     if pr.get("act") == "pr" and pr.get("url") and isinstance(number, int) and not isinstance(number, bool):
         return head.render(head.Line.APPLY_PR_DRAFT if pr.get("is_draft") else head.Line.APPLY_PR, head.PrSlot(head.Url(pr["url"]), number))
-    if pr.get("act") in ("pr", "unconfirmed"):   # PR を作ったと言いながら在りかか番号が読めない時も、作ったと言い切らない
-        return head.render(head.Line.APPLY_PR_UNCONFIRMED, head.RunSlot(run))
     line, slots = _apply_row(apply, outcome, run, decisions)
-    if pr.get("act") == "stopped":   # PR を作る前に止めた run も、差分の答え（bin/apply が断る run に命令を案内しない）は PR の道でない run と同じ
-        line = head.PR_STOPPED_OF[line]
+    # PR を作る前に止めた run と、PR を作ったと確かめられなかった run（作ったと言いながら在りかか番号が読めない時も、作ったと言い切らない）も、
+    # 差分の答え（bin/apply が断る run に命令を案内しない）は PR の道でない run と同じで、PR の道の結果を前に足すだけ
+    act = "unconfirmed" if pr.get("act") == "pr" else pr.get("act")
+    if act in head.PR_ANSWER_OF:
+        line = head.PR_ANSWER_OF[act][line]
     return head.render(line, slots)
 
 
