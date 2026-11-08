@@ -1,6 +1,6 @@
 """判定役の受け付けの芯（docs/design/diagnose.md の 2.8。元の judge_accept の判定の部分を、place と値を引数で受ける形に写した物）。
 
-受けた返答を、検証器の語彙（表）・作業ツリー・class_query の例と件数・先行例の出どころ・目的の外の所見・依頼の答えと R2 の直す行の
+受けた返答を、検証器の語彙（表）・作業ツリー・class_query の例と件数・先行例の出どころ・目的の外の所見・依頼の答えと作り直しの行の
 結び・記録された方針の名指しで照らす。指示の文は持たない（prompts/diagnose.md が持つ）。表の文（kind と status の意味）も md が持ち、
 ここは語と要る欄だけ。前の周を読む規則（前の周の R1 の削除候補・前の周の fork・defer 台帳）は写さない（1 run は 1 周）。
 """
@@ -382,7 +382,7 @@ def _save_examples(place, examples) -> None:
         querytest.save(place, examples, replace=True)
 
 
-# ---------------------------------------------------------------- 依頼の答えと R2 の直す行の結び
+# ---------------------------------------------------------------- 依頼の答えと作り直しの行の結び
 def unmeasured(materials) -> dict:
     """今の周に測れていない素材 {名: status}"""
     return gatemarks.unmeasured_of(materials)
@@ -395,7 +395,7 @@ def answer_binds(a, questions, materials) -> list:
 
 def answer_tie_problems(reply, rows, materials, answers, redesign) -> list:
     """判定の返答 reply（answer_ties を外した写し）と結びの行 rows の誤り（1 件 1 文）。answers は依頼の answers の行、redesign は前の run の
-    R2 の直す行（どちらも受け付けが値で受ける）。行の 1 つの照らしは gatemarks._tie_row_problems"""
+    作り直しの行（どちらも受け付けが値で受ける）。行の 1 つの照らしは gatemarks._tie_row_problems"""
     if not isinstance(rows, list):
         return [f"{gatemarks.ANSWER_TIES} が配列でない（{type(rows).__name__}）"]
     body = reply if isinstance(reply, dict) else {}
@@ -424,7 +424,7 @@ def answer_tie_problems(reply, rows, materials, answers, redesign) -> list:
                    f"{{answer: {name!r}, none: <当たらない訳。{gatemarks.ANSWER_TIE_MIN} 字以上>}} を足す")
     for key, r in by_redesign.items():
         if ("redesign", key) not in tied:
-            out.append(f"R2 の直す行 {gatemarks._squeeze(r.get('text'))!r} に結びが無い——{gatemarks.ANSWER_TIES} に {{redesign: <行の text の最初の「（」まで>, "
+            out.append(f"作り直しの行 {gatemarks._squeeze(r.get('text'))!r} に結びが無い——{gatemarks.ANSWER_TIES} に {{redesign: <行の text の最初の「（」まで>, "
                        f"to: <[block] か do-now の単位の key>}} か {{redesign, none: <反証で死んだか目的の外とした訳。{gatemarks.ANSWER_TIE_MIN} 字以上>}} を足す")
     return out
 
@@ -467,7 +467,7 @@ def take(place, reply, repo, world_rows, answers, redesign, recorded, materials,
             raise Reject(f"{outpurpose.FIELD} の行が材料の行と合わない: " + "; ".join(errs))
         errs = answer_tie_problems(out, tie_rows, materials, answers, redesign)
         if errs:
-            raise Reject(f"{gatemarks.ANSWER_TIES} が依頼の答えと R2 の直す行に結ばれていない: " + "; ".join(errs))
+            raise Reject(f"{gatemarks.ANSWER_TIES} が依頼の答えと作り直しの行に結ばれていない: " + "; ".join(errs))
         errs = recorded_question_problems(out, recorded)
         if errs:
             raise Reject("③（前の決定か方針とぶつかる）を名乗る問いが記録された方針の行を名指さない: " + "; ".join(errs))

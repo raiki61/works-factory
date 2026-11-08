@@ -7,7 +7,7 @@ A row whose place is "run の後の CI" names a test that CI turned red after th
 <!-- end prior_notes -->
 
 <!-- if prior_redesign -->
-## What the previous round's independent eye R2 said must be fixed (a redesign, or a part left unfinished): holes to fix. Fix them first in this round
+## What the previous round's independent eye said needs a redesign: holes to fix. Fix them first in this round
 
 {prior_redesign}
 <!-- end prior_redesign -->

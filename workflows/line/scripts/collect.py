@@ -145,7 +145,6 @@ def compute():
     from src import fixture, specrounds
     values = specrounds.collect_values(values_of(raw))   # 仕様駆動の run の値を今の欄の名に重ねる（依頼の文の run は values のまま）
     values = fixture.collect_values(values)   # 直す前で止まった写しの run の続きの修正前の承認ノードの値も同じく重ねる
-    # 試験・目・合わせは最後の周の物を報告に使う（返さなかった run は最初の物。選びは eyesback.current の 1 か所）
     values["fixed"], values["test_gate_final"], values["eyes"] = eyesback.current(
         values.get("eyes_back"), values.get("fixed"), values.get("test_gate_final"), values.get("eyes"))
     record, why = record_of(values.get("start"))

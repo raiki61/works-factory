@@ -6,7 +6,7 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕と、それぞ�
 周の頭を集める eyes-back を置く。書き手（周の頭と集め）と読み手（最後の承認ノード・報告の節・封じ）はどれも line の中なので、周の記録の形と
 抜ける訳の字はここの 1 か所に置く。
 
-- LIMIT: 返す周の数（YAML の周の節の数と周の頭の with: の limit と同じ数。試験が突き合わせる）。計画の往復の上限 rounds.LIMIT とは別の物
+- LIMIT: 返す周の数（YAML の周の節の数と同じ数。周の頭 turn はここを直に読む）。計画の往復の上限 rounds.LIMIT とは別の物
 - HEAD: 最後の承認ノードと報告が返した周の節に付ける見出し
 - FIELDS: 周の頭の出力の欄の名。RECORD: 集め eyes-back の出力の欄の名（最後に走った周の頭の状態）
 - EXITS・CAP_WHY: 輪を抜けた訳の字（fell・stop・unchanged・cap。目の route が stay の時は目の route_why が訳）
@@ -36,7 +36,7 @@ EXITS = {
 NOT_REVIEWED = "返した段の差分は、段ごとの差分の審査・並行 PR との重なりの確かめ直し・仕様の照らし・異議の再審を通っていない"
 NOTHING = "返す物が無い"
 UNTIED = "返す項目を修正案の項目に結べなかったので、全部の項目を対象にする"
-NOTE_HEAD = "独立の目 {eye}"
+NOTE_HEAD = "独立の目"
 FIELDS = ("go", "round", "only_items", "notes", "prior", "plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun", "more", "rows",
           "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims")
 RECORD = ("rows", "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims")
@@ -76,7 +76,6 @@ def row(k: int, eyes, items: list) -> dict:
 
 
 def count(rows) -> int:
-    """返した回数"""
     return len([r for r in rows or [] if isinstance(r, dict)])
 
 
@@ -120,7 +119,7 @@ def _base(k, fixed, tests, eyes, rows, more) -> dict:
             "item_claims": _d(fixed).get("item_claims")}
 
 
-def turn(*, k: int, limit: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_replan, plan_fields) -> dict:
+def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_replan, plan_fields) -> dict:
     """周 k の頭の決め。返す時は go を真にして修正の段への入力を組む。抜ける時は go を偽にして exit に訳を書く。周の頭はどの周も走る
     （Archon は飛んだ node の出力を when: が読むと誤りにするので、頭に when: を置かない）。前の周の頭が返さなかった周は何もせず、
     前の周の頭の記録（抜けた訳・返した周の行・残った作り残し・最後の状態）をそのまま運ぶ。決める順:
@@ -130,7 +129,7 @@ def turn(*, k: int, limit: int, prev, fixed, judged, fix_in, tests, eyes, replan
     3. 試験か目の返りが欠けた → k が 2 以上なら輪の節が落ちた。1 周目は目か試験が返らなかっただけ（輪の節は落ちていない）なので返す物を読めない訳で抜ける
     4. k が 2 以上で試験の指紋の diff_hash が前の周と同じ → 返しの修正で差分が変わらなかった
     5. 目の route が fix でない・返す項目が無い → 目の route_why（無ければ『返す物が無い』）
-    6. k が limit を越えた → 上限の訳（残った作り残しを left に運ぶ）
+    6. k が LIMIT を越えた → 上限の訳（残った作り残しを left に運ぶ）
     7. 案の直しの返りが読めない（1 周目で refixed が真なのに案の直しか答えの返りが無い）→ 輪の節が落ちた
     ほかは返す。k が 2 以上の plan・fix_plan・ripple・plan_review・answers・skip_rerun は前の周の頭の値をそのまま運ぶ"""
     if k > 1 and isinstance(prev, dict) and prev.get("go") is not True:
@@ -158,7 +157,7 @@ def turn(*, k: int, limit: int, prev, fixed, judged, fix_in, tests, eyes, replan
     items = _items(eyes)
     if eyes.get("route") != FIX_ROUTE or not items:
         return leave(oneline.one_line(eyes.get("route_why") or "") or NOTHING)
-    if k > limit:
+    if k > LIMIT:
         return leave(EXITS["cap"], left=[dict(i) for i in items])
     if k == 1:
         plan = _first_plan(fixed, fix_in, replan, answer_replan)
@@ -167,8 +166,7 @@ def turn(*, k: int, limit: int, prev, fixed, judged, fix_in, tests, eyes, replan
     else:
         plan = {key: _d(prev).get(key) for key in ("plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun")}
     only = _tied(items, plan_fields)
-    notes = [f"{NOTE_HEAD.format(eye=str(i.get('eye') or '').upper())}: " + (f"{i.get('where')}: " if i.get("where") else "")
-             + oneline.one_line(i.get("text") or "") for i in items]
+    notes = [f"{NOTE_HEAD} {item_text(i)}" for i in items]
     stages = fixed.get("stages") if isinstance(fixed.get("stages"), list) else []
     prior = _d(_d(stages[-1] if stages else None).get("fix")).get("carry") if stages else None
     return {**out, **plan, "go": True, "only_items": only, "notes": "\n".join([*notes, *([] if only else [UNTIED])]),

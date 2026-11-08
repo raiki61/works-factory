@@ -1852,7 +1852,6 @@ nodes:
     depends_on: [eyes-out]
     with:
       round: "1"
-      limit: "3"
       prev: "null"
       fixed: "$fixed.output"
       judged: "$judged.output"
@@ -1970,7 +1969,6 @@ nodes:
     trigger_rule: none_failed_min_one_success
     with:
       round: "2"
-      limit: "3"
       prev: "$back-1.output"
       fixed: {from: "$back-1-fixed.output", if_skipped: null}
       judged: "$judged.output"
@@ -2060,7 +2058,6 @@ nodes:
     trigger_rule: none_failed_min_one_success
     with:
       round: "3"
-      limit: "3"
       prev: "$back-2.output"
       fixed: {from: "$back-2-fixed.output", if_skipped: null}
       judged: "$judged.output"
@@ -2150,7 +2147,6 @@ nodes:
     trigger_rule: none_failed_min_one_success
     with:
       round: "4"
-      limit: "3"
       prev: "$back-3.output"
       fixed: {from: "$back-3-fixed.output", if_skipped: null}
       judged: "$judged.output"

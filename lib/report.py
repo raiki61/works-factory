@@ -59,8 +59,7 @@ RETURNED_STAGE = "独立の目から返した修正の段"   # 3 段目からの
 # 前は tddloop.CMD_LIGHT。integration.md 4.5-14・4.4-F）
 CMD_LIGHT = "light"
 FREEZE_OFF_HEAD = "テストの凍結"   # 冒頭 2 の行の頭（TDD の輪を回していない修正の段は、凍結が効いていないと言う。freeze_lines）
-R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の直す行（作り直し）に付ける頭（findings から外し prior_failures にだけ載せる）
-R2_FIX = "R2 が fix-needed"                # 同じく R2 の作り残しの行に付ける頭（R2_REDESIGN と同じく findings から外し prior_failures にだけ載せる）
+R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の作り直しの行に付ける頭（findings から外し prior_failures にだけ載せる）
 FINAL_GATE_STOPS = answer.STOP_WORDS            # 最後の関所の答えのうち止める語（書き手 line_edge の GATE_STOP）
 REQUEST_BY = "request:"                        # 止め札で止めた盤面の state.stop.by の頭
 HUMAN_BY = stopby.HUMAN
@@ -144,9 +143,8 @@ def rejudge_exit(path) -> tuple:
 
 
 # ---------------------------------------------------------------- 次の run に渡す依頼
-def _r2_tied(row) -> bool:
-    """行が独立の目 R2 の直す行（作り直しか作り残し）か。次の run の判定は、この行を直す単位に結ぶよう縛られる"""
-    return str(row.get("text") or "").startswith((R2_REDESIGN, R2_FIX))
+def _r2_redesign(row) -> bool:
+    return str(row.get("text") or "").startswith(R2_REDESIGN)
 
 
 def prior_lines(rows: list, next_file: str) -> list:
@@ -156,7 +154,7 @@ def prior_lines(rows: list, next_file: str) -> list:
         return ["0 件"]
     also = f"。次の run の依頼の下書き {next_file} の prior_failures にも載せた" if next_file else ""
     return [f"{len(rows)} 件（{carry.PRIOR_FAILURES_FILE} に書いた{also}。判定役と修正案の役の材料に貼る。受け付けの拒否の行は"
-            "直す穴ではない注意で、R2 の直す行（作り直しか作り残し）は次の周の先頭で直す穴）"] + [f"{r['where']}: {r['text']}" for r in rows]
+            "直す穴ではない注意で、R2 の作り直しの行は次の周の先頭で直す穴）"] + [f"{r['where']}: {r['text']}" for r in rows]
 
 
 # ---------------------------------------------------------------- 冒頭 3 行と 1〜5

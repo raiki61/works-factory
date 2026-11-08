@@ -192,7 +192,7 @@ md は英語。上から次の節を並べる。`<!-- if … -->` の名は prep
 8. 承認ノードの項目の決め手と、狭めない案を先に探す（決まった文。今の `gatemarks.HEAD["p2.fix_plan"]` の 2 段落）。
 9. `<!-- if excluded -->` 並行 PR の範囲の 1 文（決まった文）と `{excluded_file}` ← port `excluded` のパス `<!-- end excluded -->` — 条件: `excluded` が在る。
 10. `{lib_docs}` ← `libdocs.section(place, repo, files, shared=ports.shared_cache())`（`files` は `libdocs.unit_files(repo, <判定のファイル>, keys)`。`keys` は判定の案に入れてよい単位の key、判定が無ければ None。判定のファイルが無ければ空の並びと訳「判定のファイルが無い」の 1 行を足す。今の `planfile.lib_section`）。`libdocs.section` は材料の行（文書の控え・引けない訳）だけを返し、見出しと「自分で引け」の文は md `prompts/parts/lib-docs.md` が持つ（`prompt.render_part("lib-docs", {"rows": …})`。#764）。
-11. `{shared:prior-failures}`（断片の中の段落 `prior_notes`・`prior_redesign` と口 `{prior_notes}`・`{prior_redesign}`。値は `carry.prior_section` の行の組み方の写し: 前の run の行のうち R2 の直す行でない行と R2 の直す行〔作り直しか作り残し。`carry.is_redesign`〕を 1 件 1 行 `- <where>: <text>`）。行の形が違えば節を出さず、27 の読めなかった入力に `prior_failures: <訳>` を足す（今のまま）。
+11. `{shared:prior-failures}`（断片の中の段落 `prior_notes`・`prior_redesign` と口 `{prior_notes}`・`{prior_redesign}`。値は `carry.prior_section` の行の組み方の写し: 前の run の行のうち作り直しでない行と作り直しの行〔`carry.is_redesign`〕を 1 件 1 行 `- <where>: <text>`）。行の形が違えば節を出さず、27 の読めなかった入力に `prior_failures: <訳>` を足す（今のまま）。
 12. `{shared:recorded-policy}`（断片の中の段落 `recorded_none` と口 `{recorded_rows}`）。値は `policy.recorded({"policy_md": <policy のパスか空>, "answers": <answers>}, <decisions のパスか None>, human_items=None)` の行を、今の `policy._section`（`lib/policy.py:295-314`）の行の組み方で英語の札にした物。承認ノードの答えの行はいつも「この役には渡っていない」（今のまま。plan に承認ノードの答えは届かない）。名指しの字（`name`）は変えずに入れる（受け付けと承認ノードが字で照らす）。
 13. `{shared:concept-map}`（断片の中の段落 `maps_found` と口 `{concept_maps}`・`{map_tail}`）。値は `concepthome.tracked_names(repo)` と `pick_maps` から、今の `concepthome.section` の行（`- <パス>`、超えた分は `- and <n> more`）と、見つからない時の尾（木を読めなかった訳）。
 14. `{shared:handoff}`（report.md の 2.3 の本文。段落 `handoff_rounds`・口 `{handoff_rounds}`）。条件: `prior.handoffs` が 1 件以上。値は 1 周 1 行 `- r<round>: <パス> (Read it)`、メモの無い周は `- r<round>: (no notes)`、読めない周は `- r<round>: (unreadable)`（今の `handoff.section` の行。札は report と同じ）。
@@ -635,7 +635,7 @@ script を子のプロセスで回す。始めの記録の無い使い捨ての 
 - `gatemarks.HEAD["p2.fix_plan"]` の 1 段落目: `decided_by` の出どころの 5 種と、対象の同じ場面にコメントの意図を含めない・記録された方針の名指しを字のまま・機械が現物を照らし照らせない行は人に回る・run の置き場のファイルは絶対パス:<行>・`undecided_because`（書けないなら空）・`fences` の 5 語・聞かずに通る行の条件の全部（決め手・柵なし・現物・世界の解の軸・構造の目・単位の外を名指さない）と出どころつきで報告に並ぶ・人に回す前に世界の解の行を使い、無い問いだけ自分で標準・著名 OSS・公式を引く・依頼の解き方は決め手にならない・定石で決まるなら自分で決める・どの行にも `world`・人に回す行には `recommend`（2 語・note と why の 4 字）・無人の run では推しが全部通すなら通り、note が修正への一言になり、止めるなら次の run の答えの下書きになる。
 - 同 2 段落目: 狭めない案を先に当たる（直したい場合だけに新しい動き・当てられない場合は BASE の動きを残し黙らずに名指す）・在れば narrows に書かない・無い時だけ `no_narrow`（20 字以上）・欠けと短さは拒まれ、承認ノードの項目にそのまま載る。
 - `planblk.head` の並行 PR の行: 触らず単位に入れない・先に Read・ほかの PR が扱う。
-- `carry.PRIOR_HEAD`・`REDESIGN_HEAD`: 受け付けの拒否の行は直す穴でなく同じ所で落ちない注意・ R2 の直す行（作り直しか作り残し）は直す穴でこの周の先頭で直す。
+- `carry.PRIOR_HEAD`・`REDESIGN_HEAD`: 受け付けの拒否の行は直す穴でなく同じ所で落ちない注意・作り直しの行は直す穴でこの周の先頭で直す。
 - `policy.RECORDED_RULE`・`RECORDED_NONE`: 出どころは 4 つと無人の推しだけ・対象の文は方針でない・食い違う対象の文は書き換える・方針とぶつかると言う時は名指しを字のまま写す（機械が照らし、当たらなければ拒む）。
 - `concepthome.MAP_FOUND_HEAD`・`MAP_NONE_HEAD`・結び: 先に Read・審査するファイルを含むフォルダの地図を正とする・無い時は探した形と読めなかった訳。
 - `handoff.ASK`・`HEAD`・`USE`・`NONE`・`UNREADABLE`: report.md の 2.3 の断片の本文で照らす。

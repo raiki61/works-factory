@@ -45,7 +45,7 @@ class _Case(unittest.TestCase):
         self.e = kit.load(BLOCK, "eyesback")
 
     def run_turn(self, **over) -> dict:
-        args = {"k": 1, "limit": self.e.LIMIT, "prev": None, "fixed": fixed(), "judged": {"stop_reason": ""}, "fix_in": FIX_IN, "tests": gate_got(),
+        args = {"k": 1, "prev": None, "fixed": fixed(), "judged": {"stop_reason": ""}, "fix_in": FIX_IN, "tests": gate_got(),
                 "eyes": eyes(), "replan": None, "answer_replan": None, "plan_fields": PLAN_FIELDS}
         return self.e.turn(**{**args, **over})
 
@@ -111,7 +111,7 @@ class TurnCase(_Case):
         self.assertEqual(script_const("eyes_back_end", "EXIT_FELL"), self.e.EXITS["fell"])
 
     def test_unchanged_diff_or_past_the_limit_leaves_the_loop(self):
-        """返しの修正の後の指紋の diff_hash がその前と同じなら『差分が変わらない』で、周の番号が limit を越えれば上限の訳 CAP_WHY で抜け、
+        """返しの修正の後の指紋の diff_hash がその前と同じなら『差分が変わらない』で、周の番号が LIMIT を越えれば上限の訳 CAP_WHY で抜け、
         残った作り残しを記録に運ぶ"""
         first = self.run_turn(tests=gate_got("h1"))
         same = self.run_turn(k=2, prev=first, tests=gate_got("h1"))
@@ -119,12 +119,12 @@ class TurnCase(_Case):
         changed = self.run_turn(k=2, prev=first, tests=gate_got("h2"))
         self.assertTrue(changed["go"])
         self.assertEqual([r["round"] for r in changed["rows"]], [1, 2])
-        capped = self.run_turn(k=4, limit=3, prev=self.run_turn(k=3, prev=changed, tests=gate_got("h3")), tests=gate_got("h4"))
+        capped = self.run_turn(k=4, prev=self.run_turn(k=3, prev=changed, tests=gate_got("h3")), tests=gate_got("h4"))
         self.assertEqual((capped["go"], capped["exit"], capped["left"]), (False, self.e.CAP_WHY, ITEMS))
         self.assertTrue(self.e.capped(capped))
         self.assertFalse(self.e.capped(same))
-        within = self.run_turn(k=3, limit=3, prev=changed, tests=gate_got("h3"))
-        self.assertTrue(within["go"], "limit 周目までは返す")
+        within = self.run_turn(k=3, prev=changed, tests=gate_got("h3"))
+        self.assertTrue(within["go"], "LIMIT 周目までは返す")
 
     def test_third_round_limit_is_a_normal_exit(self):
         """3 周目の後に route fix が残った時、go が偽になり、exit が上限の語で、残った findings が記録に在り、その exit は『輪の節が落ちた』と別

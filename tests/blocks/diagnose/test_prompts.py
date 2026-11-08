@@ -116,7 +116,7 @@ class WordsCase(unittest.TestCase):
 
     def test_redesign_section_is_named_by_its_heading(self):
         heading = re.search(r"^## (What the previous round's [^:\n]+):", (SHARED_PROMPTS / "prior-failures.md").read_text(encoding="utf-8"), re.M).group(1)
-        self.assertEqual(self.diagnose.count(f'"{heading}"'), 3, "R2 の直す行の節は断片の見出しの字のまま引く")
+        self.assertEqual(self.diagnose.count(f'"{heading}"'), 3, "作り直しの節は断片の見出しの字のまま引く")
 
     def test_ledger_kinds_are_explained_with_their_origin(self):
         for kind in self.mod["judge"].QUESTION_KINDS:

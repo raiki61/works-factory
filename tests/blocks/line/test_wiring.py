@@ -134,16 +134,6 @@ class EyesBackCase(unittest.TestCase):
         """周の節の同じ種類（suffix）を、周の番号を K にしてそろえた JSON の字の並び"""
         return {k: re.sub(rf"back-{k}\b", "back-K", json.dumps(TOP[f"back-{k}{suffix}"], sort_keys=True)) for k in range(1, LIMIT + 1)}
 
-    def test_rounds_are_the_plan_limit_and_alike(self):
-        """周の節の数は返す輪の上限 eyesback.LIMIT（計画の往復の上限 rounds.LIMIT とは別の定数）に従い、周の頭は上限をそのまま with: で受け、
-        どの周の節も周の番号を替えただけの同じ形になる"""
-        self.assertGreater(LIMIT, 0, "src/eyesback.py の LIMIT が読めない")
-        self.assertEqual(sorted(k for k in TOP if re.fullmatch(r"back-\d+", k)), [f"back-{k}" for k in range(1, LIMIT + 2)])
-        self.assertEqual({TOP[f"back-{k}"]["with"]["limit"] for k in range(1, LIMIT + 2)}, {str(LIMIT)})
-        for suffix in ("-fix", "-fix-out", "-fixed", "-gate", "-gate-out", "-eyes", "-eyes-out"):
-            with self.subTest(suffix=suffix):
-                self.assertEqual(len(set(self.same_shape(suffix).values())), 1, "周の節の形がそろわない")
-
     def test_rounds_are_three_and_alike(self):
         """返す周の数が eyesback.LIMIT と同じで（計画の往復の上限 rounds.LIMIT とは別）、どの周の節も周の番号を替えただけの同じ形（when・
         depends_on・with: の上書きの鍵・trigger_rule）で、最後に上限の訳を記録するだけの周の頭 back-(LIMIT+1) と集め eyes-back が在り、
@@ -161,7 +151,7 @@ class EyesBackCase(unittest.TestCase):
                 # 1 周目は最初の目の受け皿だけを待つ（飛べば頭も飛ぶ。止まった run で最後の承認ノードを走らせない）。2 周目以降は前の周の飛びうる節を読む
                 self.assertEqual((head["script"], head.get("trigger_rule")), ("eyes_back", None if k == 1 else "none_failed_min_one_success"))
                 self.assertEqual(head["depends_on"], ["eyes-out"] if k == 1 else [f"back-{k - 1}", *(f"back-{k - 1}-{x}" for x in ("fixed", "fix-out", "gate-out", "eyes-out"))])
-                self.assertEqual((head["with"]["round"], head["with"]["limit"]), (str(k), str(LIMIT)))
+                self.assertEqual(head["with"]["round"], str(k))
                 self.assertEqual(sorted(head["with"]), sorted(TOP["back-1"]["with"]))
                 self.assertIsNone(head.get("when"), "頭は毎周走る（飛んだ node の出力を when: が読むと Archon が誤りにする）")
                 if k > 1:

@@ -17,7 +17,7 @@ inputs:
   spec_rows: {default: '', description: 'json(shared:request.schema.json): 仕様が足した受け入れ条件の行のファイル（added-rows.json。依頼の行の配列）。空は足した行が無い。判定の道だけが読む'}
   spec_origin: {default: '', description: 'text: 仕様が足した行の出どころの名（判定役に見せるバッチの origin）。spec_rows が在る時に要る。判定の道だけが読む'}
   answers: {default: '[]', description: 'json(answer-rows.schema.json): 依頼者が前の run の問いに答えた行 [{question, text, command?, output?}]。空の配列は request の容器の answers を使う。判定の道だけが読む'}
-  prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run が運んだ行 [{where, text}]（最後まで通らなかった物と、独立の目 R2 の直す行〔作り直しか作り残し〕）。request の容器の prior_failures の後ろに足す。空の配列は足す物が無い。判定の道だけが読む'}
+  prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run が運んだ行 [{where, text}]（最後まで通らなかった物と、独立の目 R2 の作り直しの行）。request の容器の prior_failures の後ろに足す。空の配列は足す物が無い。判定の道だけが読む'}
   pr_text: {default: '', description: 'text: 依頼が名指す PR の番号・題・本文を並べた文。空は PR の無い run。判定の道だけが読む'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
   prior: {default: 'null', description: 'json(shared:judgment.schema.json): 考え直す 1 回目の判定（judgment.json の中身か、その pointer）。null か空は 1 回目の判定が無い（再審せずに止める）。再審の道だけが読む'}

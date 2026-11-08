@@ -808,13 +808,13 @@ def _outside(returns: dict) -> tuple[list, list, str]:
 
 
 def next_request(returns: dict, left: list, closed: bool, got: dict, carried_rows: list) -> list:
-    """次の依頼の findings（元 runreport.next_request）: 残りの行（R2 の直す行は前の失敗にだけ）・目的の外の所見・親の木へ戻せ
+    """次の依頼の findings（元 runreport.next_request）: 残りの行（R2 の作り直しの行は前の失敗にだけ）・目的の外の所見・親の木へ戻せ
     なかった組・再審の行（judged の carry）・差分の審査とレンズが残した穴（fixed の carry）・人に回した申し出の単位"""
     import oneline
     import report
     asked = _asked_rows(returns, closed)
     owned = {f"修正 {r['where']}" for r in asked}
-    items = [{"where": r["where"], "text": r["text"]} for r in left if not report._r2_tied(r) and r["where"] not in owned]
+    items = [{"where": r["where"], "text": r["text"]} for r in left if not report._r2_redesign(r) and r["where"] not in owned]
     items += _outside(returns)[0]
     items += [{"where": f"{GROUP_WHERE} {g.get('group_id')}",
                "text": f"組 {g.get('group_id')}（単位 {'・'.join(str(u) for u in _list(g.get('unit_ids')))}）を親の木へ戻せなかった——"
@@ -870,7 +870,7 @@ def prior_failures(returns: dict, left: list, stops: list) -> list:
     rows += [{"where": f"{STOPPED_WHERE} {s['at']}",
               "text": f"{s['word']}（{stop_meaning(s['word'])}）"}
              for s in stops if stopby.is_line(s["word"]) and s["word"] not in stopby.WAITING and not (gave_up and s["at"] in ("plan", "replan"))]
-    r2 = [r for r in left if report._r2_tied(r)]
+    r2 = [r for r in left if report._r2_redesign(r)]
     if r2:
         rows.append({"where": carry.REDESIGN_WHERE, "text": oneline.one_line(r2[0]["text"])})
     return rows

@@ -207,23 +207,22 @@ class FactsCase(unittest.TestCase):
         self.assertIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
         self.assertIn(self.f.EYE_ASK_HEAD, [a["kind"] for a in got["asks"]])
 
-    def test_r2_fix_needed_row_is_carried_to_prior_failures(self):
-        """R2 が fix-needed で終わった run の R2 の行は findings に入らず、where『独立の目 R2』の行として prior_failures に運ばれる（R2 が
-        redesign-needed の行と同じ）。R1 の fix-needed の行は今どおり findings に入り、prior_failures に運ばれない"""
+    def test_r2_fix_needed_row_goes_to_findings_like_r1(self):
+        """R2 が fix-needed（作り残し）で終わった run の R2 の行は、R1 の fix-needed の行と同じく次の依頼の findings に入り、prior_failures に
+        運ばれない。R2 が redesign-needed の行は今どおり findings から外し、where『独立の目 R2』の行として prior_failures に運ぶ"""
         carry = __import__("carry")
-        for status in ("fix-needed", "redesign-needed"):
-            with self.subTest(status=status):
+        for eye in ("r1", "r2"):
+            with self.subTest(eye=eye):
                 v = passing()
-                v["eyes"] = {**v["eyes"], "r2": {"status": status, "reason": "入口が 2 つ残る"}}
+                v["eyes"] = {**v["eyes"], eye: {"status": "fix-needed", "reason": "入口が 2 つ残る"}}
                 carried = self.build(v)["carry"]
-                self.assertEqual([r["text"] for r in carried["prior"]], [f"R2 が {status}: 入口が 2 つ残る"])
-                self.assertEqual([r["where"] for r in carried["prior"]], [carry.REDESIGN_WHERE])
-                self.assertEqual(carried["findings"], [])
+                self.assertEqual([r["text"] for r in carried["findings"]], [f"{eye.upper()} が fix-needed: 入口が 2 つ残る"])
+                self.assertEqual(carried["prior"], [])
         v = passing()
-        v["eyes"] = {**v["eyes"], "r1": {"status": "fix-needed", "reason": "写しが在る"}}
+        v["eyes"] = {**v["eyes"], "r2": {"status": "redesign-needed", "reason": "入口が 2 つ残る"}}
         carried = self.build(v)["carry"]
-        self.assertEqual([r["text"] for r in carried["findings"]], ["R1 が fix-needed: 写しが在る"])
-        self.assertEqual(carried["prior"], [])
+        self.assertEqual([(r["where"], r["text"]) for r in carried["prior"]], [(carry.REDESIGN_WHERE, "R2 が redesign-needed: 入口が 2 つ残る")])
+        self.assertEqual(carried["findings"], [])
 
     MEANS_Q = "R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"
 

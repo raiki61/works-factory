@@ -83,7 +83,7 @@ class Shape(unittest.TestCase):
         self.assertEqual(carry().compose([], [], []), {"findings": [], "prior_failures": []})
 
     def test_is_redesign_reads_where(self):
-        """R2 の直す行（作り直しか作り残し）かは where だけで読む（独立の目 R2 の行だけが真。受け付け・CI・独立の目 R1 の行は偽）"""
+        """作り直しの行かは where だけで読む（独立の目 R2 の行だけが真。受け付け・CI・独立の目 R1 の行は偽）"""
         c = carry()
         self.assertEqual(c.REDESIGN_WHERE, "独立の目 R2")
         self.assertTrue(c.is_redesign({"where": "独立の目 R2", "text": "R2 が redesign-needed"}))
@@ -91,7 +91,7 @@ class Shape(unittest.TestCase):
         for where in ("受け付け fix", c.CI_WHERE, "独立の目 R1", "独立の目"):
             self.assertFalse(c.is_redesign({"where": where, "text": "R2 が redesign-needed"}), where)
         self.assertFalse(c.is_redesign("独立の目 R2"))
-        self.assertFalse(c.is_redesign({}), "where の無い行は R2 の直す行でない")
+        self.assertFalse(c.is_redesign({}), "where の無い行は作り直しの行でない")
 
     def test_row_key_ignores_reason_tail(self):
         """行の鍵は where と、text の最初の「（」までを空白を詰めて \\t でつないだ物（理由だけ違う行は同じ鍵）"""

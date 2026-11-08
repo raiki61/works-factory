@@ -8,7 +8,7 @@
 抜ける時は go を偽にして抜けた訳 exit を返し、最後の試験・目・合わせの状態を持ち越す。落ちない: 読めない・決められない時は輪の節が
 落ちたとして抜ける（封じず、最後の承認ノードが開ける理由にする）。
 
-入力（with:）: round・limit（周の番号と返す周の数）・prev（前の周の頭の出力。1 周目は null）・fixed（直前の修正の段の合わせ）・judged・fix_in
+入力（with:）: round（周の番号）・prev（前の周の頭の出力。1 周目は null）・fixed（直前の修正の段の合わせ）・judged・fix_in
 （line の node の返り）・tests・eyes（直前の最後の試験と独立の目の受け皿の got）・replan・answer_replan（案の直しの受け皿の got と答えの node の
 出力。1 周目だけ読み、ほかは null）。include の返りは受け皿の got だけを読む。
 """
@@ -49,13 +49,13 @@ def plan_fields(fixed):
 
 def compute():
     from src import eyesback
-    raw = {"round": os.environ.get("INPUTS_ROUND"), "limit": os.environ.get("INPUTS_LIMIT"), "prev": os.environ.get("INPUTS_PREV"),
+    raw = {"round": os.environ.get("INPUTS_ROUND"), "prev": os.environ.get("INPUTS_PREV"),
            "fixed": os.environ.get("INPUTS_FIXED"), "judged": os.environ.get("INPUTS_JUDGED"), "fix_in": os.environ.get("INPUTS_FIX_IN"),
            "tests": os.environ.get("INPUTS_TESTS"), "eyes": os.environ.get("INPUTS_EYES"), "replan": os.environ.get("INPUTS_REPLAN"),
            "answer_replan": os.environ.get("INPUTS_ANSWER_REPLAN")}
     fixed = ports.parsed(raw["fixed"])
     return eyesback.turn(
-        k=int(ports.text(raw["round"])), limit=int(ports.text(raw["limit"])), prev=ports.parsed(raw["prev"]), fixed=fixed,
+        k=int(ports.text(raw["round"])), prev=ports.parsed(raw["prev"]), fixed=fixed,
         judged=ports.parsed(raw["judged"]), fix_in=ports.parsed(raw["fix_in"]), tests=picked(raw["tests"], TESTS),
         eyes=picked(raw["eyes"], EYES), replan=picked(raw["replan"], REPLAN), answer_replan=picked(raw["answer_replan"], ANSWER_REPLAN),
         plan_fields=plan_fields(fixed))

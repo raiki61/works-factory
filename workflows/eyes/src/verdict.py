@@ -24,7 +24,6 @@ NO_OUTPUT = "出力が無い"
 NO_COHERENCE = "まとめた R3 の行（coherence）が無い"
 RAN_R4 = "まま R4 を回した"
 WAITED_BY_R4 = ("r1", "r2")   # R4 が待つ目（E8）。この目が落ちても R4 は回るので、落ちた訳に尾を足す
-RETURNING = ("r1", "r2")      # 作り残しの項目を出口の findings で運ぶ目
 ROUTE_FIX, ROUTE_STAY = "fix", "stay"
 NOTHING_TO_RETURN = "返す物が無い"
 
@@ -65,9 +64,9 @@ def rows(received: dict, merge: bool) -> dict:
 
 
 def back_items(received: dict, got_rows: dict) -> list:
-    """判定が fix-needed の R1・R2 の出口の findings を、目の名 eye を付けて R1・R2 の順に並べる（形の外の行は載せない）"""
+    """判定が fix-needed の目（seal.FIX_EYES の R1・R2）の出口の findings を、目の名 eye を付けてその順に並べる（形の外の行は載せない）"""
     out = []
-    for eye in RETURNING:
+    for eye in seal.FIX_EYES:
         if (got_rows.get(eye) or {}).get("status") != seal.FIX_NEEDED:
             continue
         for item in (_got(received, eye) or {}).get("findings") or []:
@@ -77,7 +76,7 @@ def back_items(received: dict, got_rows: dict) -> list:
 
 
 def route_of(got_rows: dict, premise, items: list) -> tuple[str, str]:
-    """(route, route_why)。返すのは、どの目も redesign-needed でなく、前提の検算の道でなく、R1 か R2 が fix-needed で、返す項目が 1 つ以上在る時。
+    """(route, route_why)。返すのは、どの目も redesign-needed でなく、前提の検算の道でなく、返す項目（back_items。fix-needed の目の findings）が 1 つ以上在る時。
     ほかは返さず、返さない訳（設計違いの目・前提の検算・確かめられない目・返す物が無い）を route_why に書く"""
     redesign = [eye for eye, row in got_rows.items() if row["status"] == seal.REDESIGN]
     unverifiable = [eye for eye, row in got_rows.items() if row["status"] == seal.UNVERIFIABLE]
@@ -85,7 +84,7 @@ def route_of(got_rows: dict, premise, items: list) -> tuple[str, str]:
         return ROUTE_STAY, "設計違いの目が在る（" + "・".join(eye.upper() for eye in redesign) + "）"
     if premise is not None:
         return ROUTE_STAY, "R2 が前提の検算の道"
-    if items and any(got_rows[eye]["status"] == seal.FIX_NEEDED for eye in RETURNING):
+    if items:
         return ROUTE_FIX, f"返す項目が {len(items)} 件ある"
     why = NOTHING_TO_RETURN
     if unverifiable:
