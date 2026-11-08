@@ -155,6 +155,45 @@ class ConvertCase(unittest.TestCase):
         _, record = self.convert(runner.WorksFactory, attempt, head)
         self.assertEqual(record["unread"], {runner.R4: reviewbench.MISSING})
 
+    def test_unread_outcome_is_named_in_why_null(self):
+        """結末の記録が読めない run は、作り手の ended が結末を None で返し、控えが読めなかった訳を why_null に出す"""
+        def unread(producer, attempt, head):
+            ended = producer.ended(attempt / "evidence")
+            _, record = self.convert(producer, attempt, head, {**ended, "children": [], "web_calls": None})
+            self.assertIsNone(record["outcome"])
+            self.assertNotEqual(record.get("outcome_state"), reviewbench.READ_OK)
+            self.assertIn("outcome:", record["why_null"])
+            return record
+
+        parent = "record/parent.json"
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        path = attempt / "evidence" / parent
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        del doc["terminal_record"]["returns"]["value"]["outcome"]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        record = unread(runner.WorksFactory, attempt, head)
+        self.assertEqual(record["outcome_state"], reviewbench.NO_FIELD)
+        self.assertIn(parent, record["why_null"])
+
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        (attempt / "evidence" / parent).unlink()
+        record = unread(runner.WorksFactory, attempt, head)
+        self.assertEqual(record["outcome_state"], reviewbench.MISSING)
+        self.assertIn(parent, record["why_null"])
+
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")
+        shutil.rmtree(attempt / "evidence")
+        (attempt / "evidence").mkdir()
+        (attempt / "evidence" / "findings.json").write_text(json.dumps({"findings": []}), encoding="utf-8")
+        record = unread(runner.PlainClaude, attempt, head)
+        self.assertEqual(record["outcome_state"], reviewbench.MISSING)
+        self.assertIn(runner.PlainClaude.RESULT, record["why_null"])
+
+        attempt, head = attempt_from(hermetic.tmpdir(self), "works")
+        record = unread(runner.OldWorks, attempt, head)
+        self.assertEqual(record["outcome_state"], reviewbench.NO_FIELD)
+        self.assertIn(parent, record["why_null"])
+
     def test_rejudge_replaces_first_judgment(self):
         """再審が走った run は rejudge-run/judgment.json の units が工場の最後の判定"""
         attempt, head = attempt_from(hermetic.tmpdir(self), "works-factory")

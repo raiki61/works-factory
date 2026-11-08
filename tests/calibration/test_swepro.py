@@ -30,6 +30,7 @@ import yaml
 
 from tests.bin import fakelaunch, hermetic, sandbox_probe
 from tests.bin.gitkit import git
+from tests.calibration import reviewbench
 from tests.calibration import run as runner
 from tests.calibration import swepro, test_run
 
@@ -544,6 +545,21 @@ class InsideTest(unittest.TestCase):
                 predicted = self.predicted(result)
                 self.assertEqual((predicted["failed"], predicted["stopped"]), (True, False))
 
+    def test_unread_factory_outcome_names_the_record(self):
+        """終わりの記録の outcome が null の run は、結末の語を記録から読めなかった事と読み先を言い、空の結末にしない"""
+        self.set_plan(outcome=None)
+        done, result = self.inside()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(result["state"], runner.DONE)
+        self.assertIsNone(result["outcome"])
+        self.assertEqual(result.get("outcome_state"), reviewbench.NO_FIELD)
+        self.assertIn("結末の語を記録から読めなかった", result["error"])
+        self.assertIn("record/parent.json", result["error"])
+        self.assertNotIn("OUTCOME_KINDS", result["error"])
+        predicted = self.predicted(result)
+        self.assertIsNone(predicted["outcome"])
+        self.assertTrue(predicted["failed"])
+
     def test_every_known_outcome_but_broke_is_no_failure(self):
         for word in swepro.report.OUTCOME_KINDS:
             with self.subTest(outcome=word):
@@ -685,7 +701,7 @@ class PredictionTest(unittest.TestCase):
     def test_missing_result_is_driver_failed(self):
         got = swepro.prediction(OPENLIBRARY, "claude", DIFF, None, 5.0, "f")
         self.assertEqual((got["state"], got["stopped"], got["failed"], got["model_patch"], got["usd"], got["outcome"]),
-                         (swepro.DRIVER_FAILED, False, True, DIFF, None, ""))
+                         (swepro.DRIVER_FAILED, False, True, DIFF, None, None))
 
     def test_stop_why_comes_from_the_result_fields(self):
         got = swepro.prediction(OPENLIBRARY, "works-factory", DIFF, self.RESULT, 12.0, "f")
@@ -1546,7 +1562,7 @@ class AgentTest(unittest.TestCase):
         self.assertIn("終了の値 1", str(caught.exception))
         self.assertIsNone(self.context.cost_usd)
         self.assertEqual({k: self.context.metadata[k] for k in ("state", "failed", "stopped", "outcome")},
-                         {"state": swepro.DRIVER_FAILED, "failed": True, "stopped": False, "outcome": ""})
+                         {"state": swepro.DRIVER_FAILED, "failed": True, "stopped": False, "outcome": None})
         self.assertEqual(self.context.metadata["pro_limit"]["seconds"], swepro.PRO_SECONDS)
 
     def test_result_and_patch_are_read_despite_warnings_on_stdout(self):

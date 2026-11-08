@@ -35,12 +35,13 @@ nodes は控えと出来事から <out>/<作り手>/nodes.json・nodes.md を書
   WORKS_KEYCHAIN_ITEM）をそのまま子に継ぐ。値は読まず、出さない。
 - 試験の差し替え口は環境変数 WORKS_CALIBRATION_SHELL の 1 つだけ: works-factory の起動の殻（既定は bin/works-factory）を替える。
 
-今の works の記録の置き場と形（その版の works/dev/use.sh・lib.sh・archon.sh・canary_check.py と .shared/core/report.py で確かめた）:
+今の works の記録の置き場と形（その版の works/dev/use.sh・lib.sh・archon.sh・canary_check.py と darkfactory/darkfactory.yaml の returns で確かめた）:
 - 家は WORKS_USE_HOME=<試み>/home。use.sh start は無人（WORKS_USE_UNATTENDED=1）なら起動の承認を越えて残りをその場で回し、人が
   決める承認に着けば自分で stop と答えて報告へ進める。run の控えは <家>/runs/<run-id>.json で、試みごとにちょうど 1 つ。
 - run の行は <家>/archon-home/archon.db の表 remote_agent_workflow_runs、出来事は remote_agent_workflow_events。出力の置き場
   （board）は run の行の output_root の下の artifacts/runs/<id>/board。
-- 結末の語は board の report.md の頭 10 行のうち「起きたこと: 」で始まる行の（<語>）。
+- 結末の語は出来事の列のうち step_name が result（その版の darkfactory.yaml の returns）の最後の node_completed の
+  data.node_output の outcome（語は lib/report.py の OUTCOMES と同じ 10 語）。読めなければ None と訳。
 - use.sh wait の終了の値: 0 承認で待つ・3 まだ走る（決まった秒数で戻るだけで run の期限ではない）・5 終わった・1 落ちた・6 周の鎖。
 - 続ける命令は対象で WORKS_DEV_HOME=<家> sh dev/continue.sh dev/archon.sh workflow resume <run>。続きが人が決める承認で止まれば
   workflow respond <run> stop <一言> と答えて終わりまで待つ。
@@ -232,9 +233,7 @@ class WorksFactory:
     @staticmethod
     def ended(ev: Path) -> dict:
         got = _object(_read_json(ev, "record/parent.json"))
-        value = _object(_object(got.get("terminal_record")).get("returns")).get("value")
-        outcome = value.get("outcome") if isinstance(value, dict) else None
-        return {"outcome": outcome if isinstance(outcome, str) else "",
+        return {**_read_outcome(ev, "record/parent.json", _returned_value, OUTCOMES),
                 "seconds": _span(_events(_read_json(ev, EVENTS.format(name="parent"))), got.get("completed_at")),
                 "usd": _number(_object(got.get("metadata")).get("total_cost_usd")),
                 "usd_from": "run の記録の metadata.total_cost_usd（fix の組の子の run の費用を含む）"}
@@ -278,6 +277,7 @@ class OldWorks:
     name = "works"
     account = "WORKS_KEYCHAIN_ITEM"
     archon = True
+    RETURNS_NODE = "result"   # 止めた版の darkfactory.yaml の returns が名指す、結末の語を返す出口のノード
     passes = {"unattended": "WORKS_USE_UNATTENDED", "final_gate": "WORKS_USE_FINAL_GATE"}
     values = {"unattended": {"true": "1"}}
     sources = (Source("board/out/r1/p2.diagnose.json", ("units",), "units"),
@@ -400,7 +400,7 @@ class OldWorks:
         run = _object(got.get("run"))
         usd = next((e["data"].get("cost_usd") for e in _events(got)
                     if e.get("event_type") == "workflow_completed" and isinstance(e.get("data"), dict)), None)
-        return {"outcome": _header_outcome(ev / "board"),
+        return {**_read_outcome(ev, "record/parent.json", _returned_outcome, OUTCOMES),
                 "seconds": _span(_events(got), run.get("completed_at")),
                 "usd": _number(usd),
                 "usd_from": "出来事 workflow_completed の data.cost_usd"}
@@ -493,8 +493,7 @@ class PlainClaude:
 
     def state(self, attempt: Path, run_id: str) -> str:
         """claude -p は認証の拒否・API の誤り・turn の上限でも session_id の付いた結果を書き、is_error で落ちを言う"""
-        got = self._result(attempt)
-        return DONE if got is not None and not got.get("is_error") else "failed"
+        return DONE if _errored(self._result(attempt)) is False else "failed"
 
     def gate(self, attempt: Path, run_id: str) -> str:
         return ""
@@ -513,7 +512,7 @@ class PlainClaude:
     def ended(ev: Path) -> dict:
         got = _object(_read_json(ev, PlainClaude.RESULT))
         ms = _number(got.get("duration_ms"))
-        return {"outcome": "error" if got.get("is_error") else "done",
+        return {**_read_outcome(ev, PlainClaude.RESULT, _result_word, ("done", "error")),
                 "seconds": None if ms is None else ms / 1000,
                 "usd": _number(got.get("total_cost_usd")),
                 "usd_from": "claude -p の出力の total_cost_usd"}
@@ -530,26 +529,56 @@ class PlainClaude:
         return {"model": PLAIN_MODEL, "effort": PLAIN_EFFORT}
 
 
-HAPPENED = "起きたこと: "
-
-
-def _header_outcome(board: Path) -> str:
-    try:
-        lines = (board / "report.md").read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return ""
-    for line in lines[:10]:
-        if line.startswith(HAPPENED):
-            return next((w for w in OUTCOMES if f"（{w}）" in line), "")
-    return ""
-
-
 def _read_json(ev: Path, path):
     """ev の中の JSON。無い・読めなければ None"""
-    try:
-        return json.loads((ev / path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
+    return reviewbench.read_doc(ev / path)[0]
+
+
+def _read_outcome(ev: Path, path: str, pick, words) -> dict:
+    """ev/path の記録から結末の語を読む。{outcome, outcome_state, outcome_why}。語が読めたら state は READ_OK で why は None、
+    読めなければ outcome は None で、state が無い・読めない・欄が無い・空・表に無い語を言い分け、why が読み先と欄と理由を言う。
+    pick は記録の中身から (結末の欄の値, その欄の名) を返す"""
+    doc, why = reviewbench.read_doc(ev / path)
+    if why is not None:
+        state = reviewbench.MISSING if why == reviewbench.MISSING else reviewbench.UNREADABLE
+        return {"outcome": None, "outcome_state": state, "outcome_why": f"{path} が{why}"}
+    value, field = pick(doc)
+    if not isinstance(value, str):
+        return {"outcome": None, "outcome_state": reviewbench.NO_FIELD, "outcome_why": f"{path} の {field} が無いか字でない"}
+    if not value:
+        return {"outcome": None, "outcome_state": reviewbench.BLANK, "outcome_why": f"{path} の {field} が（空）"}
+    if value not in words:
+        return {"outcome": None, "outcome_state": reviewbench.OFF_TABLE,
+                "outcome_why": f"{path} の {field} の {value} が結末の語の表に無い"}
+    return {"outcome": value, "outcome_state": reviewbench.READ_OK, "outcome_why": None}
+
+
+def _returned_value(doc) -> tuple[object, str]:
+    """works-factory の終わりの記録の、工場が返す値の outcome"""
+    value = _object(_object(_object(doc).get("terminal_record")).get("returns")).get("value")
+    return (value.get("outcome") if isinstance(value, dict) else None), "terminal_record.returns.value.outcome"
+
+
+def _returned_outcome(doc) -> tuple[object, str]:
+    """今の works の出来事の列のうち、出口のノードの最後の node_completed の出力の outcome。続きで回し直された時のため最後の 1 つ。
+    ほかのノードが持つ outcome の欄は見ない"""
+    field = f"出来事の列の {OldWorks.RETURNS_NODE} ノードの出力の outcome"
+    done = [e for e in _events(doc) if e.get("event_type") == "node_completed" and e.get("step_name") == OldWorks.RETURNS_NODE]
+    if not done:
+        return None, field
+    out = _json_or_text(_object(done[-1].get("data")).get("node_output"))
+    return (out.get("outcome") if isinstance(out, dict) else None), field
+
+
+def _errored(doc) -> bool | None:
+    """claude -p の結果の is_error。真偽でなければ None"""
+    flag = _object(doc).get("is_error")
+    return flag if isinstance(flag, bool) else None
+
+
+def _result_word(doc) -> tuple[str | None, str]:
+    errored = _errored(doc)
+    return (None if errored is None else "error" if errored else "done"), "is_error"
 
 
 def _object(value) -> dict:

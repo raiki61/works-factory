@@ -24,6 +24,7 @@ import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import git
+from tests.calibration import reviewbench
 from tests.calibration import run as runner
 from tests.calibration.test_reviewbench import commit
 
@@ -142,8 +143,8 @@ if who == "use.sh" and args[0] == "start":
     (home / "runs" / f"{rid}.json").write_text("{}", encoding="utf-8")
     board = home / "out" / "artifacts" / "runs" / rid / "board"
     board.mkdir(parents=True)
-    (board / "report.md").write_text(f"# 報告（run {rid}）\\n\\n起きたこと: 直した（{plan.get('outcome', 'fixed')}）\\n",
-                                     encoding="utf-8")
+    head = "直して、最後のテストまで通った" if plan.get("plain_header") else f"直した（{plan.get('outcome', 'fixed')}）"
+    (board / "report.md").write_text(f"# 報告（run {rid}）\\n\\n起きたこと: {head}\\n", encoding="utf-8")
     for name, text in plan.get("board", {"out/r1/p2.diagnose.json": UNITS}).items():
         (board / name).parent.mkdir(parents=True, exist_ok=True)
         (board / name).write_text(text, encoding="utf-8")
@@ -159,6 +160,12 @@ if who == "use.sh" and args[0] == "start":
                 (rid,))
     for n, gate in enumerate(plan.get("asks", []), 1):
         con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'approval_requested', ?, '{}', '', ?)", (rid, gate, n))
+    returned = plan.get("returned", plan.get("outcome", "fixed"))
+    con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'node_completed', 'result', ?, '', 50)",
+                (rid, json.dumps({"node_output": json.dumps({"ok": True, "outcome": returned})})))
+    if plan.get("decoy"):
+        con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'node_completed', 'fixing__fix.unit', ?, '', 60)",
+                    (rid, json.dumps({"node_output": json.dumps({"ok": True, "outcome": "repaired"})})))
     con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'workflow_completed', '', ?, '', 99)",
                 (rid, json.dumps({"cost_usd": plan.get("usd", 12.5)})))
     con.commit()
@@ -496,6 +503,21 @@ class RunTest(RunnerCase):
         [old] = self.records("works")
         self.assertEqual((old["usd"], old["seconds"], old["outcome"]), (12.5, 7200.0, "fixed"))
         self.assertEqual(old["provenance"]["archon"], "v0.11.1")
+
+    def test_old_works_outcome_comes_from_the_machine_record(self):
+        """今の works の結末は、報告の頭の行の文面でなく、出口のノード result の出力の outcome から読む"""
+        self.set_plan(plain_header=True, returned="no_fix_needed", decoy=True)
+        self.assertRan(self.run_tasks("works", self.one))
+        [record] = self.records("works")
+        self.assertEqual((record["outcome"], record.get("outcome_state")), ("no_fix_needed", reviewbench.READ_OK))
+        shutil.rmtree(self.attempts)
+        shutil.rmtree(self.out)
+        self.set_plan(plain_header=True, returned="made_up", decoy=True)
+        self.assertRan(self.run_tasks("works", self.one))
+        [record] = self.records("works")
+        self.assertIsNone(record["outcome"])
+        self.assertEqual(record.get("outcome_state"), reviewbench.OFF_TABLE)
+        self.assertIn("made_up", record["why_null"])
 
     def test_paused_run_is_not_answered(self):
         for producer, plan in (("works-factory", {"status": "paused"}),
