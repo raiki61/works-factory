@@ -2,7 +2,7 @@
 標準ライブラリだけ（verdict の script が境の口か lib を読めない時にも同じ形を返す）。
 
 - OWN_TITLE・OPTIONAL（直した後の実測が落ちても先へ進む宣言）
-- fallen(why) -> 2.2 の欄を全部持つ出力。ok は偽、目の行は全部 unverifiable（理由に誤りの 1 行）、ほかは null か空
+- fallen(why) -> 2.2 の欄を全部持つ出力。ok は偽、目の行は全部 unverifiable（理由に誤りの 1 行）、返す項目は空・route は stay（理由にまとめが落ちた旨）、ほかは null か空
 """
 OWN_TITLE = "独立の目のまとめ"
 OPTIONAL = [{"node": "structure-after__", "bare": False}]
@@ -15,5 +15,6 @@ def fallen(why: str) -> dict:
     line = f"- 独立の目のまとめが落ちた（{why}）"
     return {"ok": False, **{eye: dict(row) for eye in EYES}, "questions": [], "means_questions": [],
             "passes": [], "premise_check": None, "notes": [],
-            "after": None, "dirty": 0, "escalate": 0, "after_ok": False, "report": [line],
+            "after": None, "dirty": 0, "escalate": 0, "after_ok": False, "findings": [], "route": "stay",
+            "route_why": f"独立の目のまとめが落ちた（{why}）", "report": [line],
             "sections": [{"title": OWN_TITLE, "lines": [line]}], "optional": [dict(r) for r in OPTIONAL]}

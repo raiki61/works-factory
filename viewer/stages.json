@@ -60,6 +60,12 @@
       "wiring": ["eyes-in", "eyes-out"]
     },
     {
+      "name": "独立の目から修正へ返す",
+      "source": "docs/design/line.md の 1.3 の 21.5",
+      "nodes": ["back-1", "back-1-fix", "back-1-fix-out", "back-1-fixed", "back-1-gate", "back-1-gate-out", "back-1-eyes", "back-1-eyes-out", "back-2", "back-2-fix", "back-2-fix-out", "back-2-fixed", "back-2-gate", "back-2-gate-out", "back-2-eyes", "back-2-eyes-out", "back-3", "back-3-fix", "back-3-fix-out", "back-3-fixed", "back-3-gate", "back-3-gate-out", "back-3-eyes", "back-3-eyes-out", "back-4", "eyes-back"],
+      "wiring": ["back-1", "back-1-fix-out", "back-1-fixed", "back-1-gate-out", "back-1-eyes-out", "back-2", "back-2-fix-out", "back-2-fixed", "back-2-gate-out", "back-2-eyes-out", "back-3", "back-3-fix-out", "back-3-fixed", "back-3-gate-out", "back-3-eyes-out", "back-4", "eyes-back"]
+    },
+    {
       "name": "封じと最後の承認",
       "source": "docs/design/line.md の 1.3 の 22〜24・2 節の 4",
       "nodes": ["merge-seal", "merge-seal-out", "ask-final", "gate-final", "answer-final", "merge-apply", "merge-apply-out"],

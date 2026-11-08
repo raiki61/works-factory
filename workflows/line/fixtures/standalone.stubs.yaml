@@ -309,6 +309,7 @@ eyes__r1__intake:
   due: false
   reason: '筋書き: block の中は block の筋書きが見る'
 eyes__r1__finish:
+  findings: []
   ok: true
   status: ran
   reason: ''
@@ -323,6 +324,7 @@ eyes__r2__intake:
   premise: false
   reason: '筋書き: block の中は block の筋書きが見る'
 eyes__r2__finish:
+  findings: []
   ok: true
   status: ran
   reason: ''

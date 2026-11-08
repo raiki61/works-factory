@@ -517,7 +517,8 @@ def final_got(final, **over) -> dict:
            "split": "", "unproven": [], "amend": [], "delta": [], "stuck": [], "closure": [], "tests_left": [], "gates": [], "always": [],
            "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "removed_tests": [], "untested": [], "unsatisfied": [], "structure_missing": "", "sealed": True, "seal_reason": "",
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
-           "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": []}
+           "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": [],
+           "eyes_back": {"rows": [], "exit": "返す物が無い", "left": []}}   # 独立の目から修正の段へ返さずに抜けた輪の記録
     return {**got, **over}
 
 
@@ -555,6 +556,76 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn(f"## {self.f.ALONG_HEAD}（1 件。", text)
         self.assertIn("- tests/test_a.py（許し broken-before-1）", text)
         self.assertNotIn(f"## {self.f.ALLOWED_TESTS_HEAD}", text)
+
+    BACK_ROWS = [{"round": 1, "r1": "fix-needed", "r2": "pass", "items": [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]},
+                 {"round": 2, "r1": "fix-needed", "r2": "fix-needed", "items": [{"eye": "r1", "where": "src/a.py:12", "text": "写しがまだ残っている"},
+                                                                                 {"eye": "r2", "where": "", "text": "入口が足りない"}]}]
+
+    def test_head_counts_the_returns_and_lists_each_round(self):
+        """返した周が在れば、最後の承認ノードの頭の文に返した回数が入り、本文に『独立の目から修正の段へ返した物』の節が周ごとの項目と、
+        返した段が通っていない確かめの 1 行と、抜けた訳を並べる。0 回なら頭の文にも節にも出ない"""
+        self.assertTrue((kit.BLOCKS / BLOCK / "src" / "eyesback.py").exists(), "周の頭の決めの src/eyesback.py が無い")
+        eb = kit.load(BLOCK, "eyesback")
+        got = final_got(self.f, eyes_back={"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": []})
+        text = self.ask(got)["text"]
+        self.assertIn("独立の目から修正の段へ 2 回返した。", text.splitlines()[0])
+        self.assertIn(f"## {eb.HEAD}（2 回）", text)
+        words = __import__("gatemarks").REVIEW_WORDS
+        for line in eb.lines(self.BACK_ROWS, "返す物が無い（どの目も通った）"):
+            self.assertIn(f"- {line}", text)
+        self.assertIn(f"1 周目: 返した（R1: {words['fix-needed']}・R2: {words['pass']}）——返した項目: R1: src/a.py:12: 写しが残っている", text)
+        self.assertIn(eb.NOT_REVIEWED, text)
+        self.assertIn("輪を抜けた訳: 返す物が無い（どの目も通った）", text)
+        self.assertLess(text.index(f"## {eb.HEAD}"), text.index("最後の承認ノード（最後のテストと独立の目の後・報告の前）"))
+        none = self.ask(final_got(self.f, eyes_back={"rows": [], "exit": "返す物が無い", "left": []}))["text"]
+        self.assertNotIn("回返した", none)
+        self.assertNotIn(eb.HEAD, none)
+
+    def test_fallen_return_loop_is_named(self):
+        """材料の eyes_back が None の run と、eyes_back の exit が『輪の節が落ちた』の run では BACK_FELL が開き方に依らず開く理由に出る。
+        返す物が無くて 0 回で抜けた run ではその行も返した節も出ない"""
+        self.assertTrue((kit.BLOCKS / BLOCK / "src" / "eyesback.py").exists(), "周の頭の決めの src/eyesback.py が無い")
+        eb = kit.load(BLOCK, "eyesback")
+        fixing = {"r1": {"status": "fix-needed", "reason": "写し"}, "r2": {"status": "pass", "reason": ""}, "r3": {"status": "pass", "reason": ""},
+                  "r4": {"status": "pass", "reason": ""}, "premise_check": None}
+        for record in (None, {"rows": [], "exit": eb.EXITS["fell"], "left": []}):
+            with self.subTest(record=record):
+                got = final_got(self.f, eyes=fixing, eyes_back=record)
+                self.assertIn((self.f.BACK_FELL, True), self.f.needs(got))
+                for mode in ("when_needed", "protected_only"):
+                    self.assertTrue(self.ask(got, mode=mode)["open"], mode)
+                unattended = self.ask(got, mode="when_needed", unattended=True)
+                self.assertEqual((unattended["open"], unattended["go"], unattended["stop_reason"]), (False, False, __import__("stopby").NEEDS_HUMAN))
+                text = self.ask(got)["text"]
+                self.assertIn(self.f.BACK_FELL, text)
+                self.assertIn("R1: 直しが要る", text, "最初の目の行は出る")
+                self.assertNotIn(eb.HEAD, text, "返した周が無いので節は出ない")
+        zero = final_got(self.f, eyes=fixing, eyes_back={"rows": [], "exit": "返す物が無い", "left": []})
+        self.assertFalse(any(self.f.BACK_FELL in phrase for phrase in self.f.final_needs(zero)))
+        self.assertNotIn(eb.HEAD, self.ask(zero)["text"])
+
+    def test_three_round_exit_names_the_left_items_for_a_person(self):
+        """3 周で抜けた run（eyesback.capped）は、開き方が protected_only でも承認ノードが必ず開き、残った作り残しを名指して人の判断に回す。
+        工場の不具合・安全の上限の字は出さない。無人の run は works:needs-human で止まり、go が偽になる"""
+        self.assertTrue((kit.BLOCKS / BLOCK / "src" / "eyesback.py").exists(), "周の頭の決めの src/eyesback.py が無い")
+        eb = kit.load(BLOCK, "eyesback")
+        left = [{"eye": "r1", "where": "src/a.py:12", "text": "写しがまだ残っている"}, {"eye": "r2", "where": "", "text": "入口が足りない"}]
+        record = {"rows": [{**self.BACK_ROWS[0], "round": k} for k in (1, 2, 3)], "exit": eb.CAP_WHY, "left": left}
+        got = final_got(self.f, eyes_back=record)
+        phrase = eb.cap_text(left)
+        self.assertIn((phrase, True), self.f.needs(got))
+        self.assertIn(f"{eb.LIMIT} 周返した", phrase)
+        for mode in ("when_needed", "protected_only"):
+            self.assertTrue(self.ask(got, mode=mode)["open"], mode)
+        text = self.ask(got, mode="protected_only")["text"]
+        for word in ("R1: src/a.py:12: 写しがまだ残っている", "R2: 入口が足りない", "人が判断する"):
+            self.assertIn(word, text)
+        for word in ("工場の不具合", "安全の上限"):
+            self.assertNotIn(word, text)
+        self.assertIn("独立の目から修正の段へ 3 回返した。", text.splitlines()[0])
+        out = self.ask(got, mode="protected_only", unattended=True)
+        self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, __import__("stopby").NEEDS_HUMAN))
+        self.assertFalse(any(self.f.BACK_FELL in phrase for phrase in self.f.final_needs(got)), "3 周で抜けたのは輪の節が落ちたのとは別")
 
     def test_removed_tests_are_their_own_must_reason_and_section(self):
         """下書き 4.1 の 7・4.3: 消した試験（修正の出力の removed_tests）は開き方に依らず開ける理由と節に出し、消しただけの試験のファイルを
@@ -668,7 +739,8 @@ class AskFinalCase(unittest.TestCase):
         eyes = {"questions": [{"text": "R4 の問い", "title": "題 1"}, "字の問い", {"title": "本文の無い行"}],
                 "means_questions": [{"text": self.MEANS_Q, "title": "題 2"}], "passes": [], "after": None}
         got = self.f.gather(fix_in={}, fixed={}, judged=None, tests=None, eyes=eyes, seal_got=None, spec_check=None, parallel_after=None,
-                            replan_answer=None, widened=[], record={}, given={}, rounds_lines=[], unread=[])
+                            replan_answer=None, widened=[], record={}, given={}, rounds_lines=[], unread=[],
+                            eyes_back={"rows": [], "exit": "返す物が無い", "left": []})
         self.assertEqual(got["questions"], ["R4 の問い", "字の問い"])
         self.assertEqual(got["means_questions"], [self.MEANS_Q])
         shaped = final_got(self.f, questions=got["questions"], means_questions=got["means_questions"])
@@ -1241,6 +1313,47 @@ class ScriptCase(unittest.TestCase):
         self.assertTrue(any("差分を封じられなかった" in r for r in out["reasons"]), out["reasons"])
         self.assertEqual((out["sealed_hash"], out["green_ok"], out["fingerprint"]), ("", True, tests["fingerprint"]))
         self.assertTrue((self.run.artifacts / "gates" / "final-gate.md").is_file())
+
+    def test_ask_final_takes_the_last_round_for_the_text_and_the_merge_values(self):
+        """ask_final の script に、最初の試験・目と違う指紋と R2 を持つ輪の記録 eyes_back を渡すと、承認ノードの文と、返りの fingerprint・
+        green_ok・eyes_ok・r2 がどちらも輪の記録の最後の周の物になる。輪の記録が落ちた記録なら最初の物のまま"""
+        self.assertTrue((kit.BLOCKS / BLOCK / "src" / "eyesback.py").exists(), "周の頭の決めの src/eyesback.py が無い")
+        eb = kit.load(BLOCK, "eyesback")
+        fix_in = {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": []}
+        base_fixed = {"no_fix": False, "conflicts": [], "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [],
+                      "stages": [], "replan_items": [], "refixed": False, "skip_why": "", "more": []}
+        def tests(diff, ok):
+            return {"mode": "final", "ok": ok, "green": ok, "red_cause": "", "ran_steps": None, "baseline": None, "fingerprint": {"head": "h", "diff_hash": diff},
+                    "test_outcomes": None, "evidence": None, "by": "test_cmd", "suites_line": "1 本", "log": "l", "baseline_line": "b", "reason": "",
+                    "suite": None, "suite_note": "", "related": None, "report": []}
+        def eyes(status, ok):
+            row = {"status": status, "reason": f"{status} の訳"}
+            return {"ok": ok, "r1": row, "r2": row, "r3": {"status": "pass", "reason": ""}, "r4": {"status": "pass", "reason": ""}, "questions": [],
+                    "means_questions": [], "passes": [], "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True,
+                    "findings": [], "route": "stay", "route_why": "", "report": [], "sections": []}
+        first_tests, first_eyes = tests("first", False), eyes("fix-needed", False)
+        last_fixed = {**base_fixed, "units": [{"unit_id": "u9", "status": "fixed"}]}
+        record = {"rows": [{"round": 1, "r1": "fix-needed", "r2": "pass", "items": [{"eye": "r1", "where": "a.py", "text": "写し"}]}],
+                  "exit": "返す物が無い（どの目も通った）", "left": [], "fixed": last_fixed, "tests": tests("last", True), "eyes": eyes("pass", True),
+                  "fingerprint": {"head": "h", "diff_hash": "last"}, "green_ok": True, "eyes_ok": True, "sealable": True, "item_claims": None}
+        def ask(eyes_back):
+            return self.run.script("ask_final", request=handed({}), fix_in=json.dumps(fix_in), fixed=json.dumps(base_fixed), judged="null",
+                                   tests=json.dumps(first_tests), eyes=json.dumps(first_eyes), eyes_back=json.dumps(eyes_back), seal="null",
+                                   spec_check="null", parallel_after="null", replan_review="null", replan_answer="null", widened="null",
+                                   start_answer="null", record="null", final_gate="always", ports=self.ports())
+        out = ask(record)
+        self.assertEqual((out["fingerprint"], out["green_ok"], out["eyes_ok"], out["r2"]),
+                         ({"head": "h", "diff_hash": "last"}, True, True, {"status": "pass", "reason": "pass の訳"}))
+        self.assertIn("独立の目から修正の段へ 1 回返した。", out["text"])
+        self.assertIn("通さなかった目: 無い", out["text"], "文の目の行も最後の周の目")
+        self.assertIn(eb.HEAD, out["text"])
+        fell = ask({**record, "exit": eb.EXITS["fell"], "fixed": None, "tests": None, "eyes": None, "sealable": False, "rows": []})
+        self.assertEqual((fell["fingerprint"], fell["green_ok"], fell["eyes_ok"], fell["r2"]),
+                         ({"head": "h", "diff_hash": "first"}, False, False, {"status": "fix-needed", "reason": "fix-needed の訳"}))
+        self.assertIn(self.f_final().BACK_FELL, fell["reasons"])
+
+    def f_final(self):
+        return kit.load(BLOCK, "final")
 
     def test_scripts_do_not_fall_on_null_inputs(self):
         """どの script も with: の全部が null でも落ちず、止めの語 works:line-script の返りにする（L-G52・L-W63）"""

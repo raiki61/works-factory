@@ -10,8 +10,10 @@ import ports
 import prompt
 
 import eyekit        # lib/。独立の目の族の共通の部品
+import gatemarks     # lib/。判定の語の平易な言い方（status_named）
 import jsonfile      # lib/
 import oneline       # lib/
+import seal          # lib/。判定の語
 
 from src import files, material, report, scalars
 
@@ -22,6 +24,12 @@ NO_CHECKS = "最後の試験の関門の証拠が渡っていない"          # 
 CHECKS_UNREAD = "入力 checks の証拠の文が読めない: {why}"
 NO_INTAKE = "入口の控え intake.json が無いか読めない（入口の node が落ちた）"
 UNREAD_INPUT = "入力が読めない: {why}"
+# 作り直しが要るの導き（by_points）の頭の字。最後の承認ノードと報告の冒頭に平易な主語で出る
+_FIX, _REDESIGN = map(gatemarks.status_named, (seal.FIX_NEEDED, seal.REDESIGN))
+UNNAMED_REDESIGN = f"目は{_REDESIGN}と書いたが、組み直す設計の点（redesign_points）の名指しが無いので{_FIX}に倒した: "
+RAISED_BY_POINTS = f"組み直す設計の点（redesign_points）の名指しが在るので{_REDESIGN}にした: "
+BROKEN_POINTS = (f"組み直す設計の点（redesign_points）の欄が配列でないか読める項が無く、名指しの有無を決められないので"
+                 f"{gatemarks.status_named(seal.UNVERIFIABLE)}にした: ")
 
 
 # ---------------------------------------------------------------- 入口
@@ -152,6 +160,36 @@ def save(out, name: str, reply: str) -> dict:
 
 
 # ---------------------------------------------------------------- 出口
+def findings(row: dict, minimality) -> list:
+    """修正の段へ返す項目（出口の欄 findings）。判定が fix-needed の時だけ、返答の deletions の行を {where, text} にする（text は
+    修正の段の notes に行ごとに入るので 1 行）。deletions が空の fix-needed は、名指しの無い項目を作らず判定の reason の 1 行を 1 つ載せる"""
+    if row["status"] != seal.FIX_NEEDED:
+        return []
+    deletions = minimality.get("deletions") if isinstance(minimality, dict) else None
+    rows = [{"where": str(d.get("where") or ""), "text": oneline.one_line(d.get("why") or "")} for d in deletions or [] if isinstance(d, dict)]
+    return rows or [{"where": "", "text": oneline.one_line(row["reason"])}]
+
+
+def by_points(doc: dict) -> dict:
+    """R1 の判定の行の決め直し（eyekit.verdict_row の settle。docs/design/r1.md の 0.9）。語の確かめは済んだ返答 doc の redesign_points
+    の名指しで作り直しを決める: status が unverifiable ならそのまま。欄が在るのに配列でない・読める項が無い → unverifiable
+    （BROKEN_POINTS + reason）。名指しが在る → redesign-needed（目が別の語を書いていれば頭に RAISED_BY_POINTS、尾に「（組み直す設計の点:
+    <点を ／ でつなぐ>）」）。名指しが無いのに redesign-needed → fix-needed（頭に UNNAMED_REDESIGN）。ほかは返答のまま"""
+    status, reason = doc["status"], str(doc.get("reason"))
+    if status == seal.UNVERIFIABLE:
+        return {"status": status, "reason": reason}
+    named = doc.get("redesign_points")
+    points = [p.strip() for p in named if isinstance(p, str) and p.strip()] if isinstance(named, list) else []
+    if not points and named not in (None, []):
+        return {"status": seal.UNVERIFIABLE, "reason": BROKEN_POINTS + reason}
+    if points:
+        head = "" if status == seal.REDESIGN else RAISED_BY_POINTS
+        return {"status": seal.REDESIGN, "reason": f"{head}{reason}（組み直す設計の点: {'／'.join(points)}）"}
+    if status == seal.REDESIGN:
+        return {"status": seal.FIX_NEEDED, "reason": UNNAMED_REDESIGN + reason}
+    return {"status": status, "reason": reason}
+
+
 def finish(out) -> dict:
     """place の intake.json と役の返答から出力を組み、finish.json にも書く（docs/design/r1.md の 4 節）"""
     out = pathlib.Path(out)
@@ -160,12 +198,13 @@ def finish(out) -> dict:
     if not isinstance(doc, dict) or not doc.get("due"):
         why = (doc.get("reason") if isinstance(doc, dict) else "") or NO_INTAKE
         row = {"status": "unverifiable", "reason": UNREAD_INPUT.format(why=why)}
-        got = {"ok": False, "status": "failed", "reason": why, "verdict": row, "questions": [], "report": [eyekit.headline("R1", row)]}
+        got = {"ok": False, "status": "failed", "reason": why, "verdict": row, "questions": [], "findings": [],
+               "report": [eyekit.headline("R1", row)]}
     else:
         reply, unread = eyekit.read_reply(out, files.MINIMALITY)
-        row, took = eyekit.verdict_row("r1", reply, unread)
+        row, took = eyekit.verdict_row("r1", reply, unread, settle=by_points)
         got = {"ok": took, "status": "ran" if took else "failed", "reason": "" if took else row["reason"], "verdict": row,
-               "questions": [], "report": report.lines(row, reply, comments)}
+               "questions": [], "findings": findings(row, reply), "report": report.lines(row, reply, comments)}
     try:   # Archon の JSON.parse が読めない NaN・Infinity は、控えを書く前に落とす（出口が落ちた形にする）
         json.dumps(got, allow_nan=False)
     except ValueError as e:

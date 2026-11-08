@@ -19,6 +19,8 @@ import yaml
 from tests.blocks import kit
 
 BLOCK = "line"
+EYESBACK = kit.BLOCKS / "line" / "src" / "eyesback.py"
+LIMIT = kit.load("line", "eyesback").LIMIT if EYESBACK.exists() else 0   # 独立の目から修正の段へ返す周の数（src/eyesback.py が無い木では 0）
 PATH = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
 TEXT = PATH.read_text(encoding="utf-8")
 DOC = yaml.safe_load(TEXT)
@@ -100,14 +102,21 @@ class ReceiverCase(unittest.TestCase):
             with self.subTest(reader=reader):
                 reads = refs({k: v for k, v in TOP[reader].get("with", {}).items() if isinstance(v, dict)})
                 self.assertFalse([k for k in includes if f'"${k}.output' in reads], f"{reader} が include を from: で直に読む")
+        heads = [f"back-{k}" for k in range(1, LIMIT + 2)] + ["eyes-back"]   # 返す輪の周の頭と集めは、with: の値の全部で include の返りを直に読まない
+        for reader in heads:
+            with self.subTest(reader=reader):
+                reads = refs(TOP[reader].get("with", {}))
+                self.assertFalse([k for k in includes if f'"${k}.output' in reads or f"${k}.output" in reads], f"{reader} が include の返りを直に読む")
         self.assertEqual(TOP["collect"]["trigger_rule"], "all_done")
         for key in includes:
             if key != "report":
                 self.assertIn(f"{key}-out", TOP["collect"]["depends_on"], key)
+        self.assertIn("eyes-back", TOP["collect"]["depends_on"])
 
     def test_merge_seal_waits_for_the_eyes_receiver(self):
-        """eyes の graph の返す node が落ちても merge-seal の with: が落ちた node を読まない（docs/design/line.md の 1.3）"""
-        self.assertEqual(TOP["merge-seal"]["depends_on"], ["eyes-out"])
+        """封じは最後の周の目と試験を読むので、返す輪の集めを待つ（eyes の graph の返す node が落ちても merge-seal の with: が落ちた node を
+        読まない。docs/design/line.md の 1.3）"""
+        self.assertEqual(TOP["merge-seal"]["depends_on"], ["eyes-back"])
 
     def test_merge_apply_reads_the_seal_through_ask_final(self):
         """受け皿の got の中の欄は with: で読めない（Archon は output_format の宣言の外の道を誤りにする）ので、封じの値は最後の承認ノードが
@@ -116,6 +125,76 @@ class ReceiverCase(unittest.TestCase):
         for name in ("sealed_hash", "fingerprint", "green_ok", "eyes_ok", "r2"):
             self.assertEqual(with_[name], f"$ask-final.output.{name}", name)
         self.assertNotIn("$merge-seal.output", refs(with_))
+
+
+class EyesBackCase(unittest.TestCase):
+    """独立の目から修正の段へ返す輪（docs/design/line.md の 1.3 の 21.5）の周の節と、後ろのつなぎ替え"""
+
+    def same_shape(self, suffix: str):
+        """周の節の同じ種類（suffix）を、周の番号を K にしてそろえた JSON の字の並び"""
+        return {k: re.sub(rf"back-{k}\b", "back-K", json.dumps(TOP[f"back-{k}{suffix}"], sort_keys=True)) for k in range(1, LIMIT + 1)}
+
+    def test_rounds_are_three_and_alike(self):
+        """返す周の数が eyesback.LIMIT と同じで（計画の往復の上限 rounds.LIMIT とは別）、どの周の節も周の番号を替えただけの同じ形（when・
+        depends_on・with: の上書きの鍵・trigger_rule）で、最後に上限の訳を記録するだけの周の頭 back-(LIMIT+1) と集め eyes-back が在り、
+        eyes-out とどの周の目の受け皿の names も同じ字で findings・route・route_why を持つ"""
+        self.assertEqual(LIMIT, 3, "返す周の数は 3 周（src/eyesback.py の LIMIT の 1 か所）")
+        heads = sorted(k for k in TOP if re.fullmatch(r"back-\d+", k))
+        self.assertEqual(heads, [f"back-{k}" for k in range(1, LIMIT + 2)])
+        self.assertEqual(sorted(k for k in TOP if re.fullmatch(r"back-\d+-fix", k)), [f"back-{k}-fix" for k in range(1, LIMIT + 1)])
+        for suffix in ("-fix", "-fix-out", "-fixed", "-gate", "-gate-out", "-eyes", "-eyes-out"):
+            with self.subTest(suffix=suffix):
+                self.assertEqual(len(set(self.same_shape(suffix).values())), 1, "周の節の形がそろわない")
+        for k in range(1, LIMIT + 2):
+            head = TOP[f"back-{k}"]
+            with self.subTest(head=k):
+                # 1 周目は最初の目の受け皿だけを待つ（飛べば頭も飛ぶ。止まった run で最後の承認ノードを走らせない）。2 周目以降は前の周の飛びうる節を読む
+                self.assertEqual((head["script"], head.get("trigger_rule")), ("eyes_back", None if k == 1 else "none_failed_min_one_success"))
+                self.assertEqual(head["depends_on"], ["eyes-out"] if k == 1 else [f"back-{k - 1}", *(f"back-{k - 1}-{x}" for x in ("fixed", "fix-out", "gate-out", "eyes-out"))])
+                self.assertEqual(head["with"]["round"], str(k))
+                self.assertEqual(sorted(head["with"]), sorted(TOP["back-1"]["with"]))
+                self.assertIsNone(head.get("when"), "頭は毎周走る（飛んだ node の出力を when: が読むと Archon が誤りにする）")
+                if k > 1:
+                    self.assertEqual(head["with"]["prev"], f"$back-{k - 1}.output")
+                    self.assertEqual(head["with"]["fixed"], {"from": f"$back-{k - 1}-fixed.output", "if_skipped": None})
+        self.assertEqual(TOP["back-1-fix"]["include"], "works-factory-fix")
+        self.assertEqual(TOP["back-1-fix"]["with"].keys(), TOP["refix-run"]["with"].keys(), "返しの修正の入力は 2 度目の修正と同じ鍵")
+        self.assertEqual(TOP["back-2-fix"]["with"]["only_items"], "$back-2.output.only_items")
+        self.assertEqual(TOP["back-1-fixed"]["with"]["more"], "$back-1.output.more")
+        self.assertEqual(TOP["back-1-fixed"]["with"]["add"], {"from": "$back-1-fix-out.output.got", "if_skipped": None})
+        self.assertEqual(TOP["back-1-fixed"]["with"].keys(), TOP["fixed"]["with"].keys())
+        self.assertEqual({k for k, v in TOP["back-1-fixed"]["with"].items() if TOP["fixed"]["with"][k] != v}, {"add", "more"})
+        self.assertEqual(TOP["back-1-gate"]["with"], TOP["test-gate-final"]["with"])
+        names = TOP["eyes-out"]["with"]["names"]
+        self.assertTrue({"findings", "route", "route_why"} <= set(names.split()))
+        for k in range(1, LIMIT + 1):
+            self.assertEqual(TOP[f"back-{k}-eyes-out"]["with"]["names"], names)
+        final = TOP["eyes-back"]
+        self.assertEqual((final["script"], final["trigger_rule"], final.get("when")), ("eyes_back_end", "none_failed_min_one_success", None))
+        self.assertEqual(final["depends_on"], heads)
+        self.assertEqual(final["with"], {f"back_{k}": {"from": f"$back-{k}.output", "if_skipped": None} for k in range(1, LIMIT + 2)})
+        props = final["output_format"]["properties"]
+        self.assertTrue(props["eyes"]["description"].startswith("json(returns:works-factory-eyes):"))
+        self.assertTrue(props["tests"]["description"].startswith("json(returns:works-factory-test-gate):"))
+
+    def test_seal_and_final_read_the_last_round(self):
+        """merge-seal が eyes-back を待ち、when に sealable を持ち、指紋・緑・目の値を eyes-back から読む。ask-final は eyes-back を
+        if_skipped: null で読み、merge-apply の items と result の eyes は eyes-back から読み、eyes-back は when を持たず、周の頭が 1 つも走らない run では飛ぶ（all_done にすると、計画や修正で止まった run でも集めが済み、最後の承認ノードが走る）"""
+        seal = TOP["merge-seal"]
+        self.assertEqual(seal["depends_on"], ["eyes-back"])
+        self.assertIn("$eyes-back.output.sealable == true", seal["when"])
+        self.assertEqual({k: seal["with"][k] for k in ("fingerprint", "green_ok", "eyes_ok")},
+                         {"fingerprint": "$eyes-back.output.fingerprint", "green_ok": "$eyes-back.output.green_ok", "eyes_ok": "$eyes-back.output.eyes_ok"})
+        ask = TOP["ask-final"]
+        self.assertIn("eyes-back", ask["depends_on"])
+        self.assertEqual(ask["with"]["eyes_back"], {"from": "$eyes-back.output", "if_skipped": None})
+        self.assertEqual(ask["with"]["tests"], {"from": "$test-gate-final-out.output.got", "if_skipped": None}, "最初の試験と目は今の受け皿のまま")
+        self.assertEqual(ask["with"]["eyes"], {"from": "$eyes-out.output.got", "if_skipped": None})
+        self.assertEqual(TOP["merge-apply"]["with"]["items"], "$eyes-back.output.item_claims")
+        self.assertEqual(TOP["result"]["with"]["eyes"], {"from": "$eyes-back.output.eyes", "if_skipped": None})
+        self.assertEqual(TOP["collect"]["with"]["eyes_back"], {"from": "$eyes-back.output", "if_skipped": None})
+        self.assertEqual((TOP["eyes-back"]["trigger_rule"], TOP["eyes-back"].get("when")), ("none_failed_min_one_success", None))
+        self.assertIn("eyes-back", TOP["result"].get("depends_on", []) + TOP["collect"]["depends_on"])
 
 
 class IncludeInputsCase(unittest.TestCase):
@@ -128,13 +207,14 @@ class IncludeInputsCase(unittest.TestCase):
             with self.subTest(include=key):
                 self.assertIn(key, TOP)
                 self.assertNotIn("loop_group", TOP[key])
-        self.assertEqual(named.count("works-factory-fix"), 2)
+        self.assertEqual(named.count("works-factory-fix"), 2 + LIMIT, "1 回目・2 度目と、返す周ごとに 1 つ")
         self.assertEqual(named.count("works-factory-plan"), 3, "往復の中・案の直し・仕様駆動の run の spec-plan")
         self.assertEqual(named.count("works-factory-plan-review"), 3, "往復の中・案の直し・設計の段の往復の theme-review（形 theme）")
         self.assertEqual(named.count("works-factory-diagnose"), 2, "再審と、仕様駆動の run の spec-diagnose")
         self.assertEqual(named.count("works-factory-parallel-pr"), 1)
         self.assertEqual(named.count("works-factory-judge"), 1, "再審は判定のまとめを 2 度 include せず diagnose を直に include する")
-        self.assertEqual(named.count("works-factory-eyes"), 1)
+        self.assertEqual(named.count("works-factory-eyes"), 1 + LIMIT, "最初の目と、返す周ごとに 1 つ")
+        self.assertEqual(named.count("works-factory-test-gate"), 2 + LIMIT, "直す前・最後の試験と、返す周ごとに 1 つ")
         self.assertNotIn("works-factory-gate-efficacy", named, "重い検算は run の中で回さない（持ち主の決め 2026-10-19）")
         self.assertNotIn("gates", DOC["inputs"])
 

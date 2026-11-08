@@ -4,9 +4,9 @@
 封じる型は ASF の merge-queue（gate の封印を execute が照らし直し、書いた後に読み戻す）に倣う。
 
 - SealError: 書けない・読み戻しが書いた物と違う
-- STATUSES・FIX_NEEDED: 目の状態の語（pass・fix-needed・redesign-needed・unverifiable）。fix-needed は R1 だけが言う
+- STATUSES・FIX_NEEDED・FIX_EYES: 目の状態の語（pass・fix-needed・redesign-needed・unverifiable）と、fix-needed を言える目（r1・r2）
 - STATUS_WORDS: 目の状態の語 → 平易な言い方（通った・直しが要る・作り直しが要る・確かめられない）
-- eye_statuses(eye) -> tuple: 目ごとに許す語の組（r1 は STATUSES・ほかは fix-needed を除く 3 語）
+- eye_statuses(eye) -> tuple: 目ごとに許す語の組（FIX_EYES の目は STATUSES・ほかは fix-needed を除く 3 語）
 - digest(data) -> str: sha256 の 16 進 64 字
 - write_readback(path, data) -> str: 隣の一時ファイルに書いて読み戻し、合えば path に付け替えて digest を返す。違えば SealError
   （書けたと言わない・path は前のまま）
@@ -35,11 +35,12 @@ REQUEST_BY = "request:"          # 止め札: 文がこれで始まる止める�
 # apply_refusal と人の答えが決める（語ごとに阻害かを持つ表は置かない。重さの区別は STATUS_WORDS の言い方だけ）
 PASSED, FIX_NEEDED, REDESIGN, UNVERIFIABLE = STATUSES = ("pass", "fix-needed", "redesign-needed", "unverifiable")
 STATUS_WORDS = {PASSED: "通った", FIX_NEEDED: "直しが要る", REDESIGN: "作り直しが要る", UNVERIFIABLE: "確かめられない"}
+FIX_EYES = ("r1", "r2")   # 直しが要る（FIX_NEEDED）を言える目。R1 は削れる物・増分、R2 は作り残し。ほかの目は言えない
 
 
 def eye_statuses(eye: str) -> tuple:
-    """目ごとに許す状態の語の組。R1（eye が r1。大文字小文字は問わない）は STATUSES の全部、ほかの目は FIX_NEEDED を除く 3 語"""
-    return STATUSES if eye.lower() == "r1" else tuple(w for w in STATUSES if w != FIX_NEEDED)
+    """目ごとに許す状態の語の組。FIX_EYES の目（r1・r2。大文字小文字は問わない）は STATUSES の全部、ほかの目は FIX_NEEDED を除く 3 語"""
+    return STATUSES if eye.lower() in FIX_EYES else tuple(w for w in STATUSES if w != FIX_NEEDED)
 
 
 UNKNOWN_HEAD = "守りのパスを確かめられない（差分が一覧に触れていないとは言えない）: "

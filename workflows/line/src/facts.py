@@ -186,11 +186,12 @@ def _units(returns: dict) -> list:
 def fix_stages(returns: dict) -> list:
     """修正の段ごとの控えの段（stages.stage。fixed の stages の fix の got から）"""
     out = []
-    for s in _list(as_dict(returns.get("fix")).get("stages")):
+    rows = _list(as_dict(returns.get("fix")).get("stages"))
+    for s, name in zip(rows, stageslib.names(rows)):
         got = as_dict(s).get("fix")
         if isinstance(got, dict):
             try:
-                out.append(stageslib.stage(got))
+                out.append(stageslib.stage(got, name))
             except KeyError:
                 out.append(None)
     return out

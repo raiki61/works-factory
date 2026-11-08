@@ -12,9 +12,9 @@
 - human_items(answers): 承認ノードの答え {start, before_fix} を記録の行 {round, node, answer, note, …} に
 - policy_start(policy_file, request_answers)・policy_body(policy_file): lib/policy.py の口に渡す最小の始めの記録と、断片 policy の本文
 - recorded_rows(...)・recorded_rows_text(rows): 記録された方針の行と、断片 recorded-policy の値と段落の真偽
-- status_values(eye): md に入れる判定の語 {st_pass, st_redesign, st_unverifiable}（R1 は st_fix も）
-- read_reply(place, name)・verdict_row(eye, doc, why)・headline(name, row): 役の返答の読みと、判定の行の決め（docs/design/r1.md の
-  0.9）と、報告の頭の 1 行
+- status_values(eye): md に入れる判定の語 {st_pass, st_redesign, st_unverifiable}（R1・R2 は st_fix も）
+- read_reply(place, name)・verdict_row(eye, doc, why, settle)・headline(name, row): 役の返答の読みと、判定の行の語の確かめ（docs/design/r1.md の
+  0.9。目ごとの決め直しは呼び手の block が settle で渡す）と、報告の頭の 1 行
 """
 from __future__ import annotations
 
@@ -35,12 +35,6 @@ FELL_MARK = "の筋が落ちた"
 NO_FILE = "出力のファイルが無い"
 NO_AFTER = "直しの後の実測: 控えが無い（測っていない run）"   # 元 blk-eyes/lib/eyes.py:93
 AFTER_MISNAMED = "直しの後の実測: 控え {path} を読まない（名が " + structmark.AFTER_FILE + " でない）"
-# R1 の作り直しが要るの導き（verdict_row）の頭の字。最後の承認ノードと報告の冒頭に平易な主語で出る
-_FIX, _REDESIGN = map(gatemarks.status_named, (seal.FIX_NEEDED, seal.REDESIGN))
-UNNAMED_REDESIGN = f"目は{_REDESIGN}と書いたが、組み直す設計の点（redesign_points）の名指しが無いので{_FIX}に倒した: "
-RAISED_BY_POINTS = f"組み直す設計の点（redesign_points）の名指しが在るので{_REDESIGN}にした: "
-BROKEN_POINTS = (f"組み直す設計の点（redesign_points）の欄が配列でないか読める項が無く、名指しの有無を決められないので"
-                 f"{gatemarks.status_named(seal.UNVERIFIABLE)}にした: ")
 REVIEW_ACCEPTED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て案を通した（外れを認めた）"
 REVIEW_BLOCKED = "  事前審査の最後の往復（pass-{k}）は上の外れの訳を見て、block の穴 {n} 件を残した（外れを認めていない）: {faces}"
 REVIEW_GAVE_UP = "  事前審査の最後の往復（pass-{k}）は受け付けが諦めて案を通していない（外れを認めていない）: {why}"
@@ -200,7 +194,7 @@ def recorded_rows_text(rows) -> tuple[str, bool]:
 
 # ---------------------------------------------------------------- 判定の語・返答・判定の行
 def status_values(eye: str) -> dict:
-    """md に入れる判定の語（seal.eye_statuses(eye) に在る語だけ。fix-needed は R1 だけ）"""
+    """md に入れる判定の語（seal.eye_statuses(eye) に在る語だけ。fix-needed は seal.FIX_EYES の目だけ）"""
     words = seal.eye_statuses(eye)
     out = {"st_pass": seal.PASSED, "st_redesign": seal.REDESIGN, "st_unverifiable": seal.UNVERIFIABLE}
     if seal.FIX_NEEDED in words:
@@ -225,28 +219,18 @@ def fell_text(eye: str, state: str) -> str:
     return f"{LANE[eye]} {FELL_MARK}（{eye}: {state}。ノードが落ちた）"
 
 
-def verdict_row(eye: str, doc, why: str = "") -> tuple[dict, bool]:
+def verdict_row(eye: str, doc, why: str = "", settle=None) -> tuple[dict, bool]:
     """元 eyeverdict._row・_off_contract・fell_text。(判定の行 {status, reason}, 返答を受けたか)。docs/design/r1.md の 0.9:
-    返答が無い・読めない → unverifiable（受けていない）。判定の語が目の約束の外 → 同じく（状態は「出力の判定の語が約束の外」）。
-    R1 は redesign_points の名指しで作り直しを決める（名指しが在れば redesign-needed、無いのに redesign-needed なら fix-needed、
-    欄が壊れていれば unverifiable）。ほかは返答のまま"""
+    返答が無い・読めない → unverifiable（受けていない）。判定の語が目の約束（seal.eye_statuses）の外 → 同じく（状態は「出力の判定の語が
+    約束の外」）。語が約束の内なら、呼び手が settle(doc) を渡していればその返す行 {status, reason}、渡していなければ返答のまま
+    （目ごとの決め直しは呼び手の block が持つ。ここは目の名や返答の欄で枝を分けない）"""
     if not isinstance(doc, dict):
         return {"status": seal.UNVERIFIABLE, "reason": fell_text(eye, why or NO_FILE)}, False
     if doc.get("status") not in seal.eye_statuses(eye):
         return {"status": seal.UNVERIFIABLE, "reason": fell_text(eye, "出力の判定の語が約束の外")}, False
-    status, reason = doc["status"], str(doc.get("reason"))
-    if seal.FIX_NEEDED not in seal.eye_statuses(eye) or status == seal.UNVERIFIABLE:
-        return {"status": status, "reason": reason}, True
-    named = doc.get("redesign_points")
-    points = [p.strip() for p in named if isinstance(p, str) and p.strip()] if isinstance(named, list) else []
-    if not points and named not in (None, []):
-        return {"status": seal.UNVERIFIABLE, "reason": BROKEN_POINTS + reason}, True
-    if points:
-        head = "" if status == seal.REDESIGN else RAISED_BY_POINTS
-        return {"status": seal.REDESIGN, "reason": f"{head}{reason}（組み直す設計の点: {'／'.join(points)}）"}, True
-    if status == seal.REDESIGN:
-        return {"status": seal.FIX_NEEDED, "reason": UNNAMED_REDESIGN + reason}, True
-    return {"status": status, "reason": reason}, True
+    if settle is not None:
+        return settle(doc), True
+    return {"status": doc["status"], "reason": str(doc.get("reason"))}, True
 
 
 def headline(name: str, row: dict) -> str:

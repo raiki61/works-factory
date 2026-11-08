@@ -16,7 +16,7 @@ hash の正本は Archon の DB の run の記録で、置き場のファイル�
 result の値から読む欄は表 RETURN_READS の 1 か所に書き（グラフ → (返す値そのもの "", 読む欄の形の form, 読む欄の道)。.shared の形
 apply-result.schema.json）、読む前にその形で照らす（.shared の口 ports.shape_errors）。欄の名がずれた値を、置いた差分が無い・止まった run と
 読み違えず、形の誤りとして終了の値 2 で止まる。form と道が両方のグラフの returns: が名指すノードの出力に合うかは tests/layers/scan.py の E5（_shell_reads）が照らす。
---allow-failed の道が出来事から読む封じの受け皿・独立の目の受け皿・最後の承認ノードの答えも、同じ表に鍵 (グラフ, ノードの id) の行で書き、
+--allow-failed の道が出来事から読む封じの受け皿・返す周の集め eyes-back の欄 eyes（最後の周の独立の目）・最後の承認ノードの答えも、同じ表に鍵 (グラフ, ノードの id) の行で書き、
 読む前にその form の形で照らして、合わなければ同じく終了の値 2 で止まる（step_read。ノードの出力が form に合うかも E5 が照らす）。
 """
 import argparse
@@ -46,10 +46,12 @@ POINTER_TYPE = "archon_artifact"   # merge の出力の diff の型（試験が 
 # merge が置き場に置く差分の名。置き場（place）は include の道で決まる（merge-seal/sealed.diff・merge-apply/apply.diff など）ので、
 # パスは決めず、ポインタの先の名の末尾で照らす（docs/design/merge.md の 1.3。同じく output_format の pattern と縛る）
 APPLY_DIFF, SEALED_DIFF = "apply.diff", "sealed.diff"
-# メイングラフの出力が読めない run で読む、run の記録のノードの id（試験がメイングラフの YAML と縛る）。封じのノード merge-seal と、merge-apply に
-# R2 を渡す独立の目 eyes は、サブグラフの出力を受け皿（出力 {got, stop_reason}）で受けて読む（docs/design/line.md の頭の語「受け皿」）。最後の承認ノードの
-# 答えは、merge-apply に答えを渡すメイングラフのノードの出力 {go, answer, stop_reason}
-SEAL_STEP, EYES_STEP, ANSWER_STEP = "merge-seal-out", "eyes-out", "answer-final"
+# メイングラフの出力が読めない run で読む、run の記録のノードの id（試験がメイングラフの YAML と縛る）。封じのノード merge-seal は、サブグラフの
+# 出力を受け皿（出力 {got, stop_reason}）で受けて読む（docs/design/line.md の頭の語「受け皿」）。R2 を読む独立の目は、返す周の集め eyes-back の
+# 欄 eyes（最後の周の目の got。返さなかった run は最初の目）から読む。最後の承認ノードの答えは、merge-apply に答えを渡すメイングラフのノードの出力
+# {go, answer, stop_reason}
+SEAL_STEP, EYES_STEP, ANSWER_STEP = "merge-seal-out", "eyes-back", "answer-final"
+LAST_EYES = "eyes"
 GOT = "got"
 # workflow get の答えに run の記録の出来事の列を足す旗とその欄・ノードの出力を持つ出来事・ノードの済んだ状態・出来事の出力の欄（型つきの出力・
 # 切り詰めの印・素の出力）。読む順も Archon の terminal-record.ts が returns を組む読みと同じ（型つきの出力が在れば切り詰めの印を見ない。
@@ -73,7 +75,7 @@ R2_ROW = "r2.status"
 GO, ANSWER_ROW, ANSWER_STOP, ANSWER_SAID = "go", "answer", "stop_reason", "answer.text"
 SEAL_PATHS, EYES_PATHS, ANSWER_PATHS = (MODE, OK, HASH, DIFF, REASON), (R2_ROW,), (GO, ANSWER_ROW, ANSWER_STOP, ANSWER_SAID)
 RETURN_READS = {LINE: ("", RESULT_FORM, RESULT_PATHS), CHAIN: ("", RESULT_FORM, RESULT_PATHS),
-                (LINE, SEAL_STEP): (GOT, SEAL_FORM, SEAL_PATHS), (LINE, EYES_STEP): (GOT, EYES_FORM, EYES_PATHS),
+                (LINE, SEAL_STEP): (GOT, SEAL_FORM, SEAL_PATHS), (LINE, EYES_STEP): (LAST_EYES, EYES_FORM, EYES_PATHS),
                 (LINE, ANSWER_STEP): ("", ANSWER_FORM, ANSWER_PATHS)}
 
 

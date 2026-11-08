@@ -20,7 +20,7 @@ SECTIONS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "sections.schema.json"
 INPUTS = ("notices", "start", "answer_start", "test_gate_base", "judge", "tiers", "owed", "structure", "structure_in", "independent_design",
           "design_in", "rounds", "ask_before_fix", "answer_before_fix", "fix_in", "fix", "after_fix", "raise", "lens", "lens_in", "delta",
           "replan", "replan_review", "ask_replan", "answer_replan", "refix", "lens_2", "lens_2_in", "delta_2", "fixed", "parallel_after",
-          "rejudge", "spec_check", "judged", "test_gate_final", "eyes_in", "eyes", "merge_seal", "ask_final", "answer_final", "merge_apply",
+          "rejudge", "spec_check", "judged", "test_gate_final", "eyes_in", "eyes", "eyes_back", "back_1", "merge_seal", "ask_final", "answer_final", "merge_apply",
           "optional")
 
 
@@ -50,7 +50,8 @@ def passing() -> dict:
            "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- u1: fixed"]}
     fix["closure"] = ptr("fix/closure.json")
     eyes = {"ok": True, **{f"r{n}": {"status": "pass", "reason": ""} for n in range(1, 5)}, "questions": [], "means_questions": [], "passes": [],
-            "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "report": ["- 目: 通した"],
+            "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "findings": [], "route": "stay",
+            "route_why": "返す物が無い（どの目も通った）", "report": ["- 目: 通した"],
             "sections": [{"title": "独立の目 R1 最小性とコメント", "lines": ["- R1 通した"]}, {"title": "直した後の構造の実測", "lines": ["- 実測"]}]}
     judge = {"ok": True, "stop_reason": "", "reason": "", "ready": True, "units": [{"id": "u1"}], "judgment": None, "answer_ties": None,
              "out_of_purpose": None, "materials": None, "brief": None, "inputs": None, "purpose": None, "purpose_text": "P",
@@ -63,7 +64,7 @@ def passing() -> dict:
     seal = {"mode": "seal", "ok": True, "hash": "h", "diff": ptr("merge-seal/diff"), "protected_hits": [], "protected_count": 0,
             "reason": "", "deliver": None, "report": ["- 封じた"]}
     fixed = {"go": True, "done": True, "held": False, "no_fix": False, "diffed": True, "checks": True, "eyes_due": True, "skip_why": "",
-             "rejudge": False, "refixed": False, "stages": [{"stage": 1, "fix": fix, "lens": None, "delta": None}], "carry": [],
+             "rejudge": False, "refixed": False, "stages": [{"stage": 1, "kind": "first", "fix": fix, "lens": None, "delta": None}], "carry": [],
              "tdd": [fix["tdd"]], "units": fix["units"], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": fix["diff"],
              "item_claims": None, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [],
              "plan_declared": [], "plan": None, "ripple": None, "left": [], "stop_reason": ""}
@@ -205,6 +206,23 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["left"][0]["where"], "独立の目 R2")
         self.assertIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
         self.assertIn(self.f.EYE_ASK_HEAD, [a["kind"] for a in got["asks"]])
+
+    def test_r2_fix_needed_row_goes_to_findings_like_r1(self):
+        """R2 が fix-needed（作り残し）で終わった run の R2 の行は、R1 の fix-needed の行と同じく次の依頼の findings に入り、prior_failures に
+        運ばれない。R2 が redesign-needed の行は今どおり findings から外し、where『独立の目 R2』の行として prior_failures に運ぶ"""
+        carry = __import__("carry")
+        for eye in ("r1", "r2"):
+            with self.subTest(eye=eye):
+                v = passing()
+                v["eyes"] = {**v["eyes"], eye: {"status": "fix-needed", "reason": "入口が 2 つ残る"}}
+                carried = self.build(v)["carry"]
+                self.assertEqual([r["text"] for r in carried["findings"]], [f"{eye.upper()} が fix-needed: 入口が 2 つ残る"])
+                self.assertEqual(carried["prior"], [])
+        v = passing()
+        v["eyes"] = {**v["eyes"], "r2": {"status": "redesign-needed", "reason": "入口が 2 つ残る"}}
+        carried = self.build(v)["carry"]
+        self.assertEqual([(r["where"], r["text"]) for r in carried["prior"]], [(carry.REDESIGN_WHERE, "R2 が redesign-needed: 入口が 2 つ残る")])
+        self.assertEqual(carried["findings"], [])
 
     MEANS_Q = "R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y"
 
@@ -375,6 +393,30 @@ class SectionsCase(unittest.TestCase):
         with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
             return self.s.build(values, record(), cwd=self.run.repo, folder=self.run.artifacts)
 
+    def test_returned_rounds_are_a_section(self):
+        """報告の sections に、承認ノードと同じ見出しと行で、返した周の節が入る。返した周が 0 なら節は無い"""
+        eb = kit.load(BLOCK, "eyesback")
+        items = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
+        rows = [{"round": 1, "r1": "fix-needed", "r2": "pass", "items": items}]
+        got = self.build({**passing(), "eyes_back": {"rows": rows, "exit": "返す物が無い（どの目も通った）", "left": []}})
+        self.assertEqual(check(got, SECTIONS_SCHEMA), [])
+        section = next(s for s in got if s["title"] == self.s.BACK)
+        self.assertEqual(self.s.BACK, eb.HEAD)
+        self.assertEqual(section["lines"], eb.lines(rows, "返す物が無い（どの目も通った）"))
+        titles = [s["title"] for s in got]
+        self.assertLess(titles.index(self.s.EYES), titles.index(self.s.BACK))
+        for record in (None, {"rows": [], "exit": "返す物が無い", "left": []}):
+            self.assertNotIn(self.s.BACK, [s["title"] for s in self.build({**passing(), "eyes_back": record})])
+
+    def test_broken_loop_is_named_when_a_round_head_ran(self):
+        """周の節が中の誤りで落ちると集め eyes-back が飛ぶ（eyes_back が null）。周の頭 back-1 が走っていれば、返した周の節に「返す輪が途中で
+        落ちた（下の状態は返す前の物）」の 1 行を出す。周の頭も走らなかった run は今どおり節を出さない"""
+        eb = kit.load(BLOCK, "eyesback")
+        got = self.build({**passing(), "eyes_back": None, "back_1": {"go": True, "round": 1}})
+        section = next(s for s in got if s["title"] == self.s.BACK)
+        self.assertEqual(section["lines"], [eb.BROKE])
+        self.assertNotIn(self.s.BACK, [s["title"] for s in self.build({**passing(), "eyes_back": None, "back_1": None})])
+
     def test_order_and_shape(self):
         got = self.build(passing())
         self.assertEqual(check(got, SECTIONS_SCHEMA), [])
@@ -470,6 +512,31 @@ class CollectScriptCase(unittest.TestCase):
         text = "\n".join(lines)
         self.assertIn("  - tests/test_b.py", lines)
         self.assertNotIn("工場は絞らない", text)
+
+    def test_returns_use_the_last_round_eyes(self):
+        """collect の script は eyes_back が在れば、その最後の周の目と試験と合わせを報告に使う（返さなかった run は最初の物）"""
+        run = kit.Run(self, BLOCK)
+        seed(run)
+        (run.artifacts / "r1").mkdir()
+        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        v = passing()
+        last_eyes = {**v["eyes"], "report": ["- 最後の周の目: 通した"], "sections": [{"title": "独立の目 R1 最小性とコメント", "lines": ["- 最後の周の R1 通した"]}]}
+        items = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
+        v["eyes_back"] = {"rows": [{"round": 1, "r1": "fix-needed", "r2": "pass", "items": items}], "exit": "返す物が無い（どの目も通った）", "left": [],
+                          "fixed": v["fixed"], "tests": v["test_gate_final"], "eyes": last_eyes, "fingerprint": None, "green_ok": True,
+                          "eyes_ok": True, "sealable": True, "item_claims": None}
+        got = run.script("collect", **self.args(v))
+        sections = json.loads((run.artifacts / got["sections"]["path"]).read_text(encoding="utf-8"))
+        text = json.dumps(sections, ensure_ascii=False)
+        self.assertIn("最後の周の目: 通した", text)
+        self.assertIn("最後の周の R1 通した", text)
+        self.assertNotIn("- R1 通した", text, "最初の目の節は使わない")
+        self.assertIn(kit.load(BLOCK, "eyesback").HEAD, [s["title"] for s in sections])
+        fell = {**v["eyes_back"], "exit": kit.load(BLOCK, "eyesback").EXITS["fell"], "fixed": None, "tests": None, "eyes": None, "rows": []}
+        got = run.script("collect", **self.args({**v, "eyes_back": fell}))
+        text = (run.artifacts / got["sections"]["path"]).read_text(encoding="utf-8")
+        self.assertIn("- R1 通した", text, "輪の節が落ちた記録なら最初の目を使う")
+        self.assertNotIn("最後の周の目: 通した", text)
 
     def test_prior_version_return_is_not_read_as_empty(self):
         """前の版の返り（受け皿の got の欄の欠け）を resume で受けたら空と読まず、訳だけの facts で record_invalid に倒す（4.3-12）"""

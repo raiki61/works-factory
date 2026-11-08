@@ -9,11 +9,15 @@
 green_ok・eyes_ok・r2）もこの node が受け皿の got から返す（受け皿の got の中の欄は Archon の with: で読めない。output_format の宣言の
 外の道になるため）。封じが飛んだ・落ちた時は sealed_hash が空で、開ける理由に「差分を封じられなかった」が入る（閉じた側に倒れる）。
 
-入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes・seal・spec_check・parallel_after・replan_review（受け皿の got か
+試験・目・合わせは最後の周の物を使う（独立の目から修正の段へ返した run は返した後の物。src.eyesback.current が選ぶ唯一の所を 1 度呼び、文と
+merge の apply に渡す値の両方へ同じ物を渡す）。返す輪の集め eyes_back は材料の欄 eyes_back として運び、返した周の節と開ける理由が読む。
+
+入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes（最初の試験と目の受け皿の got）・eyes_back（返す輪の集めの出力）・seal・spec_check・parallel_after・replan_review（受け皿の got か
 null）・replan_answer（案の直しの承認ノードの答えか null）・widened（ask-replan の widened か null）・start_answer（起動の承認ノードの答えか
 null。今は文に載せない）・record（始めの記録の pointer）・final_gate（開き方）・ports（start の配る値）・
 request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
+import json
 import os
 import sys
 from pathlib import Path
@@ -34,20 +38,24 @@ PARALLEL = ("ok", "status", "stop_reason", "reason", "material", "report")
 
 def compute() -> dict:
     raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "fixed": os.environ.get("INPUTS_FIXED"), "judged": os.environ.get("INPUTS_JUDGED"),
-           "tests": os.environ.get("INPUTS_TESTS"), "eyes": os.environ.get("INPUTS_EYES"), "seal": os.environ.get("INPUTS_SEAL"),
+           "tests": os.environ.get("INPUTS_TESTS"), "eyes": os.environ.get("INPUTS_EYES"), "eyes_back": os.environ.get("INPUTS_EYES_BACK"),
+           "seal": os.environ.get("INPUTS_SEAL"),
            "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "parallel_after": os.environ.get("INPUTS_PARALLEL_AFTER"),
            "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"), "replan_answer": os.environ.get("INPUTS_REPLAN_ANSWER"),
            "widened": os.environ.get("INPUTS_WIDENED"), "start_answer": os.environ.get("INPUTS_START_ANSWER"),
            "record": os.environ.get("INPUTS_RECORD"), "final_gate": os.environ.get("INPUTS_FINAL_GATE"),
            "ports": os.environ.get("INPUTS_PORTS"), "request": os.environ.get("INPUTS_REQUEST")}
-    from src import asking, descend, files, final, rounds, startrec
+    from src import asking, descend, eyesback, files, final, rounds, startrec
 
     given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
-    fixed = ports.picked(raw["fixed"], FIXED)
-    if fix_in is None or fixed is None:
+    first_fixed = ports.parsed(raw["fixed"])
+    if fix_in is None or first_fixed is None:
         raise ValueError("fix-in か fixed の出力が無い（with: の鍵の結びを確かめる）")
-    tests, eyes, seal = ports.picked(raw["tests"], TESTS), ports.picked(raw["eyes"], EYES), ports.picked(raw["seal"], SEAL)
+    eyes_back = ports.parsed(raw["eyes_back"])
+    last = eyesback.current(eyes_back, first_fixed, ports.parsed(raw["tests"]), ports.parsed(raw["eyes"]))
+    fixed, tests, eyes = (ports.picked(None if v is None else json.dumps(v), names) for v, names in zip(last, (FIXED, TESTS, EYES)))
+    seal = ports.picked(raw["seal"], SEAL)
     parallel_after = ports.picked(raw["parallel_after"], PARALLEL)
     unread = []
     record_path = ports.file(raw["record"], "json(start-record.schema.json)")
@@ -62,7 +70,7 @@ def compute() -> dict:
     got = final.gather(fix_in=dict(fix_in), fixed=dict(fixed), judged=ports.picked(raw["judged"], JUDGED), tests=tests, eyes=eyes,
                        seal_got=seal, spec_check=ports.picked(raw["spec_check"], SPEC), parallel_after=parallel_after,
                        replan_answer=ports.parsed(raw["replan_answer"]), widened=widened if isinstance(widened, list) else [],
-                       record=record, given=given, rounds_lines=rounds_lines, unread=unread, missing=missing)
+                       record=record, given=given, rounds_lines=rounds_lines, unread=unread, eyes_back=eyes_back, missing=missing)
     out = final.ask(got, mode=ports.text(raw["final_gate"]), unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"])
     return {**final.keep(out, ports.place()), **final.merge_values(tests, eyes, seal)}
 

@@ -24,8 +24,9 @@ PASSED = {"node": "gate", "round": 1, "by": "human", "item": "y", "passed_at": {
 
 
 def eye(name: str, status: str = "pass", **extra) -> dict:
+    own = {"findings": []} if name in ("r1", "r2") else {}   # R1・R2 の出口は修正の段へ返す項目の欄を必ず持つ
     return {"ok": True, "status": "ran", "reason": "", "verdict": {"status": status, "reason": f"{name} の訳"}, "questions": [],
-            **extra, "report": [f"{name.upper()}: {status}"]}
+            **own, **extra, "report": [f"{name.upper()}: {status}"]}
 
 
 def passing() -> dict:
@@ -54,6 +55,45 @@ class VerdictCase(unittest.TestCase):
                          (["R4 が見た人の方針とのぶつかり: x"], [PASSED], ["控え"], None))
         self.assertEqual((out["after"], out["after_ok"]), (ptr("structure-after/a.json"), True))
         self.assertEqual([s["title"] for s in out["sections"]], [*self.v.TITLES.values(), self.v.OWN_TITLE])
+        self.assertEqual((out["findings"], out["route"]), ([], "stay"), "全部通った run は返す物が無い")
+
+    def test_findings_and_route_follow_the_verdicts(self):
+        """fix-needed の R1・R2 の findings を目の名つきで並べて route を fix にする。どれかの目が redesign-needed・前提の検算の道・
+        返す項目が無い・目を回さない run では route が stay で、訳が route_why に入る"""
+        one = {"where": "a.py:3", "text": "写しを消す"}
+        two = {"where": "", "text": "入口が足りない"}
+
+        def fixing(**by_eye) -> dict:
+            got = passing()
+            for name, (status, findings) in by_eye.items():
+                kept = {k: v for k, v in got[name].items() if k in ("premise_check", "notes")}
+                got[name] = eye(name, status, **kept, **({"findings": findings} if name in ("r1", "r2") else {}))
+            return got
+
+        out = self.build(fixing(r1=("fix-needed", [one]), r2=("fix-needed", [two])))
+        self.assertEqual(out["findings"], [{"eye": "r1", **one}, {"eye": "r2", **two}])
+        self.assertEqual(out["route"], "fix")
+        self.assertFalse(out["ok"])
+        pass_with = fixing(r1=("pass", [one]), r2=("fix-needed", [two]))
+        out = self.build(pass_with)
+        self.assertEqual(out["findings"], [{"eye": "r2", **two}], "通った目の指摘は返す項目に入れない")
+        for why, got in (("設計違い", fixing(r1=("fix-needed", [one]), r3=("redesign-needed", None))),
+                         ("確かめられない", fixing(r1=("pass", []), r3=("unverifiable", None))),
+                         ("返す物が無い", fixing(r1=("fix-needed", []), r2=("pass", [])))):
+            with self.subTest(why):
+                out = self.build(got)
+                self.assertEqual(out["route"], "stay")
+                self.assertIn(why, out["route_why"])
+        premise = passing()
+        premise["r2"] = {**premise["r2"], "premise_check": {"verdict": "resolved", "reason": "r", "key": "k", "resolution": "x", "facts": []}}
+        premise["r1"] = eye("r1", "fix-needed", findings=[one])
+        out = self.build(premise)
+        self.assertEqual(out["route"], "stay")
+        self.assertIn("前提の検算", out["route_why"])
+        skipped = self.build({"structure-after": passing()["structure-after"]}, run=False, skip_why="単位が全部軽量")
+        self.assertEqual((skipped["findings"], skipped["route"]), ([], "stay"))
+        self.assertIn("単位が全部軽量", skipped["route_why"])
+        self.assertEqual(self.v.fallback.fallen("x")["route"], "stay")
 
     def test_r2_questions_go_to_means_questions(self):
         """R2 の問い（頼みどおりの違い。docs/design/plan-review.md の 20 章の 6.3 の 2）はまとめの means_questions に入り、R4 の問いの

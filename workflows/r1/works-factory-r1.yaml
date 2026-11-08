@@ -1,5 +1,5 @@
 name: works-factory-r1
-description: '独立の目 R1 最小性とコメントの block（docs/design/r1.md）。直しを作った役と別の新しい会話で、読むだけの 2 つの役が累積差分を見る: 前段は足したか書き換えたコメントの削除候補と残すコメントの運ぶ事実を、2 段目は累積差分が最小か・処方が正当化されているか・問いの台帳が逃げ道になっていないかを判じる。作り直しが要るかは目の札でなく、組み直す設計の点の名指しの有無で機械が決める。前段が取れなくても 2 段目は回る。落ちず、判定の行と報告の行を出す。単独の run でも、graph から include されても回る'
+description: '独立の目 R1 最小性とコメントの block（docs/design/r1.md）。直しを作った役と別の新しい会話で、読むだけの 2 つの役が累積差分を見る: 前段は足したか書き換えたコメントの削除候補と残すコメントの運ぶ事実を、2 段目は累積差分が最小か・処方が正当化されているか・問いの台帳が逃げ道になっていないかを判じる。作り直しが要るかは目の札でなく、組み直す設計の点の名指しの有無で機械が決める。前段が取れなくても 2 段目は回る。落ちず、判定の行と報告の行と、直しが要る時に修正の段へ返す項目（findings）を出す。単独の run でも、graph から include されても回る'
 inputs:
   base: {default: '', description: 'text: 累積差分の根の commit（入口の差分の根。差分の run では PR の根）。累積差分はここから作業ツリーの今の姿まで（未追跡の新しいファイルも入る）。空は HEAD'}
   purpose: {default: '', description: 'text: 凍結した目的の 1 文。空は渡されていない'}
@@ -126,7 +126,7 @@ nodes:
       properties:
         status: {type: string, enum: [pass, fix-needed, redesign-needed, unverifiable]}
         reason: {type: string, minLength: 1}
-        # 零処方で閉じない設計の点の名指し。在れば機械が redesign-needed にし、無い redesign-needed は fix-needed に倒す（lib/eyekit.py の verdict_row）
+        # 零処方で閉じない設計の点の名指し。在れば機械が redesign-needed にし、無い redesign-needed は fix-needed に倒す（workflows/r1/src/steps.py の by_points）
         redesign_points: {type: array, items: {type: string, minLength: 1}}
         deletions:
           type: array
@@ -168,7 +168,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, status, reason, verdict, questions, report]
+      required: [ok, status, reason, verdict, questions, findings, report]
       properties:
         ok: {type: boolean}
         status:
@@ -187,6 +187,16 @@ nodes:
         questions:
           type: array
           items: {type: string}
+        findings:
+          type: array
+          description: '修正の段へ返す項目。判定が fix-needed の時だけ、削れる物の行（deletions）を 1 行の字にして並べる。名指しの無い fix-needed は判定の reason の 1 行。ほかは空'
+          items:
+            type: object
+            additionalProperties: false
+            required: [where, text]
+            properties:
+              where: {type: string}
+              text: {type: string}
         report:
           type: array
           items: {type: string}

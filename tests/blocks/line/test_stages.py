@@ -97,6 +97,49 @@ class FixedCase(unittest.TestCase):
         self.assertEqual((failed["go"], failed["done"]), (True, False))
         self.assertEqual(failed["left"][0]["where"], "差分の審査")
 
+    def test_returned_stages_follow_the_second(self):
+        """values の more に独立の目から返した段の fix の got を渡すと、stages が 3 段目以降を持ち、units・item_claims・objection・tdd は
+        more まで合わせ、go と done は more の最後の段で決まり（返した段は lens・delta を回さない）、出力の more に並びが残る"""
+        refix = fix(units=[{"unit_id": "u1", "status": "fixed"}], replan_items=[], tdd=[{"units": [1]}], diff={"path": "refix/diff"})
+        back = fix(units=[{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u3", "status": "fixed"}], groups=[{"group_id": "g3"}], tdd=[{"units": [3]}],
+                   diff={"path": "back/diff"}, objection="返しの段の異議", changed={"path_changed": True}, handoffs=["h1"],
+                   item_claims={"items": None, "claims": []}, conflicts={"path": "back/conflicts.json"})
+        got = self.s.fixed(values(refix=refix, replan={"plan": {"path": "replan/p.json"}, "ripple": {"path": "replan/r.json"}},
+                                  after_fix={"replan": True, "prior": None, "stop_reason": ""}, lens_2=None, delta_2=None, more=[back]))
+        self.assertEqual([s["stage"] for s in got["stages"]], [1, 2, 3])
+        self.assertEqual((got["stages"][2]["fix"], got["stages"][2]["lens"], got["stages"][2]["delta"]), (back, None, None))
+        self.assertEqual(got["more"], [back])
+        self.assertEqual([u["unit_id"] for u in got["units"]], ["u1", "u3"])
+        self.assertEqual([g["group_id"] for g in got["groups"]], ["g1", "g3"])
+        self.assertEqual(got["tdd"], [[{"units": []}], [{"units": [1]}], [{"units": [3]}]])
+        self.assertEqual((got["objection"], got["changed"], got["handoffs"], got["diff"]), ("返しの段の異議", {"path_changed": True}, ["h1"], {"path": "back/diff"}))
+        self.assertEqual(got["conflicts"], [{"path": "back/conflicts.json"}])
+        self.assertEqual((got["go"], got["done"], got["held"]), (True, True, False), "返した段は lens・delta を回さないが、それまでの段の審査は数える")
+        self.assertEqual(self.s.fixed(values())["more"], [], "返した段が無ければ空")
+        stopped = self.s.fixed(values(more=[fix(stop_reason="works:unrestored")]))
+        self.assertEqual((stopped["held"], stopped["go"], stopped["stop_reason"]), (True, False, "works:unrestored"))
+        fell = self.s.fixed(values(more=[None]))
+        self.assertEqual((fell["held"], fell["go"]), (True, False), "返した段の修正が返らなければ held")
+        unchecked = self.s.fixed(values(more=[fix(checked={"ok": False, "reason": "変えていない"})]))
+        self.assertEqual((unchecked["go"], unchecked["done"]), (True, False))
+
+    def test_returned_stage_without_refix_is_named_by_kind(self):
+        """案の直しが走らない run で 1 回返した段は、並びの 2 番目でも「独立の目から返した修正の段（1 回目）」と呼ぶ（段の名は stages の行の
+        種類 kind で引く）。差分の審査の行は「回していない」の訳、TDD の記録は種類の席（first・refix・returned）に並び、R2 へ渡る名も同じ"""
+        report = __import__("report")
+        back = fix(tdd=[{"group_id": "g3", "units": [3]}])
+        got = self.s.fixed(values(more=[back]))
+        self.assertEqual([s.get("kind") for s in got["stages"]], ["first", "returned"])
+        final = kit.load(BLOCK, "final")
+        returned = report.stage_name("returned", 1)
+        self.assertEqual(returned, "独立の目から返した修正の段（1 回目）")
+        self.assertIn(f"差分の審査（{returned}）: {final.RETURNED_NOT_RUN}", final.stage_delta_lines(got["stages"], ""))
+        self.assertEqual(got["tdd"], [[{"units": []}], [], [{"group_id": "g3", "units": [3]}]], "refix が走らなければ refix の席は空")
+        self.assertEqual([name for name, _ in report.tdd_stage_groups(2, got["tdd"][2])], [f"{returned}（組 g3）"])
+        old = [{"stage": 1, "fix": fix()}, {"stage": 3, "fix": back}]   # kind を持つ前の記録（続きの run）は番号から種類を引く
+        self.assertEqual(self.s.names(old), [report.TDD_STAGES[0], returned])
+        self.assertEqual(report.stage_name("other"), f"{report.UNKNOWN_STAGE}（'other'）", "知らない種類でも落ちない")
+
     def test_unchecked_change_is_not_done(self):
         got = self.s.fixed(values(fix=fix(checked={"ok": False, "reason": "変えていない"}), lens=None, delta=None))
         self.assertEqual((got["go"], got["done"]), (True, False))
@@ -168,7 +211,7 @@ class ReadCase(unittest.TestCase):
         (run.artifacts / "fix" / "trace.json").write_text(json.dumps([{"op": "fix_tests_selected", "ci_left": ["t1"], "attempt": 1}]))
         stage = self.s.stage({**fix(), **{k: {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": f"fix/{n}"}
                                          for k, n in (("diff", "diff"), ("closure", "closure.json"), ("accept_trace", "trace.json"),
-                                                      ("allowed_tests", "allowed.json"), ("tdd_unit", "tdd.json"))}})
+                                                      ("allowed_tests", "allowed.json"), ("tdd_unit", "tdd.json"))}}, "修正の段")
         with run.env():
             got = self.s.read([stage], self.s.resolve)
         self.assertEqual(self.s.not_closed(got), ["u1"])
@@ -180,13 +223,14 @@ class ReadCase(unittest.TestCase):
     def test_read_carries_removed_tests_and_untested_with_the_stage_name(self):
         """下書き 4.1 の 7: 段ごとの欄 removed_tests・untested は段の名を付けて段の順に並び、行の並びでない欄は読めなかった訳になる
         （黙って空にしない）"""
+        report = __import__("report")
         gone = {"group_id": "g1", "weapon": "remove", "units": ["u1"], "tests": ["t.py::a"], "only_removed": ["t.py"]}
         plain = {"group_id": "g2", "weapon": "static", "units": ["u2"], "why": "文書だけ", "files": [{"path": "README.md", "kind": "docs"}]}
-        first = {**self.s.stage(fix()), "removed_tests": [gone], "untested": []}
-        second = {**self.s.stage(fix()), "removed_tests": [], "untested": [plain]}
+        first = {**self.s.stage(fix(), report.stage_name(report.FIRST)), "removed_tests": [gone], "untested": []}
+        second = {**self.s.stage(fix(), report.stage_name(report.REFIX)), "removed_tests": [], "untested": [plain]}
         got = self.s.read([first, second], self.s.resolve)
-        self.assertEqual(got["removed_tests"], [{**gone, "stage": self.s.STAGE_NAMES[0]}])
-        self.assertEqual(got["untested"], [{**plain, "stage": self.s.STAGE_NAMES[1]}])
+        self.assertEqual(got["removed_tests"], [{**gone, "stage": report.TDD_STAGES[0]}])
+        self.assertEqual(got["untested"], [{**plain, "stage": report.TDD_STAGES[1]}])
         bad = self.s.read([{**first, "removed_tests": None}], self.s.resolve)
         self.assertEqual(bad["removed_tests"], [])
         self.assertTrue(any("removed_tests" in x for x in bad["unread"]), bad["unread"])

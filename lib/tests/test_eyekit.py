@@ -209,6 +209,7 @@ class VerdictCase(_Tmp):
     def test_status_values_follow_the_eye(self):
         self.assertEqual(eyekit.status_values("r1"), {"st_pass": "pass", "st_redesign": "redesign-needed",
                                                       "st_unverifiable": "unverifiable", "st_fix": "fix-needed"})
+        self.assertEqual(eyekit.status_values("r2")["st_fix"], "fix-needed")
         self.assertNotIn("st_fix", eyekit.status_values("r3"))
 
     def test_read_reply_names_why(self):
@@ -237,36 +238,30 @@ class VerdictCase(_Tmp):
                 self.assertTrue(row["reason"].startswith(eyekit.LANE[eye] + " "), row["reason"])
                 self.assertIn("約束の外", row["reason"])
 
-    def test_r1_redesign_without_points_falls_to_fix_needed(self):
-        for label, points in (("欄が無い", {}), ("空の配列", {"redesign_points": []})):
-            with self.subTest(label):
-                self.assertEqual(eyekit.verdict_row("r1", self.r1(seal.REDESIGN, **points)),
-                                 ({"status": seal.FIX_NEEDED, "reason": eyekit.UNNAMED_REDESIGN + self.REASON}, True))
+    def test_settle_comes_from_the_caller(self):
+        """verdict_row は語の表で確かめた後、settle が無ければ返答のまま、在ればその結果を返す。R1 の返答でも名指しの決まりを自分では当てない"""
+        named = self.r1(seal.REDESIGN, redesign_points=["返りの型を作り替える"])
+        for eye in ("r1", "r2"):
+            for status in (seal.PASSED, seal.FIX_NEEDED, seal.REDESIGN, seal.UNVERIFIABLE):
+                with self.subTest(eye=eye, status=status):
+                    self.assertEqual(eyekit.verdict_row(eye, {**named, "status": status}),
+                                     ({"status": status, "reason": self.REASON}, True))
+        seen = []
+
+        def settle(doc):
+            seen.append(doc)
+            return {"status": seal.FIX_NEEDED, "reason": "決め直した"}
+        self.assertEqual(eyekit.verdict_row("r2", named, settle=settle), ({"status": seal.FIX_NEEDED, "reason": "決め直した"}, True))
+        self.assertEqual(seen, [named])
+        # 返答が無い・語が目の約束の外なら settle を呼ばない（unverifiable で受けていない）。R2 の fix-needed は約束の内、R3 の fix-needed は外
+        def never(doc):
+            raise AssertionError("呼ばれない")
+        self.assertFalse(eyekit.verdict_row("r2", None, eyekit.NO_FILE, settle=never)[1])
+        self.assertFalse(eyekit.verdict_row("r2", {"status": "ok", "reason": "x"}, settle=never)[1])
+        self.assertFalse(eyekit.verdict_row("r3", {"status": seal.FIX_NEEDED, "reason": "x"}, settle=never)[1])
         self.assertEqual(eyekit.verdict_row("r3", {"status": seal.REDESIGN, "reason": "筋が合わない"}),
                          ({"status": seal.REDESIGN, "reason": "筋が合わない"}, True))
-
-    def test_r1_malformed_points_are_unverifiable_not_unnamed(self):
-        for status in (seal.REDESIGN, seal.FIX_NEEDED, seal.PASSED):
-            for label, points in (("空白だけ", ["", "  "]), ("配列でない", "設計の点"), ("項が文字列でない", [3, None]), ("オブジェクト", {"a": 1})):
-                with self.subTest(status=status, label=label):
-                    self.assertEqual(eyekit.verdict_row("r1", self.r1(status, redesign_points=points))[0],
-                                     {"status": seal.UNVERIFIABLE, "reason": eyekit.BROKEN_POINTS + self.REASON})
-        self.assertEqual(eyekit.verdict_row("r1", self.r1(seal.REDESIGN, redesign_points=["  ", "返りの型を作り替える", 3]))[0],
-                         {"status": seal.REDESIGN, "reason": self.REASON + "（組み直す設計の点: 返りの型を作り替える）"})
-
-    def test_r1_points_make_redesign_whatever_the_eye_wrote(self):
-        points = ["返りの型を作り替える", "他の消費者が読む契約を替える"]
-        tail = "（組み直す設計の点: 返りの型を作り替える／他の消費者が読む契約を替える）"
-        for status in (seal.FIX_NEEDED, seal.PASSED):
-            with self.subTest(status):
-                self.assertEqual(eyekit.verdict_row("r1", self.r1(status, redesign_points=[*points, ""]))[0],
-                                 {"status": seal.REDESIGN, "reason": eyekit.RAISED_BY_POINTS + self.REASON + tail})
-        self.assertEqual(eyekit.verdict_row("r1", self.r1(seal.REDESIGN, redesign_points=points))[0],
-                         {"status": seal.REDESIGN, "reason": self.REASON + tail})
-        self.assertEqual(eyekit.verdict_row("r1", self.r1(seal.UNVERIFIABLE, redesign_points=points))[0],
-                         {"status": seal.UNVERIFIABLE, "reason": self.REASON})
-        self.assertEqual(eyekit.verdict_row("r1", self.r1(seal.FIX_NEEDED))[0], {"status": seal.FIX_NEEDED, "reason": self.REASON})
-        self.assertEqual(eyekit.verdict_row("r3", {"status": seal.PASSED, "reason": "整合", "redesign_points": points})[0],
+        self.assertEqual(eyekit.verdict_row("r3", {"status": seal.PASSED, "reason": "整合", "redesign_points": ["x"]})[0],
                          {"status": seal.PASSED, "reason": "整合"})
 
     def test_headline_is_the_report_row_shape(self):

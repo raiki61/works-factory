@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 
+from src import eyesback
 from src import facts as factslib
 
 ENTRY = "入口・段・決めた人"
@@ -26,6 +27,7 @@ LENS_LOCAL = "未確認のレンズと局所レビュー"
 JUDGMENT = "判定（目的の外とした所見を含む）"
 DESIGN = "独立設計"
 ROUNDS = "計画の往復"
+BACK = eyesback.HEAD   # 独立の目から修正の段へ返した周の節（最後の承認ノードと同じ見出し）
 THEME = "設計の段"
 BEFORE_FIX = "修正前の承認ノード"
 REVIEW_1 = "レンズと差分の審査（1 回目の段）"
@@ -338,6 +340,9 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
                             _files(("計画", rounds.get("plan"), "json(shared:plan-fields.schema.json)"),
                                    ("波及", rounds.get("ripple"), "json(shared:ripple.schema.json)"),
                                    ("事前審査", rounds.get("review"), "json(shared:plan-review-reply.schema.json)"))))
+    back = [eyesback.BROKE] if eyesback.broken(values.get("eyes_back"), values.get("back_1")) else back_lines(v.get("eyes_back"))
+    if back:
+        out.append(_section(BACK, back))
     ask = v.get("ask_before_fix")
     if ask:
         lines = [f"開いた: {'はい' if ask.get('open') else 'いいえ'}"]
@@ -364,6 +369,11 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
     if groups:
         out.append(_section(GROUPS, groups))
     return out
+
+
+def back_lines(record) -> list:
+    """返した周の節の行（最後の承認ノードと同じ eyesback.lines。返す輪の集めの記録 eyes_back から。返した周が 0 で返さなかった項目も無ければ空）"""
+    return eyesback.lines(_d(record).get("rows"), _d(record).get("exit") or "", _d(record).get("left"))
 
 
 def _review_section(title: str, lens, delta, fix, raise_) -> list:

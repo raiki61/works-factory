@@ -54,6 +54,9 @@ REPORT_FILE = "report.md"
 PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"
 TDD_HEADING = "## TDD のループの単位ごとの結末"   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
+RETURNED_STAGE = "独立の目から返した修正の段"   # 返した段の名の頭（独立の目の指摘で修正の段へ返した段。stage_name）
+UNKNOWN_STAGE = "種類の分からない修正の段"   # stage_name が知らない種類を受けた時の名（落ちずに名で見せる）
+FIRST, REFIX, RETURNED = STAGE_KINDS = ("first", "refix", "returned")   # 修正の段の種類（line の fixed の stages の行の kind。名は stage_name）
 # 単位ごとの深さの語のうち、緑の後の test_cmd を走らせない語（fix が単位の出口の test_cmd に書き、line が深さの行に数える。
 # 前は tddloop.CMD_LIGHT。integration.md 4.5-14・4.4-F）
 CMD_LIGHT = "light"
@@ -214,10 +217,19 @@ def _reused_line(reused) -> str:
     return "・".join(f"{label} {oneline.one_line(reused[k])}" for k, label in labels if isinstance(reused, dict) and reused.get(k))
 
 
+def stage_name(kind: str, k: int = 1) -> str:
+    """修正の段の名の 1 か所。段の種類 kind（STAGE_KINDS）で引く: first と refix は TDD_STAGES の名、returned は独立の目から返した段
+    （k 回目）。並びの番号では引かない（案の直しが走らない run では返した段が並びの 2 番目に来る）。報告・最後の承認ノード・独立の目の
+    比較役が同じ名で段を指す"""
+    if kind == RETURNED:
+        return f"{RETURNED_STAGE}（{k} 回目）"
+    return TDD_STAGES[STAGE_KINDS.index(kind)] if kind in STAGE_KINDS else f"{UNKNOWN_STAGE}（{kind!r}）"
+
+
 def tdd_stage_groups(n: int, groups) -> list:
-    """n 番目（0 から）の修正の段の組ごとの物 groups（tdd-unit の本文）を、tdd_lines に渡す [(段の名（組 id）, 組の物)] に。段の名は
-    TDD_STAGES の順で、並びを超えた段は番号を足す（報告と独立の目の比較役が同じ名で段を指す）"""
-    name = TDD_STAGES[min(n, len(TDD_STAGES) - 1)] + (f" {n}" if n >= len(TDD_STAGES) else "")
+    """修正の段ごとの TDD の記録（line の fixed の tdd。種類の席の並びで、0 番目は first、1 番目は refix〔走らなければ空〕、2 番目からは
+    returned）の n 番目（0 から）の組ごとの物 groups（tdd-unit の本文）を、tdd_lines に渡す [(段の名（組 id）, 組の物)] に"""
+    name = stage_name(*((FIRST, 1) if n == 0 else (REFIX, 1) if n == 1 else (RETURNED, n - 1)))
     return [(f"{name}（組 {g.get('group_id')}）", g) for g in groups if isinstance(g, dict)]
 
 

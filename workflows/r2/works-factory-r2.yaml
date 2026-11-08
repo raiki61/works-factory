@@ -1,5 +1,5 @@
 name: works-factory-r2
-description: '独立の目 R2 独立設計との比べと前提の検算の block（docs/design/r2.md）。修正の前に目的だけから作った独立設計と、修正の後の累積差分を、道具を Read だけに絞った別の役が構造で突き合わせる。独立設計が「問いが立たない」と言った時は比べず、別の読むだけの役が前提の仮定をリポジトリの実態で検算する。どちらを起こすかは独立設計の返答から機械が決め、独立設計が無い・目的の文が空の時は役を起こさず、どの訳かを分けて判定の行にする（独立設計の返答の形に合わない値は読めない port）。落ちず、判定の行・前提の検算の答え・渡した入力の控えの行・報告の行を出す。単独の run でも、graph から include されても回る'
+description: '独立の目 R2 独立設計との比べと前提の検算の block（docs/design/r2.md）。修正の前に目的だけから作った独立設計と、修正の後の累積差分を、道具を Read だけに絞った別の役が構造で突き合わせる。独立設計が「問いが立たない」と言った時は比べず、別の読むだけの役が前提の仮定をリポジトリの実態で検算する。どちらを起こすかは独立設計の返答から機械が決め、独立設計が無い・目的の文が空の時は役を起こさず、どの訳かを分けて判定の行にする（独立設計の返答の形に合わない値は読めない port）。落ちず、判定の行・前提の検算の答え・渡した入力の控えの行・報告の行・修正の段へ返す項目（findings）を出す。単独の run でも、graph から include されても回る'
 inputs:
   base: {default: '', description: 'text: 累積差分の根の commit（入口の差分の根。差分の run では PR の根）。累積差分はここから作業ツリーの今の姿まで（未追跡の新しいファイルも入る）。空は HEAD'}
   head: {default: '', description: 'text: 修正前の HEAD（審査する変更の先の版）。空は HEAD'}
@@ -64,7 +64,7 @@ nodes:
       required: [status, reason, differences, request_conflicts]
       additionalProperties: false
       properties:
-        status: {type: string, enum: [pass, redesign-needed]}
+        status: {type: string, enum: [pass, fix-needed, redesign-needed]}
         reason: {type: string, minLength: 1}
         differences:
           type: array
@@ -73,8 +73,10 @@ nodes:
             required: [kind, text]
             additionalProperties: false
             properties:
-              kind: {type: string, enum: [構造, 表現]}
+              kind: {type: string, enum: [構造, 表現, 作り残し]}
               text: {type: string}
+              # 作り残しの行の在りか（差分に在る物のパス）。ほかの種の行は書かなくてよい
+              where: {type: string}
         request_conflicts:
           type: array
           items:
@@ -174,7 +176,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, status, reason, verdict, questions, premise_check, notes, report]
+      required: [ok, status, reason, verdict, questions, premise_check, notes, findings, report]
       properties:
         ok: {type: boolean}
         status:
@@ -188,7 +190,7 @@ nodes:
           properties:
             status:
               type: string
-              enum: [pass, redesign-needed, unverifiable]
+              enum: [pass, fix-needed, redesign-needed, unverifiable]
             reason: {type: string}
         questions:
           type: array
@@ -214,6 +216,16 @@ nodes:
         notes:
           type: array
           items: {type: string}
+        findings:
+          type: array
+          description: '修正の段へ返す項目。比べの道で判定が fix-needed の時だけ、違いのうち種が作り残しの行を where（無ければ空の字）と 1 行の text にして並べる。ほかは空'
+          items:
+            type: object
+            additionalProperties: false
+            required: [where, text]
+            properties:
+              where: {type: string}
+              text: {type: string}
         report:
           type: array
           items: {type: string}
