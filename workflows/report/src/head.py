@@ -2,7 +2,7 @@
 
 頭は初見の読み手が頭だけを読んで止まる所なので、機械は自由な字を頭に連結しない。行は「行の種 Line（知らせは Notice）の文」に、種ごとの
 型の決まった差し込み口 SLOTS の値だけを入れて描く。差し込み口に入れてよいのは読み手の世界の値（件数・run の id・URL・PR の番号・ログのパス・
-試験のコマンドの最初の語・結末の語・人の一言の引用や人が決める物の題）だけで、上流の字（人の一言・物の題）は 1 行に畳んだ字の型
+試験のコマンドの最初の語・結末の語・人の一言の引用や人が決める物の題・依頼のファイルの行の字か、PR の題（題の行））だけで、上流の字（人の一言・物の題・依頼の字）は 1 行に畳んだ字の型
 OneLine でだけ受ける（字数の上限は置かない）。AI や段が書いた長い訳は頭に入れず、機械の報告の節「2. 止めたか」（書き手の誤りは注意の節）に置く。
 
 - SLOT_TYPES: 差し込み口に許す型の全部
@@ -27,7 +27,7 @@ import userenv    # lib/
 
 # ---------------------------------------------------------------- 差し込み口の型
 class OneLine(str):
-    """上流の字（人の一言の引用・人が決める物の題）を 1 行に畳んだ字。字数の上限は置かない"""
+    """上流の字（人の一言の引用・人が決める物の題・依頼のファイルの行の字か PR の題）を 1 行に畳んだ字。字数の上限は置かない"""
 
     def __new__(cls, text):
         return super().__new__(cls, oneline.one_line(text))
@@ -82,6 +82,17 @@ class Plain(typing.NamedTuple):
 
 class RunSlot(typing.NamedTuple):
     run: RunId
+
+
+class RequestTitleSlot(typing.NamedTuple):
+    run: RunId
+    request: OneLine
+
+
+class RequestMoreTitleSlot(typing.NamedTuple):
+    run: RunId
+    request: OneLine
+    more: int
 
 
 class OutcomeSlot(typing.NamedTuple):
@@ -160,6 +171,8 @@ class BrokenSlot(typing.NamedTuple):
 # ---------------------------------------------------------------- 行の種
 class Line(str, enum.Enum):
     RUN_TITLE = "title"
+    REQUEST_TITLE = "title_request"
+    REQUEST_TITLE_MORE = "title_request_more"
     WHAT_HAPPENED = "happened"
     HAPPENED_WITH_ASKS = "happened_with_asks"
     APPLY_NO_DIFF = "apply_no_diff"
@@ -222,6 +235,8 @@ _FELL = "AI が書く報告の本文は無い。書き手の段が"
 
 TABLE = {
     Line.RUN_TITLE: "# 報告（run {run}）",
+    Line.REQUEST_TITLE: "# 報告（run {run}）: {request}",
+    Line.REQUEST_TITLE_MORE: "# 報告（run {run}）: {request}（ほかの依頼の行 {more} 件）",
     Line.WHAT_HAPPENED: "起きたこと: {outcome}",
     Line.HAPPENED_WITH_ASKS: "起きたこと: {outcome}。人が決めること {n} 件が残っている",
     Line.APPLY_NO_DIFF: _APPLY + "当てる差分が無い（この run は差分を確定していない）",
@@ -284,7 +299,7 @@ PR_ANSWER_OF = {act: {base: Line(f"apply_pr_{act}_" + base.value.removeprefix("a
 TABLE.update({row: _APPLY + PR_SAID[act] + TABLE[base].removeprefix(_APPLY) for act, rows in PR_ANSWER_OF.items() for base, row in rows.items()})
 
 SLOTS = {
-    Line.RUN_TITLE: RunSlot, Line.WHAT_HAPPENED: OutcomeSlot, Line.HAPPENED_WITH_ASKS: OutcomeAsksSlot, Line.APPLY_NO_DIFF: Plain,
+    Line.RUN_TITLE: RunSlot, Line.REQUEST_TITLE: RequestTitleSlot, Line.REQUEST_TITLE_MORE: RequestMoreTitleSlot, Line.WHAT_HAPPENED: OutcomeSlot, Line.HAPPENED_WITH_ASKS: OutcomeAsksSlot, Line.APPLY_NO_DIFF: Plain,
     Line.APPLY_REFUSED: Plain, Line.APPLY_DECIDE_FIRST: DecideApplySlot, Line.APPLY_DECIDE_FIRST_STOPPED: DecideApplySlot,
     Line.APPLY_NOT_PLACED: RunSlot, Line.APPLY_OK: RunSlot, Line.APPLY_CHECK_FIRST: CheckApplySlot, Line.APPLY_PR: PrSlot,
     Line.APPLY_PR_DRAFT: PrSlot, Line.URGENT_FAILED: UrgentSlot,

@@ -155,8 +155,20 @@ def notice_lines(items: list) -> list:
     return list(dict.fromkeys(rows))
 
 
-def head_lines(run_id: str, outcome: str, apply: dict, run: dict, counts: dict, n_carried: int, notices: list, rows: list) -> list:
-    """報告の冒頭（機械が組む。どの行も head.TABLE・head.NOTICES の行）: 題・起きたこと・差分を当ててよいか・急ぎ（事実が在れば）・人が決めること
+def title_row(run_id: str, requests: list) -> str:
+    """題の行。依頼の字（1 行に畳み、空の物は除く）が無ければ run の id だけの行、1 つなら id に依頼の字を添えた行、2 つ以上なら 1 つ目の字に
+    ほかの行の数を添えた行（1 つ目だけを見せると、run がその 1 行だけを直したと読まれる）"""
+    run = head.RunId(run_id)
+    folded = [x for x in (head.OneLine(r) for r in requests) if x]
+    if not folded:
+        return head.render(head.Line.RUN_TITLE, head.RunSlot(run))
+    if len(folded) == 1:
+        return head.render(head.Line.REQUEST_TITLE, head.RequestTitleSlot(run, folded[0]))
+    return head.render(head.Line.REQUEST_TITLE_MORE, head.RequestMoreTitleSlot(run, folded[0], len(folded) - 1))
+
+
+def head_lines(run_id: str, outcome: str, apply: dict, run: dict, counts: dict, n_carried: int, notices: list, rows: list, requests: list) -> list:
+    """報告の冒頭（機械が組む。どの行も head.TABLE・head.NOTICES の行）: 題（依頼の字が在れば添える。title_row）・起きたこと・差分を当ててよいか・急ぎ（事実が在れば）・人が決めること
     （件数は和の 1 つ）の行と、その下に種ごとの行、最後に知らせの行。決める物が無ければ「人が決めること」の行に次の run に渡す物の件数を置く
     （「無い」と断る決まり文句は書かない）。決める物の本文・止めた訳・知らせの本文は頭に出さない（節の見出しに「人が決めること」を持つセクションと、
     節「2. 止めたか」に在る）"""
@@ -167,7 +179,7 @@ def head_lines(run_id: str, outcome: str, apply: dict, run: dict, counts: dict, 
     decide = (head.render(head.Line.DECIDE, head.CountSlot(decisions)) if counts
               else head.render(head.Line.NEXT_RUN, head.CountSlot(n_carried)))
     urgent = urgent_said(apply, outcome, run)
-    return [head.render(head.Line.RUN_TITLE, head.RunSlot(head.RunId(run_id))), "", happened, apply_said(apply, outcome, run_id, decisions),
+    return [title_row(run_id, requests), "", happened, apply_said(apply, outcome, run_id, decisions),
             *([urgent] if urgent else []), decide, *rows, *notice_rows(notices)]
 
 
@@ -285,7 +297,7 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
     said = [*head_doc["before"], *(head_doc["stopped"] if outcome in STOP_OUTCOMES else [])]
     notices = [*head_doc["after"], *head_doc["notices"]]
     decisions = sum(counts.values())
-    top = head_lines(run_id or "—", outcome, facts["apply"], run, counts, n_carried, notices, ask_rows(titles, counts))
+    top = head_lines(run_id or "—", outcome, facts["apply"], run, counts, n_carried, notices, ask_rows(titles, counts), facts["request_texts"])
     parts = facts["outcome_parts"]
     model_end = "／".join(x for x in (f"結末: {report.OUTCOME_WORDS.get(outcome, '結末が決まらない')}（{outcome}）", parts["gate"], parts["eyes"],
                                        f"次の run に渡す物: {n_carried} 件", f"持ち越した失敗: {len(prior)} 件", parts["data"]) if x)

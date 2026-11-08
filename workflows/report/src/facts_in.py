@@ -15,7 +15,7 @@ DEFAULTS = {
     "asks": [], "tallied": {}, "counted_left": [], "decisions": {"before": [], "after": [], "outside": []},
     "apply": {"sealed": False, "placed": False, "redesign": "", "said": "", "pr": None, "commits": []},
     "carry": {"findings": [], "prior": [], "drafts": [], "constraints": []}, "stop_lines": {"before": [], "after": []},
-    "outcome_parts": {"gate": "", "eyes": "", "data": ""}, "round": None, "line_rev": "",
+    "outcome_parts": {"gate": "", "eyes": "", "data": ""}, "round": None, "line_rev": "", "request_texts": [],
 }
 
 

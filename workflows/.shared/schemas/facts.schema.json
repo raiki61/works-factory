@@ -546,6 +546,12 @@
     },
     "line_rev": {
       "type": "string"
+    },
+    "request_texts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   }
 }

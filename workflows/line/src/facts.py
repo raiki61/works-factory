@@ -1340,6 +1340,7 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
              *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),
              *part("利用者の環境の句", lambda: _user_env_note(ports_), [], outcome=False)]
+    requests = part("依頼の字", lambda: request_texts(ports_, record), [], outcome=False)
     notices = [head_notice("test_cmd_note", line) for line in str(values.get("notices") or "").splitlines() if line.strip()]
     head_at = _head_at(returns)
     return {
@@ -1371,6 +1372,7 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
                               {"gate": "", "eyes": "", "data": ""}, outcome=False),
         "round": as_dict(returns.get("plan")).get("round") if isinstance(as_dict(returns.get("plan")).get("round"), int) else None,
         "line_rev": part("メイングラフの版", lambda: _line_rev(record), "", outcome=False),
+        "request_texts": requests,
     }
 
 
@@ -1390,6 +1392,24 @@ def _suite_note(record: dict) -> list:
     kinds = {suitewrite.USED: "suite_used", suitewrite.WROTE: "suite_wrote", suitewrite.NOT_MADE: "suite_not_made"}
     state = suitewrite.note_state(record)
     return [head_notice(kinds[state], suitewrite.note_detail(record))] if state else []
+
+
+def request_texts(ports_: dict, record: dict | None) -> list:
+    """報告の題に添える依頼の字: 始めの節が持つ人の依頼のファイルの写し（ports.request）の行の text を、依頼のファイルの順のまま。行が 0 で、
+    始めの記録の入口の入力の形に PR の題が在れば、その題 1 つ。写しの pointer が無い run（始めの節の前で止まった run）は空。テーマの run が降りた依頼
+    （request-in の返り）は設計の段が書いた字を持つので読まない。形に合わない写し・下書きの行は ValueError"""
+    import requestrows
+
+    from src import startrec
+
+    pointer = ports_.get("request")
+    if not pointer:
+        return []
+    rows = requestrows.findings(json.dumps(pointer))
+    if rows:
+        return [str(row["text"]) for row in rows]
+    title = as_dict(as_dict(startrec.shape(record or {})).get("pr")).get("title")
+    return [title] if isinstance(title, str) and title else []
 
 
 def _user_env_note(ports_: dict) -> list:
