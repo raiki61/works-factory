@@ -547,11 +547,37 @@ class CollectScriptCase(unittest.TestCase):
         (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
         v = passing()
         got = run.script("collect", **self.args(v))
-        self.assertEqual(set(got), {"sections", "facts"})
+        self.assertEqual(set(got), {"sections", "facts", "digest"})
         facts = json.loads((run.artifacts / got["facts"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual(check(facts, FACTS_SCHEMA), [])
         self.assertTrue(facts["start_ok"])
         self.assertEqual(got["facts"]["path"], "report-in/facts.json")
+
+    def seeded_run(self) -> "kit.Run":
+        run = kit.Run(self, BLOCK)
+        seed(run)
+        (run.artifacts / "r1").mkdir()
+        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        return run
+
+    def test_same_inputs_give_the_same_return(self):
+        """同じ入力で子のプロセスを 2 本回すと、返りは digest まで等しい（書き手だけが落ちた run の resume で報告の事実の段が再生される）"""
+        first = self.seeded_run().script("collect", **self.args(passing()))
+        second = self.seeded_run().script("collect", **self.args(passing()))
+        self.assertIn("digest", first, "返りに中身の指紋の欄が要る")
+        self.assertEqual(first, second)
+        self.assertRegex(first["digest"], r"^[0-9a-f]{64}$")
+
+    def test_changed_facts_change_the_digest(self):
+        """facts の材料を 1 か所変えると、pointer の path は同じまま digest が変わる（中身が変わった時に report が回し直る値の変化）"""
+        run = self.seeded_run()
+        before = run.script("collect", **self.args(passing()))
+        changed = {**passing(), "notices": "注意（test_cmd）: 別の注意"}
+        after = run.script("collect", **self.args(changed))
+        self.assertEqual(before["facts"]["path"], after["facts"]["path"])
+        self.assertIn("digest", before, "返りに中身の指紋の欄が要る")
+        self.assertIn("digest", after, "返りに中身の指紋の欄が要る")
+        self.assertNotEqual(before["digest"], after["digest"])
 
     def test_the_not_run_section_reaches_the_report_through_collect(self):
         """試験の関門の返りの related は、collect の受け皿の欄を通って報告の節「走らせなかった範囲」に届く（欄の一覧から外れると、絞った run

@@ -401,7 +401,7 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 
 ## 7 報告への受け渡し（`collect`）
 
-`collect` は落ちない（今のまま: 境の口を読めない時も標準ライブラリだけで fallback を書く）。受け皿の got・返し・承認の答え・line の script の止めの語を受け、2 つのファイルを place に書いて pointer を返す。
+`collect` は落ちない（今のまま: 境の口を読めない時も標準ライブラリだけで fallback を書く）。受け皿の got・返し・承認の答え・line の script の止めの語を受け、2 つのファイルを place に書いて、2 つの pointer と、書いた 2 つのファイルの中身の sha256 の指紋 `digest`（16 進 64 字。時刻・run の id・パスは材料にしない）を返す。
 
 ### 7.1 `sections`（並び）
 
@@ -481,7 +481,7 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 - `eyes`(-out): eyes の graph（judge-eyes.md）。守りのパスの当たりは merge へ移った（README 13 節）。
 - `merge-seal`(-out)・`merge-apply`(-out): 今のまま（L-W59）。apply は最後の承認ノードの go の後だけ。
 - `ask-final`・`gate-final`・`answer-final`: 2 節の 4（L-G48〜L-G51・L-W20〜L-W37。keep-essence の 6・8・10・11）。
-- `collect`・`report`・`sweep-children`・`result`: 7 節と 1.3 の 25〜28（L-W60〜L-W62）。報告はいつも走り、resume でも回し直す（`always_run`。include の `always_run` は Archon が捨てるので、`collect` の返りが変われば report が回し直る今の形）。
+- `collect`・`report`・`sweep-children`・`result`: 7 節と 1.3 の 25〜28（L-W60〜L-W62）。報告はいつも走り、resume でも回し直す（`always_run`。include の `always_run` は Archon が捨てるので、`collect` の返りが変われば report が回し直る今の形）。返りが書いた中身の指紋 `digest` を持つので、中身が変わった時だけ値が変わり report が回し直る。書き手だけが落ちた run の resume では中身が同じなので facts は再生される。
 - line の script は落ちない（例外も lib の import の失敗も `works:line-script` の返りにして報告まで届く。L-G52・L-W63）: どの script も `ports` の `run(fn, fallback)` の形（今の `boundary.run`）。
 - 消した物と訳:
   - 判定の裏取りの申し送りを回さなかった形で毎回置くこと（今の `judge_accept.py:3968-3970`）: 回さない run は verify の block を include せず、読み手は null を受ける。回さなかった訳は line の節 1 の行（7.1）。plan の指示の「確かめられなかった」の節は plan の設計書の決め。
@@ -509,7 +509,7 @@ graph は AI の node を持たないので、README 6 節の node ごとの 9 �
   - `test_rounds.py`: 往復の記録の行・止め時の 5 語・上限 20 と空の `revise` の聞き直し 2 の和と `max_iterations` の突き合わせ・上限で止めた行の `capped`・止まった案を無人の run が推し（役が問いに添えた勧めの答え）で修正へ進める時に、修正の段へ渡す事前審査の返答へ保留の項目の前の往復の block（`rounds.stuck_faces`）を足すこと（3 節の 4）・2 本の `prior` の形（今の `PlanOutCase`・`PlanOutNothingOwedCase`）。
   - `test_talk.py`: 設計の相談と人の指摘の受け箱（3.1 節）。周の頭と終わりの決め・人の block の差し込みと次の周の止め時・修正前の承認ノードの合意の読み・筋書き `design-talk` の dry-run。複数の周は `tests/e2e/test_design_talk_real.py` が本物の Archon で回す。
   - `test_stages.py`: 2 つの段の合わせ（今の `FixedCase`）と `no_fix`・held・`diffed`。
-  - `test_collect.py`: `sections` の並び・`files`・`facts` の欄（report の設計書の 1.2 の表の欄ごと）・前の版の返りを空と読まない・落ちない（今の `CollectAndResultCase`・`FallbackCase`・`BrokenLibCase`・`ReturnedCase`）。
+  - `test_collect.py`: `sections` の並び・`files`・`facts` の欄（report の設計書の 1.2 の表の欄ごと）・前の版の返りを空と読まない・落ちない・返りが中身の指紋 `digest` を持つ・同じ入力で同じ返りになる（書き手だけが落ちた run の resume で facts を再生する決めの守り）・材料が変われば `digest` が変わる（今の `CollectAndResultCase`・`FallbackCase`・`BrokenLibCase`・`ReturnedCase`）。
   - `test_wiring.py`: YAML の配線（今の `LineWiringCase`・`FixWiringCase`・`NoFixWiringCase`・`SharedPlacesWiringCase`・`StructureOnceCase`・`HandoffCase`）。足す yes/no: 一度だけの include（`replan`・`replan-review`・`refix-run`・`rejudge-run`・`parallel-pr-after`）が line に 1 つずつ・`when:` が名に depth を含む欄を読まない。include した block の `inputs:` の全部が渡るか、渡さない訳を名指した一覧に在るか（L-W67）は、全部の graph に効く `tests/layers/test_include_inputs.py` が見る。
 - 通しの試験: `test_line_scenarios.py` は筋書きの試験 `tests/blocks/line/test_scenarios.py`・`test_scenarios_gates.py` に置き換えて消し、`tests/e2e/evidence.json` の行の書き手を新しい関数の名に替える（L-E33 は judge の graph の判定の裏取りの段の行に。verify の設計書の 1.6）。新しい node の id と置き場に合わせて `tests/e2e/scenario.json`・`tests/e2e/test_evidence.py` の定数（`BLOCKS`・`NAMED_BY_PATTERN`・`ALWAYS_RAN`）・`tests/e2e/test_fix_halt_resume.py` も直す（integration.md の 4.5-10）。
 - 守る keep-essence: 6（回さなかった試験を最後の承認ノードに名で並べる。`test_gates.py`）・8（人に回した申し出で最後の承認ノードが開く。`conflict-ask` の筋書き）・10（守りのパスに触れたら開き、apply を拒む。`eyes-failed-protected` の筋書きを `seal-protected` に改める）・11（単位ごとの記録が最後の承認ノードと報告に届く。`test_gates.py`・`test_collect.py`）・12（定石からの外れを修正前の承認ノードで人に回す。`test_gates.py`）。

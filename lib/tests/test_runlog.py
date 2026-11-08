@@ -72,6 +72,37 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["models"], {"judge__diagnose": ["sonnet"]})
         self.assertNotIn("report__facts", got["errors"], "自分の block の落ちは数えない")
 
+    def test_own_loop_body_rows_are_not_counted_by_their_path(self):
+        """ループの本体の行の step は素の id で、include の頭は execution.path にだけ在る。自分の block のループの本体の落ちは、前の周の物でも数えない"""
+        def on(step, kind, path, ts="t", cost=None):
+            row = {**done(step, ts, cost=cost, kind=kind), "step": step}
+            row["execution"]["path"] = path
+            return row
+
+        review = "plan-rounds.plan-review-run__review-loop.review-tree"
+        rows = [on("review-tree", "node_error", review), on("plan-rounds", "node_error", "plan-rounds"),
+                on("write", "node_error", "report__write-loop.write", cost=0.25), on("report__write-loop", "node_error", "report__write-loop"),
+                {"type": "node_skipped", "step": "review-tree", "ts": "t2", "workflow_id": RUN},
+                on("plan-review-run__review-loop", "node_complete", "plan-rounds.plan-review-run__review-loop"),
+                on("plan-rounds", "node_complete", "plan-rounds")]
+        got = runlog.facts(rows, exclude_prefix="report__")
+        self.assertEqual(got["failed"], [])
+        self.assertNotIn("write", got["errors"])
+        self.assertEqual([x["node"] for x in got["retried"]], ["review-tree", "plan-rounds"], "自分の write は回り直しにも数えない")
+        self.assertEqual(got["cost"], {"write": 0.25}, "費用は自分の行も数える")
+        elsewhere = runlog.facts([on("write", "node_error", "fix__loop.write")], exclude_prefix="report__")
+        self.assertEqual(elsewhere["failed"], ["write"], "別の block の同じ素の id の落ちは数える")
+
+    def test_own_rows_inside_an_outer_loop_read_the_path_like_own_prefix(self):
+        def fell(step, path):
+            return {**done(step, "t", kind="node_error"), "step": step, "execution": {"path": path}}
+
+        rows = [fell("write", "outer-loop.report__write-loop.write"), fell("tdd", "outer-loop.fix__loop.tdd")]
+        with mock.patch.dict("os.environ", {"ARCHON_NODE_EXECUTION": json.dumps({"path": "outer-loop.report__facts"})}):
+            prefix = runlog.own_prefix()
+        self.assertEqual(prefix, "report__")
+        self.assertEqual(runlog.facts(rows, exclude_prefix=prefix)["failed"], ["tdd"])
+
     def test_unreadable_record_has_every_field(self):
         got = runlog.facts(None)
         self.assertFalse(got["ok"])

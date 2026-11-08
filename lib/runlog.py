@@ -106,16 +106,22 @@ def read() -> tuple:
     return rows, ""
 
 
+def _prefix_of(path) -> str:
+    """node の実行の道（<ループの id>.<node の id> を . でつないだ形。include の node の id は outer__inner__<id>）から include の頭
+    （入れ子なら outer__inner__）。段ごとの最後の __ より前を順に継ぐ。道が字でない・include の外なら空。道の書式を読むのはここだけ"""
+    parts = [p for step in (path.split(".") if isinstance(path, str) else []) for p in step.split("__")[:-1] if p]
+    return "__".join(parts) + "__" if parts else ""
+
+
 def own_prefix() -> str:
     """自分の node の実行の記録（ARCHON_NODE_EXECUTION）の path から、自分の include の node の id の頭（入れ子なら outer__inner__。
-    ループの本体の node は <ループの id>.<node の id> の形なので、段ごとの最後の __ より前を順に継ぐ。include の外なら空）"""
+    include の外なら空）。記録の行の step はループの本体では素の id で、include の頭とループの道は行の execution.path と
+    ARCHON_NODE_EXECUTION の path に在る。その読みは _prefix_of 1 か所"""
     try:
         doc = json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}")
     except ValueError:
         return ""
-    path = doc.get("path") if isinstance(doc, dict) else None
-    parts = [p for step in (path.split(".") if isinstance(path, str) else []) for p in step.split("__")[:-1] if p]
-    return "__".join(parts) + "__" if parts else ""
+    return _prefix_of(doc.get("path") if isinstance(doc, dict) else None)
 
 
 def _declared(step: str, optional) -> bool:
@@ -128,16 +134,18 @@ def _declared(step: str, optional) -> bool:
 
 def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     """run の記録の行から node ごとの事実。rows が None なら ok: False。最後の行が node_error の node は、宣言（optional）の中なら受け止めた落ち
-    （absorbed）、外なら run を途中で終わらせた落ち（failed）。retried は node_error の後に済んだ node。exclude_prefix で始まる node（この block
-    自身）は数えない。費用は自分の費用を言う行の cost_usd の和（無い行は uncosted に件数）。トークンも自分の費用を言う行の
+    （absorbed）、外なら run を途中で終わらせた落ち（failed）。retried は node_error の後に済んだ node。step か execution.path の頭
+    （_prefix_of）が exclude_prefix で始まる行（この block 自身。ループの本体の行は道で見分ける）は落ち・回り直し・道具の呼び・until に
+    数えない。費用は自分の費用を言う行の cost_usd の和（無い行は uncosted に件数）。トークンも自分の費用を言う行の
     execution.spend.tokens の欄ごとの和（add_tokens。無い行は untokened に件数）。時間は node_start から最後の完了・失敗まで（分）。
     calls は役が呼んだ道具の node ごとの {Read・Edit・Write: ファイル, Bash: 回数}。resubmits はループごとの {count, minutes}"""
     if rows is None:
         return {"ok": False, "failed": [], "absorbed": [], "errors": {}, "retried": [], "cost": {}, "uncosted": {}, "tokens": {},
                 "untokened": {}, "minutes": {}, "models": {}, "efforts": {}, "calls": {}, "resubmits": {}}
 
-    def ours(step):
-        return bool(exclude_prefix) and step.startswith(exclude_prefix)
+    def ours(row):
+        return bool(exclude_prefix) and (row["step"].startswith(exclude_prefix)
+                                         or _prefix_of(_dict(row.get("execution")).get("path")).startswith(exclude_prefix))
     last, falls, errors, began, ended = {}, {}, {}, {}, {}
     cost, uncosted, models, efforts, calls = {}, {}, {}, {}, {}
     spent, untokened = {}, {}
@@ -145,18 +153,18 @@ def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
     for r in rows:
         if not isinstance(r, dict) or not isinstance(r.get("step"), str):
             continue
-        step, kind = r["step"], r.get("type")
-        if kind == PROVIDER_ROW and not ours(step):
+        step, kind, mine = r["step"], r.get("type"), ours(r)
+        if kind == PROVIDER_ROW and not mine:
             _count_call(calls, step, _dict(r.get(PROVIDER_EVENT)))
-        if kind == EXEC_ROW and r.get(EXEC_LABEL) == UNTIL_ROW and not ours(step):
+        if kind == EXEC_ROW and r.get(EXEC_LABEL) == UNTIL_ROW and not mine:
             loop, mark, _ = step.rpartition(ITERATION_MARK)
             if mark and loop:
                 untils.setdefault(loop, []).append((r.get(EXIT_CODE), report._time(r.get("ts"))))
         if kind == "node_start":
             began.setdefault(step, report._time(r.get("ts")))
-        if kind in (*COST_ROWS, "node_skipped"):
+        if kind in (*COST_ROWS, "node_skipped") and not mine:
             last[step] = kind
-        if kind == "node_error":
+        if kind == "node_error" and not mine:
             falls[step] = falls.get(step, 0) + 1
             errors[step] = str(r.get("error") or "")
         if kind in COST_ROWS:
@@ -183,12 +191,12 @@ def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
 
     minutes = {s: round((ended[s] - began[s]).total_seconds() / 60, 1) for s in ended
                if began.get(s) is not None and ended[s] is not None}
-    fell = [s for s, k in last.items() if k == "node_error" and not ours(s)]
+    fell = [s for s, k in last.items() if k == "node_error"]
     return {"ok": True, "failed": [s for s in fell if not _declared(s, optional)],
             "absorbed": [{"node": s, "error": errors.get(s, "")} for s in fell if _declared(s, optional)],
             "errors": {s: errors.get(s, "") for s in fell},
             "retried": [{"node": s, "failures": n, "error": errors.get(s, "")} for s, n in falls.items()
-                        if last.get(s) in DONE_ROWS and not ours(s)],
+                        if last.get(s) in DONE_ROWS],
             "cost": cost, "uncosted": uncosted, "tokens": spent, "untokened": untokened, "minutes": minutes, "models": models, "efforts": efforts, "calls": calls,
             "resubmits": {loop: _resubmit(got) for loop, got in untils.items()}}
 

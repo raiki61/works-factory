@@ -79,6 +79,26 @@ class FactsCase(Flow):
         self.assertIn("run が途中で終わった: ノード fix__tdd が落ちた（誤り: boom）", self.machine())
         self.assertNotIn("report__facts", self.machine().split("## 2. 止めたか")[1].split("## 3.")[0])
 
+    def test_resumed_run_with_a_fallen_writer_names_the_last_try(self):
+        """上流の段と書き手の両方が使用枠で落ち、resume で上流が通った記録。書き手のループの本体の行の step は素の id なので、道で自分の
+        block の行と見分ける。前の周の書き手の落ちを run の落ちに数えず、封じて置いた差分は当ててよいと言う"""
+        def row(step, kind, path=None, ts="t"):
+            return {"type": kind, "step": step, "ts": ts, "error": "usage or credit limit is used up", "execution": {"path": path} if path else {}}
+
+        review = "plan-rounds.plan-review-run__review-loop.review-tree"
+        self.log(row("review-tree", "node_error", review), row("plan-rounds", "node_error", "plan-rounds"),
+                 row("write", "node_error", f"{LOOP}write"), row(f"{INCLUDE}write-loop", "node_error"),
+                 {"type": "node_skipped", "step": "review-tree", "ts": "t2"},
+                 row("plan-review-run__review-loop", "node_complete", "plan-rounds.plan-review-run__review-loop"),
+                 row("plan-rounds", "node_complete", "plan-rounds"))
+        got = self.facts(facts=json.dumps({**base.READY, "apply": {"sealed": True, "placed": True}}))
+        self.assertEqual((got["outcome"], got["stop_reason"]), ("fixed", ""))
+        text = self.machine()
+        self.assertNotIn("write", text.split("## 2. 止めたか")[1].split("## 3.")[0])
+        head = M.head
+        self.assertIn(head.render(head.Line.APPLY_OK, head.RunSlot(head.RunId(kit.RUN_ID))), text)
+        self.assertNotIn("確かめてから当てる", text)
+
     def test_fallen_child_run_names_its_own_cause(self):
         """fan_out の子の run が落ちると、親の記録の誤りは「子 N (run 先頭 8 字) が落ちた」と子の失敗の総括だけを言い、AI の provider の
         429 のような落ちた訳は子の run の記録（同じ置き場の <子の run の id>.jsonl）にだけ在る。報告は子の記録を読んで訳を載せる"""
