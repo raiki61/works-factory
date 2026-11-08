@@ -58,6 +58,24 @@ class HeadCase(Base):
         self.assertEqual(lines[5], "人が決めること: 7 件（下の行は種類ごと。題のある物は 1 件ずつ）")
         self.assertEqual(lines[6:8], ["- 保留にしたままの問い（2 件）", "- 許したテストの変更（5 件）"])
 
+    def test_title_carries_the_request_row_after_the_run_id(self):
+        said = "報告の 1 行目に\n依頼の字を出す"
+        _, text = self.build(request_texts=[said])
+        first = text.splitlines()[0]
+        self.assertEqual(first, f"# 報告（run {RUN_ID}）: {M.head.OneLine(said)}")
+        self.assertNotIn("\n", M.head.OneLine(said), "依頼の字は 1 行に畳む")
+        row = M.head.parse(first)
+        self.assertEqual((row.kind, row.slots), (M.head.Line.REQUEST_TITLE, M.head.RequestTitleSlot(M.head.RunId(RUN_ID), M.head.OneLine(said))))
+
+    def test_title_counts_the_other_request_rows(self):
+        rows = ["1 行目の依頼", "2 行目の依頼", "3 行目の依頼"]
+        _, text = self.build(request_texts=rows)
+        first = text.splitlines()[0]
+        self.assertEqual(first, f"# 報告（run {RUN_ID}）: 1 行目の依頼（ほかの依頼の行 2 件）")
+        row = M.head.parse(first)
+        self.assertEqual((row.kind, row.slots.more), (M.head.Line.REQUEST_TITLE_MORE, 2))
+        self.assertNotIn("2 行目の依頼", first, "題に出すのは 1 行目の字だけ")
+
     def test_nothing_to_decide_names_what_is_carried_instead(self):
         carry = {"findings": [{"where": "a", "text": "b"}], "prior": [], "drafts": [], "constraints": []}
         _, text = self.build(carry=carry)
@@ -358,6 +376,9 @@ class HeadTableCase(Base):
         kinds = [*line_facts_heads(), *ASK_KINDS, "直しの途中で AI が自分で決めずに人に回した物（壊すと分かって通した理由）"]
         asks = [{"kind": k, "text": f"本文 {n}", **({"title": "題 A\n二行目"} if n == 0 else {})} for n, k in enumerate(kinds)]
         yield {"apply": sealed}
+        yield {"request_texts": ["依頼の 1 行目"]}
+        yield {"request_texts": ["依頼の 1 行目\n改行を含む", "依頼の 2 行目", "依頼の 3 行目"]}
+        yield {"request_texts": [" \n\t ", ""]}
         yield {"apply": {"sealed": False}}
         yield {"apply": {"sealed": True, "placed": False}}
         yield {"apply": {"sealed": True, "placed": False, "redesign": "redesign-needed"}}
@@ -440,6 +461,10 @@ class HeadTableCase(Base):
                     seen.add(row.kind)
                     self.assertEqual((H.render if isinstance(row.kind, H.Line) else H.notice_row)(row.kind, row.slots), line)
         self.assertEqual(seen, {*H.Line, *H.Notice}, "場面が表のどの行にも当たる")
+        self.assertLessEqual({"REQUEST_TITLE", "REQUEST_TITLE_MORE"}, {k.name for k in seen if isinstance(k, H.Line)}, "依頼の行の場面が題の 2 行に当たる")
+        _, blank = self.build(request_texts=[" \n\t ", ""])
+        self.assertEqual(H.parse(blank.splitlines()[0]).kind, H.Line.RUN_TITLE, "空白と改行だけの依頼は id だけの題")
+        self.assertEqual(blank.splitlines()[0], f"# 報告（run {RUN_ID}）")
         self.assertEqual(unreadable("# 報告（run x）\n\n起きたこと: 自由な字で組んだ行"), ["起きたこと: 自由な字で組んだ行"], "表の外の行は赤")
         self.assertEqual(unreadable("# 報告（run x）\n\n知らせ（決めることではない）: 表に無い知らせ"), ["知らせ（決めることではない）: 表に無い知らせ"])
 

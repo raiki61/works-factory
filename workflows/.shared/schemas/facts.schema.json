@@ -546,6 +546,13 @@
     },
     "line_rev": {
       "type": "string"
+    },
+    "request_texts": {
+      "description": "人が渡した依頼のファイルの行の text を順に並べた字の配列。行が無く PR を名指した run は PR の題 1 つ。無ければ依頼の値が無い run",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   }
 }

@@ -128,6 +128,45 @@ class FactsCase(unittest.TestCase):
                          "試験のコマンドの注意の種の行 1 つ。本文は行の全文")
         self.assertEqual(got["left"], [])
 
+    def with_request(self, doc=None, *, path="start/request.json", raw=None, other=None):
+        """始めの節の ports.request に依頼の写し（doc を書いた path）の pointer を置いた collect の入力。other は request-in の返りの写し"""
+        v = passing()
+        if doc is not None or raw is not None:
+            target = self.run.artifacts / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(raw if raw is not None else json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        v["start"] = {**v["start"], "ports": {**v["start"]["ports"], "request": ptr(path)}}
+        if other is not None:
+            (self.run.artifacts / "descend").mkdir(exist_ok=True)
+            (self.run.artifacts / "descend" / "request.json").write_text(json.dumps(other, ensure_ascii=False), encoding="utf-8")
+            v["request_in"] = {"request": ptr("descend/request.json")}
+        return v
+
+    def test_request_texts_come_from_the_start_request_copy(self):
+        rows = [{"where": "a.py:1", "text": "1 行目の依頼"}, {"where": "b.py:2", "text": "2 行目の依頼"}]
+        other = {"findings": [{"where": "x.py:9", "text": "降りた依頼の字"}]}
+        for doc in ({"findings": rows}, rows):
+            with self.subTest(shape=type(doc).__name__):
+                got = self.build(self.with_request(doc, other=other))
+                self.assertEqual(got.get("request_texts"), ["1 行目の依頼", "2 行目の依頼"], "始めの写しの行の text を依頼の順のまま")
+                self.assertEqual(check(got, FACTS_SCHEMA), [], "facts が report の形に合う")
+
+    def test_request_texts_fall_back_to_the_pr_title(self):
+        rec = {**record(), "input": {"base": {"label": "差分なし（HEAD）"}, "pr": {"title": "PR の題"}}}
+        for empty in ([], {"findings": []}):
+            with self.subTest(copy=empty):
+                self.assertEqual(self.build(self.with_request(empty), rec).get("request_texts"), ["PR の題"])
+        blank = {**record(), "input": {"base": {"label": "差分なし（HEAD）"}, "pr": {"title": ""}}}
+        self.assertEqual(self.build(self.with_request([]), blank).get("request_texts"), [], "題が空なら空の配列")
+
+    def test_unreadable_request_copy_is_named_in_the_notes(self):
+        draft = {"findings": [{"where": "a.py:1", "text": "下書き", "draft": True, "source": "前の run"}]}
+        for name, v in (("missing", self.with_request(path="start/missing.json")), ("draft", self.with_request(draft))):
+            with self.subTest(name):
+                got = self.build(v)
+                self.assertEqual(got.get("request_texts"), [], "読めない時は空の配列")
+                self.assertTrue([n for n in got["notes"] if "依頼の字を組めない" in n], got["notes"])
+
     def test_unreadable_after_measure_is_a_left_row(self):
         """直した後の構造の実測を読めない時は、柵の増えが無いと数えずに残りの行にする（E23。最後の承認ノードの final.after_rows と同じ読み）"""
         v = passing()
@@ -330,6 +369,25 @@ class FactsCase(unittest.TestCase):
         self.assertTrue(lines and lines[0].startswith(self.f.POLICY_CHANGED_HEAD), lines)
         doc.write_text("前の方針\n", encoding="utf-8")
         self.assertEqual(self.f.policy_lines({"policy": frozen}, self.run.repo, self.run.artifacts), [])
+
+
+class CollectTest(unittest.TestCase):
+    """周の鎖の 2 周目からの run は、前の周の報告から機械が組んだ次の依頼の容器を、人が見直さないまま依頼のファイルとして受ける"""
+
+    setUp = FactsCase.setUp
+    build = FactsCase.build
+    with_request = FactsCase.with_request
+
+    def test_request_texts_come_from_a_chain_next_request(self):
+        chain_request = {
+            "findings": [{"where": "a.py:1", "text": "前の周が残した 1 行目"}, {"where": "b.py:2", "text": "前の周が残した 2 行目"}],
+            "prior_failures": [{"where": "c.py:3", "text": "前の周の失敗"}],
+            "constraints": [{"text": "前の周の制約", "measured_how": "前の周の実測", "kind": "実測"}],
+            "pr": [12],
+        }
+        got = self.build(self.with_request(chain_request))
+        self.assertEqual(got.get("request_texts"), ["前の周が残した 1 行目", "前の周が残した 2 行目"], "容器の findings の text を依頼の順のまま")
+        self.assertEqual(check(got, FACTS_SCHEMA), [], "facts が report の形に合う")
 
 
 class MoreLinesCase(unittest.TestCase):
