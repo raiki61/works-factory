@@ -401,7 +401,7 @@ E11（`AGENTS.md` の決まり。仕組みを足す前に、Archon が持つか�
 
 ## 7 報告への受け渡し（`collect`）
 
-`collect` は落ちない（今のまま: 境の口を読めない時も標準ライブラリだけで fallback を書く）。受け皿の got・返し・承認の答え・line の script の止めの語を受け、2 つのファイルを place に書いて、2 つの pointer と、書いた 2 つのファイルの中身の sha256 の指紋 `digest`（16 進 64 字。時刻・run の id・パスは材料にしない）を返す。
+`collect` は落ちない（今のまま: 境の口を読めない時も標準ライブラリだけで fallback を書く）。受け皿の got・返し・承認の答え・line の script の止めの語を受け、2 つのファイルを place に書いて、2 つの pointer と、書いた 2 つのファイルの中身の sha256 の指紋 `digest`（16 進 64 字。材料は書いた 2 つのファイルの字だけで、pointer のパスや時刻など返りの外の値を足さない。中身が変わった時だけ report が回し直るのは、Archon の resume が前に済んだノードの値を、待つ相手の出力が前と等しい時だけ使い直すため〔止めた Archon の源の dag/stale-dependencies.ts の cachedOutputIsStale〕）を返す。
 
 ### 7.1 `sections`（並び）
 
