@@ -4,6 +4,9 @@
 
 - TITLES: include の id → 報告の節の見出し
 - rows(received, merge) -> {r1..r4: 判定の行か null}: run が真の時の目の行
+- back_items(received, got_rows) -> 修正の段へ返す項目 [{eye, where, text}]: 判定が fix-needed の R1・R2 の findings を目の名を付けて順に並べる
+- route_of(got_rows, premise, items) -> (route, route_why): 修正の段へ返すか（ROUTE_FIX）返さないか（ROUTE_STAY）を判定の語から決める。
+  判定の語の意味を知る場所は ok を決める build とここだけで、line は route と findings を読むだけ
 - build(received, *, run, merge, skip_why) -> まとめの出力
 
 received は include の id（structure-after・r1〜r4）→ 受け皿の got（返りが無ければ None）。
@@ -21,6 +24,9 @@ NO_OUTPUT = "出力が無い"
 NO_COHERENCE = "まとめた R3 の行（coherence）が無い"
 RAN_R4 = "まま R4 を回した"
 WAITED_BY_R4 = ("r1", "r2")   # R4 が待つ目（E8）。この目が落ちても R4 は回るので、落ちた訳に尾を足す
+RETURNING = ("r1", "r2")      # 作り残しの項目を出口の findings で運ぶ目
+ROUTE_FIX, ROUTE_STAY = "fix", "stay"
+NOTHING_TO_RETURN = "返す物が無い"
 
 
 def _question(q):
@@ -58,6 +64,35 @@ def rows(received: dict, merge: bool) -> dict:
     return {eye: out[eye] for eye in ("r1", "r2", "r3", "r4")}
 
 
+def back_items(received: dict, got_rows: dict) -> list:
+    """判定が fix-needed の R1・R2 の出口の findings を、目の名 eye を付けて R1・R2 の順に並べる（形の外の行は載せない）"""
+    out = []
+    for eye in RETURNING:
+        if (got_rows.get(eye) or {}).get("status") != seal.FIX_NEEDED:
+            continue
+        for item in (_got(received, eye) or {}).get("findings") or []:
+            if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"]:
+                out.append({"eye": eye, "where": str(item.get("where") or ""), "text": item["text"]})
+    return out
+
+
+def route_of(got_rows: dict, premise, items: list) -> tuple[str, str]:
+    """(route, route_why)。返すのは、どの目も redesign-needed でなく、前提の検算の道でなく、R1 か R2 が fix-needed で、返す項目が 1 つ以上在る時。
+    ほかは返さず、返さない訳（設計違いの目・前提の検算・確かめられない目・返す物が無い）を route_why に書く"""
+    redesign = [eye for eye, row in got_rows.items() if row["status"] == seal.REDESIGN]
+    unverifiable = [eye for eye, row in got_rows.items() if row["status"] == seal.UNVERIFIABLE]
+    if redesign:
+        return ROUTE_STAY, "設計違いの目が在る（" + "・".join(eye.upper() for eye in redesign) + "）"
+    if premise is not None:
+        return ROUTE_STAY, "R2 が前提の検算の道"
+    if items and any(got_rows[eye]["status"] == seal.FIX_NEEDED for eye in RETURNING):
+        return ROUTE_FIX, f"返す項目が {len(items)} 件ある"
+    why = NOTHING_TO_RETURN
+    if unverifiable:
+        why += "（確かめられない目: " + "・".join(eye.upper() for eye in unverifiable) + "）"
+    return ROUTE_STAY, why
+
+
 def _absorbed(after: dict | None) -> list:
     out = [dict(r) for r in fallback.OPTIONAL]
     for row in (after or {}).get("optional") or []:
@@ -75,6 +110,8 @@ def build(received: dict, *, run: bool, merge: bool, skip_why: str) -> dict:
     if run:
         got_rows = rows(received, merge)
         premise = r2.get("premise_check") if r2 else None
+        items = back_items(received, got_rows)
+        route, route_why = route_of(got_rows, premise, items)
         ok = premise is None and all(row["status"] == seal.PASSED for row in got_rows.values())
         bad = [f"{eye.upper()}: {row['status']}" for eye, row in got_rows.items() if row["status"] != seal.PASSED]
         own.append("- 変更を通してよい（どの目も pass）" if ok else
@@ -83,7 +120,8 @@ def build(received: dict, *, run: bool, merge: bool, skip_why: str) -> dict:
             own.append("- R3 の観点は R4 の会話にまとめた（R3 の行は R4 の coherence）")
     else:
         got_rows = dict.fromkeys(("r1", "r2", "r3", "r4"))
-        premise, ok = None, True
+        premise, ok, items = None, True, []
+        route, route_why = ROUTE_STAY, f"独立の目を回していない（{oneline.one_line(skip_why) or '訳が渡されていない'}）"
         own.append(f"- 独立の目: 深さで省いた（{oneline.one_line(skip_why) or '訳が渡されていない'}）")
     after_ok = bool(after) and after.get("ok") is True
     if not after_ok:
@@ -102,4 +140,5 @@ def build(received: dict, *, run: bool, merge: bool, skip_why: str) -> dict:
             "premise_check": premise, "notes": [str(n) for n in (r2 or {}).get("notes") or []] if run else [],
             "after": (after or {}).get("after"), "dirty": int((after or {}).get("dirty") or 0),
             "escalate": int((after or {}).get("escalate") or 0), "after_ok": after_ok,
+            "findings": items, "route": route, "route_why": route_why,
             "report": own, "sections": sections, "optional": _absorbed(after)}

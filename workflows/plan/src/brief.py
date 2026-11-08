@@ -236,7 +236,7 @@ def concept_rows(repo) -> tuple:
 
 
 def prior_failure_rows(rows) -> tuple:
-    """(作り直しでない行, 作り直しの行)。1 件 1 行 `- <where>: <text>`"""
+    """(R2 の直す行でない行, R2 の直す行)。1 件 1 行 `- <where>: <text>`"""
     rows = [r for r in rows if isinstance(r, dict)]
     line = lambda r: f"- {oneline.one_line(r.get('where', ''))}: {oneline.one_line(r.get('text', ''))}"   # noqa: E731
     return ("\n".join(line(r) for r in rows if not carry.is_redesign(r)), "\n".join(line(r) for r in rows if carry.is_redesign(r)))

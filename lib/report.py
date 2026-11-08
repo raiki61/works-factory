@@ -54,11 +54,13 @@ REPORT_FILE = "report.md"
 PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"
 TDD_HEADING = "## TDD のループの単位ごとの結末"   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
+RETURNED_STAGE = "独立の目から返した修正の段"   # 3 段目からの名（独立の目の指摘で修正の段へ返した段。stage_name）
 # 単位ごとの深さの語のうち、緑の後の test_cmd を走らせない語（fix が単位の出口の test_cmd に書き、line が深さの行に数える。
 # 前は tddloop.CMD_LIGHT。integration.md 4.5-14・4.4-F）
 CMD_LIGHT = "light"
 FREEZE_OFF_HEAD = "テストの凍結"   # 冒頭 2 の行の頭（TDD の輪を回していない修正の段は、凍結が効いていないと言う。freeze_lines）
-R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の作り直しの行に付ける頭（findings から外し prior_failures にだけ載せる）
+R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の直す行（作り直し）に付ける頭（findings から外し prior_failures にだけ載せる）
+R2_FIX = "R2 が fix-needed"                # 同じく R2 の作り残しの行に付ける頭（R2_REDESIGN と同じく findings から外し prior_failures にだけ載せる）
 FINAL_GATE_STOPS = answer.STOP_WORDS            # 最後の関所の答えのうち止める語（書き手 line_edge の GATE_STOP）
 REQUEST_BY = "request:"                        # 止め札で止めた盤面の state.stop.by の頭
 HUMAN_BY = stopby.HUMAN
@@ -142,8 +144,9 @@ def rejudge_exit(path) -> tuple:
 
 
 # ---------------------------------------------------------------- 次の run に渡す依頼
-def _r2_redesign(row) -> bool:
-    return str(row.get("text") or "").startswith(R2_REDESIGN)
+def _r2_tied(row) -> bool:
+    """行が独立の目 R2 の直す行（作り直しか作り残し）か。次の run の判定は、この行を直す単位に結ぶよう縛られる"""
+    return str(row.get("text") or "").startswith((R2_REDESIGN, R2_FIX))
 
 
 def prior_lines(rows: list, next_file: str) -> list:
@@ -153,7 +156,7 @@ def prior_lines(rows: list, next_file: str) -> list:
         return ["0 件"]
     also = f"。次の run の依頼の下書き {next_file} の prior_failures にも載せた" if next_file else ""
     return [f"{len(rows)} 件（{carry.PRIOR_FAILURES_FILE} に書いた{also}。判定役と修正案の役の材料に貼る。受け付けの拒否の行は"
-            "直す穴ではない注意で、R2 の作り直しの行は次の周の先頭で直す穴）"] + [f"{r['where']}: {r['text']}" for r in rows]
+            "直す穴ではない注意で、R2 の直す行（作り直しか作り残し）は次の周の先頭で直す穴）"] + [f"{r['where']}: {r['text']}" for r in rows]
 
 
 # ---------------------------------------------------------------- 冒頭 3 行と 1〜5
@@ -214,10 +217,18 @@ def _reused_line(reused) -> str:
     return "・".join(f"{label} {oneline.one_line(reused[k])}" for k, label in labels if isinstance(reused, dict) and reused.get(k))
 
 
+def stage_name(n: int) -> str:
+    """n 番目（1 から）の修正の段の名の 1 か所。1 つ目と案を直した後の段は TDD_STAGES、3 つ目からは独立の目から返した段（k 回目）。
+    報告・最後の承認ノード・独立の目の比較役が同じ名で段を指す"""
+    if n <= len(TDD_STAGES):
+        return TDD_STAGES[n - 1]
+    return f"{RETURNED_STAGE}（{n - len(TDD_STAGES)} 回目）"
+
+
 def tdd_stage_groups(n: int, groups) -> list:
     """n 番目（0 から）の修正の段の組ごとの物 groups（tdd-unit の本文）を、tdd_lines に渡す [(段の名（組 id）, 組の物)] に。段の名は
-    TDD_STAGES の順で、並びを超えた段は番号を足す（報告と独立の目の比較役が同じ名で段を指す）"""
-    name = TDD_STAGES[min(n, len(TDD_STAGES) - 1)] + (f" {n}" if n >= len(TDD_STAGES) else "")
+    stage_name"""
+    name = stage_name(n + 1)
     return [(f"{name}（組 {g.get('group_id')}）", g) for g in groups if isinstance(g, dict)]
 
 

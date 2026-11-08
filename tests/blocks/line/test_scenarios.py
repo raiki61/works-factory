@@ -506,5 +506,44 @@ class DirectionStopTest(unittest.TestCase):
         self.assertTrue(asked, "本物の answer-before-fix が回る筋書きが 1 つは在る")
 
 
+class EyesBackTest(unittest.TestCase):
+    """独立の目から修正の段へ返す輪（筋書き eyes-back）: R1 が最初の目で直しが要ると言い、1 度返した後の目で通る"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.trace = line_traces(("eyes-back",))["eyes-back"]
+
+    def test_r1_fix_needed_returns_once_then_passes(self):
+        """修正の段が 1 度返り、2 周目の頭が返さずに抜け、最後の承認ノードと封じと返す node の R2 が最後の周の判定と指紋を読む"""
+        trace = self.trace
+        first, second = out(trace, "back-1"), out(trace, "back-2")
+        self.assertTrue(first["go"], first)
+        self.assertEqual([r["items"][0]["text"] for r in first["rows"]], ["同じ内容の写しが残っている"])
+        self.assertIn("独立の目 R1: app.py:3: 同じ内容の写しが残っている", first["notes"])
+        self.assertFalse(second["go"], second)
+        self.assertEqual(second["exit"], "返す物が無い")
+        self.assertEqual(len(second["rows"]), 1)
+        for node in ("back-1-fix__finish", "back-1-fixed", "back-1-gate__result", "back-1-eyes__verdict", "back-2", "eyes-back"):
+            self.assertTrue(ran(trace, node), node)
+        for node in ("back-2-fix__finish", "back-2-fixed", "back-2-gate__result", "back-2-eyes__verdict"):
+            self.assertFalse(ran(trace, node), node)
+        for node in ("back-3", "back-4"):   # 頭は毎周走り、返さなかった周は前の記録を運ぶ
+            self.assertEqual({k: out(trace, node)[k] for k in ("go", "exit", "rows")}, {k: second[k] for k in ("go", "exit", "rows")}, node)
+        fixed = out(trace, "back-1-fixed")
+        self.assertEqual([s["stage"] for s in fixed["stages"]], [1, 2], "返した段が最初の修正の段の次に積まれる")
+        self.assertEqual(len(fixed["more"]), 1)
+        last = out(trace, "eyes-back")
+        self.assertEqual((last["exit"], last["sealable"], last["eyes_ok"], last["green_ok"]), ("返す物が無い", True, True, True))
+        self.assertEqual(last["fingerprint"]["diff_hash"], "e" * 64, "最後の周の試験の指紋")
+        self.assertEqual(last["eyes"]["r1"]["status"], "pass")
+        self.assertTrue(ran(trace, "merge-seal-out"))
+        asked = out(trace, "ask-final")
+        self.assertEqual(asked["fingerprint"]["diff_hash"], "e" * 64, "封じて当てる値は最後の周の物")
+        self.assertIs(asked["eyes_ok"], True)
+        self.assertEqual(asked["r2"]["status"], "pass")
+        self.assertEqual(out(trace, "result")["r2_status"], "pass")
+        self.assertIn("独立の目から修正の段へ 1 回返した", asked["text"])
+
+
 if __name__ == "__main__":
     unittest.main()

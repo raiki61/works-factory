@@ -20,11 +20,12 @@ GRAPH_SCHEMAS = {
     "r2-compare": {
         "type": "object", "required": ["status", "reason", "differences", "request_conflicts"], "additionalProperties": False,
         "properties": {
-            "status": {"type": "string", "enum": ["pass", "redesign-needed"]},
+            "status": {"type": "string", "enum": ["pass", "fix-needed", "redesign-needed"]},
             "reason": {"type": "string", "minLength": 1},
             "differences": {"type": "array", "items": {
                 "type": "object", "required": ["kind", "text"], "additionalProperties": False,
-                "properties": {"kind": {"type": "string", "enum": ["構造", "表現"]}, "text": {"type": "string"}}}},
+                "properties": {"kind": {"type": "string", "enum": ["構造", "表現", "作り残し"]}, "text": {"type": "string"},
+                               "where": {"type": "string"}}}},
             # 頼みどおりの違い（docs/design/plan-review.md の 20 章の 6.2 の 3）。推しの形は plan-review の means_drifts と同じ
             "request_conflicts": {"type": "array", "items": {
                 "type": "object", "required": ["means", "design_quote", "diff_quote", "why", "recommend"], "additionalProperties": False,
@@ -126,15 +127,20 @@ class TextCase(unittest.TestCase):
         text = md("r2-compare")
         for ask in ("The cumulative diff is not pasted, whatever its size", "Read the whole file with Read.",
                     "read to the last line (do not judge a difference on a part you left unread)",
-                    "the only file you may open is this one", "累積差分を読めなかった: ",
+                    "the only file you may open is this one", "{head_unread}",
                     "setting it to {st_pass} would let through a diff that was not checked"):
             with self.subTest(ask[:30]):
                 self.assertIn(ask, text)
+        # 頭の字は steps.py の KEEP_HEADS の 1 か所で、md は口だけを持つ（組んだ prompt に入ることは test_r2.py の
+        # test_compare_prompt_names_fix_needed_and_unfinished が照らす）
+        heads = kit.load("r2", "steps").KEEP_HEADS
+        self.assertNotIn(heads[0], text)
 
     def test_compare_says_premise_changed(self):
         """test_r2_compare_says_premise_changed（E38）: 設計の前提の見出しが、前提のずれと記録の制約の見出しより先に在る"""
         text = md("r2-compare")
-        self.assertIn("設計の前提が変わった: ", text)
+        self.assertIn("{head_premise}", text)
+        self.assertNotIn(kit.load("r2", "steps").KEEP_HEADS[1], text)
         self.assertLess(text.index("{shared:design-premises}"), text.index("## Premises learned after the independent design"))
         self.assertLess(text.index("### Drift of premises"), text.index("### Recorded constraints"))
         self.assertIn("<!-- if late -->", text)

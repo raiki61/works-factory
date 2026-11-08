@@ -20,7 +20,7 @@ def compute():
 def fallback(why: str) -> dict:
     row = {"status": "unverifiable", "reason": f"出口が落ちた: {why}"}
     return {"ok": False, "status": "failed", "reason": row["reason"], "verdict": row, "questions": [],
-            "report": [f"R1: {row['status']}（{row['reason']}）"]}
+            "findings": [], "report": [f"R1: {row['status']}（{row['reason']}）"]}
 
 
 ports.run(compute, fallback)

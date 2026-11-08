@@ -1,5 +1,5 @@
 name: works-factory-eyes
-description: '独立の目のまとめの graph（docs/design/judge-eyes.md の 2 章）。修正の後に、直しを作った役と別の会話で差分を確かめる 4 つの目（r1〜r4）と、直した後の構造の実測（structure の mode after）を並べ、目の判定をまとめて変更を通してよいか（ok）を出す。目を回すか・R3 を R4 にまとめるかは呼び手が flag で渡す。line から 1 つの include で呼ばれ、単独でも差分の根と目的と単位だけで回る'
+description: '独立の目のまとめの graph（docs/design/judge-eyes.md の 2 章）。修正の後に、直しを作った役と別の会話で差分を確かめる 4 つの目（r1〜r4）と、直した後の構造の実測（structure の mode after）を並べ、目の判定をまとめて変更を通してよいか（ok）と、直しが要る目の作り残しを修正の段へ返すか（route・route_why）と返す項目（findings）を出す。目を回すか・R3 を R4 にまとめるかは呼び手が flag で渡す。line から 1 つの include で呼ばれ、単独でも差分の根と目的と単位だけで回る'
 inputs:
   run: {default: 'true', description: 'flag: 4 つの目を回すか（偽なら目を起こさず、直した後の実測だけを回す）'}
   merge: {default: 'false', description: 'flag: R3 の観点を R4 の会話に入れるか（r3 を回さず、r4 の coherence を真にする）'}
@@ -125,7 +125,7 @@ nodes:
     depends_on: [r1]
     with:
       got: "$r1.output"
-      names: "ok status reason verdict questions report"
+      names: "ok status reason verdict questions findings report"
   # r2 は直した後の実測を読まないので待たない（E9）
   - id: r2
     include: works-factory-r2
@@ -153,7 +153,7 @@ nodes:
     depends_on: [r2]
     with:
       got: "$r2.output"
-      names: "ok status reason verdict questions premise_check notes report"
+      names: "ok status reason verdict questions premise_check notes findings report"
   - id: r3
     include: works-factory-r3
     depends_on: [after-in]
@@ -222,7 +222,7 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [ok, r1, r2, r3, r4, questions, means_questions, passes, premise_check, notes, after, dirty, escalate, after_ok, report, sections, optional]
+      required: [ok, r1, r2, r3, r4, questions, means_questions, passes, premise_check, notes, after, dirty, escalate, after_ok, findings, route, route_why, report, sections, optional]
       properties:
         ok: {type: boolean}
         r1: &row
@@ -259,6 +259,19 @@ nodes:
         dirty: {type: integer}
         escalate: {type: integer}
         after_ok: {type: boolean}
+        findings:
+          type: array
+          description: '修正の段へ返す項目（判定が fix-needed の R1・R2 の出口の findings に目の名を付けて並べた物）'
+          items:
+            type: object
+            additionalProperties: false
+            required: [eye, where, text]
+            properties:
+              eye: {type: string, enum: [r1, r2]}
+              where: {type: string}
+              text: {type: string}
+        route: {type: string, enum: [fix, stay], description: '修正の段へ返すか。判定の語からまとめが決める（AI に書かせない）'}
+        route_why: {type: string, description: '返す訳か、返さない訳（設計違いの目の名・前提の検算・確かめられない目の名・返す物が無い・目を回していない）'}
         report: {type: array, items: {type: string}}
         sections:
           type: array

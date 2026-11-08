@@ -158,6 +158,7 @@ eyes__after-in:
   why: ''
 eyes__r1__intake: {due: false, reason: ''}
 eyes__r1__finish:
+  findings: []
   ok: true
   status: ran
   reason: ''
@@ -166,6 +167,7 @@ eyes__r1__finish:
   report: ['R1: pass']
 eyes__r2__intake: {compare: true, premise: false, reason: ''}
 eyes__r2__finish:
+  findings: []
   ok: true
   status: ran
   reason: ''
@@ -193,6 +195,9 @@ eyes__r4__finish:
   passes: []
   coherence: null
 eyes__verdict:
+  findings: []
+  route: stay
+  route_why: 返す物が無い
   ok: true
   r1: {status: pass, reason: r1 は通した}
   r2: {status: pass, reason: 独立設計も直す物が無いと言う}

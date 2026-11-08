@@ -83,6 +83,78 @@ class CompareRoadCase(_RepoCase):
         self.assertEqual(json.loads((self.place / "finish.json").read_text(encoding="utf-8")), done)
         self.assertEqual(json.loads((self.place / "r2-premises.json").read_text(encoding="utf-8"))["node"], "r2.compare")
 
+    def test_findings_are_the_unfinished_rows(self):
+        """判定が fix-needed の時、findings は違いのうち種が作り残しの行だけを {where, text} にして並べる（text は 1 行）。構造・表現の行は
+        載せず、fix-needed でない時は空。比べの道を通った pass の finish は findings を空で出す"""
+        steps = kit.load("r2", "steps")
+        unfinished = steps.UNFINISHED_KIND
+        compare = {"status": "fix-needed", "reason": "x", "differences": [
+            {"kind": unfinished, "text": "入口が 2 つのまま\n残っている", "where": "app.py:12"}, {"kind": "構造", "text": "継ぎ目が違う"},
+            {"kind": unfinished, "text": "上限の確かめが無い"}, {"kind": "表現", "text": "呼び名が違う"}]}
+        self.assertEqual(steps.findings({"status": "fix-needed", "reason": "x"}, compare),
+                         [{"where": "app.py:12", "text": "入口が 2 つのまま 残っている"}, {"where": "", "text": "上限の確かめが無い"}])
+        for status in ("pass", "redesign-needed", "unverifiable"):
+            self.assertEqual(steps.findings({"status": status, "reason": "x"}, compare), [], status)
+        self.assertEqual(steps.findings({"status": "fix-needed", "reason": "x"}, None), [])
+        self.intake()
+        self.compare()
+        self.save("r2-compare", PASS)
+        self.assertEqual(self.finish()["findings"], [])
+
+    def test_settle_table_covers_every_status_and_kind(self):
+        """settle の表（上から順）を、返答の語と違いの種の組ごとに intake → compare_prep → save → finish で回す。block の status は
+        どの組でも ran。作り残しだけの返答は fix-needed で、reason の尾に行の where と text が付く"""
+        steps = kit.load("r2", "steps")
+        unfinished, structure, wording = steps.UNFINISHED_KIND, "構造", "表現"
+        row = {unfinished: {"kind": unfinished, "text": "上限の確かめが無い", "where": "app.py:12"}, structure: {"kind": structure, "text": "継ぎ目が違う"},
+               wording: {"kind": wording, "text": "呼び名が違う"}}
+        tail = "（作り残し: app.py:12: 上限の確かめが無い）"
+        raised = steps.RAISED_BY_UNFINISHED
+        cases = [
+            ("fix-needed", [unfinished], "fix-needed", "R" + tail),
+            ("pass", [structure], "pass", "R"),
+            ("pass", [unfinished], "fix-needed", raised.format(word="通った（pass）") + "R" + tail),
+            ("fix-needed", [structure, unfinished], "redesign-needed", "R（構造の違い: 継ぎ目が違う）"),
+            ("fix-needed", [wording], "redesign-needed", steps.NO_UNFINISHED + "R"),
+            ("fix-needed", [], "redesign-needed", steps.NO_UNFINISHED + "R"),
+            ("redesign-needed", [wording], "redesign-needed", "R"),
+            ("redesign-needed", [structure], "redesign-needed", "R（構造の違い: 継ぎ目が違う）"),
+            ("redesign-needed", [unfinished], "fix-needed", raised.format(word="作り直しが要る（redesign-needed）") + "R" + tail),
+            ("pass", [], "pass", "R"),
+            ("pass", [wording], "pass", "R"),
+        ]
+        for status, kinds, want, reason in cases:
+            with self.subTest(status=status, kinds=kinds):
+                self.intake()
+                self.compare()
+                self.save("r2-compare", {"status": status, "reason": "R", "differences": [row[k] for k in kinds]})
+                done = self.finish()
+                self.assertEqual((done["ok"], done["status"], done["reason"]), (True, "ran", ""))
+                self.assertEqual(done["verdict"], {"status": want, "reason": reason})
+                self.assertEqual(done["findings"], [{"where": "app.py:12", "text": "上限の確かめが無い"}] if want == "fix-needed" else [])
+        for head in steps.KEEP_HEADS:
+            with self.subTest(head=head):
+                self.intake()
+                self.compare()
+                self.save("r2-compare", {"status": "redesign-needed", "reason": head + "理由", "differences": [row[unfinished]]})
+                done = self.finish()
+                self.assertEqual((done["status"], done["verdict"]), ("ran", {"status": "redesign-needed", "reason": head + "理由"}))
+                self.assertEqual(done["findings"], [])
+        self.assertEqual(steps.settle({"status": "unverifiable", "reason": "x", "differences": [row[structure]]}),
+                         {"status": "unverifiable", "reason": "x"})
+
+    def test_compare_prompt_names_fix_needed_and_unfinished(self):
+        """比べの役の指示は 3 つの語と作り残しの種と where の書き方と KEEP_HEADS の 3 つの頭の字と、fix-needed に構造の行を添えない決まりを言う"""
+        steps = kit.load("r2", "steps")
+        self.intake()
+        text = self.compare()["prompt"]
+        for word in ("fix-needed", "redesign-needed", "pass", "作り残し", "`where`", *steps.KEEP_HEADS):
+            self.assertIn(word, text)
+        self.assertIn("When you write fix-needed, write no 構造 row", text)
+        self.assertIn("If you attach even one 構造 row, the machine makes `status` redesign-needed", text)
+        self.assertNotIn("{st_", text)
+        self.assertNotIn("{head_", text)
+
     def test_prompt_pastes_the_measured_test_outcomes_and_the_tdd_proof(self):
         """test_prep_pastes_the_measured_test_outcomes_and_the_tdd_proof（issue #384）: tdd の port で。渡っていない時は測っていないと書く"""
         self.intake()
@@ -339,7 +411,7 @@ class CompareRoadCase(_RepoCase):
     def test_off_contract_status_fails_the_road(self):
         self.intake()
         self.compare()
-        self.save("r2-compare", {"status": "fix-needed", "reason": "x", "differences": []})
+        self.save("r2-compare", {"status": "ok", "reason": "x", "differences": []})
         done = self.finish()
         self.assertEqual((done["ok"], done["status"]), (False, "failed"))
         self.assertIn("出力の判定の語が約束の外", done["verdict"]["reason"])
@@ -644,6 +716,18 @@ class FailureCase(_RepoCase):
         done = self.finish()
         self.assertEqual((done["ok"], done["status"]), (True, "ran"))
         self.assertEqual(done["notes"], ["独立の設計と比べる目に渡した入力の控えが無い（R2）"])
+
+    def test_fallback_has_every_field(self):
+        """出口が落ちた形（fallback）も、入口が無い時の形も、finish の output_format の必須の欄を全部持つ"""
+        import yaml
+        doc = yaml.safe_load((kit.BLOCKS / "r2" / "works-factory-r2.yaml").read_text(encoding="utf-8"))
+        required = next(n for n in doc["nodes"] if n["id"] == "finish")["output_format"]["required"]
+        self.assertEqual(sorted(self.finish()), sorted(required))
+        self.intake()
+        (self.place / "finish.json").mkdir()   # 写しを書けない
+        fell = self.finish()
+        self.assertEqual(sorted(fell), sorted(required))
+        self.assertEqual(fell["findings"], [])
 
     def test_finish_without_intake_fails_softly(self):
         done = self.finish()

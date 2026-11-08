@@ -9,7 +9,10 @@ block が自分の出力の report・carry で返すので写さない（delta-r
 - resolve(ptr, field): 作り手の返りの欄 field の pointer（か、パスの字）を、その欄の宣言の form で中身を照らしてこの run の place の
   中のパスに戻す（戻せない・形に合わなければ ValueError）。resolve を受ける読み手の口は resolve(ptr, 欄の名) で呼ぶ
 - read(stages, resolve)・tdd(stage, resolve)・late_records(stage, resolve): 読み手の口（元 fixbeside の同じ名。delta_holes・lenses を読まない）
-- fixed(values) -> fixed の node の返り（YAML の output_format の欄）。values は fixed.py が受け皿の got から組んだ dict
+- fixed(values) -> fixed の node の返り（YAML の output_format の欄）。values は fixed.py が受け皿の got から組んだ dict。鍵 more（MORE）は独立の目から
+  修正の段へ返した段の fix の got の並び（MORE。返した順。段が落ちて got が無い段は None）で、stages の 3 段目以降に積み、最後の段・単位・組・
+  項目の申告・異議・TDD の記録・変更の印をそこまで含めて合わせる。返した段は lens と delta-review を回さないので、go・done はその段の分を
+  段の修正の ok と変更の確かめだけで決める
 - held_of(values) -> (held か, 訳)・go_done(values, held) -> (go, done)
 """
 from __future__ import annotations
@@ -22,10 +25,10 @@ import pathlib
 PORTS = ("allowed_tests", "accept_trace", "closure", "tdd_unit")
 FROM = ("removed", "tdd_refused", "removed_tests", "untested")
 READ_ERRORS = (ValueError, TypeError, AttributeError, KeyError)
+MORE = "more"   # fixed の values の鍵と出力の欄: 独立の目から修正の段へ返した段の fix の got の並び（返した順。落ちた段は None）
 CLOSURE_UNREAD = "閉じたかを数えていない"   # 閉鎖の表の控えを読めない行の尾（facts.residue が修正の残りにする）
 REMOVED_UNRETURNED = "修正の出力が消したファイルの控えを返せなかった"
 ANOMALY_LINE = "仕組みの異常: 取れない（元は共有ボードの trace と包みの記録から数えた。docs/design/archon.md の U6）"
-STAGE_NAMES = ("修正の段", "案を直した後の修正の段")   # stages の並び（1 回目・2 度目）。lib/report.py の TDD_STAGES と同じ順
 # held の訳（報告と試験が読む）
 HELD_REPLAN = "案の直しが要ったのに 2 度目の修正が走らなかった"
 HELD_LINE = "修正の後の line の script が止めた"
@@ -178,6 +181,7 @@ def read(stages, resolve) -> dict:
     untested, unread, closure_unread}。removed は段ごとの並び [(段の名, 中身)]。removed_tests・untested は段の欄の行に段の名 stage を
     足して段の順に並べた物（消した試験・試験を求めなかった直し。下書き 4.1 の 7）。null・戻せない・読めない・無い控えと {"error"} は
     unread に訳"""
+    import report
     got = {"closure": {}, "claimed": [], "trace": [], "tests": [], "removed": [], "allowed": [], "removed_tests": [], "untested": [],
            "unread": [], "closure_unread": []}
     for n, stage in enumerate(stages or [], 1):
@@ -185,7 +189,7 @@ def read(stages, resolve) -> dict:
             got["unread"].append("修正の段の出力が dict でない")
             continue
         place = _place(stage, resolve)
-        label = STAGE_NAMES[n - 1] if n <= len(STAGE_NAMES) else f"段 {n}"
+        label = report.stage_name(n)
         closure_unread: list = []
         path = _port(stage, "closure", resolve, closure_unread)
         closure = (_load(path, closure_unread) if path is not None else None) or {}
@@ -394,12 +398,13 @@ def held_of(values: dict) -> tuple[bool, str]:
     """held か（試験の関門から先へ進めない）と訳: 案の直しが要ったのに 2 度目の修正が走らなかった・after-fix か raise が止めた・fix か
     refix が止めの語（works:unrestored）を返した・fix が返らなかった（docs/design/line.md の 4.3。L-W47）"""
     fix, refix, after = values.get("fix"), values.get("refix"), _d(values.get("after_fix"))
+    more = values.get(MORE) or []
     raise_ = _d(values.get("raise"))
-    if fix is None:
+    if fix is None or any(m is None for m in more):
         return True, HELD_UNRETURNED
     if after.get("stop_reason") or raise_.get("stop_reason"):
         return True, HELD_LINE
-    if any(isinstance(r, dict) and r.get("stop_reason") for r in (fix, refix)):
+    if any(isinstance(r, dict) and r.get("stop_reason") for r in (fix, refix, *more)):
         return True, HELD_STOP
     if after.get("replan") is True and refix is None:
         return True, HELD_REPLAN
@@ -409,7 +414,8 @@ def held_of(values: dict) -> tuple[bool, str]:
 def go_done(values: dict, held: bool) -> tuple[bool, bool]:
     """go: held でなく、最後の段の fix の ok が真で、どの段の lens・delta-review も ok が偽でない（回さなかった段は数えない）。
     done: go で、最後の段の変更の確かめが通り、どの段の delta-review も回さなかったか pass（delta-review の設計書の 1.6）"""
-    last = values["refix"] if values.get("refix") is not None else values["fix"]
+    more = values.get(MORE) or []
+    last = more[-1] if more else values["refix"] if values.get("refix") is not None else values["fix"]
     reviews = [r for r in (values.get("lens"), values.get("delta"), values.get("lens_2"), values.get("delta_2")) if isinstance(r, dict)]
     go = not held and _d(last).get("ok") is True and all(r.get("ok") is not False for r in reviews)
     deltas = [r for r in (values.get("delta"), values.get("delta_2")) if isinstance(r, dict)]
@@ -419,11 +425,12 @@ def go_done(values: dict, held: bool) -> tuple[bool, bool]:
 
 def left_rows(values: dict) -> list:
     """止めずに残りに数える行（7.2 の left）: 差分の審査が通らなかった・諦めた段と、案の直しを諦めた項目"""
+    import report
     rows = []
     for n, key in ((1, "delta"), (2, "delta_2")):
         d = values.get(key)
         if isinstance(d, dict) and d.get("ok") is True and d.get("pass") is not True:
-            rows.append({"where": "差分の審査", "text": f"{STAGE_NAMES[n - 1]}の差分の審査が通っていない（{d.get('status')}・"
+            rows.append({"where": "差分の審査", "text": f"{report.stage_name(n)}の差分の審査が通っていない（{d.get('status')}・"
                                                      f"{d.get('rounds')} 回。{d.get('reason') or '訳の記録が無い'}）"})
     for key in ("replan",):
         for r in _d(values.get(key)).get("gave_up") or []:
@@ -446,7 +453,7 @@ def empty() -> dict:
             "skip_why": "", "rejudge": False, "refixed": False, "stages": [], "carry": [], "tdd": [], "units": [], "groups": [],
             "conflicts": [], "replan_items": [], "objection": "", "diff": None, "item_claims": None, "allowed_test_changes": [],
             "changed": None, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
-            "left": [], "stop_reason": ""}
+            MORE: [], "left": [], "stop_reason": ""}
 
 
 def fixed(values: dict) -> dict:
@@ -457,30 +464,33 @@ def fixed(values: dict) -> dict:
     if fix_in.get("no_fix") is True:
         return no_fix(values)
     fix, refix = values.get("fix"), values.get("refix")
+    more = list(values.get(MORE) or [])
     if fix is None and fix_in.get("go") is not True:
         return {**empty(), "plan": fix_in.get("plan"), "ripple": fix_in.get("ripple")}   # 承認ノードで止めた・計画ができなかった
     held, _ = held_of(values)
     go, done = go_done(values, held) if fix is not None else (False, False)
     fix = _d(fix)
     raise_ = values.get("raise")
-    last = refix if refix is not None else fix
-    last_delta = values.get("delta_2") if refix is not None else values.get("delta")
+    last = _d(more[-1]) if more else refix if refix is not None else fix
+    last_delta = None if more else values.get("delta_2") if refix is not None else values.get("delta")
     diff = last_delta.get("diff") if isinstance(last_delta, dict) and last_delta.get("diff") else last.get("diff")
-    own = next((s for s in (fix.get("stop_reason"), _d(refix).get("stop_reason")) if isinstance(s, str) and s), "")
+    fixes = [fix, _d(refix), *(_d(m) for m in more)]   # 段ごとの修正の got（走らなかった段は空の dict）
+    own = next((s for s in (f.get("stop_reason") for f in fixes) if isinstance(s, str) and s), "")
     units = {}
-    for unit in [*(fix.get("units") or []), *(_d(refix).get("units") or [])]:
+    for unit in (u for f in fixes for u in f.get("units") or []):
         if isinstance(unit, dict):
             units[unit.get("unit_id")] = unit
-    said = [str(r.get("objection") or "").strip() for r in (fix, _d(refix))]
+    said = [str(r.get("objection") or "").strip() for r in fixes]
     objection = "\n".join(dict.fromkeys(o for o in said if o))
     spec_stop = values.get("from_spec") is True and bool(objection or fix.get("replan_items"))
     if spec_stop:   # 仕様駆動の run: 案の直し（run の中の計画の審査）と再審へ進まず、異議を名指して止める
         held, go, done = True, False, False
-    scalars = {**_d(fix.get("x_scalars")), **_d(_d(refix).get("x_scalars"))}
+    scalars = {k: v for f in fixes for k, v in _d(f.get("x_scalars")).items()}
     again = values.get("replan") if refix is not None and isinstance(values.get("replan"), dict) else None
     stages = [{"stage": 1, "fix": values.get("fix"), "lens": values.get("lens"), "delta": values.get("delta")}]
     if refix is not None:
         stages.append({"stage": 2, "fix": refix, "lens": values.get("lens_2"), "delta": values.get("delta_2")})
+    stages += [{"stage": len(stages) + 1, "fix": m, "lens": None, "delta": None} for m in more]
     carry = union(*(_d(s.get(k)).get("carry") for s in stages for k in ("lens", "delta")))
     if isinstance(raise_, dict):
         checks, eyes_due, skip_why = raise_.get("checks") is True, raise_.get("eyes_due") is True, str(raise_.get("skip_why") or "")
@@ -495,19 +505,20 @@ def fixed(values: dict) -> dict:
         "stages": stages, "carry": carry,
         "tdd": [s["fix"].get("tdd") if isinstance(s["fix"].get("tdd"), list) else [] for s in stages if isinstance(s.get("fix"), dict)],
         "units": list(units.values()),
-        "groups": union(fix.get("groups"), _d(refix).get("groups")),
-        "conflicts": [c for c in (_d(refix).get("conflicts") or fix.get("conflicts"),) if c],
+        "groups": union(*(f.get("groups") for f in fixes)),
+        "conflicts": [c for c in (next((f.get("conflicts") for f in reversed(fixes) if f.get("conflicts")), None),) if c],
         "replan_items": fix.get("replan_items") or [],
         "objection": objection,
         "diff": diff,
-        "item_claims": itemcommits.merged([r.get("item_claims") for r in (fix, refix) if isinstance(r, dict)]),
-        "allowed_test_changes": union(fix.get("allowed_test_changes"), _d(refix).get("allowed_test_changes")),
+        "item_claims": itemcommits.merged([r.get("item_claims") for r in (fix, refix, *more) if isinstance(r, dict)]),
+        "allowed_test_changes": union(*(f.get("allowed_test_changes") for f in fixes)),
         "changed": last.get("changed"),
         "x_scalars": scalars,
-        "handoffs": union(fix.get("handoffs"), _d(refix).get("handoffs")),
-        "handoff_titles": {**_d(_d(refix).get("handoff_titles")), **_d(fix.get("handoff_titles"))},
-        "mismatched": union(fix.get("mismatched"), _d(refix).get("mismatched")),
-        "plan_declared": union(fix.get("plan_declared"), _d(refix).get("plan_declared")),
+        "handoffs": union(*(f.get("handoffs") for f in fixes)),
+        "handoff_titles": {**{k: v for f in reversed(fixes[1:]) for k, v in _d(f.get("handoff_titles")).items()}, **_d(fix.get("handoff_titles"))},
+        "mismatched": union(*(f.get("mismatched") for f in fixes)),
+        "plan_declared": union(*(f.get("plan_declared") for f in fixes)),
+        MORE: more,
         "plan": (again or fix_in).get("plan"),
         "ripple": (again or fix_in).get("ripple"),
         "left": left_rows(values),

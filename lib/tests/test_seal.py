@@ -267,12 +267,15 @@ class ApplyR2Case(unittest.TestCase):
 
 
 class EyeStatusWordsCase(unittest.TestCase):
-    def test_fix_needed_is_a_word_only_r1_says(self):
+    def test_fix_needed_is_a_word_r1_and_r2_say(self):
         self.assertIn("fix-needed", seal.STATUSES)
         self.assertEqual(seal.FIX_NEEDED, "fix-needed")
-        self.assertEqual(seal.eye_statuses("r1"), seal.STATUSES)
+        self.assertEqual(seal.FIX_EYES, ("r1", "r2"))
+        for eye in ("r1", "r2", "R2"):
+            with self.subTest(eye):
+                self.assertEqual(seal.eye_statuses(eye), seal.STATUSES)
         rest = {seal.PASSED, seal.REDESIGN, seal.UNVERIFIABLE}
-        for eye in ("r2", "r3", "r4"):
+        for eye in ("r3", "r4"):
             with self.subTest(eye):
                 got = seal.eye_statuses(eye)
                 self.assertNotIn(seal.FIX_NEEDED, got)

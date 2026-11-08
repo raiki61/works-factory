@@ -10,13 +10,14 @@ report・report_ai で写す（report の設計書の 1.6）。report の返り�
 report が届かなければ（report の中の node が落ちた）結末の語は空で、fixed は偽。
 差分を当てる殻 bin/apply・chain・通しの試験が読む欄を、受け皿の got から足す（merge の返りを直に読むと、merge の返す node が落ちた時に
 line の返りまで落ちる）: apply（merge-apply の {ok, hash, diff, reason}。飛ばされたら null）・sealed（merge-seal の {ok, hash, diff}）・
-r2_status（独立の目の R2 の status。省いた・飛ばされたら null）・final_answer（最後の承認ノードの答え {decision, text, asked}。開かなかったら
+r2_status（最後の周の独立の目の R2 の status。省いた・飛ばされたら null）・final_answer（最後の承認ノードの答え {decision, text, asked}。開かなかったら
 null）・spec_questions（仕様の照らしが残した承認し直すかの問いの数。照らせなかった時の問いも数える。bin/apply は止めの語でなくこの数を読む）・
 children（後始末の node sweep-children の返り {cleaned, left, error}。飛ばされたら null）。
 返す node は落ちない: 共通の口を読めない時も、標準ライブラリだけで fallback の返りを書く（止めの語は works:line-script。
 src/guard.py の LINE_SCRIPT と同じ字で、tests/blocks/line/test_scripts_misc.py が突き合わせる）。
 
-入力（with:）: report（report の返りまるごと）・merge_apply・merge_seal・eyes・spec_check（受け皿の got）・answer_final（最後の承認ノードの
+入力（with:）: report（report の返りまるごと）・merge_apply・merge_seal・spec_check（受け皿の got）・eyes（返す輪の集め eyes-back の欄 eyes。最後の周の
+独立の目の got で、返さなかった run は最初の物）・answer_final（最後の承認ノードの
 答え）・children（sweep-children の返り）。どれも `{from, if_skipped: null}`
 """
 import json

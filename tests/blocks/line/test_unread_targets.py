@@ -158,11 +158,15 @@ class AskFinalCase(unittest.TestCase):
     def ask(self, *, record=None, seal=None, unattended=False, judged=None, final_gate="protected_only"):
         fix_in = {"answer": None, "passes": [], "structure": None, "record": record, "judgment": None, "units": []}
         fixed = {"no_fix": False, "conflicts": [], "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [],
-                 "stages": [], "replan_items": [], "refixed": False, "skip_why": ""}
-        tests = {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd", "suites_line": "1 本", "log": "l",
-                 "baseline_line": "b", "reason": "", "fingerprint": {"head": "h", "diff_hash": "d"}}
+                 "stages": [], "replan_items": [], "refixed": False, "skip_why": "", "more": []}
+        tests = {"mode": "final", "ok": True, "green": True, "red_cause": "", "ran_steps": None, "baseline": None, "test_outcomes": None, "evidence": None,
+                 "by": "test_cmd", "suites_line": "1 本", "log": "l", "baseline_line": "b", "reason": "", "suite": None, "suite_note": "", "related": None,
+                 "report": [], "fingerprint": {"head": "h", "diff_hash": "d"}}
+        # 返さずに抜けた輪の記録（最後の周の状態は最初の物と同じ。eyes の got は無い）
+        eyes_back = {"rows": [], "exit": "返す物が無い", "left": [], "fixed": fixed, "tests": tests, "eyes": None, "fingerprint": tests["fingerprint"],
+                     "green_ok": True, "eyes_ok": False, "sealable": False, "item_claims": None}
         return self.run.script("ask_final", request=handed({}), fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged=json.dumps(judged) if judged else "null", tests=json.dumps(tests),
-                               eyes="null", seal=json.dumps(seal) if seal else "null", spec_check="null", parallel_after="null",
+                               eyes="null", eyes_back=json.dumps(eyes_back), seal=json.dumps(seal) if seal else "null", spec_check="null", parallel_after="null",
                                replan_review="null", replan_answer="null", widened="null", start_answer="null", record="null",
                                final_gate=final_gate, ports=json.dumps({"unattended": unattended}))
 

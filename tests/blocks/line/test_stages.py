@@ -97,6 +97,32 @@ class FixedCase(unittest.TestCase):
         self.assertEqual((failed["go"], failed["done"]), (True, False))
         self.assertEqual(failed["left"][0]["where"], "差分の審査")
 
+    def test_returned_stages_follow_the_second(self):
+        """values の more に独立の目から返した段の fix の got を渡すと、stages が 3 段目以降を持ち、units・item_claims・objection・tdd は
+        more まで合わせ、go と done は more の最後の段で決まり（返した段は lens・delta を回さない）、出力の more に並びが残る"""
+        refix = fix(units=[{"unit_id": "u1", "status": "fixed"}], replan_items=[], tdd=[{"units": [1]}], diff={"path": "refix/diff"})
+        back = fix(units=[{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u3", "status": "fixed"}], groups=[{"group_id": "g3"}], tdd=[{"units": [3]}],
+                   diff={"path": "back/diff"}, objection="返しの段の異議", changed={"path_changed": True}, handoffs=["h1"],
+                   item_claims={"items": None, "claims": []}, conflicts={"path": "back/conflicts.json"})
+        got = self.s.fixed(values(refix=refix, replan={"plan": {"path": "replan/p.json"}, "ripple": {"path": "replan/r.json"}},
+                                  after_fix={"replan": True, "prior": None, "stop_reason": ""}, lens_2=None, delta_2=None, more=[back]))
+        self.assertEqual([s["stage"] for s in got["stages"]], [1, 2, 3])
+        self.assertEqual((got["stages"][2]["fix"], got["stages"][2]["lens"], got["stages"][2]["delta"]), (back, None, None))
+        self.assertEqual(got["more"], [back])
+        self.assertEqual([u["unit_id"] for u in got["units"]], ["u1", "u3"])
+        self.assertEqual([g["group_id"] for g in got["groups"]], ["g1", "g3"])
+        self.assertEqual(got["tdd"], [[{"units": []}], [{"units": [1]}], [{"units": [3]}]])
+        self.assertEqual((got["objection"], got["changed"], got["handoffs"], got["diff"]), ("返しの段の異議", {"path_changed": True}, ["h1"], {"path": "back/diff"}))
+        self.assertEqual(got["conflicts"], [{"path": "back/conflicts.json"}])
+        self.assertEqual((got["go"], got["done"], got["held"]), (True, True, False), "返した段は lens・delta を回さないが、それまでの段の審査は数える")
+        self.assertEqual(self.s.fixed(values())["more"], [], "返した段が無ければ空")
+        stopped = self.s.fixed(values(more=[fix(stop_reason="works:unrestored")]))
+        self.assertEqual((stopped["held"], stopped["go"], stopped["stop_reason"]), (True, False, "works:unrestored"))
+        fell = self.s.fixed(values(more=[None]))
+        self.assertEqual((fell["held"], fell["go"]), (True, False), "返した段の修正が返らなければ held")
+        unchecked = self.s.fixed(values(more=[fix(checked={"ok": False, "reason": "変えていない"})]))
+        self.assertEqual((unchecked["go"], unchecked["done"]), (True, False))
+
     def test_unchecked_change_is_not_done(self):
         got = self.s.fixed(values(fix=fix(checked={"ok": False, "reason": "変えていない"}), lens=None, delta=None))
         self.assertEqual((got["go"], got["done"]), (True, False))
@@ -185,8 +211,9 @@ class ReadCase(unittest.TestCase):
         first = {**self.s.stage(fix()), "removed_tests": [gone], "untested": []}
         second = {**self.s.stage(fix()), "removed_tests": [], "untested": [plain]}
         got = self.s.read([first, second], self.s.resolve)
-        self.assertEqual(got["removed_tests"], [{**gone, "stage": self.s.STAGE_NAMES[0]}])
-        self.assertEqual(got["untested"], [{**plain, "stage": self.s.STAGE_NAMES[1]}])
+        report = __import__("report")
+        self.assertEqual(got["removed_tests"], [{**gone, "stage": report.stage_name(1)}])
+        self.assertEqual(got["untested"], [{**plain, "stage": report.stage_name(2)}])
         bad = self.s.read([{**first, "removed_tests": None}], self.s.resolve)
         self.assertEqual(bad["removed_tests"], [])
         self.assertTrue(any("removed_tests" in x for x in bad["unread"]), bad["unread"])

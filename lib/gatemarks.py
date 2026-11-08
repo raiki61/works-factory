@@ -58,8 +58,8 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   判定が結べないと訳つきで名乗った。報告の冒頭と最後の関所が名指す。保留の件数に数えない）。
 - answer_binds(b, a, questions=None, answer_rows=None)・split_answer_ties(reply)・answer_ties(b)・save_answer_ties(board, rnd, rows)・
   answer_tie_lines(b): 依頼の答えが当たる問いを決める 1 つの式（受け付けは返答の問いに、報告は台帳に当てる）と、判定の返答の足し欄
-  answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば種 answers の
-  控えに置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
+  answer_ties（種 answers。答えを問い・単位に、前の周の R2 の直す行を直す単位に結ぶ。受け付けが外して確かめ、通れば種 answers の
+  控えに置く）の手順の口と、判定が単位にしなかった R2 の直す行の報告の行
   ANSWERED_HEAD は答えた行の見出し、ANSWER_HOW は保留の行の下に出す答え方の 1 行
 - unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・material_lines(b): 今の周に測れていない素材
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
@@ -205,11 +205,11 @@ HAND_CHECKED = "人が手元で確かめた（実測とは書かない）"   # �
 ANSWER_HOW = ('答え方: 次の run の依頼を {"findings": [...], "answers": [{"question": "<問いの key か出どころ>", "text": "<答え>"}]} '
               'の形にすれば、その問いを人に聞き直さない（手元で測ったなら "command" と "output" も書く。測り方の命令は対象を読んだ役が'
               '書いた物なので、打つ前に読み、読み取りだけの時だけ打つ）')
-# 判定の返答の足し欄 answer_ties（種 answers）: 依頼の答えを今の返答の問い・単位に、前の周の独立の目の作り直しの行を直す単位に結ぶ行。
+# 判定の返答の足し欄 answer_ties（種 answers）: 依頼の答えを今の返答の問い・単位に、前の周の独立の目 R2 が直しが要ると言った行（作り直しか作り残し）を直す単位に結ぶ行。
 # 形は {answer, to}・{answer, none}・{redesign, to}・{redesign, none}（none は当たらない・単位にしない訳）
 ANSWER_TIES = "answer_ties"
 ANSWER_TIE_MIN = 20     # none の訳の最小の長さ（本流の事前審査が entrance の穴に求める no_add と同じ長さ）
-NO_CARRY_HEAD = "### 判定が単位にしなかった作り直し（次の run に運ばない）"   # 人が読む報告のセクション PRIOR_HEADING の中の小見出し
+NO_CARRY_HEAD = "### 判定が単位にしなかった R2 の直す行（次の run に運ばない）"   # 人が読む報告のセクション PRIOR_HEADING の中の小見出し
 DESIGN_ONLY = "true"                  # 入力 design_only の設計だけの語（entry.DESIGN_ONLY_WORDS）
 DESIGN_ONLY_KIND = "design_only"      # 関所の項目の kinds（設計だけの行）
 DESIGN_KIND = "design"                # 関所の項目の kinds（構造の目が決めきれなかった設計の問い）
@@ -973,7 +973,7 @@ def save_answer_ties(board, rnd: int, rows: list) -> None:
 
 
 def _fix_duty(unit: dict) -> bool:
-    """単位が [block] か do-now の [suggest]（作り直しの行を結んでよい単位）"""
+    """単位が [block] か do-now の [suggest]（R2 の直す行を結んでよい単位）"""
     return unit.get("label") == "block" or (unit.get("label") == "suggest" and unit.get("disposition") == "do-now")
 
 
@@ -998,7 +998,7 @@ def _tie_row_problems(i: int, r, answers: dict, redesign: dict, questions: dict,
     else:
         key = carry.row_key({"where": carry.REDESIGN_WHERE, "text": value})
         if key not in redesign:
-            out.append(f"{where} の redesign {_squeeze(value)!r} が作り直しのセクションのどの行にも当たらない（行の text の最初の「（」までを写す）")
+            out.append(f"{where} の redesign {_squeeze(value)!r} が R2 の直す行のセクションのどの行にも当たらない（行の text の最初の「（」までを写す）")
     if target[0] == "none":
         if len(_squeeze(r["none"])) < ANSWER_TIE_MIN:
             out.append(f"{where} の none が {ANSWER_TIE_MIN} 字に満たない（当たらない訳を書く）")
@@ -1006,15 +1006,15 @@ def _tie_row_problems(i: int, r, answers: dict, redesign: dict, questions: dict,
         if r["to"] not in questions and r["to"] not in units:
             out.append(f"{where} の to {r['to']!r} が今の返答の問いの key にも単位の key にも無い")
     elif r["to"] not in units:
-        out.append(f"{where} の to {r['to']!r} が今の返答の単位の key に無い（作り直しの行は [block] か do-now の単位に結ぶ。"
+        out.append(f"{where} の to {r['to']!r} が今の返答の単位の key に無い（R2 の直す行は [block] か do-now の単位に結ぶ。"
                    "反証で死んだ行と目的の外の行は none に訳を書く）")
     elif not _fix_duty(units[r["to"]]):
-        out.append(f"{where} の to {r['to']!r} が [block] でも do-now でもない（作り直しの行は直す単位に結ぶ。defer にしない）")
+        out.append(f"{where} の to {r['to']!r} が [block] でも do-now でもない（R2 の直す行は直す単位に結ぶ。defer にしない）")
     return out, (kind, key)
 
 
 def answer_tie_lines(b) -> list:
-    """報告の節の小見出し NO_CARRY_HEAD と、判定が単位にしなかった作り直しの行（redesign と none の結び）の 1 件 1 行。無ければ空
+    """報告の節の小見出し NO_CARRY_HEAD と、判定が単位にしなかった R2 の直す行（redesign と none の結び）の 1 件 1 行。無ければ空
     （この行は次の run に運ばない。次の周の独立の目がもう一度見る）"""
     rows = [r for r in answer_ties(b) if "redesign" in r and "none" in r]
     if not rows:

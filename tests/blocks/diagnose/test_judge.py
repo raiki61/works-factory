@@ -436,9 +436,9 @@ class JudgeTakeCase(_Base):
         redesign = [{"where": carry.REDESIGN_WHERE, "text": "R2 が redesign-needed: 独立設計と構造が合わない"}]
         defer = unit("stats.py fmt: 桁", ["x"], "population", 0, label="suggest", disposition="defer")
         head = redesign[0]["text"]
-        for name, ties, needle in (("結び無し", [], "作り直しの行"),
+        for name, ties, needle in (("結び無し", [], "R2 の直す行"),
                                    ("defer の単位", [{"redesign": head, "to": defer["key"]}], "[block] でも do-now でもない"),
-                                   ("知らない行", [{"redesign": "別の行", "to": MEAN}], "作り直しのセクションのどの行にも当たらない"),
+                                   ("知らない行", [{"redesign": "別の行", "to": MEAN}], "R2 の直す行のセクションのどの行にも当たらない"),
                                    ("短い訳", [{"redesign": head, "none": "目的の外"}], "字に満たない")):
             with self.subTest(name):
                 reply = judge_ok()

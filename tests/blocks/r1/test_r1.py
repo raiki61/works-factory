@@ -103,7 +103,7 @@ class FlowCase(_RepoCase):
         self.save("r1-minimality", reply)
         done = self.finish()
         self.assertEqual(done, {"ok": True, "status": "ran", "reason": "", "verdict": {"status": "fix-needed", "reason": "写しが在る"},
-                                "questions": [], "report": ["R1: fix-needed（写しが在る）", "  - 削るとした所: a.txt:2（b.py:9 に同じ 内容）",
+                                "questions": [], "findings": [{"where": "a.txt:2", "text": "b.py:9 に同じ 内容"}], "report": ["R1: fix-needed（写しが在る）", "  - 削るとした所: a.txt:2（b.py:9 に同じ 内容）",
                                                             "  - 残したコメントが運ぶ事実: a.txt:3: 既定の値を選んだ訳"]})
         self.assertEqual(json.loads((self.place / "finish.json").read_text(encoding="utf-8")), done)
 
@@ -360,19 +360,42 @@ class VerdictCase(_RepoCase):
     def test_r1_redesign_without_points_falls_to_fix_needed(self):
         """CollectCase.test_r1_redesign_without_points_falls_to_fix_needed"""
         done = self.ran({**PASS, "status": "redesign-needed", "reason": "冗長な写しが在る"})
-        self.assertEqual(done["verdict"], {"status": "fix-needed", "reason": self.eyekit.UNNAMED_REDESIGN + "冗長な写しが在る"})
+        self.assertEqual(done["verdict"], {"status": "fix-needed", "reason": kit.load("r1", "steps").UNNAMED_REDESIGN + "冗長な写しが在る"})
         self.assertEqual((done["ok"], done["status"]), (True, "ran"))
 
     def test_r1_malformed_points_are_unverifiable_not_unnamed(self):
         """CollectCase.test_r1_malformed_points_are_unverifiable_not_unnamed"""
         done = self.ran({**PASS, "status": "redesign-needed", "reason": "冗長", "redesign_points": "設計の点"})
-        self.assertEqual(done["verdict"], {"status": "unverifiable", "reason": self.eyekit.BROKEN_POINTS + "冗長"})
+        self.assertEqual(done["verdict"], {"status": "unverifiable", "reason": kit.load("r1", "steps").BROKEN_POINTS + "冗長"})
 
     def test_r1_points_make_redesign_whatever_the_eye_wrote(self):
         """CollectCase.test_r1_points_make_redesign_whatever_the_eye_wrote"""
         done = self.ran({**PASS, "reason": "冗長", "redesign_points": ["返りの型を作り替える"]})
         self.assertEqual(done["verdict"], {"status": "redesign-needed",
-                                           "reason": self.eyekit.RAISED_BY_POINTS + "冗長（組み直す設計の点: 返りの型を作り替える）"})
+                                           "reason": kit.load("r1", "steps").RAISED_BY_POINTS + "冗長（組み直す設計の点: 返りの型を作り替える）"})
+
+    def test_findings_are_the_deletions_in_one_line(self):
+        """fix-needed の時、finish は deletions を {where, text} の並びとして findings に載せ、改行を含む why を 1 行にする。pass の時は空"""
+        deletions = [{"where": "b.py:9", "why": "a.txt:1 に同じ\n内容"}, {"where": "c.py:2", "why": "使い手が無い"}]
+        done = self.ran({**PASS, "status": "fix-needed", "reason": "写しが在る", "deletions": deletions})
+        self.assertEqual(done["findings"], [{"where": "b.py:9", "text": "a.txt:1 に同じ 内容"}, {"where": "c.py:2", "text": "使い手が無い"}])
+        self.assertEqual(self.ran({**PASS, "deletions": deletions})["findings"], [], "pass の時は返す項目を作らない")
+
+    def test_fix_needed_without_deletions_names_the_reason(self):
+        """deletions が空で increments だけの fix-needed では、名指しの無い項目を作らず判定の reason の 1 行を載せる"""
+        done = self.ran({**PASS, "status": "fix-needed", "reason": "増分が正当化されていない\nコメントも", "increments": ["a.txt: 理由が無い"]})
+        self.assertEqual(done["findings"], [{"where": "", "text": "増分が正当化されていない コメントも"}])
+
+    def test_fallback_has_every_field(self):
+        """出口が落ちた形（fallback）も、入口が落ちた形も、finish の output_format の必須の欄を全部持つ"""
+        required = next(n for n in DOC["nodes"] if n["id"] == "finish")["output_format"]["required"]
+        self.intake()
+        (self.place / "finish.json").mkdir()   # 写しを書けない
+        self.assertEqual(sorted(self.finish()), sorted(required))
+        self.assertEqual(self.finish()["findings"], [])
+        (self.place / "intake.json").unlink()
+        (self.place / "finish.json").rmdir()
+        self.assertEqual(sorted(self.finish()), sorted(required))
 
     def test_missing_eye_file_is_unverifiable_and_named(self):
         """CollectCase.test_missing_eye_file_is_unverifiable_and_named（R4 を回した尾は eyes のまとめが足す）"""
@@ -380,7 +403,7 @@ class VerdictCase(_RepoCase):
         done = self.finish()
         reason = "R1 の筋が落ちた（r1: 出力のファイルが無い。ノードが落ちた）"
         self.assertEqual(done, {"ok": False, "status": "failed", "reason": reason, "verdict": {"status": "unverifiable", "reason": reason},
-                                "questions": [], "report": [f"R1: unverifiable（{reason}）",
+                                "questions": [], "findings": [], "report": [f"R1: unverifiable（{reason}）",
                                                             "  - コメントの削除候補は取れなかった（出力のファイルが無い）"]})
 
     def test_off_contract_status_is_named(self):
@@ -421,6 +444,46 @@ class VerdictCase(_RepoCase):
         self.assertTrue(done["verdict"]["reason"].startswith("出口が落ちた: "), done["verdict"])
         self.assertEqual(done["verdict"]["status"], "unverifiable")
         self.assertEqual(len(done["report"]), 1)
+
+
+class PointsCase(unittest.TestCase):
+    """by_points（R1 の名指しの決まり。eyekit.verdict_row の settle）を、返答の dict で直に呼ぶ"""
+    REASON = "冗長な写しが在る"
+
+    def setUp(self):
+        self.steps = kit.load("r1", "steps")
+
+    def r1(self, status, **extra):
+        return {**PASS, "status": status, "reason": self.REASON, **extra}
+
+    def test_unnamed_redesign_falls_to_fix_needed(self):
+        for label, points in (("欄が無い", {}), ("空の配列", {"redesign_points": []})):
+            with self.subTest(label):
+                self.assertEqual(self.steps.by_points(self.r1("redesign-needed", **points)),
+                                 {"status": "fix-needed", "reason": self.steps.UNNAMED_REDESIGN + self.REASON})
+
+    def test_malformed_points_are_unverifiable(self):
+        for status in ("redesign-needed", "fix-needed", "pass"):
+            for label, points in (("空白だけ", ["", "  "]), ("配列でない", "設計の点"), ("項が文字列でない", [3, None]), ("オブジェクト", {"a": 1})):
+                with self.subTest(status=status, label=label):
+                    self.assertEqual(self.steps.by_points(self.r1(status, redesign_points=points)),
+                                     {"status": "unverifiable", "reason": self.steps.BROKEN_POINTS + self.REASON})
+        self.assertEqual(self.steps.by_points(self.r1("redesign-needed", redesign_points=["  ", "返りの型を作り替える", 3])),
+                         {"status": "redesign-needed", "reason": self.REASON + "（組み直す設計の点: 返りの型を作り替える）"})
+
+    def test_points_make_redesign(self):
+        points = ["返りの型を作り替える", "他の消費者が読む契約を替える"]
+        tail = "（組み直す設計の点: 返りの型を作り替える／他の消費者が読む契約を替える）"
+        for status in ("fix-needed", "pass"):
+            with self.subTest(status):
+                self.assertEqual(self.steps.by_points(self.r1(status, redesign_points=[*points, ""])),
+                                 {"status": "redesign-needed", "reason": self.steps.RAISED_BY_POINTS + self.REASON + tail})
+        self.assertEqual(self.steps.by_points(self.r1("redesign-needed", redesign_points=points)),
+                         {"status": "redesign-needed", "reason": self.REASON + tail})
+        self.assertEqual(self.steps.by_points(self.r1("unverifiable", redesign_points=points)),
+                         {"status": "unverifiable", "reason": self.REASON})
+        self.assertEqual(self.steps.by_points(self.r1("fix-needed")), {"status": "fix-needed", "reason": self.REASON})
+        self.assertEqual(self.steps.by_points(self.r1("pass")), {"status": "pass", "reason": self.REASON})
 
 
 class ScalarsCase(unittest.TestCase):

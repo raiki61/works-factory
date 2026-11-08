@@ -91,6 +91,17 @@ class TddLinesCase(unittest.TestCase):
         self.assertEqual(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], None)]), [])
         self.assertEqual(len(report.tdd_lines([(report.TDD_STAGES[0], None), (report.TDD_STAGES[1], TDD_OFF)])), 1)
 
+    def test_stage_name_names_the_returned_stages(self):
+        """修正の段の名は stage_name の 1 か所: 1 つ目と案を直した後の段は TDD_STAGES の名、3 つ目からは独立の目から返した段（k 回目）で、
+        tdd_stage_groups も同じ名を使う"""
+        self.assertTrue(hasattr(report, "stage_name"), "修正の段の名を引く stage_name が report に無い")
+        self.assertEqual((report.stage_name(1), report.stage_name(2)), report.TDD_STAGES)
+        self.assertEqual(report.stage_name(3), "独立の目から返した修正の段（1 回目）")
+        self.assertEqual(report.stage_name(5), "独立の目から返した修正の段（3 回目）")
+        group = {"group_id": "g1"}
+        self.assertEqual([name for name, _ in report.tdd_stage_groups(0, [group])], [f"{report.TDD_STAGES[0]}（組 g1）"])
+        self.assertEqual([name for name, _ in report.tdd_stage_groups(2, [group])], ["独立の目から返した修正の段（1 回目）（組 g1）"])
+
 
 class InnerWordCase(unittest.TestCase):
     """works の内側の語の表の照らし（report.INNER_WORD・target_uses）は語の区切りを見て、長い語の頭に当てない"""

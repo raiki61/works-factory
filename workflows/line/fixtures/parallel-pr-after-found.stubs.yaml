@@ -12,9 +12,9 @@ delta-review__finish: {"ok": true, "status": "ok", "reason": "", "rounds": 1, "p
 delta-review__intake: {"due": false, "reason": "", "seal": {}}
 delta-review__owed-1: {"due": false, "reason": ""}
 delta-review__owed-2: {"due": false, "reason": ""}
-eyes__r1__finish: {"ok": true, "status": "ran", "reason": "", "verdict": {"status": "pass", "reason": "r1 は通した"}, "questions": [], "report": ["R1: pass（r1 は通した）"]}
+eyes__r1__finish: {"ok": true, "status": "ran", "reason": "", "verdict": {"status": "pass", "reason": "r1 は通した"}, "questions": [], "report": ["R1: pass（r1 は通した）"], "findings": []}
 eyes__r1__intake: {"due": false, "reason": "筋書き: block の中は block の筋書きが見る"}
-eyes__r2__finish: {"ok": true, "status": "ran", "reason": "", "verdict": {"status": "pass", "reason": "r2 は通した"}, "questions": [], "premise_check": null, "notes": [], "report": ["R2: pass（r2 は通した）"]}
+eyes__r2__finish: {"ok": true, "status": "ran", "reason": "", "verdict": {"status": "pass", "reason": "r2 は通した"}, "questions": [], "premise_check": null, "notes": [], "report": ["R2: pass（r2 は通した）"], "findings": []}
 eyes__r2__intake: {"compare": false, "premise": false, "reason": "筋書き: block の中は block の筋書きが見る"}
 eyes__r3__finish: {"ok": true, "status": "ran", "reason": "", "verdict": {"status": "pass", "reason": "r3 は通した"}, "questions": [], "report": ["R3: pass（r3 は通した）"]}
 eyes__r3__intake: {"due": false, "reason": "筋書き: block の中は block の筋書きが見る"}

@@ -418,7 +418,7 @@ class ApplyTest(TargetCase):
             "works-factory-line": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
             "works-factory-chain": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
             ("works-factory-line", apply.SEAL_STEP): ("got", apply.SEAL_FORM, apply.SEAL_PATHS),
-            ("works-factory-line", apply.EYES_STEP): ("got", apply.EYES_FORM, apply.EYES_PATHS),
+            ("works-factory-line", apply.EYES_STEP): (apply.LAST_EYES, apply.EYES_FORM, apply.EYES_PATHS),
             ("works-factory-line", apply.ANSWER_STEP): ("", apply.ANSWER_FORM, apply.ANSWER_PATHS)})
 
     def test_apply_reads_the_events_only_through_the_table(self):
@@ -547,7 +547,7 @@ class FailedAfterSealTest(TargetCase):
             {"event_type": "node_completed", "step_name": apply.SEAL_STEP,
              "data": seal_data if seal_data is not None else {"node_output": json.dumps({"got": sealed, "stop_reason": ""})}},
             {"event_type": "node_completed", "step_name": apply.EYES_STEP,
-             "data": json.dumps({"node_output": "", "structured_output": {"got": verdict, "stop_reason": ""}})},
+             "data": json.dumps({"node_output": "", "structured_output": {"eyes": verdict}})},
         ]
         if answer:
             events += [{"event_type": "node_completed", "step_name": apply.ANSWER_STEP, "data": {"structured_output": answer}},
@@ -653,7 +653,7 @@ class FailedAfterSealTest(TargetCase):
         eyes = self.events(answer=go)
         verdict = eyes["events"][2]["data"]
         eyes["events"][2]["data"] = json.dumps({**json.loads(verdict), "structured_output": {
-            "got": {"ok": True, "r2_row": {"status": "redesign-needed", "reason": "設計を組み直す"}}, "stop_reason": ""}})
+            "eyes": {"ok": True, "r2_row": {"status": "redesign-needed", "reason": "設計を組み直す"}}}})
         moved = {"go": True, "row": {"decision": "stop", "text": "当てない"}, "stop_reason": ""}
         cases = {apply.SEAL_STEP: (self.events(seal=sealed, answer=go), "hash"),
                  apply.EYES_STEP: (eyes, "r2"),
@@ -682,22 +682,22 @@ class FailedAfterSealTest(TargetCase):
         self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events()), 1, "封じた hash と合わない")
 
     def test_steps_are_the_line_seal_and_eyes_receivers_and_the_final_answer(self):
-        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は eyes を include するノードの受け皿で、
-        どちらも読む欄を names に宣言する。merge-apply に r2 を渡すノード（最後の承認ノード）は EYES_STEP の got から r2 を引く。
-        ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
+        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は返す輪の集め（script eyes_back_end）で、最後の周の
+        独立の目の got を欄 eyes（description が json(returns:works-factory-eyes)）に持つ。最後の承認ノードは EYES_STEP の出力を eyes_back で
+        読み、line の返す node は欄 eyes を読む。ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
         nodes = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
         by_id = {n["id"]: n for n in nodes}
         (sealer,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "seal"]
         (applier,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "apply"]
-        (eyes_id,) = [n["id"] for n in nodes if n.get("include") == "works-factory-eyes"]
         r2_from = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
-        self.assertEqual(by_id[r2_from]["with"]["eyes"]["from"], f"${apply.EYES_STEP}.output.got")
-        for step, source, names in ((apply.SEAL_STEP, sealer["id"], {"mode", "ok", "hash", "diff", "reason"}),
-                                    (apply.EYES_STEP, eyes_id, {"r2"})):
-            with self.subTest(step):
-                self.assertEqual(by_id[step]["script"], "returned")
-                self.assertEqual(by_id[step]["with"]["got"], f"${source}.output")
-                self.assertLessEqual(names, set(by_id[step]["with"]["names"].split()))
+        self.assertEqual(by_id[r2_from]["with"]["eyes_back"]["from"], f"${apply.EYES_STEP}.output")
+        self.assertEqual(by_id["result"]["with"]["eyes"]["from"], f"${apply.EYES_STEP}.output.{apply.LAST_EYES}")
+        self.assertEqual(by_id[apply.SEAL_STEP]["script"], "returned")
+        self.assertEqual(by_id[apply.SEAL_STEP]["with"]["got"], f"${sealer['id']}.output")
+        self.assertLessEqual({"mode", "ok", "hash", "diff", "reason"}, set(by_id[apply.SEAL_STEP]["with"]["names"].split()))
+        collector = by_id[apply.EYES_STEP]
+        self.assertEqual((collector["script"], collector["trigger_rule"]), ("eyes_back_end", "none_failed_min_one_success"))
+        self.assertTrue(collector["output_format"]["properties"][apply.LAST_EYES]["description"].startswith("json(returns:works-factory-eyes):"))
         self.assertEqual(applier["with"]["answer"], f"${apply.ANSWER_STEP}.output.answer")
         self.assertLessEqual({"go", "answer", "stop_reason"}, set(by_id[apply.ANSWER_STEP]["output_format"]["properties"]))
         self.assertLessEqual({apply.SEAL_STEP, apply.EYES_STEP, apply.ANSWER_STEP}, step_names("works-factory-line"))

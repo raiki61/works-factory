@@ -25,7 +25,7 @@ NOT_PASSED = {
         ("structure", "base"): "after の時だけ読む（line は before で回す。after は eyes の graph の中）",
         ("structure", "plan"): "after の時だけ読む",
         **{(fix, name): "group の時だけ読む（whole の親が自分を子に起こす時に渡す）"
-           for fix in ("fix", "refix-run") for name in ("group", "from_tree", "out_dir")},
+           for fix in ("fix", "refix-run", *(f"back-{k}-fix" for k in range(1, 4))) for name in ("group", "from_tree", "out_dir")},
         ("fix", "notes"): "案の直しの後の 2 回目の修正の段だけ",
         ("fix", "only_items"): "2 回目の修正の段だけ（1 回目は直す義務の単位の全部）",
         ("fix", "prior"): "2 回目の修正の段だけ（1 回目の段の申し送り）",

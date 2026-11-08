@@ -739,7 +739,7 @@ class WorldRowsCase(PlaceCase):
 
 class PriorFailuresCase(PlaceCase):
     """前の run で最後まで通らなかった物（元 planblk.prior_part の carry.prior_section）: 入口が周のフォルダに写しを置き、
-    brief.prior_failure_rows が作り直しの行と分けて 1 件 1 行にする"""
+    brief.prior_failure_rows が R2 の直す行と分けて 1 件 1 行にする"""
 
     ROWS = [{"where": "修正案の受け付け", "text": "単位の網羅が 3 回とも欠けた"}]
 

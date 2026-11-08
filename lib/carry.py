@@ -8,7 +8,7 @@ next-request.schema.json と prior-failures.schema.json）の読みと照らし�
 
 依頼のファイルは findings の JSON の配列か、{"findings": [...], "pr": [<番号>…], "issue": [<番号>…], "answers": [...],
 "prior_failures": [...], "theme": "..."} の形。prior_failures は前の run で最後まで通らなかった物 [{where, text}]（前の run の報告が書く
-next-request.json の欄。判定役と修正案の役の材料に貼る。受け付けが最後まで拒んだ行は直す穴ではない注意で、独立の目 R2 の作り直しの行
+next-request.json の欄。判定役と修正案の役の材料に貼る。受け付けが最後まで拒んだ行は直す穴ではない注意で、独立の目 R2 が直しが要ると言った行（作り直しか作り残し）
 （where が REDESIGN_WHERE）は次の周の先頭で直す穴）。
 answers は依頼者が前の run の問いに答えた物 [{question, text, command?, output?, pushed?}]（question は問いの key か出どころ。
 command・output は人が手元で測った命令と出力で、両方か無し。pushed は工場が続きの依頼に写した、無人の run が採った推しの行の印
@@ -28,7 +28,7 @@ findings だけにする（容器の形を規則の側へ漏らさない）。
   重い試験は run の外の CI で回り、run の報告はその赤を知らないので、人（か回す役）が CI の赤の id を next-request.json に足す口。
   同じ行は 2 度足さない。id が無い・依頼の形が違えば ValueError（1 行）。殻からは `python3 -I carry.py carry-ci`
 - is_draft(row)・draft(row, source, note="")・compose(findings, prior, drafts): 下書きの印の読みと付け方・次の依頼の下書きの中身
-- is_redesign(row): 行が独立の目 R2 の作り直しの行か（where が REDESIGN_WHERE）
+- is_redesign(row): 行が独立の目 R2 が直しが要ると言った行（作り直しか作り残し）か（where が REDESIGN_WHERE）
 - row_key(row): 行の鍵（where と、text の最初の「（」までを空白を詰めて \\t でつないだ物。理由の尾だけ違う行を同じ物と見る）
 - schema(name)・errors(doc, name): 約束の Schema（NEXT_SCHEMA・PRIOR_SCHEMA）と、それに照らした誤りの一覧
 - place_prior(board_dir, rows): 盤面の根に照らしてから書く口
@@ -63,12 +63,12 @@ MEASURED = "実測"   # constraints の行の kind（前提の検算が実態で
 CARRIED_HOW = "前の run の前提の検算（run {run}）"   # 報告が書く行の measured_how（元 review-loop.py:255 の「stop.premise_check の検算」）
 CARRIED_HOW_HEAD = CARRIED_HOW.split("（", 1)[0]   # 運ばれた制約の行の見分け（独立の目が R2 を省かない印）
 CI_WHERE = "run の後の CI"   # carry_ci が足す prior_failures の行の where
-REDESIGN_WHERE = "独立の目 R2"   # 独立の目 R2 の作り直しの行の where（報告が書き、is_redesign が読む）
+REDESIGN_WHERE = "独立の目 R2"   # 独立の目 R2 が直しが要ると言った行（作り直しか作り残し）の where（報告が書き、is_redesign が読む）
 CI_TEXT = "試験 {id} が CI で赤だった（重い試験は run の外の CI で回る）"
 
 # 盤面の根のファイル
 NEXT_REQUEST_FILE = "next-request.json"   # 次の run の依頼の下書き {findings, prior_failures, answers?}（依頼の型の object の形）
-PRIOR_FAILURES_FILE = "prior-failures.json"   # この run で最後まで通らなかった受け付けと R2 の作り直しの理由 [{where, text}]
+PRIOR_FAILURES_FILE = "prior-failures.json"   # この run で最後まで通らなかった受け付けと R2 の直す行の理由 [{where, text}]
 PRIOR_IN_FILE = "prior-failures-in.json"   # 依頼の prior_failures の写し [{where, text}]（place_prior。読むのは consumes で宣言した物）
 
 # 約束（この置き場の JSON Schema）
@@ -258,7 +258,7 @@ def place_prior(board_dir, rows: list) -> None:
 
 
 def is_redesign(row) -> bool:
-    """行が独立の目 R2 の作り直しの行か（where が REDESIGN_WHERE。空白は詰めて比べる）"""
+    """行が独立の目 R2 が直しが要ると言った行（作り直しか作り残し）か（where が REDESIGN_WHERE。空白は詰めて比べる）"""
     return isinstance(row, dict) and oneline.one_line(row.get("where") or "") == REDESIGN_WHERE
 
 

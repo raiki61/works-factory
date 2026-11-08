@@ -323,6 +323,7 @@ eyes__r1__intake:
   due: false
   reason: ''
 eyes__r1__finish:
+  findings: []
   ok: true
   status: ran
   reason: ''
@@ -337,6 +338,7 @@ eyes__r2__intake:
   premise: false
   reason: ''
 eyes__r2__finish:
+  findings: []
   ok: true
   status: ran
   reason: ''
@@ -377,6 +379,9 @@ eyes__r4__finish:
   passes: []
   coherence: null
 eyes__verdict:
+  findings: []
+  route: stay
+  route_why: 返す物が無い
   ok: true
   r1:
     status: pass

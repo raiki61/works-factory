@@ -469,7 +469,7 @@ def intake_fell(place, mode: str, reason: str) -> None:
 
 
 def accept_diagnose(place, raw: str, repo) -> dict:
-    """判定役の返答の受け付け。値は diagnose-input.json（世界の解の行・依頼の答え・素材）と intake.json の values（前の run の作り直しの行・
+    """判定役の返答の受け付け。値は diagnose-input.json（世界の解の行・依頼の答え・素材）と intake.json の values（前の run の R2 の直す行・
     記録された方針・材料の行）から読む（受け付けと指示が同じ値を見る）"""
     place = pathlib.Path(place)
     doc, v = _need(place, files.INPUT_FILE), _need(place, files.INTAKE_FILE)["values"]

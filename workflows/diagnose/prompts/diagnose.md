@@ -52,7 +52,7 @@ You only read. Your tools are Read, Grep, Glob, and WebSearch and WebFetch for t
 The rows of the section about what did not pass in the previous run are the reasons the acceptance check rejected the previous run, and they are **not holes to fix**. Do not make a unit from a row of that section. Read it as a caution so that your answer does not fail in the same place.
 <!-- end prior_notes -->
 <!-- if prior_redesign -->
-The rows of the section "What the previous round's independent eye said needs a redesign" are **holes to fix**. Refute them one row at a time. Make each row that survives a [block] or do-now unit (never defer), and tie it with `{{redesign, to}}` of `answer_ties`. For a row killed by refutation and for a row outside the frozen purpose, write the reason in `{{redesign, none}}`. The acceptance check rejects an answer in which any row of that section has no tie.
+The rows of the section "What the previous round's independent eye R2 said must be fixed (a redesign, or a part left unfinished)" are **holes to fix**. Refute them one row at a time. Make each row that survives a [block] or do-now unit (never defer), and tie it with `{{redesign, to}}` of `answer_ties`. For a row killed by refutation and for a row outside the frozen purpose, write the reason in `{{redesign, none}}`. The acceptance check rejects an answer in which any row of that section has no tie.
 <!-- end prior_redesign -->
 
 {shared:recorded-policy}
@@ -140,14 +140,14 @@ This section is the one place that holds the rules of the ledger.
 
 ## How to write answer_ties
 
-Tie the answers listed in `answers` of the materials file, and the rows of the section "What the previous round's independent eye said needs a redesign", to the questions and units of the present reply, in the rows of `answer_ties`. There are four shapes of row:
+Tie the answers listed in `answers` of the materials file, and the rows of the section "What the previous round's independent eye R2 said must be fixed (a redesign, or a part left unfinished)", to the questions and units of the present reply, in the rows of `answer_ties`. There are four shapes of row:
 
 - `{{answer, to}}`: `answer` is the answer's `question` copied without changing a single character. `to` is the `key` of a question or the `key` of a unit of the present reply (tied to a question it means the question is answered; tied to a unit it means an answer to that unit).
 - `{{answer, none}}`: when no question or unit matches the answer, write in `none` the reason it matches nothing, at least {tie_min} characters (it is listed with its reason in the report).
 - `{{redesign, to}}`: `redesign` is the `text` of the row of that section up to the first "（" (the fullwidth opening parenthesis). `to` is the `key` of a [block] or do-now unit.
 - `{{redesign, none}}`: when the row was killed by refutation or is outside the frozen purpose, write the reason in `none`, at least {tie_min} characters (it is not carried to the next run, and it is listed in the report).
 
-The acceptance check asks for a tie for an answer that matches no question of the reply by character equality, for an answer that matches several questions, and for every row of the section "What the previous round's independent eye said needs a redesign". (An answer that matches exactly one question whose `key` is the answer's `question` character for character, and an answer written under the name of a material that was not measured, need not be written; if you write one, the tie wins.) It rejects the answer if `to` is not a question or unit of the present reply, if you tie a row to be redone to a defer unit, or if the reason of a `none` is short. The acceptance check looks at the ties only at the time it accepts the judgment's reply; if a later rejudgment lowers a unit, it is named in the report of the rejudgment.
+The acceptance check asks for a tie for an answer that matches no question of the reply by character equality, for an answer that matches several questions, and for every row of the section "What the previous round's independent eye R2 said must be fixed (a redesign, or a part left unfinished)". (An answer that matches exactly one question whose `key` is the answer's `question` character for character, and an answer written under the name of a material that was not measured, need not be written; if you write one, the tie wins.) It rejects the answer if `to` is not a question or unit of the present reply, if you tie a row to be redone to a defer unit, or if the reason of a `none` is short. The acceptance check looks at the ties only at the time it accepts the judgment's reply; if a later rejudgment lowers a unit, it is named in the report of the rejudgment.
 
 ## How to answer
 
