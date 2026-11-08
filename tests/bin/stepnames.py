@@ -11,7 +11,9 @@ from collections.abc import Iterator
 
 import yaml
 
-WORKFLOWS = pathlib.Path(__file__).resolve().parents[2] / "workflows"
+# 影響の地図（lib/impact.py）は、この下の変更でこの部品と、これを直に import する試験を選ぶ。読む置き場はここから組む
+RUNTIME_READS = ("workflows/",)
+WORKFLOWS = pathlib.Path(__file__).resolve().parents[2] / RUNTIME_READS[0]
 
 
 def nodes(name: str) -> list[dict]:

@@ -448,6 +448,15 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 - `tests/blocks/fix/test_tdd.py` の `RelatedStartCase` と `test_group.py`: fix の輪の頭（17 節）。
 - `tests/blocks/line/test_collect.py` の `SectionsCase`: 報告の節「走らせなかった範囲」。
 
+### 14.10 実行時に読む範囲の宣言と、地図の辺 reads（2026-11-09）
+
+- 困っていた事: 試験や試験の助けが実行時に glob・open で開く工場のファイル（`tests/bin/stepnames.py` が開く graph と block の YAML など）は、字の言及でも import でも地図（`lib/impact.py`）に届かない。そのため run の中の確かめ `tests/changed.py` は、line の YAML の変更で通しの筋書きの試験 `tests/e2e/test_scenario.py` を選ばなかった。
+- 何を: 読む部品の一番上に `RUNTIME_READS`（実行時に読む範囲の宣言）を 1 か所だけ書く（決まりは `tests/AGENTS.md`）。地図はそれを辺の種類 `reads` にし、宣言の下の起点から、宣言した部品とそれを直に import する試験へ深さ 1 で張る。辺は起点の file からだけ張り、辿りの途中で届いた file からは張らない。宣言の下に起点の無い変更の到達を変えず、地図の試験を丸ごと使う呼び手（`workflows/fix/src/parking.py` の届く試験）の止める単位を増やさないため。宣言の値がどの file にも当たらない腐りは、層の柵 `tests/layers/test_declared_reads.py` が赤にする（宣言の読み取り・Python の file の見分け・値の当て方は地図と同じ口を呼ぶ）。
+- E11 の 3 つ（足した物: 宣言の決まり `RUNTIME_READS`・辺の種類 `reads`・柵 `test_declared_reads.py`）:
+  1. Archon が持つか: 持たない。Archon は `include:` を読み込みの時に展開して走らせる（`docs/design/archon.md`）が、変更から試験を選ぶ口も、どの試験がどの YAML を読むかの地図も持たない。工場の試験が YAML を開いて include を展開するのは Archon の外の読み。
+  2. ASF が持つか: 持たない。ASF の `archon-validate`（止めた Archon `2886e883d` の `.archon/workflows/sdlc/validate/archon-validate.yaml`）は、対象が宣言する検査を AI が見つけて走らせ、絞りは呼び手が渡す `scope`（パッケージ・フォルダ・検査の名）だけで、変更から試験を選ぶ地図を持たない。`docs/asf-notes.md` にも試験の選びの型は無い。
+  3. 本当に要るか: 要る。keep-essence の 6（当たる試験を選んで回し、回さなかった試験を名で残す。`docs/design/README.md` の 10 章）に当たる。字で届かない読みを選べないと、持ち主の決め `light-in-loop`・`full-suite-in-ci` の「run の中は関わる試験だけ」が関わる試験を落とし、壊れに CI で初めて気づく。宣言の無いリポジトリ（対象のリポジトリのほとんど）では地図は今までどおり。柵は、宣言が当たらなくなった試験が黙って選ばれなくなるのを防ぐ yes/no の決まり（憲法の 6）で、宣言の書き忘れは見ない（人が見る）。
+
 ## 15 直す前の版では試験を何も走らせない（2026-10-23。持ち主の決め `base-runs-nothing`。#828・#836）
 
 ### 15.1 決めと範囲
