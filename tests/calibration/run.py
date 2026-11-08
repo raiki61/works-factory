@@ -35,13 +35,18 @@ nodes は控えと出来事から <out>/<作り手>/nodes.json・nodes.md を書
   WORKS_KEYCHAIN_ITEM）をそのまま子に継ぐ。値は読まず、出さない。
 - 試験の差し替え口は環境変数 WORKS_CALIBRATION_SHELL の 1 つだけ: works-factory の起動の殻（既定は bin/works-factory）を替える。
 
-今の works の記録の置き場と形（その版の works/dev/use.sh・lib.sh・archon.sh・canary_check.py と darkfactory/darkfactory.yaml の returns で確かめた）:
+今の works の記録の置き場と形（その版の works/dev/use.sh・lib.sh・archon.sh・canary_check.py・darkfactory/darkfactory.yaml・
+darkfactory/scripts/report.py・result.py と、その版が使う Archon v0.11.1 の packages/workflows/src/dag-executor.ts・
+node-record-serialization.ts で確かめた）:
 - 家は WORKS_USE_HOME=<試み>/home。use.sh start は無人（WORKS_USE_UNATTENDED=1）なら起動の承認を越えて残りをその場で回し、人が
   決める承認に着けば自分で stop と答えて報告へ進める。run の控えは <家>/runs/<run-id>.json で、試みごとにちょうど 1 つ。
 - run の行は <家>/archon-home/archon.db の表 remote_agent_workflow_runs、出来事は remote_agent_workflow_events。出力の置き場
   （board）は run の行の output_root の下の artifacts/runs/<id>/board。
-- 結末の語は出来事の列のうち step_name が result（その版の darkfactory.yaml の returns）の最後の node_completed の
-  data.node_output の outcome（語は lib/report.py の OUTCOMES と同じ 10 語）。読めなければ None と訳。
+- 結末の語は出来事の列のうち step_name が result（darkfactory.yaml の returns）の最後の node_completed の data の outcome
+  （result の output_format の enum で、語は lib/report.py の OUTCOMES と同じ 10 語）。data は output_format を照らした
+  structured_output を先に読み、無ければ node_output の JSON（node_output は 32KB で切られうる）。result は interrupted の時だけ
+  終了の値 1 で終わり、Archon は node_failed と空の node_output を書いて run を failed にするが、failed の run は続けて
+  終わらなければ変換しないので、変換する run の result はいつも node_completed。読めなければ None と訳。
 - use.sh wait の終了の値: 0 承認で待つ・3 まだ走る（決まった秒数で戻るだけで run の期限ではない）・5 終わった・1 落ちた・6 周の鎖。
 - 続ける命令は対象で WORKS_DEV_HOME=<家> sh dev/continue.sh dev/archon.sh workflow resume <run>。続きが人が決める承認で止まれば
   workflow respond <run> stop <一言> と答えて終わりまで待つ。
@@ -492,8 +497,9 @@ class PlainClaude:
         return session if isinstance(session, str) and session else None
 
     def state(self, attempt: Path, run_id: str) -> str:
-        """claude -p は認証の拒否・API の誤り・turn の上限でも session_id の付いた結果を書き、is_error で落ちを言う"""
-        return DONE if _errored(self._result(attempt)) is False else "failed"
+        """claude -p は認証の拒否・API の誤り・turn の上限でも session_id の付いた結果を書き、is_error で落ちを言う。is_error の
+        無い結果は claude -p の結果の形でない（Agent SDK の SDKResultMessage はどの subtype でも is_error を持つ）ので済みにしない"""
+        return DONE if _result_word(self._result(attempt))[0] == "done" else "failed"
 
     def gate(self, attempt: Path, run_id: str) -> str:
         return ""
@@ -554,7 +560,6 @@ def _read_outcome(ev: Path, path: str, pick, words) -> dict:
 
 
 def _returned_value(doc) -> tuple[object, str]:
-    """works-factory の終わりの記録の、工場が返す値の outcome"""
     value = _object(_object(_object(doc).get("terminal_record")).get("returns")).get("value")
     return (value.get("outcome") if isinstance(value, dict) else None), "terminal_record.returns.value.outcome"
 
@@ -566,19 +571,17 @@ def _returned_outcome(doc) -> tuple[object, str]:
     done = [e for e in _events(doc) if e.get("event_type") == "node_completed" and e.get("step_name") == OldWorks.RETURNS_NODE]
     if not done:
         return None, field
-    out = _json_or_text(_object(done[-1].get("data")).get("node_output"))
+    data = _object(done[-1].get("data"))
+    out = data.get("structured_output")
+    if not isinstance(out, dict):
+        out = _json_or_text(data.get("node_output"))
     return (out.get("outcome") if isinstance(out, dict) else None), field
 
 
-def _errored(doc) -> bool | None:
-    """claude -p の結果の is_error。真偽でなければ None"""
-    flag = _object(doc).get("is_error")
-    return flag if isinstance(flag, bool) else None
-
-
 def _result_word(doc) -> tuple[str | None, str]:
-    errored = _errored(doc)
-    return (None if errored is None else "error" if errored else "done"), "is_error"
+    """claude -p の結果の is_error の真偽を done・error に。欄が無いか真偽でなければ None（本物の結果はいつも真偽を持つ）"""
+    flag = _object(doc).get("is_error")
+    return (("error" if flag else "done") if isinstance(flag, bool) else None), "is_error"
 
 
 def _object(value) -> dict:

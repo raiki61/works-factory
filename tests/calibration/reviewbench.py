@@ -33,7 +33,8 @@ Source = namedtuple("Source", "file rows kind text prefer", defaults=(None, None
 
 
 MISSING = "無い"   # 読み元のファイルが無い時の unread の字（全部の読み元が無ければ convert が止まる）
-# 結末の語の読めた状態: 読めた・読み元が壊れている・読み元に欄が無い（か字でない）・欄が空・語の表に無い語
+# 結末の語の読めた状態: 読めた・読み元が無い（MISSING）・読み元が壊れている・読み元に欄が無い（か字でない）・欄が空・語の表に無い語。
+# 言い分けは run.py の _read_outcome
 READ_OK, UNREADABLE, NO_FIELD, BLANK, OFF_TABLE = "読めた", "読めない", "欄が無い", "空", "表に無い語"
 
 
@@ -284,7 +285,7 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
            "agent": producer.name, "findings": findings, **({"usage": usage} if usage else {})}
     record = {
         "key": key(entry), "producer": producer.name, "run_id": run_id, "attempt": str(attempt), "base": base, "head": head,
-        "outcome": ended.get("outcome"), "outcome_state": ended.get("outcome_state"), "outcome_why": ended.get("outcome_why"),
+        "outcome": ended.get("outcome"), "outcome_state": ended.get("outcome_state"),
         "seconds": seconds, "usd": usd, "usd_from": ended.get("usd_from"),
         "why_null": "。".join(([] if usd is not None else [f"usd: {ended.get('usd_from')} が読めない"])
                              + ([] if seconds is not None else ["seconds: run の始めと終わりの時刻が読めない"])

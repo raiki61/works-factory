@@ -672,13 +672,12 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict
 
 def broken_outcome(run_id: str, outcome: str | None, state: str = reviewbench.READ_OK, why: str | None = None) -> str | None:
     """終わった run の結末が工場の落ちならその訳。語が読めなかった run（outcome が None）は state で言い分ける:
-    空の欄と表に無い語は「表に無い結末」、記録が無い・読めない・欄が無いは「記録から読めなかった」（why が読み先と理由）"""
+    空の欄と表に無い語は「表に無い結末」、記録が無い・読めない・欄が無いは「記録から読めなかった」（why が読み先と理由）。
+    表に無い語を None にするのは作り手の ended（run.py の _read_outcome）なので、語が在れば表の内"""
     if outcome is None and state in (reviewbench.BLANK, reviewbench.OFF_TABLE):
         return f"工場の run {run_id} が結末の語の表（lib/report.py の OUTCOME_KINDS）に無い結末で終わった: {why}"
     if outcome is None:
         return f"工場の run {run_id} の結末の語を記録から読めなかった: {why}"
-    if outcome not in report.OUTCOME_KINDS:
-        return f"工場の run {run_id} が結末の語の表（lib/report.py の OUTCOME_KINDS）に無い結末 {outcome} で終わった"
     if outcome in BROKE:
         return f"工場の run {run_id} が結末 {outcome} で終わった（工場が壊れた）"
     return None

@@ -22,6 +22,7 @@ INCLUDE_SEP = place.shared("childsweep").INCLUDE_SEP
 PREFIX = "works-factory-"
 NOTE = "数はノードが何をしたかの事実まで。そのノードのおかげで直ったとは言わない（それはノードを外して回し直す比べで、別に立てる）"
 COUNTED = ("node_completed", "node_failed")
+NO_STATE = "控えに状態が無い"   # 結末の読めた状態を持たない前の版の控え
 
 
 def short(workflow: str) -> str:
@@ -143,9 +144,18 @@ def table(out: Path, producer) -> dict:
     subgraphs: dict = {}
     for r in rows.values():
         subgraphs.setdefault(r.subgraph, Row(None, r.subgraph)).add(r)
-    return {"producer": producer.name, "tasks": len(records), "judged": judged is not None, "note": NOTE,
+    return {"producer": producer.name, "tasks": len(records), "judged": judged is not None, "note": NOTE, **_outcomes(records),
             "nodes": [r.view() for r in rows.values()],
             "subgraphs": [{k: v for k, v in r.view().items() if k != "node"} for r in subgraphs.values()]}
+
+
+def _outcomes(records: list[dict]) -> dict:
+    """結末の語ごとの run の数（読めた run だけ）と、結末が読めなかった run の課題・状態・控えの why_null。読めなかった run は
+    どの語にも数えない（状態の語は reviewbench の READ_OK など。状態の無い控えは前の版の物）"""
+    read = [r for r in records if isinstance(r.get("outcome"), str) and r["outcome"]]
+    return {"outcomes": dict(sorted(Counter(r["outcome"] for r in read).items())),
+            "outcome_unread": [{"task": r["key"], "state": r.get("outcome_state") or NO_STATE, "why": r.get("why_null") or None}
+                               for r in records if r not in read]}
 
 
 def _cell(value) -> str:
@@ -175,7 +185,9 @@ def markdown(got: dict) -> str:
              f"- 作り手 {got['producer']}・課題 {got['tasks']} 件・判定役の結果は{'在る' if got['judged'] else '無い（全部 unjudged）'}。",
              f"- {got['note']}。",
              "- 番地を解いた: 所見の番地のパスがファイル名だけで、候補の key・where のパスか head の一意なファイルに推して解いた数"
-             "（元の番地は変換の控えの ref_as_written）。", "",
+             "（元の番地は変換の控えの ref_as_written）。",
+             f"- 結末の語（読めた run だけ）: {'・'.join(f'{w} {n}' for w, n in got['outcomes'].items()) or '無い'}。"
+             f"結末が読めなかった run: {len(got['outcome_unread'])} 件。", "",
              "## ノード", "", "| ノード | サブグラフ | " + " | ".join(names) + " |", "|" + " --- |" * (len(names) + 2)]
     lines += [_line([_cell(v["node"]), _cell(v["subgraph"])], v) for v in got["nodes"]]
     lines += ["", "## サブグラフ", "", "| サブグラフ | " + " | ".join(names) + " |", "|" + " --- |" * (len(names) + 1)]
@@ -184,4 +196,7 @@ def markdown(got: dict) -> str:
             for what, key in (("秒", "seconds_why"), ("費用", "usd_why"), ("トークン", "tokens_why")) if v[key]]
     if whys:
         lines += ["", "## 値が無い・欠ける訳", "", *whys]
+    if got["outcome_unread"]:
+        lines += ["", "## 結末が読めなかった run", "",
+                  *(f"- {u['task']}: {u['state']}（{u['why'] or '控えに訳が無い'}）" for u in got["outcome_unread"])]
     return "\n".join(lines) + "\n"

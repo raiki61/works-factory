@@ -121,6 +121,26 @@ class NodesCase(unittest.TestCase):
                 self.assertIn(repr(word), str(caught.exception))
                 self.assertIn(KEY, str(caught.exception))
 
+    def test_unread_outcomes_are_listed_apart_from_the_words(self):
+        """結末の語は読めた run だけを語ごとに数え、読めなかった run は課題・状態・控えの why_null を別に並べ、どの語にも数えない
+        （状態の無い前の版の控えの空の語も読めなかった方）"""
+        convert = self.out / "works-factory" / "convert"
+        record = json.loads((convert / f"{KEY}.json").read_text(encoding="utf-8"))
+        for name, extra in (("t-unread", {"outcome": None, "outcome_state": reviewbench.NO_FIELD,
+                                          "why_null": "outcome: record/parent.json の terminal_record.returns.value.outcome が無いか字でない"}),
+                            ("t-old", {"outcome": "", "why_null": ""})):
+            (convert / f"{name}.json").write_text(json.dumps({**record, "key": name, **extra}, ensure_ascii=False), encoding="utf-8")
+        got = nodes.table(self.out, runner.WorksFactory())
+        self.assertEqual(got["outcomes"], {"needs_human": 1})
+        self.assertEqual(got["outcome_unread"], [
+            {"task": "t-old", "state": nodes.NO_STATE, "why": None},
+            {"task": "t-unread", "state": reviewbench.NO_FIELD,
+             "why": "outcome: record/parent.json の terminal_record.returns.value.outcome が無いか字でない"}])
+        md = nodes.markdown(got)
+        self.assertIn("- 結末の語（読めた run だけ）: needs_human 1。結末が読めなかった run: 2 件。", md)
+        self.assertIn(f"- t-unread: {reviewbench.NO_FIELD}（outcome: record/parent.json の", md)
+        self.assertIn(f"- t-old: {nodes.NO_STATE}（控えに訳が無い）", md)
+
     def test_plain_claude_is_one_row_per_task(self):
         record = {"key": KEY, "attempt": str(self.tmp / "nowhere"), "seconds": 60.0, "usd": None,
                   "findings": [{"file": "a.py", "start_line": 1, "end_line": 1, "message": "m", "node": "claude",
