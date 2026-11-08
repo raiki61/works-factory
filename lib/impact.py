@@ -11,14 +11,20 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
   パスの形でない物）。diff=True なら rev と作業ツリーの差（未追跡を含む）の file も起点に足す。
   cache_dir を渡すと <cache_dir>/map-<鍵>.json に書き、同じ鍵なら読むだけ（stats.cache = "hit"）。file ごとの
   読み取りの結果は中身の sha で <cache_dir>/scan.json に持ち、中身の変わった file だけ読み直す（stats.scanned）。
-- select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=()) -> dict: 回すテストのモジュール
+- select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=(), defer_all=False) -> dict: 回すテストのモジュール
   （速い段 ∪ 選んだ物）。all_tests_required なら全部（all_modules を渡せばその一覧、無ければ modules は None）。
   direct_only なら直に関わる試験（direct: 起点か深さ 1）と名指しの試験だけを選び、先の試験は left に残す。
-  その時の全部は分からない物が直に関わる所に在る時だけで、深さ 2 以上の分からない物は far に理由の形で残す
+  その時の全部は分からない物が直に関わる所に在る時だけで、深さ 2 以上の分からない物は far に理由の形で残す。
+  defer_all（direct_only と一緒の時だけ）は、全部を回さず CI に寄せる呼び手の印: 全部の時も left と far を残す
+  （全部の時の selected は狭めず、left と重なる）
 - direct(m, path) -> bool: 起点そのものか、起点から辺 1 本（深さ 1）で届いた file か
 - seeds_from_units(repo, units) -> list: 判定の単位の文（key・reason・class_query・prescriptions など全部の字）に
   現れる追跡中の file（パスそのものか、一意な basename）
 - py_imports(text) -> list | None: Python の file の import の一覧（地図の import の辺と同じ読み取り。libdocs が使う）
+- py_reads(text) -> list | None: Python の file の一番上の READS_DECL（RUNTIME_READS）の宣言の値の字の並び（地図の reads の辺と同じ
+  読み取り。読めなければ None。宣言の腐りの柵が使う）
+- reads_hits(values, files) -> list: 宣言の値に当たる file（値が / で終わればその下、そうでなければそのパスそのもの。
+  地図の reads の辺と柵が同じ当て方を使う 1 か所）
 - tree_files(repo) -> list | None: 作業ツリーの file の一覧（追跡中と無視されていない未追跡。git が使えなければ None。libdocs が使う）
 - is_test(path) -> "module" | "support" | None: 名の慣習でのテストの file の見分け（言語の表でなく名の形）
 - is_test_file(path, declared) -> bool: テストの file か（宣言 declared に在るか、is_test の module）。宣言と慣習を合わせた見分けの
@@ -33,7 +39,8 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - key・rev（commit の sha）・rev_name・seeds {given, files, names, from_diff, missing}
 - reach {path: {depth, lang, test, candidate, parent {from, kind, key, line}}}: 起点から届いた file（起点は含まない）
 - edges [{path, dep, kind, key, candidate, count, hits [[行番号, 行]], resolution?}]: path が dep に依る
-  （kind: import・path（basename の言及）・stem（拡張子を除いた名が引用符か YAML の値）・module（点の付いたモジュール名）・
+  （kind: import・reads（試験が一番上の RUNTIME_READS に宣言した、実行時に開く file への依り。宣言した試験が依る側）・
+  path（basename の言及）・stem（拡張子を除いた名が引用符か YAML の値）・module（点の付いたモジュール名）・
   symbol（起点の関数・クラスの名、起点の名前）・conftest（conftest.py の下のテストのモジュールが、その fixture に依る））
 - reverse_imports・tests・mentions・refs: reach の分類（パスの一覧）。mentions はコードの file、refs は
   YAML・JSON・MD などの設定と文書
@@ -123,7 +130,8 @@ MANIFESTS = frozenset({"pyproject.toml", "setup.py", "setup.cfg", "package.json"
 STOP_KEYS = frozenset({"__init__.py", "__main__.py", "__init__", "__main__", "action.yml", "action.yaml"})
 DYNAMIC = {"import_module": 0, "__import__": 0, "spec_from_file_location": 1, "run_path": 0, "run_module": 0,
            "load_source": 1, "SourceFileLoader": 1, "exec": 0}
-STRUCTURAL = frozenset({"import", "conftest"})   # 字の一致でない確かな辺（言及の段を足さない・reverse_imports に数える）
+READS_DECL = "RUNTIME_READS"   # 試験が実行時に glob や open で開く file を、試験の一番上に文字列の並びで宣言する名
+STRUCTURAL = frozenset({"import", "conftest", "reads"})   # 字の一致でない確かな辺（言及の段を足さない・reverse_imports に数える）
 UNANALYSABLE_TRIGGERS = frozenset({"unknown-language", "py-parse-error", "dynamic-import", "too-large", "symlink"})
 HEURISTICS = [
     "file の一覧は git ls-files（追跡中）と ls-files -o --exclude-standard（無視されていない未追跡）。中身は作業ツリーの物",
@@ -136,8 +144,13 @@ HEURISTICS = [
     "Python でない file（fixture・golden）で止める"
     "（テストはほかのテストの import と、conftest.py からその下のテストへの辺だけで伸ばす。conftest.py の fixture は import なしに"
     "下のテストへ渡るので、conftest.py に届いたらその下のテストのモジュールにも届いたと数える）。"
-    "言及の辺は起点から MENTION_HOPS 本まで（import と conftest の辺は数えない）。"
+    "言及の辺は起点から MENTION_HOPS 本まで（import・conftest・reads の辺は数えない）。"
     "超えた先は not_seen.beyond_mention_hops に数え、そこのテストの名を tests_beyond_mention_hops に並べる",
+    "実行時に開く file への頼り（字の言及で届かない glob や include の展開）は、読む試験の一番上の RUNTIME_READS に書いた物だけを辺にする"
+    "（値が / で終わればその下の file 全部、そうでなければそのパスそのもの。頼る側は宣言した試験で、深さ 1）。"
+    "字の言及で届く読みは書かない。宣言の値が木のどの file にも当たらない腐りは層の柵 tests/layers/test_declared_reads.py が赤にする。"
+    "宣言の書き忘れはこの地図も柵も見ない（実行時に YAML を読む助けを使うほかの試験も選ぶかの答えを待つ。答えが出たら宣言を読む助けへ移し、"
+    "宣言した module を直に import する module にも深さ 1 の reads の辺を張る規則と、書き忘れの検査を足す）",
     "起点の関数・クラスの名は、_ を含む名か、SYMBOL_MIN 字以上で大文字を含む名（DiskBoard など）だけを鍵にする。"
     "テストのモジュールの名は鍵にしない。起点の関数・クラスの名の言及（symbol）と拡張子を除いた名の言及（stem）は、起点と同じ project（manifest を持つ"
     "一番近い祖先のフォルダ。無ければリポジトリ全体）の中だけ。symbol の当たりは葉（先へ伸ばさない。名前の起点は伸ばす）。"
@@ -310,12 +323,13 @@ def _consts(node, assigns, depth=0):
 
 
 def _py_facts(text):
-    """import（名・段・行・from の名・行の字）・sys.path に足す字・動的 import・一番上の def と class の名"""
+    """import（名・段・行・from の名・行の字）・sys.path に足す字・動的 import・一番上の def と class の名・
+    一番上の READS_DECL の代入の値の字（実行時に開く file の宣言）"""
     lines = text.split("\n")
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError, RecursionError, MemoryError) as e:   # 深すぎる式は構文木を組む途中で深さが尽きる
-        return {"error": f"{type(e).__name__}: {e}", "imports": [], "syspath": [], "dyn": [], "defs": []}
+        return {"error": f"{type(e).__name__}: {e}", "imports": [], "syspath": [], "dyn": [], "defs": [], "reads": []}
     assigns = {}
     for n in ast.walk(tree):
         if isinstance(n, ast.Assign):
@@ -352,9 +366,15 @@ def _py_facts(text):
                 elif not (name == "exec" and isinstance(arg, ast.Constant)):
                     dyn.append([*line_of(n), _consts(arg, assigns)])
     defs = sorted({n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))})
+    reads = []
+    for n in tree.body:
+        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == READS_DECL for t in n.targets):
+            reads += _consts(n.value, assigns)
+        elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == READS_DECL:
+            reads += _consts(n.value, assigns)
     imports.sort(key=lambda x: (x[2], x[0]))
     dyn.sort(key=lambda x: x[0])
-    return {"error": None, "imports": imports, "syspath": syspath, "dyn": dyn, "defs": defs}
+    return {"error": None, "imports": imports, "syspath": syspath, "dyn": dyn, "defs": defs, "reads": reads}
 
 
 def py_imports(text):
@@ -362,6 +382,18 @@ def py_imports(text):
     構文の誤りで読めなければ None（ほかのモジュールが import の読み取りを 2 か所に持たないための公開の口）"""
     facts = _py_facts(text)
     return None if facts["error"] else facts["imports"]
+
+
+def py_reads(text):
+    """Python の file の一番上の READS_DECL の宣言の値の字の並び（_py_facts の reads と同じ）。宣言が無ければ []。
+    構文の誤りで読めなければ None（宣言の腐りの柵が読み取りを 2 か所に持たないための公開の口）"""
+    facts = _py_facts(text)
+    return None if facts["error"] else facts["reads"]
+
+
+def reads_hits(values, files):
+    """宣言の値 values に当たる files の file。値が / で終わればその下の file 全部、そうでなければそのパスそのもの"""
+    return sorted(f for f in files if any(f.startswith(v) if v.endswith("/") else f == v for v in values))
 
 
 def _scan(data: bytes, want_py: bool):
@@ -491,7 +523,8 @@ class _Index:
             sha = _sha(data)
             rec = self.cache.get(sha)
             want_py = _ext(path) in PY_EXT or data.startswith(b"#!") and b"python" in data.split(b"\n", 1)[0]
-            if rec is None or (want_py and "py" not in rec and not rec.get("bin") and not rec.get("large")):
+            readable = not rec.get("bin") and not rec.get("large") if rec else False
+            if rec is None or (want_py and readable and "reads" not in rec.get("py", {})):
                 rec = _scan(data, want_py)
                 self.cache[sha] = rec
                 self.dirty = True
@@ -739,6 +772,11 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
                 if tgt != p:
                     importers.setdefault(tgt, []).append((p, how, imp[2], imp[3], imp[0] or "." * imp[1]))
 
+    readers = {}   # 実行時に開く file を宣言した Python の file → 宣言の値
+    for p in sorted(mods.pys & set(ix.files)):
+        declared_reads = (ix.rec(p).get("py") or {}).get("reads")
+        if declared_reads:
+            readers[p] = declared_reads
     words = ix.word_index()
     edges = {}   # (path, dep, kind, key) → edge
 
@@ -766,6 +804,16 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
             cand = how == "ambiguous"
             add_edge(p, x, "import", name, [1, [[line, text]]], cand, how)
             out.append((p, "import", name, line, cand))
+        return out
+
+    def reads_deps(x):
+        """宣言した試験を、その宣言が当たる file x の依る側にする（確かな辺。字の言及で届かない実行時の読み）"""
+        out = []
+        for p, values in readers.items():
+            for v in values:
+                if p != x and reads_hits([v], [x]):
+                    add_edge(p, x, "reads", v, [1, []], False)
+                    out.append((p, "reads", v, None, False))
         return out
 
     def mention_deps(x, keys):
@@ -826,6 +874,7 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
             keys = _keys(ix, mods, node, node in seed_set, importers)
         deps += mention_deps(node, keys) if keys else []
         deps += conftest_deps(node) if _base(node) == "conftest.py" else []
+        deps += [] if is_name else reads_deps(node)
         for f, kind, key, line, cand in sorted(deps, key=lambda d: (d[0], d[1] != "import", d[1], d[2])):
             if f in seed_set:
                 continue
@@ -975,11 +1024,13 @@ def direct(m, path) -> bool:
     return path in m["seeds"]["files"] or m["reach"].get(path, {}).get("depth") == 1
 
 
-def select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=()):
+def select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=(), defer_all=False):
     """回すテストのモジュール。run_all（分からない物が近くに在る）なら全部。direct_only なら直に関わる試験（direct）と
     名指しの試験（named。根からのパス）だけを選び、届いただけの先の試験は left に名前で残す（回さない。run_all の時は空）。
     direct_only の run_all は、分からない物が直に関わる所（起点か深さ 1。地図の reach に無く置き場の分からない物も含める）に
-    在る時だけで、深さ 2 以上の物は far に理由の形のまま残す（一式は線の最後のテストの段が回す。持ち主の決定 2026-10-06）"""
+    在る時だけで、深さ 2 以上の物は far に理由の形のまま残す（一式は線の最後のテストの段が回す。持ち主の決定 2026-10-06）。
+    defer_all は『呼び手は run_all でも全部を回さず CI に寄せる』呼び手の印で、direct_only と一緒の時だけ効く:
+    run_all の時も left を求め、far も空にしない（run_all の時の selected は狭めず、left と重なる）。既定の False は上のとおり"""
     sel = [t for t in m["tests"] if scope is None or t.startswith(scope)]
     run_all = bool(m["all_tests_required"])
     reasons, far = list(m["all_tests_reasons"]), []
@@ -989,12 +1040,13 @@ def select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, na
                       for u in trig if u["path"] in m["reach"] and not direct(m, u["path"])})
         reasons = [r for r in reasons if r not in far]
         run_all = bool(reasons)
-        far = [] if run_all else far
+        far = [] if run_all and not defer_all else far
     left = []
-    if direct_only and not run_all:
+    if direct_only and (defer_all or not run_all):
         named = set(named)
         left = [t for t in sel if t not in named and not direct(m, t)]
-        sel = sorted((set(sel) - set(left)) | {t for t in named if scope is None or t.startswith(scope)})
+        if not run_all:
+            sel = sorted((set(sel) - set(left)) | {t for t in named if scope is None or t.startswith(scope)})
     mods = sorted({_mod(t) for t in sel} | {_mod(f) for f in fast})
     if run_all:
         mods = sorted({_mod(x) for x in all_modules}) if all_modules is not None else None

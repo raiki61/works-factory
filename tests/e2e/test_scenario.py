@@ -4,6 +4,7 @@
 import json
 import pathlib
 import re
+import sys
 import unittest
 
 from tests.bin import stepnames
@@ -13,6 +14,9 @@ SCENARIO = ROOT / "tests" / "e2e" / "scenario.json"
 SUMMARY = ROOT / "tests" / "e2e" / "scenario.md"
 PLAN = ROOT / "docs" / "plans" / "2026-10-13-stage1-walking-skeleton.md"
 COMMAND = re.compile(r"`(WORKS_FACTORY_HOME=<家> \./bin/works-factory workflow (\S+) [^`]*)`")
+# 実行時に読む工程の YAML と script の置き場。tests/bin/stepnames.py が workflows/*/<名>.yaml を glob で開き、include の値の YAML も
+# 開く（字の言及の辺では届かない）。変更に当たる試験を選ぶ地図は、ここに書いた下の変更でこの試験を選ぶ
+RUNTIME_READS = ("workflows/",)
 # 計画の文書と筋書きが同じ字で持つ命令の動詞（起こす・待つ・関所に答える）
 SHARED_VERBS = ("run", "wait", "respond")
 # 拒まれた後に同じ会話の続きで直す出し直しの役の id の尾（r4-scope-fix）。1 回目の役でないので、R1〜R4 の役の節に数えない
@@ -20,6 +24,10 @@ RESUBMIT = "-fix"
 
 
 class ScenarioCase(unittest.TestCase):
+    def test_runtime_reads_name_where_stepnames_reads(self):
+        here = sys.modules[__name__]
+        self.assertEqual(getattr(here, "RUNTIME_READS", None), (stepnames.WORKFLOWS.relative_to(ROOT).as_posix() + "/",))
+
     def test_summary_sections_follow_the_assertions(self):
         heads = re.findall(r"^## `([a-z0-9-]+)`", SUMMARY.read_text(encoding="utf-8"), re.M)
         ids = [a["id"] for a in json.loads(SCENARIO.read_text(encoding="utf-8"))["assertions"]]

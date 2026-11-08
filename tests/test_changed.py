@@ -8,6 +8,8 @@ unittest の最後の数え（Ran N tests）で何が回ったかを見る。木
 - 選んだ物が 0 本でも層の柵は回り、選んだ試験の赤は殻の赤
 - 頭で読み込めない試験のパッケージの下を変えると赤（パッケージ名の 1 件を選ぶ）
 - 集め方の正本（tests/shard.py の PATTERN）を変えると、殻の選び（変わった lib を import する試験も）と CI の分けの両方が変わる
+- 地図が届いたが直でない試験（深さ 2 以上）の名は、選べなかった訳とは別の欄に出て回らない。CI に寄せる時と WHOLE の時も出る。
+  層の柵の下の試験はその欄に出ない。遠くの分からない物は、CI に寄せる訳を出さずに別の欄へ訳が出る
 - 出力の最後は unittest の数え（Ran N tests）で、数えの形 COUNT が最初に当たるのもその行
 - 試験は既定で子 WORKERS 個に並べて回す。並べても、選んだモジュールの名と回さないモジュールの数・回った数は 1 つの子で順に回した時と
   同じで、落ちた試験は名と traceback が出て、最後は FAILED。2 つのモジュールは別の子で走り、並べる数の上書き（環境変数）は試験を回す口まで届く
@@ -28,6 +30,8 @@ from tests.bin.gitkit import git
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 IN_CI = "全部の試験は CI に寄せる（持ち主の決め full-suite-in-ci）"
+UNRUN = "地図が届いたが直でないので回さない"
+FAR = "どの試験に関わるか読み切れない深さ 2 以上の分からない物"
 WORKERS = "3"
 COUNT = re.compile(r"Ran (\d+) tests?")
 # hermetic は pack.json の ours.folder の .shared/ports.py から Archon の変数の名を読む（docs/design/integration.md の 4.5-8）
@@ -140,6 +144,113 @@ class ChangedTest(unittest.TestCase):
         self.assertEqual(self.ran(out), 2, out)
         self.assertIn(IN_CI, stdout)
         self.assertIn("dynamic-import", stdout)
+
+    def commit_deep_chain(self, far_source=None):
+        """lib/alpha を import する lib/mid、それを import する lib/tests/test_far.py（far_source が在れば lib/far.py も）と、
+        lib.mid を import する層の柵の試験を足して、起点を進める"""
+        self.write("lib/mid.py", "from lib import alpha\n\n\ndef value():\n    return alpha.value()\n")
+        self.write("lib/tests/test_far.py", LIB_TEST.format(name="mid"))
+        self.write("tests/layers/test_fence.py", LIB_TEST.format(name="mid"))
+        if far_source:
+            self.write("lib/far.py", far_source)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "deep chain")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def block(self, stdout, head):
+        """head を含む行の次から続く字下げの行（欄の中身）。欄が無ければ None"""
+        lines = stdout.splitlines()
+        for i, line in enumerate(lines):
+            if head in line and not line.startswith(" "):
+                body = []
+                for after in lines[i + 1:]:
+                    if not after.startswith(" "):
+                        break
+                    body.append(after.strip())
+                return body
+        return None
+
+    def test_reached_tests_that_are_not_direct_are_named_but_not_run(self):
+        self.commit_deep_chain()
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.ran(out), 2, out)
+        unrun = self.block(stdout, UNRUN)
+        self.assertIsNotNone(unrun, stdout)
+        self.assertEqual(unrun, ["lib/tests/test_far.py"], stdout)
+        self.assertIn("lib.tests.test_alpha", stdout)
+        self.assertIn("tests.layers.test_fence", stdout)
+        self.assertNotIn(IN_CI, stdout)
+
+    def test_reached_tests_are_named_even_when_selection_defers_to_ci(self):
+        self.commit_deep_chain()
+        self.write("lib/alpha.py", "import importlib\n\n\ndef value():\n    return 1\n\n\n"
+                                   "def load(name):\n    return importlib.import_module(name)\n")
+        with self.subTest(case="selection says everything is needed"):
+            rc, stdout, out = self.run_changed()
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(self.ran(out), 2, out)
+            self.assertIn(IN_CI, stdout)
+            self.assertEqual(self.block(stdout, UNRUN), ["lib/tests/test_far.py"], stdout)
+            self.assertNotIn("lib/tests/test_far.py", self.block(stdout, IN_CI) or [], stdout)
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        self.write("tests/archon.py", "# changed\n")
+        with self.subTest(case="whole"):
+            rc, stdout, out = self.run_changed()
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(self.ran(out), 2, out)
+            self.assertIn(IN_CI, stdout)
+            self.assertTrue(any("tests/archon.py" in r for r in self.block(stdout, IN_CI) or []), stdout)
+            self.assertEqual(self.block(stdout, UNRUN), ["lib/tests/test_far.py"], stdout)
+            self.assertNotIn("lib/tests/test_far.py", self.block(stdout, IN_CI) or [], stdout)
+
+    def commit_scenario_copy(self):
+        """実行時に workflows/ を読む筋書きの試験の小さな写しと、線・ブロックの YAML・script を足して、起点を進める。
+        写しは YAML の名を字で書かない（字の言及の辺でなく、宣言の辺で選ばれる事を見るため）"""
+        self.write("tests/e2e/__init__.py", "")
+        self.write("tests/e2e/test_scenario.py", '# 工程の YAML を glob で開く試験の写し\nRUNTIME_READS = ("workflows/",)\n' + ONE_TEST)
+        self.write("workflows/line/works-factory-line.yaml", "nodes: []\n")
+        self.write("workflows/fix/works-factory-fix.yaml", "nodes: []\n")
+        self.write("workflows/fix/scripts/x.py", "VALUE = 1\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "scenario copy")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def test_change_under_the_scenario_reads_runs_the_scenario_test(self):
+        self.commit_scenario_copy()
+        for rel in ("workflows/line/works-factory-line.yaml", "workflows/fix/works-factory-fix.yaml", "workflows/fix/scripts/x.py"):
+            with self.subTest(changed=rel):
+                self.write(rel, "# changed\n")
+                rc, stdout, out = self.run_changed()
+                self.assertEqual(rc, 0, out)
+                self.assertIn("tests.e2e.test_scenario", stdout)
+                self.assertEqual(self.ran(out), 2, out)
+                self.assertNotIn(IN_CI, stdout)
+                self.assertNotIn("tests/e2e/test_scenario.py", self.block(stdout, UNRUN) or [], "回す試験を回さない欄に出さない")
+                git(self.repo, "checkout", "-q", "--", rel)
+
+    def test_scenario_test_runs_with_a_whole_suite_change(self):
+        self.commit_scenario_copy()
+        self.write("tests/archon.py", "# changed\n")
+        self.write("workflows/fix/works-factory-fix.yaml", "# changed\n")
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        self.assertIn(IN_CI, stdout)
+        self.assertIn("tests.e2e.test_scenario", stdout)
+        self.assertEqual(self.ran(out), 2, out)
+        self.assertNotIn("tests/e2e/test_scenario.py", self.block(stdout, UNRUN) or [], "回す試験を回さない欄に出さない")
+
+    def test_far_unanalysable_is_named_without_the_ci_heading(self):
+        self.commit_deep_chain("import importlib\nfrom lib import mid\n\n\ndef load(name):\n"
+                               "    return importlib.import_module(name)\n")
+        self.write("lib/alpha.py", "def value():\n    return 1  # changed\n")
+        rc, stdout, out = self.run_changed()
+        self.assertEqual(rc, 0, out)
+        far = self.block(stdout, FAR)
+        self.assertIsNotNone(far, stdout)
+        self.assertEqual(far, ["dynamic-import: lib/far.py:6"], stdout)
+        self.assertNotIn(IN_CI, stdout)
 
     def test_no_base_runs_only_the_fence_and_defers_to_ci(self):
         git(self.repo, "update-ref", "-d", "refs/remotes/origin/main")

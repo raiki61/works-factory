@@ -6,6 +6,7 @@
   読めない物 → all_tests_required・盤面の置き場の使い回し（当たり・変わった file だけ読み直す。読み直した地図は同じ）
 - 選ぶ: select_tests が速い段と選んだテストの和を返し、分からない時は全部
 """
+import inspect
 import pathlib
 import shutil
 import sys
@@ -306,6 +307,37 @@ class UnanalysableCase(RepoCase):
         self.assertTrue(near["run_all"], "深さ 1 の分からない物が在れば全部")
         self.assertEqual(near["left"], [])
 
+    def test_deferring_caller_keeps_left_and_far_when_run_all(self):
+        # 全部を回さず CI に寄せる呼び手（defer_all）は、全部が要る時も、地図が届いたが直でない試験（left）と深い分からない物（far）を受け取る
+        self.assertIn("defer_all", inspect.signature(impact.select_tests).parameters)
+        self.write("plug/near.py", "import importlib\nfrom pkg import core\n\n\ndef load(name):\n"
+                                   "    return importlib.import_module(name)\n")
+        self.write("plug/far.py", "import importlib\nfrom pkg import mid\n\n\ndef load(name):\n"
+                                  "    return importlib.import_module(name)\n")
+        m = self.map(["pkg/core.py"])
+        sel = impact.select_tests(m, direct_only=True, defer_all=True)
+        self.assertTrue(sel["run_all"])
+        self.assertEqual(sel["left"], ["tests/test_cli.py", "tests/test_mid.py"])
+        self.assertEqual(sel["far"], ["dynamic-import: plug/far.py:6"])
+        self.assertEqual(sel["selected"], ["tests/test_cli.py", "tests/test_core.py", "tests/test_mid.py"])
+        plain = impact.select_tests(m, direct_only=True)
+        self.assertTrue(plain["run_all"])
+        self.assertEqual((plain["left"], plain["far"]), ([], []))
+
+    def test_deferring_flag_changes_nothing_when_not_run_all(self):
+        # 全部が要らない変更では、defer_all を渡しても渡さなくても返りの全部の欄が同じ（印は全部の時だけ効く）
+        far_only = "import importlib\nfrom pkg import mid\n\n\ndef load(name):\n    return importlib.import_module(name)\n"
+        for case, files in (("nothing unreadable near", {}), ("unreadable only two steps away", {"plug/far.py": far_only})):
+            with self.subTest(case=case):
+                for rel, text in files.items():
+                    self.write(rel, text)
+                m = self.map(["pkg/core.py"])
+                plain = impact.select_tests(m, direct_only=True)
+                deferring = impact.select_tests(m, direct_only=True, defer_all=True)
+                self.assertFalse(plain["run_all"])
+                self.assertEqual(deferring, plain)
+                self.assertIn("tests/test_mid.py", deferring["left"], "深さ 2 の試験は left に残る")
+
     def test_constant_dynamic_import_is_an_import(self):
         self.write("plug/fixed.py", "import importlib\n\nmod = importlib.import_module('pkg.core')\n")
         m = self.map(["pkg/core.py"])
@@ -345,6 +377,57 @@ class ConftestCase(RepoCase):
         self.assertEqual(r["depth"], m["reach"]["tests/conftest.py"]["depth"] + 1)
         self.assertIn("tests/api/test_api.py", m["reverse_imports"], "fixture の辺は import と同じく確かな依り")
         self.assertFalse(r["candidate"])
+
+
+class RuntimeReadsCase(RepoCase):
+    """試験が実行時に glob や open で開く file は、字の言及でも import でも届かない。試験が一番上の RUNTIME_READS に宣言した物は、
+    宣言した試験を依る側にした深さ 1 の確かな辺（reads）で届く"""
+
+    def setUp(self):
+        super().setUp()
+        self.write("tests/test_flow.py", '# 実行時に flows の下の YAML を glob で開く\nRUNTIME_READS = ("flows/",)\n')
+        self.write("flows/sub/b.yaml", "nodes: []\n")
+        self.write("flows2/x.yaml", "nodes: []\n")
+
+    def test_declared_reads_make_the_reader_direct(self):
+        m = self.map(["flows/sub/b.yaml"])
+        self.assertIn("tests/test_flow.py", m["reach"], "宣言した下の file の変更は、宣言した試験に届く")
+        r = m["reach"]["tests/test_flow.py"]
+        self.assertEqual((r["depth"], r["parent"]["from"], r["parent"]["kind"]), (1, "flows/sub/b.yaml", "reads"))
+        self.assertFalse(r["candidate"])
+        self.assertIn("tests/test_flow.py", m["reverse_imports"], "宣言の辺は import と同じく確かな依り")
+        sel = impact.select_tests(m, direct_only=True)
+        self.assertIn("tests/test_flow.py", sel["selected"])
+        self.assertNotIn("tests/test_flow.py", sel["left"])
+        self.assertNotIn("tests/test_flow.py", self.map(["flows2/x.yaml"])["reach"], "宣言の外の file には届かない")
+        with self.subTest(case="a value that does not end with a slash is the path itself"):
+            self.write("tests/test_data.py", 'RUNTIME_READS = ("flows2/x.yaml",)\n')
+            self.assertIn("tests/test_data.py", self.map(["flows2/x.yaml"])["reach"])
+            self.assertNotIn("tests/test_data.py", self.map(["flows/sub/b.yaml"])["reach"])
+        with self.subTest(case="the name inside a string or a function is not a declaration"):
+            self.write("tests/test_text.py", 'NOTE = "RUNTIME_READS = (\'flows2/\',)"\n\n\ndef f():\n'
+                                             '    RUNTIME_READS = ("flows2/",)\n')
+            self.assertNotIn("tests/test_text.py", self.map(["flows2/x.yaml"])["reach"])
+        with self.subTest(case="the map and the fence read a declaration the same way"):
+            self.assertEqual(impact.py_reads('RUNTIME_READS = ("a/", "b.json")\n'), ["a/", "b.json"])
+            self.assertIsNone(impact.py_reads("RUNTIME_READS = (\n"))
+            files = ["a/x.yaml", "a/y/z.yaml", "ab/q", "b.json", "b.json5"]
+            self.assertEqual(impact.reads_hits(["a/", "b.json"], files), ["a/x.yaml", "a/y/z.yaml", "b.json"])
+
+    def test_files_without_a_declaration_keep_their_reach(self):
+        # 宣言が無ければ辺は import・言及・conftest の規則だけで決まる: 宣言を持つ試験が木に在っても無くても、
+        # 宣言と関わらない起点の reach と edges は同じで、reads の辺は 1 本も無い
+        seeds = ["pkg/core.py", "pkg/mid.py"]
+        with_decl = self.map(seeds)
+        (self.repo / "tests/test_flow.py").unlink()
+        without = self.map(seeds)
+        self.assertEqual(with_decl["reach"], without["reach"])
+        self.assertEqual(with_decl["edges"], without["edges"])
+        self.assertEqual([e for e in without["edges"] if e["kind"] == "reads"], [])
+        r = without["reach"]["tests/test_core.py"]
+        self.assertEqual((r["depth"], r["parent"]["from"], r["parent"]["kind"], r["candidate"]),
+                         (1, "pkg/core.py", "import", False))
+        self.assertEqual(without["reach"]["tests/test_mid.py"]["parent"]["kind"], "import")
 
 
 class PrecisionCase(RepoCase):
@@ -430,6 +513,24 @@ class CacheCase(RepoCase):
         m4 = self.map(["pkg/core.py"], cache_dir=self.cache)
         self.assertEqual(m4["stats"]["scanned"], 1)
         self.assertIn("tests/test_new.py", m4["tests"])
+
+    def test_scan_cache_without_declared_reads_is_read_again(self):
+        # 宣言を読む前の控え（py の読み取りに reads が無い）は、宣言を黙って落とさないよう file を読み直す
+        import json
+
+        self.write("tests/test_flow.py", 'RUNTIME_READS = ("flows/",)\n')
+        self.write("flows/sub/b.yaml", "nodes: []\n")
+        self.map(["flows/sub/b.yaml"], cache_dir=self.cache)
+        scan = self.cache / "scan.json"
+        recs = json.loads(scan.read_text(encoding="utf-8"))
+        for rec in recs.values():
+            rec.get("py", {}).pop("reads", None)
+        scan.write_text(json.dumps(recs), encoding="utf-8")
+        self.write("docs/extra.md", "# extra\n")   # 地図の鍵を変えて、控えの地図でなく file の読み取りの控えを引かせる
+        m = self.map(["flows/sub/b.yaml"], cache_dir=self.cache)
+        self.assertGreaterEqual(m["stats"]["scanned"], 1)
+        self.assertIn("tests/test_flow.py", m["reach"], "読み直した宣言で、宣言した試験に届く")
+        self.assertEqual(m["reach"]["tests/test_flow.py"]["parent"]["kind"], "reads")
 
     def test_diff_seeds(self):
         self.write("pkg/core.py", PROJ["pkg/core.py"].replace("return x + 1", "return x + 2"))
