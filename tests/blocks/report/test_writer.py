@@ -3,6 +3,7 @@ CollectCase・ColdBodyCase、test_report_roles.py の全部、lib/tests/test_han
 写さない。文は md が持つ）。返答の型の YAML と handoff.SCHEMA の一致も照らす。"""
 import json
 import pathlib
+import re
 import unittest
 
 import yaml
@@ -17,12 +18,13 @@ import rolekit  # noqa: E402  lib/
 W = M.writer
 REPLY = json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n無い", "terms": []}, ensure_ascii=False)
 PASS = json.dumps(base.GOOD_COLD)
-REDESIGN = json.dumps({"verdict": "redesign-needed", "stops": ["冒頭の 2 行目"], "guessed": [], "machine_lines": [], "decidable": False},
+REDESIGN = json.dumps({"verdict": "redesign-needed", "stops": [{"line": "W1", "text": "冒頭の 2 行目"}], "guessed": [], "decidable": False},
                       ensure_ascii=False)
-MACHINE_ONLY = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": [], "machine_lines": ["起きたこと の gate-before-fix"],
-                           "decidable": False}, ensure_ascii=False)
-MIXED = json.dumps({"verdict": "redesign-needed", "stops": ["要約の 1 行目"], "guessed": [], "machine_lines": ["起きたこと の gate-before-fix"],
-                    "decidable": False}, ensure_ascii=False)
+MACHINE_ONLY = json.dumps({"verdict": "redesign-needed", "stops": [{"line": "M1", "text": "起きたこと の行"}], "guessed": [], "decidable": False},
+                          ensure_ascii=False)
+MIXED = json.dumps({"verdict": "redesign-needed", "stops": [{"line": "W1", "text": "要約の1行目"}, {"line": "M1", "text": "起きたこと の行"}],
+                    "guessed": [], "decidable": False}, ensure_ascii=False)
+MARK = re.compile(r"\b[MW][0-9]+\b")
 NODE = "report"
 
 
@@ -122,6 +124,21 @@ class GlossaryCase(unittest.TestCase):
         self.assertEqual(text, "パイプラインと処理の段の組み合わせ。サブノードと処理の段")
         self.assertEqual(counts, {"ライン": 1, "ノード": 1})
 
+    def test_plain_words_keep_katakana_terms_right_after_kanji(self):
+        """片仮名で始まる表の語は、前が漢字でも片仮名でも当てない（辞書が無いので複合語かもしれない所は字のまま）。前が仮名・記号なら当てる"""
+        pack = [{"term": "ライン", "plain": "処理の段の組み合わせ"}, {"term": "ノード", "plain": "処理の段"}]
+        text, counts = W.plain_words("自動の処理ラインと各ノード。別ノードの中、のライン、「ノード」", pack)
+        self.assertEqual(text, "自動の処理ラインと各ノード。別ノードの中、の処理の段の組み合わせ、「処理の段」")
+        self.assertEqual(counts, {"ライン": 1, "ノード": 1})
+        # 本物の語の表: 工場が書いた複合語（出力ノード・処理ライン）は字のまま。人に向けた報告の頭の問いの題も同じ式を通る
+        text, counts = W.plain_words("試験の関門: 出力ノードの中の誤り。自動の処理ライン。のライン")
+        self.assertEqual(text, "試験の関門: 出力ノードの中の誤り。自動の処理ライン。の処理の段の組み合わせ")
+        self.assertEqual(counts, {"ライン": 1})
+        title = "出力ノードの誤りを直すか"
+        self.assertEqual(W.plain_words(title), (title, {}))
+        # 表の長い語（承認ノード）は今までどおり先に当たる
+        self.assertEqual(W.plain_words("承認ノード"), ("先へ進めるかを決める所", {"承認ノード": 1}))
+
     def test_plain_words_skip_compounds_that_only_contain_a_one_kanji_term(self):
         text, counts = W.plain_words("前の周に戻り、周ごとに柵の印を見た。周囲と周知、一周、周辺")
         self.assertEqual(counts, {"周": 2, "柵": 1})
@@ -168,6 +185,23 @@ class ColdBodyCase(Base):
         self.assertNotIn("起きたこと", writer)
         self.assertEqual(W.cold_body(reply, place=self.out), f"{machine}\n\n{writer}\n")
 
+    def test_marked_lines_tag_machine_and_writer_lines(self):
+        """貼る本文の空でない行ごとに、機械が組んだ頭の行は M<n>、書き手の頭の行は W<n>（その部分の何行目か）の印が付き、印を除いた行の並びは
+        cold_body の空でない行と同じ。cold_marks は M の印の集合。書き手の返答を読めなければ M の印は無い"""
+        self.assertTrue(hasattr(W, "marked_lines") and hasattr(W, "cold_marks"), "印つきの行の並び marked_lines と印の集合 cold_marks が無い")
+        self.out.mkdir(parents=True)
+        (self.out / "report.md").write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
+        reply = json.dumps({"text": "要約。\n\n## 1. 人が決めること\n\n- A"}, ensure_ascii=False)
+        marked = W.marked_lines(reply, place=self.out)
+        self.assertEqual([m for m, _ in marked], ["M1", "M3", "W1", "W3", "W5"])
+        self.assertEqual([line for _, line in marked], [x for x in W.cold_body(reply, place=self.out).splitlines() if x.strip()])
+        self.assertEqual(dict(marked)["M3"], "起きたこと: 赤")
+        self.assertEqual(dict(marked)["W1"], "要約。")
+        self.assertEqual(W.cold_marks(reply, place=self.out), {"M1", "M3"})
+        broken = W.marked_lines("壊れた", place=self.out)
+        self.assertEqual([m for m, _ in broken], ["W1"])
+        self.assertEqual(W.cold_marks("壊れた", place=self.out), frozenset())
+
     def test_handoff_never_reaches_the_cold_reader(self):
         self.out.mkdir(parents=True)
         (self.out / "report.md").write_text("# 報告\n", encoding="utf-8")
@@ -192,21 +226,53 @@ class AcceptCase(Base):
         self.assertEqual(self.ai()["rejects"]["report"]["cold"], 2)
 
     def test_machine_lines_only_is_taken_without_a_rewrite(self):
-        """初見の読み手が止まったのが機械が組んだ行だけなら、1 回目でも書き手に書き直させずに受け取り、通さなかった印を残す"""
+        """すべての指摘の line が貼った機械の行の印なら、1 回目でも書き手に書き直させずに受け取り、通さなかった印を残す。印の書式の揺れ
+        （'M1 | '）は印として読む。貼っていない印・印の取れない line・本文の印の指摘が 1 つでも在れば、1 回目で拒む"""
         got = self.accept(cold=MACHINE_ONLY)
         self.assertEqual((got["done"], got["ok"]), (True, True))
         self.assertIn(W.MACHINE_ONLY, got["reason"])
-        self.assertIn("gate-before-fix", self.ai()["not_passed"])
+        self.assertIn("起きたこと の行", self.ai()["not_passed"])
         self.assertTrue(self.ai()["machine_only"])
         self.assertEqual(self.ai()["rejects"]["report"]["cold"], 0)
+        for n, line in enumerate(("M1 | ", "M1:", "(M1)", " M1 ")):
+            with self.subTest(line=line):
+                out = self.out / f"wobble{n}"
+                cold = json.dumps({"verdict": "redesign-needed", "stops": [{"line": line, "text": "起きたこと の行"}], "guessed": [],
+                                   "decidable": False}, ensure_ascii=False)
+                self.assertEqual((self.accept(cold=cold, out=out)["ok"], self.ai(out)["machine_only"]), (True, True))
+                self.assertEqual(self.ai(out)["rejects"]["report"]["cold"], 0)
+        for n, line in enumerate(("X9", "M99", "", "W1", "起きたこと", "M1, W1", "M1 and W1", "M1x")):
+            with self.subTest(refused=line):
+                out = self.out / f"refused{n}"
+                cold = json.dumps({"verdict": "redesign-needed", "stops": [{"line": line, "text": "起きたこと の行"}], "guessed": [],
+                                   "decidable": False}, ensure_ascii=False)
+                got = self.accept(cold=cold, out=out)
+                self.assertEqual((got["done"], got["ok"], got["kind"]), (False, False, "cold"))
+        for n, shape in enumerate(({"verdict": "redesign-needed", "stops": [], "guessed": []},
+                                   {"verdict": "redesign-needed", "stops": ["字のままの古い形の指摘"], "guessed": []},
+                                   {"verdict": "redesign-needed", "stops": [{"line": "M1", "text": "頭"}], "guessed": [{"line": "W1", "text": "本文"}]})):
+            with self.subTest(shape=shape):
+                self.assertEqual(self.accept(cold=json.dumps(shape, ensure_ascii=False), out=self.out / f"shape{n}")["kind"], "cold")
 
     def test_writer_text_stop_with_machine_lines_still_rejects(self):
-        """書き手の本文にも止まった所が在れば書き直させ、機械が組んだ行の所は書き手に直せない物として分けて言う"""
+        """本文の指摘が 1 つでも在れば書き直させる。書き手への理由には本文の指摘の文だけが在り、頭の指摘の文も行の印も載らない。上限の回に受け取った
+        時の知らせの行には、両方の指摘の文が（印でなく読み手の文で）載る"""
         got = self.accept(cold=MIXED)
         self.assertEqual((got["done"], got["kind"]), (False, "cold"))
         reason = (self.out / "rejects-report.md").read_text(encoding="utf-8")
-        self.assertIn("止まった所: 要約の 1 行目", reason)
-        self.assertIn(f"{W.MACHINE_LINE}: 起きたこと の gate-before-fix", reason)
+        self.assertIn("止まった所: 要約の1行目", reason)
+        self.assertNotIn("起きたこと の行", reason)
+        self.assertNotRegex(reason, MARK)
+        self.accept(cold=MIXED)
+        self.assertTrue(self.accept(cold=MIXED)["ok"])
+        self.assertFalse(self.ai()["machine_only"])
+        reason = (self.out / "rejects-report.md").read_text(encoding="utf-8")
+        self.assertNotRegex(reason, MARK)
+        self.assertNotIn("起きたこと の行", reason)
+        line = W.collect("# 報告\n\n起きたこと: 赤\n", place=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()[3]
+        self.assertIn("要約の1行目", line)
+        self.assertIn("起きたこと の行", line)
+        self.assertNotRegex(line, MARK)
 
     def test_unreadable_verdict_is_not_machine_only(self):
         self.assertEqual((self.accept(cold="壊れた")["done"]), False)
@@ -443,7 +509,9 @@ class CollectCase(Base):
         line = human.splitlines()[3]
         self.assertTrue(line.startswith(W.plain_words(W.NOT_PASSED)[0]), human)
         self.assertIn(W.plain_words(W.MACHINE_ONLY)[0], line)
+        self.assertIn("止まった所: 起きたこと の行", line)
         self.assertNotIn("上限の", line)
+        self.assertNotRegex(line, MARK)
 
     def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
         guessed = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": ["語 X を推測"]}, ensure_ascii=False)

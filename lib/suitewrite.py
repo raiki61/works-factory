@@ -39,7 +39,11 @@
 - fence(text): text を囲むバッククォートの柵（3 つ以上で、text の中の最長の並びより 1 つ長い。書き手の指示に test_cmd や本文を貼る口）
 - put_runner(path, body): 書き直した実行器の本文を path に実行の印つきで置き換える（一時のファイルから入れ替えるので、走っている
   ほかの組の子は前の本文か新しい本文のどちらかを読む）。本文の頭が #! でなければ置かずに ValueError（place と同じ照らし）
-- head_note(start): 報告の冒頭の句。取り置きを使った・書いた・作れなかったのどれか（欄の無い run は空の字）
+- head_note(start): 報告の節「2. 止めたか」の知らせの本文（頭は状態ごとの種の文）。取り置きを使った・書いた・作れなかったのどれか（欄の無い run は空の字）。
+  note_state と note_detail を組んだ 1 行で、test-gate の suite_note も同じ字を使う
+- note_state(start): 状態の語。USED・WROTE・NOT_MADE のどれか（欄の無い run は空の字）。報告の頭が状態ごとの種を選ぶ
+- note_detail(start): 状態の括弧の中身だけ（照らしの有無・作れなかった訳・捨てた取り置きなど。無ければ空の字）
+- NO_LOOP: 作れなかった時に続ける句（TDD のループは回さない・実行器を渡せば回す）
 - GATE_NOTE: 起動の承認ノードの文の 1 行
 """
 import hashlib
@@ -66,6 +70,7 @@ BRIEF = "writer-brief.md"
 USED = "TDD の実行器は取り置きを使った"
 WROTE = "TDD の実行器は AI が書いた"
 NOT_MADE = "TDD の実行器を作れなかった"
+NO_LOOP = "TDD のループは回さない。JUnit XML を第 1 引数に書く実行器を入力 tdd_suite に渡せば回す"
 NO_REPLY = "実行器を書く役が返答を返さなかった（役が落ちた）"
 NOT_CHECKED = "実行器を照らす前に止まった"
 NO_CASES = "JUnit XML に試験が 1 件も無い"
@@ -266,17 +271,44 @@ def _save(start_file, start: dict, mark: dict) -> None:
     jsonfile.write(start_file, {**start, KEY: mark}, indent=2, parents=True)
 
 
-def head_note(start) -> str:
+def _note(start) -> dict:
+    """知らせの部品 {state, inside, dropped, stored}（head_note・note_state・note_detail が同じ分かれ道を引く）。欄の無い run は {}"""
     mark = _mark(start)
     if not mark:
-        return ""
-    dropped = f"（取り置きは照らしを通らず捨てた: {mark['dropped']}）" if mark.get("dropped") else ""
+        return {}
+    dropped = str(mark["dropped"]) if mark.get("dropped") else ""
+    kept = mark.get("from") == FROM_KEEP
     if mark.get("ok") is True and mark.get("checked") is False:
-        made = USED if mark.get("from") == FROM_KEEP else WROTE
-        return f"{made}（{UNCHECKED}）{dropped}"
+        return {"state": USED if kept else WROTE, "inside": UNCHECKED, "dropped": dropped, "stored": False}
     if mark.get("ok") is True:
-        if mark.get("from") == FROM_KEEP:
-            return f"{USED}（同じ test_cmd と同じ版の書き方の指示で前の run が照らしを通した物。書く AI の手番は起こしていない）"
-        return f"{WROTE}{'・照らしが通ったので取り置いた' if mark.get('stored') else ''}{dropped}"
-    why = (mark.get("why") or NO_REPLY) if mark.get("ok") is False else NOT_CHECKED
-    return (f"{NOT_MADE}（{why}）{dropped}——TDD のループは回さない。JUnit XML を第 1 引数に書く実行器を入力 tdd_suite に渡せば回す")
+        if kept:
+            return {"state": USED, "inside": "同じ test_cmd と同じ版の書き方の指示で前の run が照らしを通した物。書く AI の手番は起こしていない",
+                    "dropped": "", "stored": False}
+        return {"state": WROTE, "inside": "", "dropped": dropped, "stored": mark.get("stored") is True}
+    return {"state": NOT_MADE, "inside": (mark.get("why") or NO_REPLY) if mark.get("ok") is False else NOT_CHECKED, "dropped": dropped,
+            "stored": False}
+
+
+def note_state(start) -> str:
+    """始める時の知らせの状態の語（知らせが無ければ空）"""
+    return _note(start).get("state", "")
+
+
+def note_detail(start) -> str:
+    """状態の内側の訳と、取り置いたか捨てたかを「。」で継いだ 1 本の字（どれも無ければ空）"""
+    n = _note(start)
+    parts = [n.get("inside", ""), "照らしが通ったので取り置いた" if n.get("stored") else "",
+             f"取り置きは照らしを通らず捨てた: {n['dropped']}" if n.get("dropped") else ""]
+    return "。".join(x for x in parts if x)
+
+
+def head_note(start) -> str:
+    n = _note(start)
+    if not n:
+        return ""
+    state, inside, dropped = n["state"], n["inside"], f"（取り置きは照らしを通らず捨てた: {n['dropped']}）" if n["dropped"] else ""
+    if state == NOT_MADE:
+        return f"{state}（{inside}）{dropped}——{NO_LOOP}"
+    if inside:
+        return f"{state}（{inside}）{dropped}"
+    return f"{state}{'・照らしが通ったので取り置いた' if n['stored'] else ''}{dropped}"

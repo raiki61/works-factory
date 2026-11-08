@@ -3,7 +3,7 @@
 元は組み込みで消えた outcome（結末の読み分けの部分）と runreport（line だけが使う部分）の同じ名の関数（integration.md の
 4.5-4 (f)）。元は block の返り（returns: 段の役の名 → 返り）を読んだので、ここでも受け皿の got を元の役の名の returns に詰め直して
 （returns_of）、同じ名の関数で読む。pointer は stages.resolve で place の中のパスに戻す。結末の 10 語と決める順は report の
-block の src/outcome.py が持ち、ここは止め・人待ち・残り・証の事実に仕分けるだけ。lib は KEEP の物だけを読む（関数の中で import する。stopby だけは表 HEAD_NEXT の鍵に使うので頭で読む）。
+block の src/outcome.py が持ち、ここは止め・人待ち・残り・証の事実に仕分けるだけ。lib は KEEP の物だけを読む（関数の中で import する。stopby・gatemarks・fixboard だけは表 HEAD_NOTICE・ASK_SOURCES の鍵に使うので頭で読む）。
 
 - returns_of(values, record) -> returns: collect が受けた値（受け皿の got・line の script の出力）を元の役の名の dict に
 - build(values, record, record_why) -> facts（facts.schema.json の欄の全部）
@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import json
 import pathlib
+import typing
 
+import fixboard
+import gatemarks
 import stopby
 from src import stages as stageslib
 
@@ -41,7 +44,7 @@ GAVE_UP_WHERE = "修正の受け付けを通らなかった単位"
 PLAN_GAVE_UP_WHERE = "受け付け 計画"
 STOPPED_WHERE = "止めた段"
 GROUP_WHERE = "組"
-PROTECTED_HITS_HEAD = "守りのパスに当たった差分"
+PROTECTED_HITS_HEAD = "守ると決めたファイルに当たった差分"   # 報告の頭に種の名として出る言い方なので、工場の中だけの語（語の表 glossary.json の語）を使わない
 BACKED_OUT_HEAD = "当ててから確かめ直しが赤か落ちて戻した修正のまとまり"
 REPAIRED_HEAD = "合わせ役が直して当てた組"
 UNRESTORED_GROUP_HEAD = "戻せずに作業フォルダへ当たったままの修正のまとまり（人が確かめる）"
@@ -51,14 +54,56 @@ POLICY_CHANGED_HEAD = "方針の文書が始めに固定した版から変わっ
 UNNAMED_NODE = "名の訳が無いノード"
 UNKNOWN_STOP = "語の意味の記録が無い"
 NO_STOP_REASON = "訳の記録が無い"
-BASE_STOPPED = "直す前の試験の関門が止めた（判定は起こしていない）"
-# 止めの語 → 報告の頭の訳の行の尾に付ける「次にすること」の句（語が在る止めは、訳が空でも黙らない）
-HEAD_NEXT = {stopby.START_REFUSED: "訳が名指した入力を直して、run を起こし直す（AI は起こしておらず、対象には何も当てていない）",
-             stopby.ANSWER_REDIRECTED: "下書きの一言を見直し、その向きで計画し直す依頼にするか、計画どおりなら continue と書いて回し直す"}
+# 止めの語 → 報告の頭の知らせの種（head.Notice の値）。語が在る止めは、訳が空でも黙らない。種の文（何が起きて何をするか）は報告の頭の表 head.NOTICES が持ち、
+# ここは種と差し込み口の値と、返りの訳（本文 text。報告の節「2. 止めたか」に載る）だけを付ける
+HEAD_NOTICE = {stopby.START_REFUSED: "start_refused", stopby.ANSWER_REDIRECTED: "answer_redirected"}
+NO_QUOTE = "一言なし"
+NO_CMD = "（無し）"
+NO_LOG = "（記録なし）"
 UNPASSED_WHERE = "指摘の全文は報告の「2. 止めたか」の節"
 EYE_ASK_HEAD = "依頼の範囲を超えていないかを見る目の問い"   # gatemarks.EYES["R4"] の問い。頭の行に目の印 R4 を出さない
-MEANS_ASK_HEAD = "頼みの解き方どおりで独立設計と食い違う所"   # R2 の頼みどおりの違いの問い（計画 means-answers の 6.3 の 3。行の頭の R2: で目が分かる）
+MEANS_ASK_HEAD = "頼みの解き方どおりで、別に作った設計と食い違う所"   # R2 の頼みどおりの違いの問い（計画 means-answers の 6.3 の 3。行の頭の R2: で目が分かる）。頭に出る種の名なので語の表の語を使わない
+CONFLICT_ASK_HEAD = "修正の役が人に回した食い違いの知らせ"   # 修正の役が人に回した食い違いの申し出の種の名。頭に出る言い方なので語の表の語を使わない
 MEANS_WAIT = "r2-means-ask"   # その問いが答えを得ていない人待ちの語
+
+
+class _Marker:
+    """題の出どころの印（表 ASK_SOURCES の値。字の値は種ごとの決まった字の題）"""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+ROW_TITLE = _Marker("ROW_TITLE")   # 本文を書いた所が行の title の欄に題を書いた（読み口 plainask.item_title が 1 行に畳む）
+KIND_NAME = _Marker("KIND_NAME")   # 題を持たず、報告の頭は種の名に戻す（題の欄を書く役が無い種。古い記録で題の欄が無い行の戻しは report の ask_rows の 1 か所）
+HELD_KIND = "保留にしたままの問い"
+PLAN_KIND = "修正前の問い"
+UNRETURNED_KIND = "直しの対象に戻せなかった項目"
+ESCALATED_KIND = "前提の検算が人に上げた物"
+SPEC_HEADS = {unchecked: gatemarks.spec_words(unchecked).head for unchecked in (False, True)}   # 仕様を確かめる役の問いの見出し（照らせなかったか → 見出し。選びは spec_words の 1 か所）
+# 人が決める物の種 → 題の出どころ。種の順と題の出どころはここ 1 か所（decisions は ask_groups が集めた {種: 行} をこの鍵の順に並べるだけで、
+# 表に無い種は並べられない）。値: ROW_TITLE（行の title の欄）・KIND_NAME（題を持たず種の名に戻す）・字（機械が本文を組む種の決まった題。
+# 行ごとの値は {単位の id} のように差し込み、差し込み口の無い字は報告の頭で 1 行にまとまる）。仕様を確かめる役の問いの見出しは入力で
+# 2 つに分かれる（照らせた時・照らせなかった時。gatemarks.spec_words）ので、2 つとも種の名に戻す印で置く。字の題は報告の頭に出るので語の表の語を使わない
+ASK_SOURCES = {
+    UNRESTORED_GROUP_HEAD: "戻せずに当たったままの修正を、人が確かめる",
+    BACKED_OUT_HEAD: "確かめ直しが通らず戻した修正を、どうするか決める",
+    **dict.fromkeys(SPEC_HEADS.values(), KIND_NAME),
+    PLAN_KIND: ROW_TITLE,
+    EYE_ASK_HEAD: ROW_TITLE,
+    MEANS_ASK_HEAD: ROW_TITLE,
+    HELD_KIND: ROW_TITLE,
+    CONFLICT_ASK_HEAD: "修正の役が人に回した食い違いに答える",
+    fixboard.HANDOFF_HEAD: ROW_TITLE,
+    PROTECTED_HITS_HEAD: "守ると決めたファイルに当たった差分を確かめる",
+    UNRETURNED_KIND: "修正 {unit_id} を直しの対象に戻せなかった訳を確かめる",
+    UNCOMPARED_HEAD: "直す前の版と比べられなかった赤を、人が確かめる",
+    ESCALATED_KIND: "前提の検算が人に上げた判定を決める",
+}
+OWN_LINES = (UNRESTORED_GROUP_HEAD, BACKED_OUT_HEAD)   # 種の行を decisions の before に別に並べる種（種の見出しと件数の行を足さない）
 NO_EYES = "独立の目のサブグラフの出力が無い（飛ばされた・落ちた）"
 DATA_PLACES = "固定のデータの在り処: run の頭の深さの控え {head}"
 NO_HEAD_AT = "（控えが無い）"
@@ -401,17 +446,25 @@ def halt_rows(returns: dict) -> list:
     return out
 
 
+def _question_rows(items) -> list:
+    """独立の目の問いの要素（字でも {text, title} の行でも。plainask の読み口）を {text, title} の行にする。本文が空の物は落とす。
+    題は読み口が 1 行に畳み、無ければ None"""
+    import plainask
+    return [{"text": plainask.item_text(q), "title": plainask.item_title(q)} for q in _list(items) if plainask.item_text(q).strip()]
+
+
 def eye_questions(returns: dict) -> list:
-    return [q for q in _list(as_dict(returns.get("eyes")).get("questions")) if isinstance(q, str) and q.strip()]
+    """R4 の問い [{text, title}]（要素が字でも行でも読む。本文が空の物は落とす）"""
+    return _question_rows(as_dict(returns.get("eyes")).get("questions"))
 
 
 def means_questions(returns: dict, gates: dict) -> list:
-    """R2 の頼みどおりの違いの問いのうち、答えを得ていない物（計画 means-answers の 6.3 の 3）。最後の承認ノードの continue / stop が
+    """R2 の頼みどおりの違いの問いのうち、答えを得ていない物 [{text, title}]（計画 means-answers の 6.3 の 3）。最後の承認ノードの continue / stop が
     そのまま答えなので、答えた run は空。R2 が redesign-needed の run は差分が当たらない（決め small-core）ので答えに数えず全部"""
     import answer
     import seal
     eyes = as_dict(returns.get("eyes"))
-    qs = [q for q in _list(eyes.get("means_questions")) if isinstance(q, str) and q.strip()]
+    qs = _question_rows(eyes.get("means_questions"))
     decided = as_dict(gates.get("gate-final")).get("decision") in (*answer.GO_WORDS, *answer.STOP_WORDS)
     return [] if decided and as_dict(eyes.get("r2")).get("status") != seal.REDESIGN else qs
 
@@ -653,45 +706,57 @@ def stopped_why(returns: dict, stops: list, final_reasons: list) -> list:
             *unpassed, *([UNPASSED_WHERE] if unpassed else [])]
 
 
+def head_notice(kind: str, text: str = "", **slots) -> dict:
+    """報告の頭の知らせの 1 行 {kind, slots, text}。kind は頭の表 head.Notice の値、slots は種の差し込み口の値（読み手の世界の値だけ）、text は
+    返りの訳を 1 行に畳んだ字で、頭には出ず報告の節「2. 止めたか」に載る（種の意味の句は持たない。それは表の文）"""
+    import oneline
+    return {"kind": kind, "slots": slots, "text": oneline.one_line(text)}
+
+
+def first_word(cmd) -> str:
+    """試験のコマンドの最初の語（前置きの NAME=値 は読まない。値に秘密が混じりうる）。語が無ければ NO_CMD"""
+    import re
+    words = [w for w in str(cmd or "").split() if not re.match(r"[A-Za-z_][A-Za-z0-9_]*=", w)]
+    return words[0] if words else NO_CMD
+
+
 def ran_notes(returns: dict) -> list:
-    """最後のテストが走っていない・走ったと確かめられていない時の冒頭の句（green_cert.ran_note）"""
+    """最後のテストが走っていない・走ったと確かめられていない時の知らせ（本文は green_cert.ran_note）"""
     import green_cert
     fin = as_dict(returns.get("final-tests"))
     note = (green_cert.ran_note(green=fin.get("green") is True, red_cause=fin.get("red_cause") or "", by=fin.get("by") or "",
                                 steps=fin.get("ran_steps")) if fin else "")
-    return [note] if note else []
+    return [head_notice("tests_not_run", note)] if note else []
 
 
-def spoken_stops(values: dict, returns: dict) -> list:
-    """頭で訳を言う止め [(意味, 訳, 次にすること)]: 次にすることの表 HEAD_NEXT に在る止め（入口が入力を断った止めと、修正前の承認の
-    一言の向きで止めた止め。訳が空でも黙らず、訳の記録が無いと言う）と、止めの語を持たずに ok を偽で返す直す前の試験の関門（試験のコマンドの最初の語を起こせない run など）だけ。
+def spoken_stops(values: dict, returns: dict, record: dict | None = None) -> list:
+    """頭に知らせを出す止め [head_notice の行]: 表 HEAD_NOTICE に在る止めの語（入口が入力を断った止めと、修正前の承認の一言の向きで止めた止め。
+    訳が空でも黙らず、訳の記録が無いと言う）と、止めの語を持たずに ok を偽で返す直す前の試験の関門（試験のコマンドの最初の語を起こせない run など）だけ。
     ほかの止めの訳は頭に出さない（止めた所と語の意味は stop_words の行が言い、line の script の落ちの訳は problems に、block の止めの訳はその block の報告の行に、テーマの設計の段の訳は
-    報告の設計の段の行に在る）。訳は返りの reason を 1 行に畳むだけで言い換えない"""
+    報告の設計の段の行に在る）。本文 text は返りの reason を 1 行に畳むだけで言い換えない"""
     import oneline
     out = []
     for _, word, why in stop_returns(values):
-        if word in HEAD_NEXT:
-            out.append((stop_meaning(word), oneline.one_line(why) if why else NO_STOP_REASON, HEAD_NEXT[word]))
+        if word in HEAD_NOTICE:
+            slots = ({"quote": oneline.one_line(as_dict(as_dict(values.get("answer_before_fix")).get("answer")).get("text") or "") or NO_QUOTE}
+                     if HEAD_NOTICE[word] == "answer_redirected" else {})
+            out.append(head_notice(HEAD_NOTICE[word], why or NO_STOP_REASON, **slots))
             break
     base = as_dict(returns.get("before-tests"))
     if base.get("ok") is False and base.get("reason"):
-        out.append((BASE_STOPPED, oneline.one_line(base["reason"]), ""))
+        out.append(head_notice("base_gate_stopped", base["reason"], cmd=first_word(as_dict(record).get("test_cmd"))))
     return out
 
 
-def stop_reason_notes(values: dict, returns: dict) -> list:
-    """止めた段の訳の冒頭の句「<止めの語の意味>: <訳>」。
-    次にすることが決まっている止めは尾に「——次にすること: <句>」を付ける。node の id と止めの語の字は出さない（頭の外の節の行に残る）"""
-    return [f"{what}: {why}{f'——次にすること: {nxt}' if nxt else ''}"
-            for what, why, nxt in spoken_stops(values, returns)]
+def stop_reason_notes(values: dict, returns: dict, record: dict | None = None) -> list:
+    """止めた段の訳の知らせ（種つき）。node の id と止めの語の字は出さない（頭の外の節の行に残る）"""
+    return spoken_stops(values, returns, record)
 
 
 def suite_broken_notes(values: dict) -> list:
     """修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで止めた組と、試験の実行器が無い・走らないで止めた組の
-    冒頭の句（訳とログのパス。#836・docs/design/fix.md の 19 節・docs/plans/2026-10-24-fix-weapons.md の 3.9 の止め方の 6）。fixed の
-    tdd（段ごとの組ごとの TDD の記録）の suite_broken・no_suite の行から。無ければ空"""
-    import oneline
-
+    知らせ（訳とログのパス。#836・docs/design/fix.md の 19 節・docs/plans/2026-10-24-fix-weapons.md の 3.9 の止め方の 6）。fixed の
+    tdd（段ごとの組ごとの TDD の記録）の suite_broken・no_suite の行から。差し込み口は組の id とログのパス、本文は訳。無ければ空"""
     def rows(v):
         if isinstance(v, list):
             for x in v:
@@ -700,14 +765,16 @@ def suite_broken_notes(values: dict) -> list:
             yield v
     out = []
     for r in rows(as_dict(values.get("fixed")).get("tdd")):
+        group = str(r.get("group_id") or "—")
         if r.get("suite_broken") is True:
-            line = f"修正の段が止めた（試験の起動スクリプトが書き直しても壊れたまま。組 {r.get('group_id') or '—'}）: {oneline.one_line(r.get('reason') or '')}"
+            note = head_notice("suite_broken", r.get("reason") or "", group=group, runner_log=str(r.get("runner_log") or NO_LOG),
+                               cmd_log=str(r.get("cmd_log") or NO_LOG))
         elif r.get("no_suite") is True:
-            line = f"修正の段が止めた（試験の実行器が無い・走らない。組 {r.get('group_id') or '—'}）: {oneline.one_line(r.get('reason') or '')}"
+            note = head_notice("no_suite", r.get("reason") or "", group=group)
         else:
             continue
-        if line not in out:
-            out.append(line)
+        if note not in out:
+            out.append(note)
     return out
 
 
@@ -926,61 +993,114 @@ def more_lines(values: dict, returns: dict, gates: dict, *, closed: bool, unatte
     out += inner_word_lines(as_dict(returns.get("fix")).get("diff"), lambda w: report.target_uses(cwd, rev, w) if cwd else False)
     out += gate_passes(values, returns)
     out += amend_lines(values, returns, gates, closed)
-    out += _counted(DEFERRED_HEAD, [json.dumps(q, ensure_ascii=False) if not isinstance(q, str) else q
-                                    for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))])
+    out += _counted(DEFERRED_HEAD, [_deferred_said(q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))])
     out += _counted(FINAL_REASONS_HEAD[unattended], [str(r) for r in _list(as_dict(values.get("ask_final")).get("reasons"))])
     return out
 
 
+def _deferred_said(q) -> str:
+    """載せなかった問いの要素（字か {text, title} の行）の報告の行（行は本文。題は報告の頭に出る）。読めない形は JSON の字のまま"""
+    import plainask
+    return plainask.item_text(q) or (q if isinstance(q, str) else json.dumps(q, ensure_ascii=False))
+
+
 # ---------------------------------------------------------------- 人が決めること
-def decisions(values: dict, returns: dict, gates: dict, *, unattended: bool, left: list, closed: bool, got: dict,
-              taken: list, cwd=None) -> tuple[dict, list, dict, list]:
-    """(decisions {before, after, outside}, asks [{kind, text}], tallied, counted_left)。結末で決まる塊（人が確かめる物・直しきれずに
-    残った物・記録が通らないこと）は report が足す（report の設計書の 1.2 の asks）"""
-    import fixboard
-    import gatemarks
+class AskRow(typing.NamedTuple):
+    """人が決める物の 1 行: text は 1 行に畳んだ本文、title は本文を書いた所の題（読み口が畳んだ字。無ければ None）、push は問いの種の行
+    （推しの尾を足す）、slots は種ごとの決まった題に差し込む値"""
+    text: str
+    title: str | None = None
+    push: bool = False
+    slots: dict = {}
+
+
+def _rows(items, *, push: bool = False, titles=None, slots=None) -> list:
+    """items の各要素を AskRow に（本文は _item_said を 1 行に畳む）。titles は要素の並びと同じ長さの題の並び、slots は要素 → 差し込み口の関数"""
     import oneline
-    plan_qs = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
-    eye_qs = eye_questions(returns)
-    spec_qs = [q for q in _list(as_dict(values.get("spec_check")).get("questions")) if isinstance(q, str) and q.strip()]
+    return [AskRow(oneline.one_line(_item_said(x)), (titles[i] if titles else None), push, slots(x) if slots else {}) for i, x in enumerate(items)]
+
+
+def ask_groups(values: dict, returns: dict, gates: dict, *, unattended: bool, closed: bool) -> dict:
+    """人が決める物の種ごとの行 {種: [AskRow]}（空の種も鍵に持つ。種を表 ASK_SOURCES の順に並べるのは decisions）。仕様を確かめる役の問いの
+    種の見出しは入力で 2 つの一方になる（gatemarks.spec_words）。題はここで集める行ごとの出どころから付ける: 判定の役の問い（保留にしたままの問い）は
+    台帳の問いの title、載せなかった修正前の問いと独立の目の問いは行の title、修正の役の申し送りは fix の出力の handoff_titles（ここで 1 度だけ
+    行にする）。どれも plainask.item_title が 1 行に畳む。保留の行の後ろの unreturned_lines の行は問いを持たないので題なし"""
+    import oneline
+    import plainask
+    deferred = _list(as_dict(values.get("ask_before_fix")).get("deferred"))
+    plan_raw = [plainask.item_text(q) for q in deferred]   # 保留の行と重なる問いを引く鍵（畳む前の字）
+    spec = as_dict(values.get("spec_check"))
+    spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
+    spec_head = SPEC_HEADS[bool(spec_qs) and spec.get("unchecked") is not False]
     b = ledger(returns, gates, unattended)
     held_qs = gatemarks.held_questions(b)
     lines_ = gatemarks.held_lines(b)
     held = [*zip(held_qs, lines_), *((None, line) for line in lines_[len(held_qs):])]
-    held_rows = [line for q, line in held if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_qs)]
-    asked = asked_conflicts(returns, closed)
+    held = [(q, line) for q, line in held if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_raw)]
+    fix = as_dict(returns.get("fix"))
+    handoffs = [x for x in _list(fix.get("handoffs")) if isinstance(x, str)]
+    handoff_titles = as_dict(fix.get("handoff_titles"))
+    premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
+    hits = [str(h) for h in _list(as_dict(returns.get("sealed-diff")).get("protected_hits"))]
+    eyes_ = eye_questions(returns)
+    means = means_questions(returns, gates)
+
+    def unrest(head: str, rows: list) -> list:
+        return [AskRow(x.removeprefix(f"{head}: ")) for x in rows if x.startswith(f"{head}: ")]
+
+    return {
+        UNRESTORED_GROUP_HEAD: unrest(UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
+        BACKED_OUT_HEAD: unrest(BACKED_OUT_HEAD, backed_out_lines(returns)),
+        spec_head: _rows(spec_qs, push=True),
+        PLAN_KIND: _rows([plainask.item_text(q) for q in deferred], push=True, titles=[plainask.item_title(q) for q in deferred]),
+        EYE_ASK_HEAD: _rows([q["text"] for q in eyes_], push=True, titles=[q["title"] for q in eyes_]),
+        MEANS_ASK_HEAD: _rows([q["text"] for q in means], push=True, titles=[q["title"] for q in means]),
+        HELD_KIND: _rows([line for _, line in held], push=True, titles=[plainask.item_title(q) if q else None for q, _ in held]),
+        CONFLICT_ASK_HEAD: _rows(asked_conflicts(returns, closed)),
+        fixboard.HANDOFF_HEAD: _rows(handoffs, titles=[plainask.item_title({"title": handoff_titles.get(x)}) for x in handoffs]),
+        PROTECTED_HITS_HEAD: _rows(hits[:5]),
+        UNRETURNED_KIND: _rows([u for u in _list(fix.get("units")) if isinstance(u, dict) and u.get("status") == fixboard.NOT_DONE],
+                               slots=lambda u: {"unit_id": u.get("unit_id")}),
+        UNCOMPARED_HEAD: _rows(uncompared_rows(returns)),
+        ESCALATED_KIND: _rows([premise] if premise.get("verdict") == "escalate" else []),
+    }
+
+
+def ask_title(kind: str, row: AskRow) -> str | None:
+    """行の題。出どころは表 ASK_SOURCES: 行の title の欄・決まった字（行の差し込み口の値を入れる）・題なし（種の名に戻す）。空白だけの題は題なし"""
+    source = ASK_SOURCES[kind]
+    title = row.title if source is ROW_TITLE else None if source is KIND_NAME else source.format(**row.slots)
+    return title if isinstance(title, str) and title.strip() else None
+
+
+def decisions(values: dict, returns: dict, gates: dict, *, unattended: bool, left: list, closed: bool, got: dict,
+              taken: list, cwd=None) -> tuple[dict, list, dict, list]:
+    """(decisions {before, after, outside}, asks [{kind, text, title?}], tallied, counted_left)。種の順と題の出どころは表 ASK_SOURCES、種ごとの行は
+    ask_groups が集める。結末で決まる塊（人が確かめる物・直しきれずに
+    残った物・記録が通らないこと）は report が足す（report の設計書の 1.2 の asks）"""
+    b = ledger(returns, gates, unattended)
     fix = as_dict(returns.get("fix"))
     unreturned = [u for u in _list(fix.get("units")) if isinstance(u, dict) and u.get("status") == fixboard.NOT_DONE]
-    premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
-    escalate = [premise] if premise.get("verdict") == "escalate" else []
-    handoffs = [x for x in _list(fix.get("handoffs")) if isinstance(x, str)]
-    titles = as_dict(fix.get("handoff_titles"))
     seal = as_dict(returns.get("sealed-diff"))
     hits = [str(h) for h in _list(seal.get("protected_hits"))]
     hit_count = seal.get("protected_count") if isinstance(seal.get("protected_count"), int) else len(hits)
     tallied = {PROTECTED_HITS_HEAD: hit_count} if hit_count else {}
-    spec_head = gatemarks.spec_words(bool(spec_qs) and as_dict(values.get("spec_check")).get("unchecked") is not False).head
-    questions = [(spec_head, spec_qs), ("修正前の問い", plan_qs), (EYE_ASK_HEAD, eye_qs), (MEANS_ASK_HEAD, means_questions(returns, gates)),
-                 ("保留にしたままの問い", held_rows)]
-    parts = [("人に回した食い違いの申し出", asked), (fixboard.HANDOFF_HEAD, handoffs), (PROTECTED_HITS_HEAD, hits[:5]),
-             ("直しの対象に戻せなかった項目", unreturned), (UNCOMPARED_HEAD, uncompared_rows(returns)),
-             ("前提の検算が人に上げた物", escalate)]
+    groups = ask_groups(values, returns, gates, unattended=unattended, closed=closed)
     before = [*pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns)]
-    asks = [{"kind": head, "text": x.removeprefix(f"{head}: ")} for head, rows in ((UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
-                                                                              (BACKED_OUT_HEAD, backed_out_lines(returns)))
-            for x in rows if x.startswith(f"{head}: ")]
-    for n, (word, items) in enumerate([*questions, *parts]):
-        if not items:
+    asks, emitted = [], set()
+    for kind in ASK_SOURCES:   # 種の順と題の出どころは表の 1 か所。表に無い種は並べられない
+        rows = groups.get(kind) or []
+        if not rows:
             continue
-        before.append(f"{word}: {tallied.get(word, len(items))} 件")
-        for x in items:
-            text = oneline.one_line(_item_said(x))
-            before.append(f"  - {text}")
-            if n < len(questions):
-                text += "" if gatemarks.PUSH_IN.search(text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}"
-            title = titles.get(x) if word == fixboard.HANDOFF_HEAD and isinstance(x, str) else None
-            asks.append({"kind": word, "text": text, **({"title": title} if isinstance(title, str) and title.strip() else {})})
-    if held_rows:
+        emitted.add(kind)
+        if kind not in OWN_LINES:
+            before.append(f"{kind}: {tallied.get(kind, len(rows))} 件")
+            before += [f"  - {row.text}" for row in rows]
+        for row in rows:
+            title = ask_title(kind, row)
+            text = row.text + ("" if not row.push or gatemarks.PUSH_IN.search(row.text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}")
+            asks.append({"kind": kind, "text": text, **({"title": title} if title else {})})
+    if HELD_KIND in emitted:
         before.append(f"  {gatemarks.ANSWER_HOW}")
     after = []
     done = gatemarks.answered_ledger_lines(b)
@@ -1038,7 +1158,7 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     """人の判断を待つ項目への答えの下書き（元 runreport.answer_drafts の、承認し直すかの問い・載せなかった修正前の問いと R4 の問い・
     保留の台帳の問い・問いの立っていない測れていない素材の行。修正前の答えの一言の向きで止めた run の見せた項目への答え直しの行は redirect_drafts）"""
     import answer
-    import gatemarks
+    import plainask
     spec = as_dict(values.get("spec_check"))
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
     words = gatemarks.spec_words(bool(spec_qs) and spec.get("unchecked") is not False)
@@ -1046,13 +1166,13 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     out += redirect_drafts(values)
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
-    asked = [(q, False) for q in eye_questions(returns)]
+    asked = [(q["text"], False) for q in eye_questions(returns)]
     if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in answer.GO_WORDS:
         # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
         ledger_texts = {gatemarks.ask_text(q) for q in held}
-        deferred = [str(as_dict(q).get("text") if isinstance(q, dict) else q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
+        deferred = [plainask.item_text(q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
         asked = [(q, True) for q in deferred if q not in ledger_texts] + asked
-    asked += [(q, True) for q in means_questions(returns, gates)]
+    asked += [(q["text"], True) for q in means_questions(returns, gates)]
     # asked は (文, 尾を読むか) の組: final.unattended_pass は R2 の行だけを gates.passage に掛け、R4 の行は読まずに止める。下書きも同じ分け方にする。
     # 載せなかった修正前の項目のうち構造の目の設計の行と、R2 の照らせない行（UNCHECKED の尾に役の字を写す）は、末尾が役の字でも
     # 抜け方が推しとして読むので、ここでも True のまま抜け方と揃える（その穴は issue #1014）
@@ -1221,12 +1341,12 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
-    after = [*part("止めた段の訳の句", lambda: stop_reason_notes(values, returns), [], outcome=False),
+    after = [*part("止めた段の訳の句", lambda: stop_reason_notes(values, returns, record), [], outcome=False),
              *part("起動スクリプトの壊れの句", lambda: suite_broken_notes(values), [], outcome=False),
              *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),
              *part("利用者の環境の句", lambda: _user_env_note(ports_), [], outcome=False)]
-    notices = [line for line in str(values.get("notices") or "").splitlines() if line.strip()]
+    notices = [head_notice("test_cmd_note", line) for line in str(values.get("notices") or "").splitlines() if line.strip()]
     head_at = _head_at(returns)
     return {
         "start_ok": bool(record) and not record_why,
@@ -1271,16 +1391,18 @@ def _taken(returns, gates, unattended) -> list:
 
 
 def _suite_note(record: dict) -> list:
+    """TDD の実行器の用意の知らせ。状態の分け方は suitewrite.note_state の 1 か所が持ち、種はその状態から選ぶだけ。本文は括弧の中身 note_detail"""
     import suitewrite
-    note = suitewrite.head_note(record)
-    return [note] if note else []
+    kinds = {suitewrite.USED: "suite_used", suitewrite.WROTE: "suite_wrote", suitewrite.NOT_MADE: "suite_not_made"}
+    state = suitewrite.note_state(record)
+    return [head_notice(kinds[state], suitewrite.note_detail(record))] if state else []
 
 
 def _user_env_note(ports_: dict) -> list:
-    """利用者の HOME・XDG に戻して起こした run なら userenv.NOTE（印の置き場 user_env_dir に印が在るか）"""
+    """利用者の HOME・XDG に戻して起こした run なら知らせ（文は userenv.NOTE を引く表の行。印の置き場 user_env_dir に印が在るか）。本文は空"""
     import userenv
     folder = str(ports_.get("user_env_dir") or "")
-    return [userenv.NOTE] if folder and userenv.ran(pathlib.Path(folder)) else []
+    return [head_notice("user_env")] if folder and userenv.ran(pathlib.Path(folder)) else []
 
 
 def _head_at(returns: dict) -> str:

@@ -30,6 +30,7 @@ import fixboard
 import gatemarks
 import green_cert
 import oneline
+import plainask   # 人に聞く項目の要素の読み口（字でも {text, title} の行でも本文を読む）
 import ports
 import protect
 import querytest
@@ -39,7 +40,7 @@ import seal
 import stopby
 import structmark
 
-from src import files, gates, stages
+from src import facts, files, gates, stages
 
 PROTECTED_HEAD = "守りのパスを触った"
 PROTECTED_UNKNOWN = "守りのパスを確かめられなかった"   # merge が確かめられなかった行（lib/seal.py の UNKNOWN_HEAD）の見出し
@@ -69,7 +70,7 @@ PARALLEL_UNCHECKED = "修正の後の並行 PR の確かめ直しができなか
 PARALLEL_UNDONE = ("not_run", "awaiting_human", "failed")
 R2_KEEPS_OUT = ("R2（修正の後に設計を見直す独立の目）が作り直し（redesign-needed）と言ったので、この run の差分は当てない"
                 "（持ち主の決め small-core。merge も bin/apply も拒む）。報告へ進めても止めても、差分は対象に当たらない")
-MEANS_HEAD = "頼みの解き方どおりで独立設計と食い違う所"   # R2 の request_conflicts の問いの節（計画 means-answers の 6.3 の 3。R4 の問いと分ける）
+MEANS_HEAD = facts.MEANS_ASK_HEAD   # R2 の request_conflicts の問いの節（計画 means-answers の 6.3 の 3。R4 の問いと分ける）。報告の頭の種の名と同じ字（字の持ち主は facts の 1 か所）
 MEANS_ANSWERS = "この承認ノードの continue は頼みどおりの差分を当てる答え、stop は止める答えになる"
 MEANS_NEED = "頼みの解き方どおりの違いを独立の目が聞いている（{n} 件）"
 SPEC_APPLIES = ("  - 承認して報告へ進める（continue）と、差分は承認し直しを待たずに当たる（merge が run の置き場に置き、bin/apply が"
@@ -617,8 +618,13 @@ def unproven_lines(judgment) -> list:
 
 def split_and_unproven(fixed: dict, judgment) -> tuple:
     """(冒頭 1 行目に添える、受けた単位と止めて持ち越した単位の 1 文, 例で試していない単位の行)。1 文は報告と同じ src.facts の口"""
-    from src import facts
     return facts.split_line({"fix": {"groups": fixed.get("groups") or [], "units": fixed.get("units") or []}}), unproven_lines(judgment)
+
+
+def eye_texts(items) -> list:
+    """独立の目の問い（eyes の出力の questions・means_questions）の本文の字の並び。要素は字でも {text, title} の行でもよい（題は報告の頭の側で読む。
+    ここは本文だけ）。本文の無い行は落とす"""
+    return [plainask.item_text(q) for q in items or [] if isinstance(q, str) or plainask.item_text(q)]
 
 
 def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None, eyes: dict | None, seal_got: dict | None,
@@ -655,8 +661,8 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "handoffs": [x for x in fixed.get("handoffs") or [] if isinstance(x, str)],
         "mismatched": [x for x in fixed.get("mismatched") or [] if isinstance(x, str)],
         "eyes": {name: eye.get(name) for name in (*EYES, "premise_check")},
-        "questions": [q for q in eye.get("questions") or [] if isinstance(q, str)],
-        "means_questions": [q for q in eye.get("means_questions") or [] if isinstance(q, str)],
+        "questions": eye_texts(eye.get("questions")),
+        "means_questions": eye_texts(eye.get("means_questions")),
         "spec_changed": [q for q in (spec_check or {}).get("questions") or [] if isinstance(q, str)],
         "spec_unchecked": (spec_check or {}).get("unchecked") is True,
         "objection": str(fixed.get("objection") or ""), "rejudge_verdict": str((judged or {}).get("rejudge_verdict") or ""),

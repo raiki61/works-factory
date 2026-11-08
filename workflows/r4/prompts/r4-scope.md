@@ -68,6 +68,10 @@ Where the machine put the ripple and the established practice (Read them if pres
 
 When the diff triggers the inventory (a migration, a procedure, a development flow, or UX), set `capability_inventory.fired` to true and say explicitly in `lost` whether a capability that BASE could do is gone (a silent omission is forbidden; an empty array if none). One row of `lost` is one capability, and it becomes one row asked of a person at the last approval node: if it is the same capability as in an earlier round, write it in the same words (a sentence a person already passed is not asked again). Also say explicitly in `policy_conflicts` where this cumulative diff conflicts with the person's policy (checked only against the rows of the section "Recorded policy" at the end; an empty array if none). One row is one conflict, and, like `lost`, it becomes one row asked of a person at the last approval node.
 
+Each row of `lost` and of `policy_conflicts` is `{text, title}`. `text` is the sentence described above (the body that is compared with the passed rows, so write it word for word the same for the same capability or conflict). `title` is a short title, in one line, of what the person is asked to decide about that row; it is shown as the row's line at the head of the report, so write it in plain words for a reader who knows neither the run nor the factory. The title is not part of the text that is compared.
+
+{shared:plain-ask}
+
 Do not count what you list in `policy_conflicts` toward `status`: whether to let it through is for a person to decide at the approval node (making it redesign-needed would have the role decide before the person does). A capability you list in `lost` does not count toward `status` either: whether to accept a lost capability is also for a person to decide at the approval node.
 
 Rows already passed at the approval node before the fix (a person's answer, or the push an unattended run took) are in the section "Narrowings passed at the approval node before the fix" above (if there is no such section, there is no passed row). If you see the same capability or the same conflict, copy the row's body as it is: a row with the same text is not asked again, and if you reword it, the same question goes to a person once more.
@@ -88,5 +92,5 @@ In this role, write each conflict with the policy as one row in `policy_conflict
 
 {shared:reply-types}
 
-Write `reason`, `lost`, `note`, `policy_conflicts`, the `text`, `mechanism`, `measured`, and `false_positive_if` of `surfaced`, `seen`, and `unseen` (and the `reason`, `seen`, and `unseen` of `r3`, if you write it) in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are. When you copy a row passed before the fix, do not change its text.
+Write `reason`, `lost`, `note`, `policy_conflicts` (the `text` and `title` of each row), the `text`, `mechanism`, `measured`, and `false_positive_if` of `surfaced`, `seen`, and `unseen` (and the `reason`, `seen`, and `unseen` of `r3`, if you write it) in {lang}. Keep keys, enum values, identifiers, paths, commands, and quoted text as they are. When you copy a row passed before the fix, do not change its text.
 Return only JSON that matches this node's output schema (JSON Schema).

@@ -1100,7 +1100,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - 決まり（はい・いいえ。`basecase._suite_broken`）: `suite_made` が真で `test_cmd` が在り、組の頭の元の結末の回が結末を返さないか、試験が 1 件でも `error`（中身に届く前に落ちた）で、`test_cmd` を単体で走らせると緑なら、壊れているのは起動スクリプト。関わる試験だけを渡した回は、実行器を一式でも 1 回走らせ、それも同じく落ちる時だけはい（`test_cmd` の単体の回は一式を走らせるので、関わる試験だけを渡した回の `error` とは走らせ方が違い、起動スクリプトのせいとは言えない。実行器が `test_cmd` を字のまま含めば同じ物として扱うので、一式どうしなら同じ走らせ方を比べられる。`test_cmd` が `&&` だけでつないだ鎖で、実行器が鎖を部品に分けて字のまま含まない時は、単体の回と一式どうしで比べる。結末を書かずに終わった部品は、実行器が `error` の testcase にして集めるので、壊れと読まれる）。
 - はいの時: `group-start` は輪を回さず（`tdd: false`・`suite_broken: true`）、同じバイトの取り置き（test-gate が照らしを通った実行器を run をまたいで置く所。`docs/design/test-gate.md` の頭の語）を捨てる（`suitewrite.drop_runner`）。`suite-fix-prep` が書き直す役の指示（`prompts/suite-fix.md`。壊れた本文・壊れた回のログの末尾・`test_cmd` の単体のログ。契約と書き方は test-gate の書き手と同じ共通の断片 `.shared/prompts/runner-writer.md`）を組み、`suite-fix`（AI。test-gate の `suite-write` と同じ群 `@wf-test-gate`・道具・砂場）が本文を返し、`suite-fix-try` が実行器のファイルを置き換えて（`suitewrite.put_runner`。一時のファイルから入れ替える）組の頭の元の結末の取りをやり直す（`suitefix.retry`）。
   - 直れば元の結末が取れて振り分けと注文へ進み、直した実行器を取り置く（`suitewrite.keep_runner`。鍵は `test_cmd` の字と実行器を書く指示の版〔`prompt.runner_stamp()`〕。取り置くのは元の結末が取れた組〔`base.json` の `taken`〕だけで、static だけの組の走らせていない実行器と、元の結末が予約の 1 件だけの組は取り置かない）。書き直した実行器でも元の結末が取れず壊れの印も付かない時は、組の頭と同じく止めの語 `no-suite` で止める（`suitefix.settle_start`。下の止める場所の 1）。実行器のファイルは test-gate の place の物を置き換えるので、最後の試験の関門も直した実行器を使う。
-  - 書き直しても壊れたまま・書き手が作れない・返答が無い時は組を止める: `route-go` と `orders` の `stop` が真で、振り分けの AI も型の輪も修正役の輪も回さない（確かめていない直しを書き進めない）。組の結果の `tdd` に `suite_broken`・`runner_log`・`cmd_log` が載り、出口の `stop_reason` が `stopby.SUITE_BROKEN`（メイングラフ line〔`works-factory-line`〕は、出口の `stop_reason` が空でない run を今の止めの道で止め、後ろの段へ進めない）。報告の冒頭の知らせの行に訳とログのパスが出る（line の `workflows/line/src/facts.py` の `suite_broken_notes`）。
+  - 書き直しても壊れたまま・書き手が作れない・返答が無い時は組を止める: `route-go` と `orders` の `stop` が真で、振り分けの AI も型の輪も修正役の輪も回さない（確かめていない直しを書き進めない）。組の結果の `tdd` に `suite_broken`・`runner_log`・`cmd_log` が載り、出口の `stop_reason` が `stopby.SUITE_BROKEN`（メイングラフ line〔`works-factory-line`〕は、出口の `stop_reason` が空でない run を今の止めの道で止め、後ろの段へ進めない）。報告の頭は種の文（起動スクリプトが壊れたまま。組とログのパスを差し込む）、訳は節「2. 止めたか」に出る（line の `workflows/line/src/facts.py` の `suite_broken_notes` が種・差し込み口の値・本文を付ける）。
 - 書き直しは 1 回だけ（`max_iterations` の輪にしない。数の上限でなく「書き直しても直らない時だけ止める」のはい・いいえ）。
 - 人が渡した実行器と、`test_cmd` の単体も赤の時は今までどおり（試験そのものの赤）。直す前の版で test-gate がしていた起動スクリプトの照らし（JUnit XML が出て試験が 1 件以上）は、組の頭の元の結末の回が兼ねる。結末が無い時（実行器が無い・走らない）に TDD の輪を回さず直に直す逃げ道（持ち主の決め `suite-by-ai` の「照らしが通らなければ、今どおり TDD のループを飛ばして直に直す」）は、段 1 の PR A で閉じた。下の「試験なしで直す逃げ道を閉じる」。
 - 並べた組の子が同時に同じ実行器を書き直すことがある。入れ替えは一時のファイルからの置き換えなので、走っている子は前の本文か新しい本文のどちらかを読む（後に書いた方が残る）。
@@ -1118,7 +1118,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
   - 受け付け: `common.selected_problems` は、選んだ試験の引数を付けた回が予約の 1 件だけなら、引数なしの一式で回し直す。赤は 1 件ごとの行だけで数え、予約の行はいつも版の姿と比べられない赤（受け口 `uncompared` を渡す呼びは赤に数えず鍵を足し、渡さない呼びは赤のまま）。`board.no_suite_at_accept` は予約の行だけの回を 0 件と同じに読む。
   - 最後の試験: `green_cert.classify` は予約の行だけの赤を受け継いだ赤とも持ち込んだ赤とも読まず、原因の無い赤にする。
 - 止めを運ぶ道: 組の結果の `tdd` に `no_suite: true` と `reason` が載り（`tdd.exit_fields`。輪が済まずに抜けた組でも `group_end.tdd_exit` が印を落とさない）、`finish.stop_of` が出口の `stop_reason` に `stopby.NO_SUITE` を名乗る（`suite_broken` が先）。裁定の後の段の受け付けが止めた時は、親の置き場の `tdd-start.json` の印を `finish` が読む（`board.no_suite_stop`）。メイングラフ line〔`works-factory-line`〕は、出口の `stop_reason` が空でない run を今の止めの道で止め、後ろの段へ進めない。
-- 報告の句（メイングラフ line の `workflows/line/src/facts.py` の `suite_broken_notes`。`suite_broken` の句と同じ道で運び、試験の関門の `suite_note` と同じ冒頭に並ぶ）: 「修正の段が止めた（試験の実行器が無い・走らない。組 <group_id>）: <訳>」。
+- 報告の句（メイングラフ line の `workflows/line/src/facts.py` の `suite_broken_notes`。`suite_broken` の句と同じ道で運ぶ）: 頭は種 `no_suite` の決まった文（「修正の段が止まった（組 <group_id>）。試験の実行器が無いか、走らない。…」。`workflows/report/src/head.py`）、訳 <訳> は節「2. 止めたか」の `試験の実行器が無い訳: <訳>`。
 - 消えた物と残る物: `tdd.py` の `NO_SUITE` と、実行器が無い組を「今どおり直す」文は消えた。`PLAN_NO_TDD`（`routes: plan` で tdd の単位が無い組）は残り、字を「ほかの型の注文で直す」に直した。実行器が無い static だけの組の知らせ（`gates.NO_SUITE`・`common.NO_SUITE`）は字を直して残る。
 
 ### 19.2 壊れているのが対象のリポジトリの試験の時（ついでに直す）
@@ -1140,7 +1140,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - `tests/blocks/fix/test_suite_fix.py`: 壊れの見つけ（取り置きを捨て、訳に 2 つのログ）・人が渡した実行器と赤の `test_cmd` は壊れと読まない・書き直して輪が続き取り置く・書き直しても壊れたままなら組を止めて `stopby.SUITE_BROKEN`・書き手が作れなければ止める・配線・ついでに直してよい試験の選び（関わる試験の落ちた物だけ）・許しの 6 つ目の元・確かめ直しが子の輪の頭の結末を読む（`board.before_cases`）。
 - `tests/blocks/fix/test_no_suite.py`: 止める 3 つの場所（組の頭・輪の途中の runner・受け付けの 0 件と一覧の決まらない時）と、static だけの組が止まらないこと、`fix-prep` が印で修正役を起こさないこと、組の出口が印を落とさないこと。下ごしらえの設定のファイルの例外（19.5）。
 - `tests/blocks/fix/test_prompts.py`: 修正役の指示の「直す前から壊れていた関わる試験」の行（表 `RENDERED` に `suite-fix`）。
-- `tests/blocks/line/test_gates.py`（「ついでに直した試験」の節と開ける理由）・`tests/blocks/line/test_head_plain.py`（報告の冒頭の止めの行）・`tests/blocks/line/test_fix_in.py`（`suite_made`）。`tests/blocks/line/fix_in_before_spec.json` は `fix-in` に欄 `suite_made` を足したので取り直した（値は全部 `false`）。
+- `tests/blocks/line/test_gates.py`（「ついでに直した試験」の節と開ける理由）・`tests/blocks/line/test_head_plain.py`（報告の頭の知らせの種と本文）・`tests/blocks/line/test_fix_in.py`（`suite_made`）。`tests/blocks/line/fix_in_before_spec.json` は `fix-in` に欄 `suite_made` を足したので取り直した（値は全部 `false`）。
 
 ### 19.5 対象に試験が無い時の印 `no_tests` と、下ごしらえの設定のファイルの例外（段 1 の PR A。持ち主の答え 9.1 の 12〜14）
 

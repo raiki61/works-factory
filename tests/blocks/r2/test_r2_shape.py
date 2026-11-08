@@ -33,6 +33,7 @@ GRAPH_SCHEMAS = {
                     "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
                     "diff_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
                     "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
+                    "title": {"type": "string"},
                     "recommend": {"type": "object", "additionalProperties": False, "required": ["answer", "note", "why"], "properties": {
                         "answer": {"type": "string", "enum": ["continue", "stop"]},
                         "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},

@@ -4,10 +4,11 @@
 - pack_terms()・plain_words(text)・swapped_line(counts)・glossary_section(text, terms): 語の表（glossary.json）による言い換えと語の定義
 - accept(reply, cold, *, place) -> {done, ok, reason, kind, prev_file}: 書き手の返答と初見の読み手の判定の受け付け
 - cold_parts(raw, *, place)・cold_body(raw, *, place): 初見の読み手に貼る本文（機械が組んだ行と書き手の頭に分けた物と、つないだ物）
+- marked_lines(raw, place)・cold_marks(raw, place): その本文の空でない行ごとの (印, 行)（機械の行は M<n>、書き手の行は W<n>）と、機械の行の印の集合
 - handoff_rounds(place): 前の周の引き継ぎのメモのパスの行
 - collect(machine_text, *, place, stamp): 人に向けた報告と詳細のファイル
 - stamp(run_id, workflow_file, rnd, line_rev, start_ok): 来歴の 1 行
-- writer_fell は transcript にあり、note_writer_fell(machine, fell, *, run_id) がその訳を機械の報告の冒頭に置く
+- writer_fell は transcript にあり、note_writer_fell(machine, fell, *, run_id) がその落ちを機械の報告の頭（表の行）と注意の節（誤りの文）に置く
 """
 import hashlib
 import json
@@ -23,15 +24,14 @@ import oneline    # lib/
 import rolekit    # lib/
 from engine.schema import validate_schema   # lib/graphloops/engine/schema.py
 
-from src import files
+from src import files, head
 
 PACK_TERMS = pathlib.Path(__file__).resolve().parent / "glossary.json"
 
 # ---------------------------------------------------------------- 定数
 DECISIONS_HEAD = "人が決めること"
-NOT_PASSED = "報告サブグラフの初見の読み手のノード cold が、この報告の頭を通さなかった"
+NOT_PASSED = "予備知識の無い読み手に報告の頭だけを読ませたが、読み手は頭の途中で止まった"
 MACHINE_ONLY = "初見の読み手が止まったのは機械が組んだ頭の行だけで、書き手には直せないので、書き直させずに受け取った"
-MACHINE_LINE = "機械が組んだ行で止まった所（書き手には直せない）"
 CELL_LIMIT = 50   # 表のセルの字数の上限（`コード` の部分を除く）。持ち主の決まり「セルには数語だけ」
 MACHINE_HEADING = "## 機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）"
 MACHINE_DECISIONS = "## 1. 人の判断を待つ物の機械の数え（判断の本文は報告の頭）"
@@ -45,9 +45,7 @@ CUT_LINE = "（書き手の本文のここから先 {n} 行は {file} の「{hea
 SWAPPED_HEAD = "人に向けた報告で語の表（glossary.json）から言い換えた語と回数"
 HEAD_LINES = 20            # 人が決める物の件数に依らない行（題・冒頭の 3 行・初見の読み手の 1 行・書き手の要約・語の定義・切った訳の 1 行・置き場の 1 行と来歴）
 LINES_PER_DECISION = 8     # 人が決める物 1 件の行
-WRITER_FELL = "AI が書く報告の本文は無い。書き手のノードが落ちた（{error}）。この機械の報告が報告の全部"
-WRITER_QUOTA = ("。使用枠が切れて落ちたので、別のアカウントで run を resume すれば本文を書き直して報告に載せる"
-                "（{command}。周の鎖が起こした run なら、この run でなく鎖の run を resume する）")
+FELL_ERROR = "書き手の段が落ちた誤り: "   # 注意の節に置く誤りの文の行の頭（前の周の行を外す印）
 COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
 COLD_EMPTY = "（止まった所・推測の欄が空）"
 CELL_REASON = f"「。」を含むか {CELL_LIMIT} 字を超える表のセルが在る:\n"
@@ -62,12 +60,14 @@ TEXT_SCHEMA = {"type": "object", "required": ["text", handoff.FIELD], "additiona
                               "terms": {"type": "array", "items": TERM_SCHEMA},
                               handoff.FIELD: handoff.SCHEMA}}
 # 初見の読み手の返答の型。型の正本は YAML の cold の output_format で、これと同じかを試験が縛る
-# stops・guessed は書き手の頭の所、machine_lines は機械が組んだ行の所（書き手には直せない）
-COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "machine_lines", "decidable"], "additionalProperties": False,
+# stops・guessed の要素は {line: 貼った行の印, text: 一文}。その指摘が機械が組んだ頭の行の物か本文の物かは、読み手の自己申告でなく、
+# 機械が行に付けた印（marked_lines）で決める
+FINDING_SCHEMA = {"type": "object", "required": ["line", "text"], "additionalProperties": False,
+                  "properties": {"line": {"type": "string"}, "text": {"type": "string"}}}
+COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
                "properties": {"verdict": {"type": "string", "enum": ["pass", "redesign-needed"]},
-                              "stops": {"type": "array", "items": {"type": "string"}},
-                              "guessed": {"type": "array", "items": {"type": "string"}},
-                              "machine_lines": {"type": "array", "items": {"type": "string"}},
+                              "stops": {"type": "array", "items": FINDING_SCHEMA},
+                              "guessed": {"type": "array", "items": FINDING_SCHEMA},
                               "decidable": {"type": "boolean"}}}
 
 
@@ -115,18 +115,22 @@ OKURIGANA = {"周": "り"}   # 漢字 1 字の語が送り仮名を取って一�
 
 
 def _term_pattern(term: str) -> str:
-    """語の表の語を当てる式。片仮名で始まる・終わる語は、続く片仮名語の一部には当てない。漢字 1 字の語は、熟語の一部（周囲・周知・一周）と
-    送り仮名の付いた語（周り）には当てない"""
+    """語の表の語を当てる式。頭の側: 片仮名で始まる語は、前が漢字か片仮名なら当てない（処理ライン・出力ノードの『ライン』『ノード』は字のまま。
+    辞書が無く漢字と片仮名の境が語の切れ目か複合語の中か決められないので、複合語かもしれない所は当てない保守の側を採る。前が平仮名・記号・行頭なら
+    当てる）。尾の側: 片仮名で終わる語は、後ろが片仮名なら当てない。漢字 1 字の語は、熟語の一部（周囲・周知・一周）と送り仮名の付いた語（周り）には
+    当てない"""
     if re.fullmatch(f"[{KANJI}]", term):
         return f"(?<![{KANJI}]){re.escape(term)}(?![{KANJI}{OKURIGANA.get(term, '')}])"
-    head = f"(?<![{KATAKANA}])" if re.match(f"[{KATAKANA}]", term) else ""
+    head = f"(?<![{KATAKANA}{KANJI}])" if re.match(f"[{KATAKANA}]", term) else ""   # 前が漢字か片仮名なら複合語の中かもしれない
     tail = f"(?![{KATAKANA}])" if re.search(f"[{KATAKANA}]$", term) else ""
     return head + re.escape(term) + tail
 
 
 def plain_words(text: str, pack=None) -> tuple[str, dict]:
     """人に向けた文の、語の表の記録の名を人に向けた言い方に置き換えた字と、置き換えた語ごとの回数 {term: 回数}（長い語から当てる。
-    KEPT_SPAN の所と、長い片仮名語の一部は置き換えない）"""
+    KEPT_SPAN の所・長い片仮名語の一部・漢字か片仮名に続く片仮名で始まる表の語は置き換えない。例: 処理ライン・出力ノードの『ライン』『ノード』は
+    字のまま。工場が書いた複合語（出力ノード）は、表に承認ノードのような長い語として在る物の外は字のまま残る。機械が固定の字から組む行は
+    変わらないが、書き手の書いた題を引く頭の行は書き手の字に従い、漢字に続く片仮名で始まる表の語は字のまま残る）"""
     text = str(text or "")
     rows = sorted(pack_terms() if pack is None else pack, key=lambda r: -len(r["term"]))
     if not rows:
@@ -232,35 +236,54 @@ def _cold_of(cold) -> dict:
     got, _ = _parse(cold)
     got = got or {}
     verdict = got.get("verdict") if got.get("verdict") in COLD_SCHEMA["properties"]["verdict"]["enum"] else ""
-    return {"verdict": verdict, "stops": [str(s) for s in _list(got.get("stops"))],
-            "guessed": [str(g) for g in _list(got.get("guessed"))],
-            "machine_lines": [str(m) for m in _list(got.get("machine_lines"))], "decidable": got.get("decidable") is True}
+    return {"verdict": verdict, "stops": [_finding(s) for s in _list(got.get("stops"))],
+            "guessed": [_finding(g) for g in _list(got.get("guessed"))], "decidable": got.get("decidable") is True}
 
 
-def machine_only(c: dict) -> bool:
-    """初見の読み手が通さなかった所が、機械が組んだ行だけか（書き手の頭に止まった所も推測も無い）。判定を読めなければ偽"""
-    return c["verdict"] == "redesign-needed" and bool(c["machine_lines"]) and not (c["stops"] or c["guessed"])
+def _finding(x) -> dict:
+    """指摘の 1 要素 {line, text}。古い形の字の要素は印が無い指摘（line が空）として読む"""
+    if isinstance(x, dict):
+        return {"line": str(x.get("line") or ""), "text": str(x.get("text") or "")}
+    return {"line": "", "text": str(x)}
 
 
-def _cold_lines(c: dict) -> list[str]:
-    """初見の読み手が通さなかった所（止まった所・推測で埋めた所）。判定を読めなければその事実の 1 つ"""
+def _mark_of(line) -> str:
+    """指摘の line から印（M か W と数字）を取る。前後の空白・記号だけは捨てる。印のほかの字が混じる line（複数の印・印に続く語）は取れず、
+    空の字＝印の無い指摘（本文の側）になる"""
+    m = re.fullmatch(r"[\W_]*([MW][0-9]+)[\W_]*", str(line))
+    return m.group(1) if m else ""
+
+
+def head_only(c: dict, marks) -> bool:
+    """初見の読み手が通さなかった所が、機械が組んだ頭の行だけか。redesign-needed で、指摘が 1 つ以上在り、すべての指摘の line が貼った機械の行の
+    印の集合 marks に在る時だけ真。印の無い指摘・貼っていない印の指摘は本文の指摘として扱う。判定を読めなければ偽"""
+    found = [*c["stops"], *c["guessed"]]
+    return c["verdict"] == "redesign-needed" and bool(found) and all(_mark_of(f["line"]) in marks for f in found)
+
+
+def _cold_lines(c: dict, marks=None) -> list[str]:
+    """初見の読み手が通さなかった所（止まった所・推測で埋めた所。読み手の文 text だけを出し、行の印は出さない）。marks を渡すと、機械が組んだ
+    頭の行の指摘を除いた本文の指摘だけ。判定を読めなければその事実の 1 つ"""
     if not c["verdict"]:
         return [COLD_UNREADABLE]
-    return ([f"止まった所: {s}" for s in c["stops"]] + [f"推測で埋めた所: {g}" for g in c["guessed"]]
-            + [f"{MACHINE_LINE}: {m}" for m in c["machine_lines"]])
+
+    def body(findings):
+        return [f["text"] for f in findings if marks is None or _mark_of(f["line"]) not in marks]
+
+    return [f"止まった所: {t}" for t in body(c["stops"])] + [f"推測で埋めた所: {t}" for t in body(c["guessed"])]
 
 
 def _cold_facts(c: dict) -> str:
-    """通らなかった所の 1 行（ai.json の not_passed。報告の拒みの数の行の尾に出す）"""
+    """通らなかった所の 1 行（ai.json の not_passed。報告の拒みの数の行の尾に出す。頭の指摘も本文の指摘も載る）"""
     return oneline.one_line("；".join(_cold_lines(c)) or COLD_EMPTY)
 
 
-def _cold_reason(c: dict) -> str:
-    """書き手に返す拒みの文"""
+def _cold_reason(c: dict, marks) -> str:
+    """書き手に返す拒みの文（本文の指摘だけ。書き手に直せない頭の行の指摘は渡さない）"""
     if not c["verdict"]:
         return COLD_UNREADABLE
     return ("初見の読み手（道具なし・報告の頭だけを読む）が redesign-needed を返した。通らなかった所:\n"
-            + "\n".join(f"- {x}" for x in _cold_lines(c) or [COLD_EMPTY]))
+            + "\n".join(f"- {x}" for x in _cold_lines(c, marks) or [COLD_EMPTY]))
 
 
 def machine_head(machine_text: str) -> str:
@@ -290,6 +313,25 @@ def cold_parts(raw, *, place) -> tuple[str, str]:
 def cold_body(raw, *, place) -> str:
     """初見の読み手に貼る本文をつないだ物（人に向けた報告の頭と同じ物）"""
     return "\n\n".join(x for x in cold_parts(raw, place=place) if x) + "\n"
+
+
+def _marked_parts(raw, place) -> tuple[list, list]:
+    """(機械が組んだ頭の行, 書き手の頭の行) それぞれの (印, 行) の並び。印の書式を知るのはここだけ"""
+    machine, writer = cold_parts(raw, place=place)
+    return tuple([(f"{head}{i}", line) for i, line in enumerate(part.splitlines(), 1) if line.strip()]
+                 for head, part in (("M", machine), ("W", writer)))
+
+
+def marked_lines(raw, place) -> list[tuple[str, str]]:
+    """初見の読み手に貼る本文の空でない行ごとの (印, 行)。機械が組んだ頭の行は M1・M2…（その部分の何行目か）、書き手の頭の行は W1・W2…。
+    印は描く時に付ける（cold_parts・cold_body の字は変わらない）"""
+    machine, writer = _marked_parts(raw, place)
+    return machine + writer
+
+
+def cold_marks(raw, place) -> frozenset:
+    """貼った行のうち、機械が組んだ頭の行の印の集合。指摘がこの集合の印を指せば頭への指摘"""
+    return frozenset(mark for mark, _ in _marked_parts(raw, place)[0])
 
 
 # ---------------------------------------------------------------- 受け付け
@@ -363,10 +405,14 @@ def accept(reply, cold, *, place) -> dict:
     書けない時は、拒否に give_up を付けて1 回目で諦めさせる。順: 読む（読めない返答・本文の無い返答は kind answer）→ terms の型 →
     表のセルの書式 → 初見の読み手の判定。拒否が rolekit.GIVE_UP_AFTER 回に達した時か、控えが扱えない時は ai.json に受け取れなかった訳
     （accepted: False）を書く。初見の読み手だけが通さない時は rolekit.is_last_attempt の回に受け取り、NOT_PASSED の印を ai.json に残す。
-    初見の読み手が止まったのが機械が組んだ行だけ（machine_only）なら、書き手には直せないので、どの回でも書き直させずに受け取って印を残す"""
+    初見の読み手の指摘がすべて機械が組んだ頭の行の印（cold_marks）を指す（head_only）なら、書き手には直せないので、どの回でも書き直させずに
+    受け取って印を残す。本文の指摘（印の無い指摘・貼っていない印の指摘も）が 1 つでも在れば拒み、書き手への理由には本文の指摘だけを並べる
+    （頭の指摘は受け取った時の知らせの行に 1 度だけ載る）。指摘は読み手の文 text で出し、行の印は書き手にも人にも出さない"""
     place = pathlib.Path(place)
     place.mkdir(parents=True, exist_ok=True)
     c = _cold_of(cold)
+    marks = cold_marks(reply, place)
+    head = head_only(c, marks)
 
     def take(got: dict) -> dict:
         if not isinstance(got.get("text"), str) or not got["text"].strip():
@@ -380,16 +426,16 @@ def accept(reply, cold, *, place) -> dict:
             return _refused(CELL_REASON + "\n".join(f"- {x}" for x in bad), "format")
         not_passed, why = "", ""
         if c["verdict"] != "pass":
-            if machine_only(c):
+            if head:
                 why = MACHINE_ONLY
             elif rolekit.is_last_attempt(rolekit.attempt(place, files.ROLE)):
                 why = "上限の回なので受け取った"
             else:
-                return _refused(_cold_reason(c), "cold")
+                return _refused(_cold_reason(c, marks), "cold")
             not_passed = _cold_facts(c)
         reason = f"{why}。ただし{NOT_PASSED}（機械の事実の拒みの数の行に出す）" if not_passed else ""
         return {"ok": True, "reason": reason, "text": got["text"], "terms": _list(got.get("terms")), "not_passed": not_passed,
-                "machine_only": machine_only(c)}
+                "machine_only": head}
 
     def kept(got: dict) -> dict:
         out = take(got)
@@ -414,17 +460,34 @@ def accept(reply, cold, *, place) -> dict:
 
 
 # ---------------------------------------------------------------- 出口
+def _notes_section(tail: str, error: str | None) -> str:
+    """機械の報告の節の並び tail（「\n## 」で始まる）の注意の節（files.NOTES_HEADING）から前の周の書き手の誤りの行を外し、error が在れば 1 行置く。
+    節の他の行は残し、行が無くなれば「- 無い」に戻す。節が無ければ、error が在る時だけ末に足す"""
+    heading = files.NOTES_HEADING.removeprefix("## ")
+    sections = tail.split("\n## ")
+    at = next((i for i, x in enumerate(sections) if x.splitlines()[:1] == [heading]), None)
+    row = f"- {FELL_ERROR}{oneline.one_line(error)}" if error else ""
+    if at is None:
+        return tail + (f"\n## {heading}\n\n{row}\n" if row else "")
+    rows = [x for x in sections[at].splitlines()[1:] if x.strip() and not x.startswith(f"- {FELL_ERROR}") and not (row and x == "- 無い")]
+    sections[at] = "\n".join([heading, "", *(rows or ([] if row else ["- 無い"])), *([row] if row else [])]) + "\n"
+    return "\n## ".join(sections)
+
+
 def note_writer_fell(machine, fell: dict | None, *, run_id: str) -> None:
-    """機械の報告のファイル machine の冒頭の終わりに、書き手のループが落ちた訳 fell（transcript.writer_fell の返り）の 1 行を置く。
-    前の周（resume の前）に置いた行は外す。fell が None なら外すだけで、何度呼んでも同じ"""
+    """機械の報告のファイル machine に、書き手のループが落ちた訳 fell（transcript.writer_fell の返り）を置く。頭の終わりには使用枠の切れか、
+    ほかの落ちかの表の行（head.Line.WRITER_FELL_QUOTA は resume の命令つき）を 1 行、誤りの文の全文は注意の節（files.NOTES_HEADING）に 1 行。
+    前の周（resume の前）に置いた行は両方外す。fell が None なら外すだけで、何度呼んでも同じ"""
     path = pathlib.Path(machine)
     text = path.read_text(encoding="utf-8")
-    head, sep, rest = text.partition("\n## ")
-    mark = WRITER_FELL.partition("{error}")[0]
-    kept = "\n".join(x for x in head.splitlines() if not x.startswith(mark)).rstrip()
-    line = (WRITER_FELL.format(error=fell["error"]) + (WRITER_QUOTA.format(command=answer.resume(run_id)) if fell["quota"] else "")
-            if fell else "")
-    new = kept + (f"\n\n{line}" if line else "") + "\n" + (f"\n## {rest}" if sep else "")
+    top, sep, rest = text.partition("\n## ")
+    fell_rows = (head.Line.WRITER_FELL_OTHER, head.Line.WRITER_FELL_QUOTA)
+    kept = "\n".join(x for x in top.splitlines() if (parsed := head.parse(x)) is None or parsed.kind not in fell_rows).rstrip()
+    line = ""
+    if fell:
+        line = (head.render(head.Line.WRITER_FELL_QUOTA, head.QuotaSlot(head.Command(answer.resume(run_id)))) if fell["quota"]
+                else head.render(head.Line.WRITER_FELL_OTHER))
+    new = kept + (f"\n\n{line}" if line else "") + "\n" + _notes_section(f"\n## {rest}" if sep else "", fell["error"] if fell else None)
     if new != text:
         write_text(path, new)
 

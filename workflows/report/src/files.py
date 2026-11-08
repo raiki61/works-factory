@@ -1,9 +1,9 @@
-"""報告の block の place のファイルの名と、機械の報告の見出しの字（docs/design/report.md の 1.4・1.5。名はこのモジュールだけが持つ）。
+"""報告の block の place のファイルの名と、機械の報告の節の見出しの字（頭の行の題は head.py の表。docs/design/report.md の 1.4・1.5。名はこのモジュールだけが持つ）。
 
 place（ports.place()）の下:
 - facts.json: facts が決めた値 {outcome, stop_reason, ok, ai_go, stamp, lang, run_id, decisions}
 - report.md: 機械の報告。report-unwritten.md: 組めなかった時の機械の報告。report-facts-unwritten.md・report-finish-unwritten.md: ライブラリを
-  読めない時の訳だけのファイル
+  読めない時の訳だけのファイル（題の行は頭の表 head.py の行。scripts/ の最後の落ち先だけは標準ライブラリで書くので字を持つ）
 - next-request.json・prior-failures.json: 次の run の依頼の下書きと前の失敗（名は lib/carry が持つ。周の鎖と次の run の入口が読む）
 - write-prompt-<n>.md・cold-prompt-<n>.md（prompt.emit が書く）
 - rejects-report.json・rejects-report.md・candidate-report.json（lib/rolekit の控え。受け付けの名は ROLE）
@@ -25,7 +25,6 @@ COLD_NODE = "cold"         # AI の node の id（prompts/cold.md）
 WRITE_LOOP = "write-loop"  # 書き手のループの node の id（落ちたかを run の記録で見る）
 WORKFLOW_FILE = "works-factory-report.yaml"
 
-TITLE = "# 報告（run {run}）"
 DECISIONS_HEADING = "## 1. 人が決めること"
 STOP_HEADING = "## 2. 止めたか"
 WHERE_HEADING = "## 3. 見る所"

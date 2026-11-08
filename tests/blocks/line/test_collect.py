@@ -123,7 +123,8 @@ class FactsCase(unittest.TestCase):
         self.assertEqual([g["decision"] for g in got["gates"]], [None, "approve", None, "approve"])
         self.assertEqual(got["optional"], ["eyes__", "lens__", "lens-2__", "judge__world"])
         self.assertIn("judge", got["returned"])
-        self.assertEqual(got["head"]["notices"], ["注意（test_cmd）: x"])
+        self.assertEqual(got["head"]["notices"], [{"kind": "test_cmd_note", "slots": {}, "text": "注意（test_cmd）: x"}],
+                         "試験のコマンドの注意の種の行 1 つ。本文は行の全文")
         self.assertEqual(got["left"], [])
 
     def test_unreadable_after_measure_is_a_left_row(self):
@@ -230,6 +231,25 @@ class FactsCase(unittest.TestCase):
                 self.assertIn(self.MEANS_Q, kinds[self.f.MEANS_ASK_HEAD])
                 self.assertNotIn(self.f.EYE_ASK_HEAD, kinds)
 
+    def test_row_shaped_eye_questions_keep_the_wait_the_ask_and_the_draft(self):
+        """eyes の questions と means_questions が {text, title} の行で届いても、人待ちの印（範囲を見る目の r4-ask と頼みどおりの違いの待ち）が立ち、
+        範囲の問いと頼みどおりの違いの問いの種の行が人が決めることに並び（題は行の title）、次の依頼の下書きにその本文が載る。本文が空の行は数えない"""
+        v = passing()
+        v["answer_final"] = {"go": False, "answer": None, "stop_reason": "works:needs-human"}
+        v["eyes"] = {**v["eyes"], "questions": [{"text": "守りを触ってよいか", "title": "守りを触ってよいか決める"}, {"text": " ", "title": "本文が無い"}],
+                     "means_questions": [{"text": self.MEANS_Q, "title": "頼みどおりにするか決める"}]}
+        got = self.build(v)
+        self.assertEqual(check(got, FACTS_SCHEMA), [])
+        self.assertIn({"at": "eyes", "word": "r4-ask"}, got["waits"]["others"])
+        self.assertIn({"at": "eyes", "word": "r2-means-ask"}, got["waits"]["others"])
+        rows = {a["kind"]: a for a in got["asks"]}
+        self.assertEqual((rows[self.f.EYE_ASK_HEAD]["text"].split("——")[0], rows[self.f.EYE_ASK_HEAD]["title"]), ("守りを触ってよいか", "守りを触ってよいか決める"))
+        self.assertEqual((rows[self.f.MEANS_ASK_HEAD]["text"].startswith(self.MEANS_Q), rows[self.f.MEANS_ASK_HEAD]["title"]), (True, "頼みどおりにするか決める"))
+        self.assertEqual([a["kind"] for a in got["asks"]].count(self.f.EYE_ASK_HEAD), 1, "本文が空の行は載せない")
+        with self.run.env():
+            drafts = self.f.answer_drafts(v, self.f.returns_of(v, record()), self.f.gates_of(v), True)
+        self.assertEqual(sorted(d["question"] for d in drafts), sorted(["守りを触ってよいか", self.MEANS_Q]))
+
     def test_cut_when_the_final_test_is_missing(self):
         v = passing()
         v["test_gate_final"] = None
@@ -250,7 +270,8 @@ class FactsCase(unittest.TestCase):
         v = passing()
         v["merge_seal"] = {**v["merge_seal"], "protected_hits": ["a", "b"], "protected_count": 7}
         got = self.build(v)
-        self.assertEqual(got["tallied"], {"守りのパスに当たった差分": 7})
+        self.assertEqual(got["tallied"], {self.f.PROTECTED_HITS_HEAD: 7})
+        self.assertEqual(self.f.PROTECTED_HITS_HEAD, "守ると決めたファイルに当たった差分", "頭に出る種の名は語の表の語を使わない言い方")
 
     def test_uncompared_reds_are_asked(self):
         """fix の #846: 確かめ直しで直す前の版と比べられなかったので組を戻さなかった赤（当てたままの組の行の uncompared）は、黙って

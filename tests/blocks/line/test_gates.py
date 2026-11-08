@@ -237,10 +237,10 @@ class AskBeforeFixCase(unittest.TestCase):
         out = self.stalled_unattended("key-a1 は item 1 の修正の中で片付ける")
         self.assertEqual((out["go"], out["stop_reason"]), (False, __import__("stopby").NEEDS_HUMAN))
         cite = __import__("converge").ITEM_CITE.format(n=1)
-        self.assertEqual(out["deferred"], [f"{self.gm.STUCK_ITEM}。理由: 同じ block が続いた" + self.g.CITE_DROPPED.format(missing=cite)])
-        self.assertIn(f"推しは在ったが引用が欠けた（欠け: {cite}）", out["deferred"][0])
+        self.assertEqual([r["text"] for r in out["deferred"]], [f"{self.gm.STUCK_ITEM}。理由: 同じ block が続いた" + self.g.CITE_DROPPED.format(missing=cite)])
+        self.assertIn(f"推しは在ったが引用が欠けた（欠け: {cite}）", out["deferred"][0]["text"])
         stopped = self.stalled_unattended("key-a1 は直しの中で片付かない", answer="stop")
-        self.assertNotIn("引用が欠けた", stopped["deferred"][0], "止める推しは引用の欠けで捨てた物でない")
+        self.assertNotIn("引用が欠けた", stopped["deferred"][0]["text"], "止める推しは引用の欠けで捨てた物でない")
 
     def test_unattended_stops_where_the_gate_would_open(self):
         out = self.ask(rounds(asks=[ask_row()]), unattended=True)
@@ -407,6 +407,21 @@ class LedgerAsksCase(unittest.TestCase):
         out = self.g.before_fix(rounds(), unattended_run=False, design=False,
                                 ledger=self.ledger(answers=[{"question": "q-a", "text": "x"}]))
         self.assertFalse(out["open"])
+
+    def test_a_deferred_ledger_question_keeps_its_title(self):
+        """無人の run で載せなかった台帳の問いは deferred に {text, title} の行で返り、題は台帳の問いの title（2 行は 1 行に畳む。題が無ければ
+        title の欄も無い）。機械が組んだ項目（推しで抜けられずに止めた行）の行の題は gatemarks.KIND_WORDS の種類の言い方"""
+        titled = {**self.FORK, "title": "空の列で\n例外を投げるか決める"}
+        bare = {**self.FORK, "key": "q-b"}
+        doc = {"units": [{"key": "u1", "label": "block"}], "questions": [titled, bare]}
+        out = self.g.before_fix(rounds(), unattended_run=True, design=False, ledger=self.gm.ledger(doc, takes_push=True))
+        self.assertEqual(out["deferred"], [{"text": self.gm.ask_text(titled), "title": "空の列で 例外を投げるか決める"}, {"text": self.gm.ask_text(bare)}])
+        stopped = self.g.before_fix(rounds(asks=[ask_row()]), unattended_run=True, design=False, ledger=self.gm.ledger(doc, takes_push=True))
+        self.assertFalse(stopped["go"])
+        self.assertEqual(stopped["deferred"][2:], [{"text": NARROW, "title": self.gm.KIND_WORDS["regression"]}], "止めた機械の項目の題は種類の言い方")
+        self.assertEqual(stopped["deferred"][:2], out["deferred"])
+        for kind in ("unread", "plan_review", "pointed_elsewhere", "pointed_missing"):
+            self.assertIn(kind, self.gm.KIND_WORDS, "gates が組む種類は題の出どころ KIND_WORDS に在る")
 
     def test_a_push_the_copied_plan_counted_is_named(self):
         """直す前で止まった無人の run の写しを人の居る run で続ける時（planned は写しの計画が数えた推しの台帳）: 推しを答えに数えて組んだ
@@ -646,6 +661,21 @@ class AskFinalCase(unittest.TestCase):
                     self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
         out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="always", unattended=True)
         self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
+
+    def test_row_shaped_eye_questions_still_open_the_final_gate(self):
+        """独立の目の問いが {text, title} の行で届いても、最後の承認ノードの事実（gather）には本文の字として入る。頼みどおりの違いの問いが在る時は
+        開き方に依らず開く。字の問いは字のまま。本文が空の行は落とす"""
+        eyes = {"questions": [{"text": "R4 の問い", "title": "題 1"}, "字の問い", {"title": "本文の無い行"}],
+                "means_questions": [{"text": self.MEANS_Q, "title": "題 2"}], "passes": [], "after": None}
+        got = self.f.gather(fix_in={}, fixed={}, judged=None, tests=None, eyes=eyes, seal_got=None, spec_check=None, parallel_after=None,
+                            replan_answer=None, widened=[], record={}, given={}, rounds_lines=[], unread=[])
+        self.assertEqual(got["questions"], ["R4 の問い", "字の問い"])
+        self.assertEqual(got["means_questions"], [self.MEANS_Q])
+        shaped = final_got(self.f, questions=got["questions"], means_questions=got["means_questions"])
+        for mode in ("when_needed", "protected_only"):
+            with self.subTest(mode=mode):
+                self.assertTrue(self.ask(shaped, mode=mode)["open"], "頼みどおりの違いの問いは開き方に依らず開く")
+        self.assertFalse(self.ask(final_got(self.f), mode="when_needed")["open"], "問いが無ければ開かない（比べの足場）")
 
     def test_attended_and_closed_returns_carry_no_push(self):
         """人の居る run と開かない run の返りの pushed は null（answer-final は人の答えか前の決めだけを書く）"""

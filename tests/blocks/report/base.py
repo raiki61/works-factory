@@ -9,18 +9,29 @@ import unittest
 from tests.blocks import kit
 
 BLOCK = kit.BLOCKS / "report"
-NAMES = ("files", "facts_in", "outcome", "transcript", "machine", "writer", "steps")
+# head は頭の文面表（workflows/report/src/head.py）。ほかの部品と同じ 1 組で読む
+NAMES = ("files", "head", "facts_in", "outcome", "transcript", "machine", "writer", "steps")
 
 
 def src() -> types.SimpleNamespace:
+    """部品を名ごとに読む。まだ無い部品は None にして、その部品に頼る試験が読み込みでなく試験の中の検査で落ちるようにする"""
     kit.load("report", "files")
-    return types.SimpleNamespace(**{name: importlib.import_module(f"src.{name}") for name in NAMES})
+    parts = {}
+    for name in NAMES:
+        try:
+            parts[name] = importlib.import_module(f"src.{name}")
+        except ModuleNotFoundError as err:
+            if err.name != f"src.{name}":
+                raise
+            parts[name] = None
+    return types.SimpleNamespace(**parts)
 
 
 READY = {"start_ok": True, "proved": True}
-GOOD_COLD = {"verdict": "pass", "stops": [], "guessed": [], "machine_lines": [], "decidable": True}
-BAD_COLD = {"verdict": "redesign-needed", "stops": ["何の話か分からない"], "guessed": ["PR だと推測した"], "machine_lines": [],
-            "decidable": False}
+GOOD_COLD = {"verdict": "pass", "stops": [], "guessed": [], "decidable": True}
+# 指摘の line は貼った行の印（W1 は書き手の頭の 1 行目）。印の付け方は writer.marked_lines が決める
+BAD_COLD = {"verdict": "redesign-needed", "stops": [{"line": "W1", "text": "何の話か分からない"}],
+            "guessed": [{"line": "W1", "text": "PR だと推測した"}], "decidable": False}
 NOTE = {"read": [], "kept": [], "set_aside": [], "open": []}
 
 

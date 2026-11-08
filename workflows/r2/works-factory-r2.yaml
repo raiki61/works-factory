@@ -86,6 +86,7 @@ nodes:
               design_quote: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
               diff_quote: {type: string, minLength: 4, pattern: '\S[\s\S]{2,}\S'}
               why: {type: string, minLength: 10, pattern: '\S[\s\S]{8,}\S'}
+              title: {type: string}
               recommend:
                 type: object
                 additionalProperties: false
@@ -191,7 +192,13 @@ nodes:
             reason: {type: string}
         questions:
           type: array
-          items: {type: string}
+          # 要素は {text, title} の行（題 title は飾りの欄で、無い行は欄を持たない）。前の記録の字も受ける
+          items:
+            type: [string, object]
+            required: [text]
+            properties:
+              text: {type: string}
+              title: {type: string}
         premise_check:
           type: [object, 'null']
           properties:

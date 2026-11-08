@@ -52,7 +52,7 @@ port でない環境（起動の殻が渡す。今と同じ）: 取り置きの�
 出力（`returns: result`、`outcome_field: ok`）: 今の `result` の 15 欄（`mode`・`ok`・`green`・`red_cause`・`ran_steps`・`baseline`・`fingerprint`・`test_outcomes`・`evidence`・`by`・`suites_line`・`log`・`baseline_line`・`reason`・`optional`）を字のまま保ち、4 欄を足す:
 
 - `suite`: 字。この後の段が使う TDD の実行器のパス。base: port `tdd_suite` が在ればそれ、無ければ照らしを通った実行器（place の `suite/runner` の絶対パス）、作れなければ `""`。final: port `tdd_suite` のまま。
-- `suite_note`: 字。実行器を取り置きから使った・書いた・作れなかったの 1 行（`suitewrite.head_note` の字）。用意しなかった run は `""`。
+- `suite_note`: 字。実行器を取り置きから使った・書いた・作れなかったの 1 行（`suitewrite.head_note` の字。報告の頭は line の facts が `suitewrite.note_state` の状態から選ぶ種の文で、この 1 行の訳は節「2. 止めたか」に出る）。用意しなかった run は `""`。
 - `related`: 関わる試験の選び `{applied, whole, files, left, far, reasons, ran}`（14 節）。道 (1)(2) は `applied: false`。
 - `report`: 報告に載せる日本語の行の配列（10 節）。
 
@@ -206,7 +206,7 @@ Return only JSON that matches the output schema.
 
 ### 4.4 返す形
 
-今の `suite-write` の `output_format` のまま: `made`（boolean）・`body`（字）・`why`（字）。全部必須。人に見せる欄は `why`（作れなかった訳として報告の冒頭の 1 行目と、最後の承認ノードに載る）で、言語は `{lang}`。
+今の `suite-write` の `output_format` のまま: `made`（boolean）・`body`（字）・`why`（字）。全部必須。人に見せる欄は `why`（作れなかった訳として報告の節「2. 止めたか」と、最後の承認ノードに載る。報告の頭は種の文で、作れなかったとだけ言う）で、言語は `{lang}`。
 
 ### 4.5 描いた骨組み（例の run `df5e111f-…` の値）
 
@@ -320,11 +320,11 @@ e2e の `tests/e2e/evidence.json` の L-E38・L-W28・T1・T6・T18・T29・T30�
   3. `試験の関門（final）: …`（base の 3 と同じ形）。
 - 出力の node の中の誤り（`by` が空）: `試験の関門（<mode>）: 出力ノードの中の誤り（工場の不具合）——<証拠のパス>` の 1 行だけ（今の `green_cert.GATE_BROKE_BY` の読みと同じく、試験が走らなかったとは言わない）。
 
-どの行を報告のどの節に載せるか（冒頭の句・人が決めること・緑の認証の節）は report の決め。冒頭の句が読む値（`by`・`ran_steps`・`suites_line`・`baseline_line`・`suite_note`）は欄のまま返す。
+どの行を報告のどの節に載せるか（頭の知らせの種の文・節「2. 止めたか」の訳・人が決めること・緑の認証の節）は report の決め。頭の知らせの種を選ぶ値（`by`・`ran_steps`・`suites_line`・`baseline_line`・`suite_note`）は欄のまま返す。
 
 ## 11 自分で決めた事
 
-1. 実行器を始めの記録に結ぶ代わりに、出力の欄 `suite` で返す（`suite_note` も）。根拠: README 4.2・4.3（block は始めの記録を読まず書かない）。読み手（fix の TDD の輪・final の試験の関門・報告の冒頭の句）には line が port で配る。人が渡した実行器と書いた実行器が同じ道で届く今の性質（`suitewrite` の docstring）は、`suite` が両方を同じ欄で返すことで続く。
+1. 実行器を始めの記録に結ぶ代わりに、出力の欄 `suite` で返す（`suite_note` も）。根拠: README 4.2・4.3（block は始めの記録を読まず書かない）。読み手（fix の TDD の輪・final の試験の関門・報告の頭の知らせの種）には line が port で配る。人が渡した実行器と書いた実行器が同じ道で届く今の性質（`suitewrite` の docstring）は、`suite` が両方を同じ欄で返すことで続く。
 2. `lib/suitewrite.py` を変えずに使うため、place に始めの記録の形の小さな控え `suite-state.json`（`{test_cmd, tdd_suite}` と印）を置き、`start_file` としてそれを渡す。根拠: README 11.1（block の PR は lib を変えない）。`suitewrite` は控えのファイルの `test_cmd`・`tdd_suite`・`suite_written` の 3 つの欄だけを読み書きする（`startrec.load`・`save` は形を問わない JSON の読み書き）。組み込みで `suitewrite` の引数の名を `state_file` などに直すのは、`suitewrite` の使い手（この block と line）の都合で決める。
 3. 入口の node `intake` を足し、後ろの script は port でなく `intake.json` を読む。根拠: 今は 5 つの script が始めの記録を開いていた。port を読む口を 1 つにすると、Archon の入力の照らし（`scanEnvironmentReads`）が 1 つの script を見るだけで済み、落ちうる `run` の前に place を消せる。
 4. port `request_scope`（flag）を足す。根拠: 今の `run.py` は始めの記録の「入口の差分が空」の時だけ依頼の where を範囲に足す。block は始めの記録を読まないので、その真偽を port で受ける。base の時の作業ツリーの差分（`base` からの触ったファイル）は入口の差分（入口の差分の根から修正前の HEAD まで）と違うので、block の中で代わりに数えられない。
@@ -464,7 +464,7 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 
 ### 15.2 base の返り
 
-- 素材は `not_applicable`（「直す前の版では試験を走らせない……試験は修正の段と最後のテストで走らせる」。判定の素材 `local_checks` に写る。人への問いを増やさない）。`ok` は真で、判定へ進む。試験のコマンドの最初の語を起こせなかった run だけ `not_run` で `ok` が偽（`reason` に訳と準備の案 `RAN_GUIDE`。line は報告の冒頭の知らせの行に出す〔`src/facts.py` の `stop_reason_notes`〕）。
+- 素材は `not_applicable`（「直す前の版では試験を走らせない……試験は修正の段と最後のテストで走らせる」。判定の素材 `local_checks` に写る。人への問いを増やさない）。`ok` は真で、判定へ進む。試験のコマンドの最初の語を起こせなかった run だけ `not_run` で `ok` が偽（`reason` に訳と準備の案 `RAN_GUIDE`。line は報告の頭の知らせの種〔直す前の試験の関門が止めた。試験のコマンドの最初の語つき〕に付け、訳と準備の案は節「2. 止めたか」に出す〔`src/facts.py` の `stop_reason_notes`〕）。
 - `runs` は空、`suites_line` は「直す前の版では試験を走らせない（全部の試験も自己点検も置かない）」、`ran_steps` は空。
 - 元の結末のファイル `baseline.json`: `cases` は空・`exit` は null・`narrow` は真（元の結末に無い試験の赤を、すぐには直しが起こした赤と読まない印。14.5）。`how`（修正役に貼る走らせ方の行。`declared_checks.run_how`）は計画の段と `test_cmd` から並べる。
 - `suite`: 人が渡した実行器か、用意した実行器（走らせていない）。`suite_note` は「…（直す前には走らせていない——修正の段の TDD の輪が最初に走らせて確かめ、壊れていれば書き直させる）」。line は `suite_note` が在る（用意した実行器）時だけ、修正の段に書き直してよいと伝える（`fix-in` の `suite_made`）。

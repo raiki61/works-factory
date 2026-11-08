@@ -45,9 +45,14 @@ def gaps(row: dict, said: dict, design_text: str, lines: list) -> list:
 
 
 def questions(reply, means, design_text: str, diff_text: str) -> list:
-    """比べの役の返答の request_conflicts の行ごとの問いの文（行が無い・返答が読めなければ空）"""
+    """比べの役の返答の request_conflicts の行ごとの問いの行 {text, title?}（行が無い・返答が読めなければ空）。text は問いの文、title は役が行に
+    書いた題を lib の読み口 plainask.item_title が 1 行に畳んだ字（題が無い・空白だけの行は title の欄を持たない。題で行を拒まない）"""
     rows = reply.get(FIELD) if isinstance(reply, dict) else None
     said = worldmark.means_hints(means)
     lines = changed_lines(diff_text)
-    return [report.means_conflict_text(row, said, gaps(row, said, design_text, lines))
-            for row in rows or [] if isinstance(row, dict)]
+    out = []
+    for row in rows or []:
+        if isinstance(row, dict):
+            title = plainask.item_title(row)
+            out.append({"text": report.means_conflict_text(row, said, gaps(row, said, design_text, lines)), **({"title": title} if title else {})})
+    return out

@@ -79,6 +79,22 @@ class JudgePathCase(_Base):
         out = self.finish()
         self.assertEqual([q["key"] for q in out["questions"]], ["岐路"], "人へ回す問いは fork の held と escalate の問いだけ")
 
+    def test_a_two_line_question_title_is_folded_and_accepted(self):
+        """判定の役の返りの問いに title が在れば受け付けを通り、2 行の title は出し直しにならずに 1 行に畳まれて台帳に入る（題で拒まない）"""
+        self.intake()
+        reply = judge_ok()
+        reply["questions"] = [
+            {"key": "岐路", "kind": "fork", "status": "held", "reason": "推し: A——安い", "origin": MEAN, "options": ["A: 安い", "B: 堅い"],
+             "title": "空の列で\n例外を投げるか\n決める"},
+            {"key": "実機", "kind": "field", "status": "held", "reason": "実機が要る", "title": "実機で確かめる"}]
+        reply["precedents"].append({"key": "岐路", "problem": "選び方の問題", "source": "文書の節", "verdict": "adopt", "reason": "当たった",
+                                    "undecided_because": "① 先例が割れて決まらない"})
+        self.assertEqual(self.accept(reply), {"ok": True, "done": True, "reason": ""})
+        titles = {q["key"]: q.get("title") for q in self.doc("judgment.json")["questions"]}
+        self.assertEqual(titles, {"岐路": "空の列で 例外を投げるか 決める", "実機": "実機で確かめる"})
+        out = self.finish()
+        self.assertEqual([(q["key"], q["title"]) for q in out["questions"]], [("岐路", "空の列で 例外を投げるか 決める")])
+
     def test_no_open_units_is_not_a_stop(self):
         self.intake()
         reply = {**judge_ok(), "units": [], "one_shot": "", "one_shot_closes": [], "precedents": []}

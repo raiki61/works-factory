@@ -855,7 +855,8 @@ nodes:
           stop_reason: {type: string}
           reason: {type: string}
           text: {type: string}
-          deferred: {type: array, items: {type: string}}
+          # 載せなかった問い。要素は字（前の版の記録）でも {text, title} の行でもよい。題は台帳の問いの title か、機械が組んだ項目の種類の平易な言い方
+          deferred: {type: array, items: &deferred_item {type: [string, object], properties: {text: {type: string}, title: {type: string}}, required: [text]}}
           asked: {type: array, items: {type: string}}
           pushed: &pushed {type: [object, 'null'], properties: {decision: {type: string}, text: {type: string}, pushed: {type: array, items: *push_row}}}
           passes: {type: array, items: &passed {type: object, properties: {node: {type: string}, round: {type: [integer, 'null']}, by: {type: string}, item: {type: string}, decided_by: {type: string}}}}
@@ -1168,7 +1169,7 @@ nodes:
         received: {type: [object, 'null'], description: 'json(received.schema.json): 固定材料の run で start が置いた運ぶ値。ほかの run は null'}
         policy: {type: string, description: 'file: 方針の文書の写しのパス（修正前の答えが固め直した物か、配る値の写し）'}
         answer: *answer
-        deferred: {type: array, items: {type: string}}
+        deferred: {type: array, items: *deferred_item}
         passes: {type: array, items: *passed}
         baseline: {<<: *pointer_or_null, description: 'json(lib:baseline.schema.json): 直す前の試験の結末。試験の関門が書かなかった run は null'}
         suite: {type: string}

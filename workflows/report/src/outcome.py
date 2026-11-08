@@ -5,7 +5,8 @@ absorbed_rows を、返りの欄でなく facts の欄を読む形に書き直�
 
 - decide(facts, run) -> (結末の語, 止めの語): facts は facts_in.read の返り、run は transcript.facts の返り
 - left_all(facts, run) -> 残りの行 [{where, text, unmeasured}]: facts.left に、受け止めた落ちの行を足した物
-- outcome_asks(outcome, facts, left) -> 結末で決まる人が決める物 [(種, 1 件の文)]
+- OUTCOME_TITLES: 結末で決まる人が決める物の種 → 決まった字の題（差し込み口の無い字。機械が本文を組む種なので、題も組むここが持つ）
+- outcome_asks(outcome, facts, left) -> 結末で決まる人が決める物 [(種, 1 件の文, 題)]
 """
 import answer      # lib/
 import oneline     # lib/
@@ -17,6 +18,10 @@ NODE_ERROR = "node-error"
 RECORD_INVALID = "record-invalid"
 ROUND_LIMIT_REST = "直しきれずに残った物"
 RECORD_INVALID_KIND = "記録が通らないこと"
+# 結末で決まる物の題。1 件ごとの値を差し込まない決まった字なので、同じ種の行は報告の頭で 1 行にまとまる（machine.ask_rows）
+OUTCOME_TITLES = {report.CHECKS_LEFT: "測れていない所を、人が確かめる",
+                  ROUND_LIMIT_REST: "回数の上限までに直しきれなかった物を、どう扱うか決める",
+                  RECORD_INVALID_KIND: "この run の記録が通らなかった訳を、人が確かめる"}
 
 
 def _at(row: dict) -> str:
@@ -113,13 +118,14 @@ def decide(facts: dict, run: dict) -> tuple[str, str]:
 
 
 def outcome_asks(outcome: str, facts: dict, left: list) -> list:
-    """結末で決まる人が決める物 [(種, 文)]（facts.asks の後ろに足す。fixed_needs_check の確かめ・round_limit の残り・record_invalid）"""
+    """結末で決まる人が決める物 [(種, 文, 題)]（facts.asks の後ろに足す。fixed_needs_check の確かめ・round_limit の残り・record_invalid。
+    題は種ごとの決まった字 OUTCOME_TITLES）"""
     def said(row):
         return oneline.one_line(f"{row['where']}: {row['text']}")
     if outcome == "fixed_needs_check":
-        return [(report.CHECKS_LEFT, said(row)) for row in left]
+        return [(report.CHECKS_LEFT, said(row), OUTCOME_TITLES[report.CHECKS_LEFT]) for row in left]
     if outcome == "round_limit":
-        return [(ROUND_LIMIT_REST, said(row)) for row in left if row["where"] not in facts["counted_left"]]
+        return [(ROUND_LIMIT_REST, said(row), OUTCOME_TITLES[ROUND_LIMIT_REST]) for row in left if row["where"] not in facts["counted_left"]]
     if outcome == "record_invalid":
-        return [(RECORD_INVALID_KIND, outcome)]
+        return [(RECORD_INVALID_KIND, outcome, OUTCOME_TITLES[RECORD_INVALID_KIND])]
     return []

@@ -11,6 +11,9 @@
   表から組む）に無い拡張子の <パス>:<行>（番地とポート・製品の名と版）・大文字の混じる名の <名>[<番号>]（脚注。返答の JSON の欄の名は小文字）。
   数えなかった物は人が見る
 - gaps(where, text) -> list[str]: 参照を 1 つでも持てば、受け付けが役に返す 1 行（where は欄の名指し）。無ければ []
+- item_text(x) -> str・item_title(x) -> str | None: 人に聞く項目の要素の読み口。要素は字（本文だけ）でも {text, title} の行でもよい（前の記録は字）。
+  題は役が本文と一緒に書く飾りの欄なので、item_title は改行を 1 行に畳み（lib/oneline.py の one_line。字数では切らない）、空白だけ・欄が無い・
+  字の要素は None（題なし。報告の頭は種の名に戻す）を返す。題で役を拒む照らしは持たない（改行だけで役を出し直しにして run が止まる道を作らない）
 - 記録のファイルの名・単位の key・行や答えの id は、対象のリポジトリのファイルの名や役の文と字で見分けられないので照らさない（人が見る）
 - 断片 plain-ask の欄の印（required-for-fields）に handled.how を入れない: 同じ置き場を持つ差分の審査の手直しの役（delta-review の
   refix-1・refix-2）は how に走らせた試験やパスの証拠を書く決まりで、参照を書かない決まりと食い違う（仕様の直す役は requirements.text で印に入る）
@@ -20,6 +23,7 @@ from __future__ import annotations
 import re
 
 import impact   # 拡張子の表 KNOWN_EXT（E13 が表を置いてよい所）
+import oneline  # 1 行に畳む口
 
 URL = re.compile(r"https?://\S+")
 CODE = re.compile(r"`[^`\n]*`")
@@ -48,3 +52,16 @@ def gaps(where: str, text) -> list[str]:
     """参照を持つ文の拒否の 1 行（無ければ []）"""
     found = refs(text)
     return [f"{where}: {WHY.format(refs='・'.join(found))}"] if found else []
+
+
+def item_text(x) -> str:
+    """人に聞く項目の要素の本文（字はそのまま、{text, title} の行は text。読めなければ空の字）"""
+    if isinstance(x, dict):
+        x = x.get("text")
+    return x if isinstance(x, str) else ""
+
+
+def item_title(x) -> str | None:
+    """人に聞く項目の要素の題（{text, title} の行の title を 1 行に畳んだ字。字の要素・欄が無い・字でない・空白だけは None）"""
+    title = x.get("title") if isinstance(x, dict) else None
+    return (oneline.one_line(title) or None) if isinstance(title, str) else None

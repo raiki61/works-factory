@@ -233,8 +233,9 @@ nodes:
         r2: *row
         r3: *row
         r4: *row
-        questions: {type: array, items: {type: string}}
-        means_questions: {type: array, items: {type: string}}
+        # 問いの要素は字でも {text, title} の行でもよい（題は本文を書いた R2・R4 の役が書き、line の facts が読み口 plainask で読む。eyes は運ぶだけ）
+        questions: {type: array, items: &eye_question {type: [string, object], properties: {text: {type: string}, title: {type: string}}, required: [text]}}
+        means_questions: {type: array, items: *eye_question}
         passes:
           type: array
           items:

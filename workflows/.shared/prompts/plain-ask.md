@@ -1,11 +1,11 @@
-<!-- required-for-fields: undecided_because asks questions ask_why stuck_recommend requirements.text faces.why -->
+<!-- required-for-fields: undecided_because asks questions ask_why stuck_recommend requirements.text faces.why request_conflicts.title lost.title policy_conflicts.title -->
 Follow these rules when you write the fields of your output that ask a person to decide something (a question, why it is not settled, the options and their costs, the recommendation, what is handed to a person). The factory (the automated pipeline that is fixing the repository for this request) shows this text as you wrote it to the owner (the person who decides for the repository): at an approval node, where this run (this one execution of the factory) stops until the owner answers, and in the section on what a person decides of the report the factory writes at the end of the run.
 
 - **Write for a first-time reader.** The reader is the owner coming back from other work. They know neither this run nor the factory's internal words. Each item must let them decide from its own text alone, without opening the run's records, the plan, or the code.
 - **Give every fact the decision needs, even if the text gets longer.** Having the facts complete comes before keeping it short. Say what a thing is and why it matters before you name it.
 - **Do not point into the run's internals in this text**: no `<path>:<line>` references, no positions in the run's JSON such as `plan[0]` or `faces[2]`, no unit keys, item numbers, or ids of rows and answers, and no names of the run's record files. Say in plain words what the thing is (for example "the function that computes the average", not a file and a line). References a machine checks (the deciding source, grounds, evidence, or a field this prompt tells you to fill with a `<path>:<line>`) belong in those fields, not here. Where the acceptance check reads this text, it rejects `<path>:<line>` and `<name>[<number>]` in it and returns it to you.
 - **Give each item this shape**, in this order, each part as its own sentence:
-  1. Title: what is to be decided, said so that a person can answer it.
+  1. Title: what is to be decided, said so that a person can answer it. When the row you write has a `title` field, write the title there, as one short line (no line break, no list); the factory shows it as that item's line at the head of the report, in place of the kind of the item.
   2. Now: the current state, with the fact that makes it a question.
   3. Proposal: what the factory would do.
   4. Cost: what that costs, and whether and how it can be undone.

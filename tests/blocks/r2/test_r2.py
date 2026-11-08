@@ -682,7 +682,9 @@ class MeansCase(_RepoCase):
         self.intake(**({"means": dump(means)} if means is not None else {}))
         self.compare()
         self.save("r2-compare", self.reply(*rows, status=status))
-        return self.finish()
+        done = self.finish()
+        self.assertTrue(all(isinstance(q, dict) for q in done["questions"]), "finish の questions の要素が {text, title?} の行でない")
+        return done
 
     def test_means_section_only_when_means_given(self):
         """指示の節「The request's means」は means が在る時だけ立ち、M<n>: <文> を並べる"""
@@ -706,7 +708,7 @@ class MeansCase(_RepoCase):
         done = self.run_with(conflict())
         self.assertEqual(done["verdict"]["status"], "pass")
         self.assertEqual(len(done["questions"]), 1)
-        q = done["questions"][0]
+        q = done["questions"][0]["text"]
         self.assertTrue(q.startswith("R2: 差分は頼みの解き方 M1「集計は 1 か所の関数にまとめる」どおりだが、独立設計と食い違う——"
                                      "独立設計は集計を呼び手ごとに置く（人に聞く訳: "), q)
         self.assertIn("／推し: 通す（continue）——頼みどおりのまま通す（理由: 頼みがこの形を指定した）", q)
@@ -720,8 +722,8 @@ class MeansCase(_RepoCase):
         git(self.repo, "commit", "-q", "-m", "old")
         self.base = git(self.repo, "rev-parse", "HEAD").strip()
         (self.repo / "old.txt").unlink()
-        self.assertNotIn("引用を照らせなかった", self.run_with(conflict(diff_quote="呼び手ごとの集計"))["questions"][0])
-        self.assertIn("引用を照らせなかった", self.run_with(conflict(diff_quote="a/old.txt"))["questions"][0])
+        self.assertNotIn("引用を照らせなかった", self.run_with(conflict(diff_quote="呼び手ごとの集計"))["questions"][0]["text"])
+        self.assertIn("引用を照らせなかった", self.run_with(conflict(diff_quote="a/old.txt"))["questions"][0]["text"])
 
     def test_unchecked_quote_drops_the_push(self):
         """引用が独立設計か差分の字に無い行は、推しの尾を外して「引用を照らせなかった」を付ける（案 C。状態に数えない）"""
@@ -729,7 +731,7 @@ class MeansCase(_RepoCase):
             with self.subTest(why):
                 done = self.run_with(row)
                 self.assertEqual(done["verdict"]["status"], "pass")
-                q = done["questions"][0]
+                q = done["questions"][0]["text"]
                 self.assertNotIn("推し:", q)
                 self.assertIn("（引用を照らせなかった: ", q)
                 self.assertIn(why, q)
@@ -737,23 +739,37 @@ class MeansCase(_RepoCase):
     def test_row_without_means_is_out_of_range(self):
         """means を渡さない run で行を書いた → 番号が範囲の外で照らせない行"""
         done = self.run_with(conflict(), means=None)
-        q = done["questions"][0]
+        q = done["questions"][0]["text"]
         self.assertNotIn("推し:", q)
         self.assertIn("M1 が頼みの解き方の番号の範囲の外", q)
 
     def test_bad_recommend_drops_the_push(self):
         done = self.run_with(conflict(recommend={"answer": "maybe", "note": "どちらでも", "why": "分からない"}))
-        self.assertNotIn("推し:", done["questions"][0])
-        self.assertIn("引用を照らせなかった", done["questions"][0])
+        self.assertNotIn("推し:", done["questions"][0]["text"])
+        self.assertIn("引用を照らせなかった", done["questions"][0]["text"])
 
     def test_path_in_the_words_drops_the_push(self):
         """why か推しの文に run の中を指すパスを書いた行は、人に聞く文の決まり（lib/plainask.py）に外れるので推しの尾を外して聞く"""
         for row, where in ((conflict(why="app.py:12 の集計を呼び手ごとに置く"), "why"),
                            (conflict(recommend={**REC, "note": "app.py:12 のまま通す"}), "recommend.note")):
             with self.subTest(where):
-                q = self.run_with(row)["questions"][0]
+                q = self.run_with(row)["questions"][0]["text"]
                 self.assertNotIn("推し:", q)
                 self.assertIn(f"{where}: ", q)
+
+    def test_request_conflict_title_rides_on_the_question(self):
+        """比べの役の request_conflicts の行に title が在れば、finish の questions の行がその題（改行は畳む）を持ち、本文は今の問いの文。
+        題の無い行は title の欄を持たない。題が空白だけでも役を拒まない"""
+        done = self.run_with(conflict(title="頼みどおりの形で\n通すか決める"), conflict(why="独立設計は集計を呼び手ごとに置く（2 つ目）", title="  \n "), conflict())
+        self.assertTrue(done["questions"] and all(isinstance(q, dict) for q in done["questions"]), "finish の questions が {text, title} の行でない")
+        bare = self.run_with(conflict())["questions"][0]
+        titled, blank, plain = done["questions"]
+        self.assertEqual(titled["title"], "頼みどおりの形で 通すか決める")
+        self.assertTrue(titled["text"].startswith("R2: 差分は頼みの解き方 M1「集計は 1 か所の関数にまとめる」どおりだが"), titled["text"])
+        self.assertEqual(titled["text"], bare["text"], "本文は題の有無に依らない今の問いの文")
+        self.assertEqual(set(titled), {"text", "title"})
+        self.assertEqual((set(blank), set(plain)), ({"text"}, {"text"}), "空白だけの題・題の無い行は title の欄を持たない")
+        self.assertIn(f"  - {titled['text']}", done["report"], "報告の R2 の行には本文を並べる")
 
     def test_redesign_needed_stays(self):
         """頼みと関わらない違いが残れば役の redesign-needed のまま（状態の決めは変えない）。問いの行は出す"""

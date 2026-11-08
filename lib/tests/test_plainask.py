@@ -61,5 +61,28 @@ class GateRowsTest(unittest.TestCase):
         self.assertEqual(gatemarks.plain_gaps("other", review), [])
 
 
+class ItemRowCase(unittest.TestCase):
+    """人に聞く項目の行の読み口 item_text・item_title。要素は字でも {text, title} の行でもよい（役が書いた題は読む所が 1 行に畳む）"""
+
+    def test_item_title_folds_newlines_and_drops_blank_titles(self):
+        self.assertTrue(hasattr(plainask, "item_title"), "題の読み口 item_title が無い")
+        self.assertEqual(plainask.item_title({"text": "本文", "title": "拒まずに\n通す検査へ  緩める"}), "拒まずに 通す検査へ 緩める", "改行と空白の並びを 1 つの空白に")
+        long_title = "長い題" * 40
+        self.assertEqual(plainask.item_title({"text": "本文", "title": long_title}), long_title, "字数では切らない")
+        for blank in ({"text": "本文", "title": " \n\t "}, {"text": "本文", "title": ""}, {"text": "本文"}, {"text": "本文", "title": None},
+                      {"text": "本文", "title": 3}, "字の要素", None, 3):
+            with self.subTest(blank=blank):
+                self.assertIsNone(plainask.item_title(blank))
+
+    def test_items_read_as_text_and_title_whether_string_or_row(self):
+        self.assertTrue(hasattr(plainask, "item_text") and hasattr(plainask, "item_title"), "読み口 item_text・item_title が無い")
+        self.assertEqual((plainask.item_text("字の要素"), plainask.item_title("字の要素")), ("字の要素", None))
+        row = {"text": "行の本文", "title": "行の題"}
+        self.assertEqual((plainask.item_text(row), plainask.item_title(row)), ("行の本文", "行の題"))
+        self.assertEqual((plainask.item_text({"title": "題だけ"}), plainask.item_title({"title": "題だけ"})), ("", "題だけ"), "本文が無い行の本文は空の字")
+        self.assertEqual(plainask.item_text({"text": 3}), "")
+        self.assertEqual(plainask.item_text(None), "")
+
+
 if __name__ == "__main__":
     unittest.main()

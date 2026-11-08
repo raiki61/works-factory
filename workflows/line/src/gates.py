@@ -36,6 +36,7 @@ from typing import Callable, NamedTuple
 
 import answer
 import gatemarks
+import plainask   # 人に聞く項目の要素の読み口（題の読み口 item_title）
 import policy
 import stopby
 import structmark
@@ -127,6 +128,11 @@ def passage(rows: list, read: Callable[[str], Push | None]) -> Passage:
 DESIGN_ONLY = gatemarks.DESIGN_ONLY
 AXIS_KIND = "plan_review"
 POLICY_CHANGED = "policy_changed"     # 関所の項目の種類（方針の文書が固めた版から変わった。元 boardview.POLICY_CHANGED）
+
+
+def deferred_row(text: str, title: str | None) -> dict:
+    """載せなかった項目の行 {text, title?}（題が無ければ title の欄を持たない）"""
+    return {"text": text, **({"title": title} if title else {})}
 
 
 def row_push(text) -> Push | None:
@@ -398,6 +404,8 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     planned は直す前で止まった無人の run の写しを人の居る run で続ける時の、写しの計画が数えた問いの台帳（takes_push の見え方。ほかは None）:
     計画が推しを答えに数えた問いの行に PLANNED_PUSH を足し、推しと違う答えなら止めて計画から回し直すと案内する（計画は推しを前提に組んで
     あり、続きの承認ノードの答えで組み直さない。答えは自由な一言なので推しと違うかを機械は読まず、人が stop で選ぶ）。
+    deferred の要素は {text, title?} の行: 台帳の問いは問いの行の題（title。無ければ題なし）、機械が組んだ項目は種類の平易な言い方
+    （gatemarks.KIND_WORDS。表に無い種類は題なし）を題にする。題は報告の頭の人が決めることの行になる。
     返り {open, go, stop_reason, items: [(種類, 文)], deferred, asked, pushed, passes, policy_changed}"""
     closed = {"open": False, "go": False, "stop_reason": "", "items": [], "deferred": [], "asked": [], "pushed": None, "passes": [],
               "policy_changed": False}
@@ -451,7 +459,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
             if gatemarks.answered(ledger, q):
                 continue
             if unattended_run:
-                deferred.append(gatemarks.ask_text(q))   # 採れる推しの無い台帳の問いは載せず、報告と次の依頼の下書きへ（L-G33）
+                deferred.append(deferred_row(gatemarks.ask_text(q), plainask.item_title(q)))   # 採れる推しの無い台帳の問いは載せず、報告と次の依頼の下書きへ（L-G33）
             else:
                 push = gatemarks.run_push(planned, q) if planned is not None else ""
                 items.append((_ask_kind(q), gatemarks.ask_text(q) + (PLANNED_PUSH.format(push=push) if push else "")))
@@ -477,7 +485,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
         got = passage(texts, row_push)
         # 推しで抜けられずに止めた項目は誰にも見せていないので、載せなかった項目として報告と次の依頼の下書きへ（元 runreport が
         # 無人の run で関所が通さなかった事前審査の問いを下書きにしたのと同じ）
-        held = deferred if got.go else [*deferred, *texts]
+        held = deferred if got.go else [*deferred, *(deferred_row(text, gatemarks.KIND_WORDS.get(kind)) for kind, text in items)]
         return {**closed, "go": got.go, "stop_reason": got.stop_reason, "items": items, "deferred": held, "asked": got.asked,
                 "pushed": got.pushed, "passes": passes, "policy_changed": changed}
     return {"open": True, "go": True, "stop_reason": "", "items": items, "deferred": deferred, "asked": texts, "pushed": None,

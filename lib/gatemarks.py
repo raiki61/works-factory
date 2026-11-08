@@ -285,7 +285,10 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               PRESCRIPTION_KIND: "判定の処方から外れる修正案の項目", OTHER_DEPART_KIND: "種類の表に無い外れの修正案の項目",
               FLIP_KIND: "前に閉じた穴の裏返し（どちらを優先するか）",
               "spec_approval": "仕様（要件と受け入れ条件）の承認", SPEC_CHANGED_KIND: "承認の後に受け入れ条件のテストが変わった",
-              GIVEN_UP_KIND: "事前審査が案を審査できなかった"}
+              GIVEN_UP_KIND: "事前審査が案を審査できなかった",
+              # line の gates.py が組む種類（UNREAD_KIND・AXIS_KIND・POINTED_KIND・POINTED_MISSING_KIND。gates は gatemarks を引くので字で持つ）
+              "unread": "指す先のファイルが無いか読めない控え", "plan_review": "事前審査の軸が通らない",
+              "pointed_elsewhere": "名指された文書が、読む版でなくほかの版にだけ在る", "pointed_missing": "名指された文書がどの版にも無い"}
 SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"   # 承認し直すかの問いの文と下書きの source の頭
 SPEC_CHANGED_HEAD = f"承認し直すかの問い（{KIND_WORDS[SPEC_CHANGED_KIND]}）"   # 最後の承認ノードと報告の人が決めることの節の頭
 SPEC_UNCHECKED = "承認済みの受け入れ条件のテストが変わったかを照らせなかった"   # 照らせなかった時の承認ノードの 1 行目の句と下書きの source の頭

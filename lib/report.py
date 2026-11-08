@@ -157,13 +157,14 @@ def prior_lines(rows: list, next_file: str) -> list:
 
 
 # ---------------------------------------------------------------- 冒頭 3 行と 1〜5
-# 結末の語（decide_outcome の返り）→ 平易な言い方（冒頭 3 行の 1 行目。語は括弧に残す）
+# 結末の語（decide_outcome の返り）→ 平易な言い方（冒頭 3 行の 1 行目。語は括弧に残す）。ここの文は工場の中だけの語（workflows/report/src/glossary.json の
+# 語）を使わない: 報告の頭に出るので、頭だけを読む人に通じる言い方にする
 OUTCOME_WORDS = {"fixed": "直して、最後のテストまで通った",
                  "fixed_needs_check": "直して、最後のテストまで通った。run の中で測れなかった確かめが残る（人の確かめ待ち）",
                  "no_fix_needed": "直す物が無かった",
-                 "round_limit": "決めた周の数のうちに直しきれずに止まった", "stopped_by_request": "止め札で止めた",
-                 "stopped_by_human": "人が承認ノードで止めた", "stopped_by_line": "ラインが途中で止めた",
-                 "needs_human": "人の判断を待ったまま止まった", "record_invalid": "記録が検証器を通らない（結果を名乗れない）",
+                 "round_limit": "決めた回数のうちに直しきれずに止まった", "stopped_by_request": "依頼の側が置いた止める印で止めた",
+                 "stopped_by_human": "人が先へ進めるかを決める所で止めた", "stopped_by_line": "機械が決まりに従って途中で止めた",
+                 "needs_human": "人の判断を待ったまま止まった", "record_invalid": "記録が決まりに合わず、結果を名乗れない",
                  "interrupted": "run が途中で終わった"}
 
 

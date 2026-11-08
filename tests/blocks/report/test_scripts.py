@@ -18,6 +18,7 @@ from tests.blocks.report.base import INCLUDE, LOOP, SECTIONS, Flow
 
 M = base.src()
 import handoff  # noqa: E402  lib/
+import report  # noqa: E402  lib/
 
 REQUEST_STOP = json.dumps({**base.READY, "gates": [{"at": "final-answer", "decision": "stop", "text": "request: 止め札"}]})
 
@@ -29,7 +30,7 @@ class FactsCase(Flow):
         self.assertEqual(got["stop_reason"], "start:record-invalid")
         text = self.machine()
         self.assertIn("結果を名乗れない訳: 入力 sections: json の入力が空", text)
-        self.assertIn("起きたこと: 記録が検証器を通らない（結果を名乗れない）。", text)
+        self.assertTrue([x for x in text.splitlines() if x.startswith(f"起きたこと: {report.OUTCOME_WORDS['record_invalid']}")], text)
         self.assertEqual(base.read(self.place / "facts.json")["ai_go"], False)
 
     def test_no_facts_is_record_invalid_from_the_start(self):
@@ -210,20 +211,32 @@ class FinishCase(Flow):
         self.assertEqual((got["next_request"]["path"], got["prior_failures"]["path"]), ("report/next-request.json", "report/prior-failures.json"))
 
     def test_fallen_writer_is_named_in_the_head_until_resume_rewrites_it(self):
+        H = M.head
+        error = "Loop-group node failed: usage or credit limit is used up"
         self.facts()
-        fell = {"type": "node_error", "step": "report__write-loop", "ts": "t", "error": "Loop-group node failed: usage or credit limit is used up",
+        fell = {"type": "node_error", "step": "report__write-loop", "ts": "t", "error": error,
                 "execution": {"lifecycle": {"providerFailure": {"class": "quota_exhausted"}}}}
         self.log(fell)
         got = self.finish()
         self.assertIsNone(got["human"])
         head = M.writer.machine_head(self.machine())
-        self.assertIn("AI が書く報告の本文は無い。書き手のノードが落ちた（Loop-group node failed: usage or credit limit is used up）", head)
-        self.assertIn("別のアカウントで run を resume すれば", head)
-        self.assertIn("人に向けた報告: 無い（書き手のノードが落ちた（Loop-group node failed: usage or credit limit is used up））", got["report"])
+        [quota_row] = [x for x in head.splitlines() if H.parse(x) and H.parse(x).kind is H.Line.WRITER_FELL_QUOTA]   # 頭に使用枠の切れの表の行
+        command = H.parse(quota_row).slots.command
+        self.assertIn("別のアカウントで run を resume すれば", quota_row)
+        self.assertTrue(command.endswith(" run-test") and "resume" in command, command)
+        self.assertIn(f"resume の命令: {command}", quota_row, "resume の命令と意味が同じ行に在る")
+        self.assertNotIn(error, head, "誤りの文の全文は頭に置かない")
+        self.assertEqual([x for x in self.notes().splitlines() if error in x], [f"- 書き手の段が落ちた誤り: {error}"], "誤りの文は注意の節に 1 行")
+        self.assertIn(f"人に向けた報告: 無い（書き手のノードが落ちた（{error}））", got["report"])
         self.log(fell, {"type": "node_complete", "step": "report__write-loop", "ts": "t2", "execution": {}})
         self.prep()
-        self.assertNotIn("AI が書く報告の本文は無い", self.machine())
-        self.assertNotIn("AI が書く報告の本文は無い", self.finish() and self.machine())
+        for text in (self.machine(), self.finish() and self.machine()):
+            self.assertNotIn(quota_row, text, "resume で書き直した後は表の行が消える")
+            self.assertNotIn(error, text, "resume で書き直した後は注意の節の誤りの行も消える")
+            self.assertNotIn("書き手の段が落ちた誤り", self.notes(), "注意の節の誤りの行も消える（ほかの注意の行は残る）")
+
+    def notes(self) -> str:
+        return self.machine().split("## 注意（読めなかった物）\n\n", 1)[1]
 
     def test_fallen_finish_keeps_the_facts_report(self):
         self.facts()
@@ -273,7 +286,7 @@ if not cold and os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "SPENT":
     say({"type": "result", "subtype": "success", "is_error": True, "session_id": session, "result": words,
          "terminal_reason": "api_error", "num_turns": 1})
     sys.exit(1)
-answer = ({"verdict": "pass", "stops": [], "guessed": [], "machine_lines": [], "decidable": True} if cold else
+answer = ({"verdict": "pass", "stops": [], "guessed": [], "decidable": True} if cold else
           {"text": "依頼で止めた。\\n直した物は無い。\\n次の run に渡す物は無い。", "terms": [],
            "handoff": {"read": [], "kept": [], "set_aside": [], "open": []}})
 say({"type": "result", "subtype": "success", "is_error": False, "session_id": session, "num_turns": 1, "total_cost_usd": 0,
@@ -359,10 +372,17 @@ class WriterRunCase(unittest.TestCase):
         self.assertIn(("node_failed", "report__write-loop"), first)
         self.assertIn(("node_completed", "report__finish"), first, "出口は書き手が落ちても走る")
         self.assertNotIn("report-ai.md", fallen)
+        H = M.head
+        error_head = "Loop-group node 'report__write-loop' failed"
         head = M.writer.machine_head(fallen["report.md"])
-        self.assertIn("AI が書く報告の本文は無い。書き手のノードが落ちた（Loop-group node 'report__write-loop' failed", head)
-        self.assertIn(f"{run['id']}", head)
-        self.assertIn("resume", head)
+        [quota_row] = [x for x in head.splitlines() if H.parse(x) and H.parse(x).kind is H.Line.WRITER_FELL_QUOTA]   # 頭に使用枠の切れの表の行がちょうど 1 つ
+        command = H.parse(quota_row).slots.command
+        self.assertIn(f"{run['id']}", command)
+        self.assertIn("resume", command)
+        self.assertIn(f"resume の命令: {command}", quota_row, "resume の命令と意味が同じ行に在る")
+        self.assertNotIn(error_head, head, "誤りの文は頭に置かない")
+        notes = fallen["report.md"].split("## 注意（読めなかった物）\n\n", 1)[1]
+        self.assertEqual(len([x for x in notes.splitlines() if error_head in x]), 1, "誤りの文は注意の節に 1 行")
         self.assertEqual(again["status"], "completed", f"{resumed.stdout}{resumed.stderr}")
         later = both[len(first):]
         for ran in ("report__write-loop", "report__finish", "after"):
