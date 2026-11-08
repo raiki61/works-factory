@@ -232,6 +232,10 @@ FLIP_WHY = (f"{ASK_CASES[1]} 前に閉じた穴と両方は守れず、どちら
             "（往復で詰めずに聞く。決め flip-asks）")   # その行の人に聞く訳（いつも人に聞く。無人の run は推しを採る）
 GIVEN_UP_KIND = "given_up"            # 関所の項目の kinds（事前審査の受け付けが諦めた・返す節が落ちた。案を審査できていない）
 SPEC_CHANGED_KIND = "spec_changed"    # 関所の項目の kinds（修正の後に承認済みの受け入れ条件のテストが変わった。承認し直すかを人に諮る）
+UNREAD_KIND = "unread"                # 関所の項目の kinds（指す先のファイルが無いか読めない控え。読めないまま進めず、聞く側に倒す。line の gates が組む）
+AXIS_KIND = "plan_review"             # 関所の項目の kinds（事前審査の軸が通らない。line の gates が組む）
+POINTED_KIND = "pointed_elsewhere"    # 関所の項目の kinds（名指された文書が読む版に無く、ほかの版〔まだ取り込まれていない枝など〕にだけ在る。line の gates が組む）
+POINTED_MISSING_KIND = "pointed_missing"   # 関所の項目の kinds（名指された文書がどの版にも無い〔作るファイルの名や例のパスでもありうる〕。line の gates が組む）
 UNMEASURED = materialkit.UNMEASURED   # 素材の状態のうち今の周に測れていない物（integration.md 4.2-5）
 ASKING = ("held", "escalate")         # 問いの台帳で人に聞く状態（元の写しの検証器 review-record.py:343 の ASKING）
 _NO_FIX = "修正に進まない（continue で修正へ進む・stop で報告へ。判定・修正案・事前審査・独立設計は報告の見る所に並ぶ）"
@@ -286,9 +290,8 @@ KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", pol
               FLIP_KIND: "前に閉じた穴の裏返し（どちらを優先するか）",
               "spec_approval": "仕様（要件と受け入れ条件）の承認", SPEC_CHANGED_KIND: "承認の後に受け入れ条件のテストが変わった",
               GIVEN_UP_KIND: "事前審査が案を審査できなかった",
-              # line の gates.py が組む種類（UNREAD_KIND・AXIS_KIND・POINTED_KIND・POINTED_MISSING_KIND。gates は gatemarks を引くので字で持つ）
-              "unread": "指す先のファイルが無いか読めない控え", "plan_review": "事前審査の軸が通らない",
-              "pointed_elsewhere": "名指された文書が、読む版でなくほかの版にだけ在る", "pointed_missing": "名指された文書がどの版にも無い"}
+              UNREAD_KIND: "指す先のファイルが無いか読めない控え", AXIS_KIND: "事前審査の軸が通らない",
+              POINTED_KIND: "名指された文書が、読む版でなくほかの版にだけ在る", POINTED_MISSING_KIND: "名指された文書がどの版にも無い"}
 SPEC_CHANGED_LABEL = f"{KIND_WORDS[SPEC_CHANGED_KIND]}（{SPEC_CHANGED_KIND}）"   # 承認し直すかの問いの文と下書きの source の頭
 SPEC_CHANGED_HEAD = f"承認し直すかの問い（{KIND_WORDS[SPEC_CHANGED_KIND]}）"   # 最後の承認ノードと報告の人が決めることの節の頭
 SPEC_UNCHECKED = "承認済みの受け入れ条件のテストが変わったかを照らせなかった"   # 照らせなかった時の承認ノードの 1 行目の句と下書きの source の頭

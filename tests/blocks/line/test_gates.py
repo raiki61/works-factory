@@ -292,7 +292,7 @@ class PointedAskCase(unittest.TestCase):
     def test_a_document_only_on_another_branch_opens_the_gate(self):
         out = self.ask(rounds(pointed=[self.CANON]), pointed=[self.RULE])
         self.assertEqual((out["open"], out["go"]), (True, True))
-        self.assertEqual([k for k, _ in out["items"]], [self.g.POINTED_KIND, self.g.POINTED_KIND])
+        self.assertEqual([k for k, _ in out["items"]], [self.gm.POINTED_KIND, self.gm.POINTED_KIND])
         canon, rule = out["asked"]
         self.assertIn("docs/canon.md", canon)
         self.assertIn(f"{self.g.POINTED_BY_ANSWER}が名指す docs/canon.md", canon)
@@ -307,7 +307,7 @@ class PointedAskCase(unittest.TestCase):
     def test_a_document_in_no_version_is_listed_with_the_push_to_go_on(self):
         out = self.ask(rounds(pointed=[self.GONE], asks=[ask_row()]))
         self.assertTrue(out["open"])
-        self.assertEqual(out["items"][-1][0], self.g.POINTED_MISSING_KIND)
+        self.assertEqual(out["items"][-1][0], self.gm.POINTED_MISSING_KIND)
         rec = self.gm.push_rec(out["asked"][-1])
         self.assertEqual((rec["answer"], rec["note"]), ("continue", "気にせず進む"))
         self.assertIn("tests/new_case.py", rec["item"])
@@ -420,7 +420,7 @@ class LedgerAsksCase(unittest.TestCase):
         self.assertFalse(stopped["go"])
         self.assertEqual(stopped["deferred"][2:], [{"text": NARROW, "title": self.gm.KIND_WORDS["regression"]}], "止めた機械の項目の題は種類の言い方")
         self.assertEqual(stopped["deferred"][:2], out["deferred"])
-        for kind in ("unread", "plan_review", "pointed_elsewhere", "pointed_missing"):
+        for kind in (self.gm.UNREAD_KIND, self.gm.AXIS_KIND, self.gm.POINTED_KIND, self.gm.POINTED_MISSING_KIND):
             self.assertIn(kind, self.gm.KIND_WORDS, "gates が組む種類は題の出どころ KIND_WORDS に在る")
 
     def test_a_push_the_copied_plan_counted_is_named(self):

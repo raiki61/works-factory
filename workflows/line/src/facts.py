@@ -714,10 +714,11 @@ def head_notice(kind: str, text: str = "", **slots) -> dict:
 
 
 def first_word(cmd) -> str:
-    """試験のコマンドの最初の語（前置きの NAME=値 は読まない。値に秘密が混じりうる）。語が無ければ NO_CMD"""
-    import re
-    words = [w for w in str(cmd or "").split() if not re.match(r"[A-Za-z_][A-Za-z0-9_]*=", w)]
-    return words[0] if words else NO_CMD
+    """試験のコマンドの最初の語（読みは lib の住処 tree_run.first_word。前置きの NAME=値 は出さない。値に秘密が混じりうる）。
+    字面から引けなければ NO_CMD"""
+    import tree_run
+    got = tree_run.first_word(str(cmd or ""))
+    return got[0] if got else NO_CMD
 
 
 def ran_notes(returns: dict) -> list:
@@ -746,11 +747,6 @@ def spoken_stops(values: dict, returns: dict, record: dict | None = None) -> lis
     if base.get("ok") is False and base.get("reason"):
         out.append(head_notice("base_gate_stopped", base["reason"], cmd=first_word(as_dict(record).get("test_cmd"))))
     return out
-
-
-def stop_reason_notes(values: dict, returns: dict, record: dict | None = None) -> list:
-    """止めた段の訳の知らせ（種つき）。node の id と止めの語の字は出さない（頭の外の節の行に残る）"""
-    return spoken_stops(values, returns, record)
 
 
 def suite_broken_notes(values: dict) -> list:
@@ -1020,8 +1016,9 @@ def _rows(items, *, push: bool = False, titles=None, slots=None) -> list:
     return [AskRow(oneline.one_line(_item_said(x)), (titles[i] if titles else None), push, slots(x) if slots else {}) for i, x in enumerate(items)]
 
 
-def ask_groups(values: dict, returns: dict, gates: dict, *, unattended: bool, closed: bool) -> dict:
-    """人が決める物の種ごとの行 {種: [AskRow]}（空の種も鍵に持つ。種を表 ASK_SOURCES の順に並べるのは decisions）。仕様を確かめる役の問いの
+def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, unreturned: list, closed: bool) -> dict:
+    """人が決める物の種ごとの行 {種: [AskRow]}（空の種も鍵に持つ。種を表 ASK_SOURCES の順に並べるのは decisions）。book（問いの台帳の見え方 ledger）・
+    hits（守ると決めたファイルに当たった差分）・unreturned（直しの対象に戻せなかった単位）は decisions が 1 度だけ求めた物を受ける。仕様を確かめる役の問いの
     種の見出しは入力で 2 つの一方になる（gatemarks.spec_words）。題はここで集める行ごとの出どころから付ける: 判定の役の問い（保留にしたままの問い）は
     台帳の問いの title、載せなかった修正前の問いと独立の目の問いは行の title、修正の役の申し送りは fix の出力の handoff_titles（ここで 1 度だけ
     行にする）。どれも plainask.item_title が 1 行に畳む。保留の行の後ろの unreturned_lines の行は問いを持たないので題なし"""
@@ -1032,16 +1029,14 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, unattended: bool, cl
     spec = as_dict(values.get("spec_check"))
     spec_qs = [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]
     spec_head = SPEC_HEADS[bool(spec_qs) and spec.get("unchecked") is not False]
-    b = ledger(returns, gates, unattended)
-    held_qs = gatemarks.held_questions(b)
-    lines_ = gatemarks.held_lines(b)
+    held_qs = gatemarks.held_questions(book)
+    lines_ = gatemarks.held_lines(book)
     held = [*zip(held_qs, lines_), *((None, line) for line in lines_[len(held_qs):])]
     held = [(q, line) for q, line in held if q is None or not any(x.startswith(gatemarks._prefix(q)) for x in plan_raw)]
     fix = as_dict(returns.get("fix"))
     handoffs = [x for x in _list(fix.get("handoffs")) if isinstance(x, str)]
     handoff_titles = as_dict(fix.get("handoff_titles"))
     premise = as_dict(as_dict(returns.get("eyes")).get("premise_check"))
-    hits = [str(h) for h in _list(as_dict(returns.get("sealed-diff")).get("protected_hits"))]
     eyes_ = eye_questions(returns)
     means = means_questions(returns, gates)
 
@@ -1059,8 +1054,7 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, unattended: bool, cl
         CONFLICT_ASK_HEAD: _rows(asked_conflicts(returns, closed)),
         fixboard.HANDOFF_HEAD: _rows(handoffs, titles=[plainask.item_title({"title": handoff_titles.get(x)}) for x in handoffs]),
         PROTECTED_HITS_HEAD: _rows(hits[:5]),
-        UNRETURNED_KIND: _rows([u for u in _list(fix.get("units")) if isinstance(u, dict) and u.get("status") == fixboard.NOT_DONE],
-                               slots=lambda u: {"unit_id": u.get("unit_id")}),
+        UNRETURNED_KIND: _rows(unreturned, slots=lambda u: {"unit_id": u.get("unit_id")}),
         UNCOMPARED_HEAD: _rows(uncompared_rows(returns)),
         ESCALATED_KIND: _rows([premise] if premise.get("verdict") == "escalate" else []),
     }
@@ -1085,7 +1079,7 @@ def decisions(values: dict, returns: dict, gates: dict, *, unattended: bool, lef
     hits = [str(h) for h in _list(seal.get("protected_hits"))]
     hit_count = seal.get("protected_count") if isinstance(seal.get("protected_count"), int) else len(hits)
     tallied = {PROTECTED_HITS_HEAD: hit_count} if hit_count else {}
-    groups = ask_groups(values, returns, gates, unattended=unattended, closed=closed)
+    groups = ask_groups(values, returns, gates, book=b, hits=hits, unreturned=unreturned, closed=closed)
     before = [*pushed_lines(gates, taken), *unrestored_lines(returns), *backed_out_lines(returns)]
     asks, emitted = [], set()
     for kind in ASK_SOURCES:   # 種の順と題の出どころは表の 1 か所。表に無い種は並べられない
@@ -1341,7 +1335,7 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     notes += [f"修正の控え: {x}" for x in got["unread"]]
     before = [x for x in (part("修正の段の分け", lambda: split_line(returns), "", outcome=False),
                           part("推しの句", lambda: pushed_said(gates, taken), "", outcome=False)) if x]
-    after = [*part("止めた段の訳の句", lambda: stop_reason_notes(values, returns, record), [], outcome=False),
+    after = [*part("止めた段の訳の句", lambda: spoken_stops(values, returns, record), [], outcome=False),
              *part("起動スクリプトの壊れの句", lambda: suite_broken_notes(values), [], outcome=False),
              *part("最後のテストの句", lambda: ran_notes(returns), [], outcome=False),
              *part("TDD の実行器の句", lambda: _suite_note(record), [], outcome=False),

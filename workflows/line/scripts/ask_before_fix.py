@@ -61,7 +61,7 @@ def compute() -> dict:
     text = ""
     if got["open"]:
         asking = {"node": gatemarks.GATE_NODE, "question": QUESTION, "items": [t for _, t in got["items"]],
-                   "kinds": list(dict.fromkeys(k for k, _ in got["items"] if k)) or [gates.AXIS_KIND]}
+                   "kinds": list(dict.fromkeys(k for k, _ in got["items"] if k)) or [gatemarks.AXIS_KIND]}
         text = gatemarks.gate_text(asking, run_id=os.environ["WORKFLOW_ID"], node=gatemarks.GATE_NODE, record_name=RECORD)
     return {"open": got["open"], "go": got["go"], "stop_reason": got["stop_reason"], "reason": "", "text": text, "deferred": got["deferred"],
             "asked": got["asked"], "pushed": got["pushed"], "passes": got["passes"], "policy_changed": got["policy_changed"],

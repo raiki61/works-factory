@@ -114,12 +114,9 @@ def write_prompt(place, *, run_id: str) -> dict:
 
 def cold_prompt(place, raw) -> dict:
     """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物を、機械が組んだ行と書き手の頭に分け、空でない行ごとに
-    writer.marked_lines の印を付けて『<印> | <行>』と貼る）。返す字の言語は facts の lang（書き手と同じ。空は貼った本文の言語）。返り {prompt}"""
+    writer.marked_parts の印を付けて『<印> | <行>』と貼る）。返す字の言語は facts の lang（書き手と同じ。空は貼った本文の言語）。返り {prompt}"""
     place = pathlib.Path(place)
-    marks = writer.cold_marks(raw, place)
-    pairs = writer.marked_lines(raw, place)
-    machine = "\n".join(f"{m} | {line}" for m, line in pairs if m in marks)
-    body = "\n".join(f"{m} | {line}" for m, line in pairs if m not in marks)
+    machine, body = ("\n".join(f"{m} | {line}" for m, line in pairs) for pairs in writer.marked_parts(raw, place))
     lang = ports.text(_facts_doc(place).get("lang")).strip()
     values = {"machine": machine, "body": body, "machine_heading": files.bare(writer.MACHINE_HEADING), "lang": lang}
     out = prompt.emit(files.COLD_NODE, values, {"lang_given": bool(lang)}, prompt.round_of(files.COLD_NODE))

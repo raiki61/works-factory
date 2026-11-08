@@ -29,7 +29,7 @@ def src() -> types.SimpleNamespace:
 
 READY = {"start_ok": True, "proved": True}
 GOOD_COLD = {"verdict": "pass", "stops": [], "guessed": [], "decidable": True}
-# 指摘の line は貼った行の印（W1 は書き手の頭の 1 行目）。印の付け方は writer.marked_lines が決める
+# 指摘の line は貼った行の印（W1 は書き手の頭の 1 行目）。印の付け方は writer.marked_parts が決める
 BAD_COLD = {"verdict": "redesign-needed", "stops": [{"line": "W1", "text": "何の話か分からない"}],
             "guessed": [{"line": "W1", "text": "PR だと推測した"}], "decidable": False}
 NOTE = {"read": [], "kept": [], "set_aside": [], "open": []}

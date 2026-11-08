@@ -5,7 +5,7 @@ R4_REJECT の尾（直し方の段落）は元と違い prompts/parts/rejection-
 """
 import answer      # lib/
 import gatemarks   # lib/
-import plainask    # lib/。人に聞く項目の要素の読み口（字でも {text, title} の行でも読む）
+import plainask    # lib/。人に聞く項目の要素の読み口（字でも {text, title} の行でも読む）と行を組む口 item_row
 import policy      # lib/
 
 # 元 .shared/core/graphloops/rules/review-loop.py:4103 の R4_ROWS（種類・R4 の返りの欄・行の頭）
@@ -63,7 +63,7 @@ def passed_key(kind: str, x: str) -> tuple:
 def r4_gate_items(r4, passed: dict) -> list:
     """元 r4_gate_items。R4 の消えた能力と方針とのぶつかりの行から、人が通した行と種類も頭を除いた本文も同じ物を外す（種類が違えば
     聞き直す）。外した行は gate_passes が控える。返りは問いの行 {text, title?}（text は行の頭つきの本文、title は役が書いた題。題が無い行は欄を持たない）"""
-    return [{"text": head + x, **({"title": title} if title else {})} for kind, head, x, title in rows(r4) if passed_key(kind, x) not in passed]
+    return [plainask.item_row(head + x, title) for kind, head, x, title in rows(r4) if passed_key(kind, x) not in passed]
 
 
 def passed_by(before_fix) -> str:

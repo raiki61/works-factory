@@ -14,6 +14,7 @@
 - item_text(x) -> str・item_title(x) -> str | None: 人に聞く項目の要素の読み口。要素は字（本文だけ）でも {text, title} の行でもよい（前の記録は字）。
   題は役が本文と一緒に書く飾りの欄なので、item_title は改行を 1 行に畳み（lib/oneline.py の one_line。字数では切らない）、空白だけ・欄が無い・
   字の要素は None（題なし。報告の頭は種の名に戻す）を返す。題で役を拒む照らしは持たない（改行だけで役を出し直しにして run が止まる道を作らない）
+- item_row(text, title) -> dict: 人に聞く項目の行 {text, title?} を組む口（題が無ければ title の欄を持たない。行を組む式はここ 1 か所）
 - 記録のファイルの名・単位の key・行や答えの id は、対象のリポジトリのファイルの名や役の文と字で見分けられないので照らさない（人が見る）
 - 断片 plain-ask の欄の印（required-for-fields）に handled.how を入れない: 同じ置き場を持つ差分の審査の手直しの役（delta-review の
   refix-1・refix-2）は how に走らせた試験やパスの証拠を書く決まりで、参照を書かない決まりと食い違う（仕様の直す役は requirements.text で印に入る）
@@ -65,3 +66,8 @@ def item_title(x) -> str | None:
     """人に聞く項目の要素の題（{text, title} の行の title を 1 行に畳んだ字。字の要素・欄が無い・字でない・空白だけは None）"""
     title = x.get("title") if isinstance(x, dict) else None
     return (oneline.one_line(title) or None) if isinstance(title, str) else None
+
+
+def item_row(text: str, title: str | None) -> dict:
+    """人に聞く項目の行 {text, title?}（題が空か None なら title の欄を持たない）"""
+    return {"text": text, **({"title": title} if title else {})}

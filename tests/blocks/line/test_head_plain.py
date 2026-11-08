@@ -159,7 +159,7 @@ class AskTitleCase(unittest.TestCase):
         for name in ("ASK_SOURCES", "ask_groups", "ROW_TITLE", "KIND_NAME"):
             self.assertTrue(hasattr(self.f, name), f"出どころの表の部品 {name} が無い")
         with self.run.env():
-            collected = set(self.f.ask_groups({}, {}, {}, unattended=False, closed=False))
+            collected = set(self.f.ask_groups({}, {}, {}, book=self.f.ledger({}, {}, False), hits=[], unreturned=[], closed=False))
         spec = {self.gm.spec_words(True).head, self.gm.spec_words(False).head}
         self.assertEqual(set(self.f.ASK_SOURCES), (collected - spec) | spec)
         for head in spec:

@@ -50,9 +50,5 @@ def questions(reply, means, design_text: str, diff_text: str) -> list:
     rows = reply.get(FIELD) if isinstance(reply, dict) else None
     said = worldmark.means_hints(means)
     lines = changed_lines(diff_text)
-    out = []
-    for row in rows or []:
-        if isinstance(row, dict):
-            title = plainask.item_title(row)
-            out.append({"text": report.means_conflict_text(row, said, gaps(row, said, design_text, lines)), **({"title": title} if title else {})})
-    return out
+    return [plainask.item_row(report.means_conflict_text(row, said, gaps(row, said, design_text, lines)), plainask.item_title(row))
+            for row in rows or [] if isinstance(row, dict)]

@@ -4,7 +4,7 @@
 - pack_terms()・plain_words(text)・swapped_line(counts)・glossary_section(text, terms): 語の表（glossary.json）による言い換えと語の定義
 - accept(reply, cold, *, place) -> {done, ok, reason, kind, prev_file}: 書き手の返答と初見の読み手の判定の受け付け
 - cold_parts(raw, *, place)・cold_body(raw, *, place): 初見の読み手に貼る本文（機械が組んだ行と書き手の頭に分けた物と、つないだ物）
-- marked_lines(raw, place)・cold_marks(raw, place): その本文の空でない行ごとの (印, 行)（機械の行は M<n>、書き手の行は W<n>）と、機械の行の印の集合
+- marked_parts(raw, place)・cold_marks(raw, place): その本文の空でない行ごとの (印, 行) を (機械の行, 書き手の行) に分けた物（機械の行は M<n>、書き手の行は W<n>）と、機械の行の印の集合
 - handoff_rounds(place): 前の周の引き継ぎのメモのパスの行
 - collect(machine_text, *, place, stamp): 人に向けた報告と詳細のファイル
 - stamp(run_id, workflow_file, rnd, line_rev, start_ok): 来歴の 1 行
@@ -61,7 +61,7 @@ TEXT_SCHEMA = {"type": "object", "required": ["text", handoff.FIELD], "additiona
                               handoff.FIELD: handoff.SCHEMA}}
 # 初見の読み手の返答の型。型の正本は YAML の cold の output_format で、これと同じかを試験が縛る
 # stops・guessed の要素は {line: 貼った行の印, text: 一文}。その指摘が機械が組んだ頭の行の物か本文の物かは、読み手の自己申告でなく、
-# 機械が行に付けた印（marked_lines）で決める
+# 機械が行に付けた印（marked_parts）で決める
 FINDING_SCHEMA = {"type": "object", "required": ["line", "text"], "additionalProperties": False,
                   "properties": {"line": {"type": "string"}, "text": {"type": "string"}}}
 COLD_SCHEMA = {"type": "object", "required": ["verdict", "stops", "guessed", "decidable"], "additionalProperties": False,
@@ -315,23 +315,17 @@ def cold_body(raw, *, place) -> str:
     return "\n\n".join(x for x in cold_parts(raw, place=place) if x) + "\n"
 
 
-def _marked_parts(raw, place) -> tuple[list, list]:
-    """(機械が組んだ頭の行, 書き手の頭の行) それぞれの (印, 行) の並び。印の書式を知るのはここだけ"""
+def marked_parts(raw, place) -> tuple[list, list]:
+    """初見の読み手に貼る本文の空でない行ごとの (印, 行) を (機械が組んだ頭の行, 書き手の頭の行) に分けた並び。機械が組んだ頭の行は
+    M1・M2…（その部分の何行目か）、書き手の頭の行は W1・W2…。印の書式を知るのはここだけで、印は描く時に付ける（cold_parts・cold_body の字は変わらない）"""
     machine, writer = cold_parts(raw, place=place)
     return tuple([(f"{head}{i}", line) for i, line in enumerate(part.splitlines(), 1) if line.strip()]
                  for head, part in (("M", machine), ("W", writer)))
 
 
-def marked_lines(raw, place) -> list[tuple[str, str]]:
-    """初見の読み手に貼る本文の空でない行ごとの (印, 行)。機械が組んだ頭の行は M1・M2…（その部分の何行目か）、書き手の頭の行は W1・W2…。
-    印は描く時に付ける（cold_parts・cold_body の字は変わらない）"""
-    machine, writer = _marked_parts(raw, place)
-    return machine + writer
-
-
 def cold_marks(raw, place) -> frozenset:
     """貼った行のうち、機械が組んだ頭の行の印の集合。指摘がこの集合の印を指せば頭への指摘"""
-    return frozenset(mark for mark, _ in _marked_parts(raw, place)[0])
+    return frozenset(mark for mark, _ in marked_parts(raw, place)[0])
 
 
 # ---------------------------------------------------------------- 受け付け

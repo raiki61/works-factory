@@ -185,21 +185,23 @@ class ColdBodyCase(Base):
         self.assertNotIn("起きたこと", writer)
         self.assertEqual(W.cold_body(reply, place=self.out), f"{machine}\n\n{writer}\n")
 
-    def test_marked_lines_tag_machine_and_writer_lines(self):
-        """貼る本文の空でない行ごとに、機械が組んだ頭の行は M<n>、書き手の頭の行は W<n>（その部分の何行目か）の印が付き、印を除いた行の並びは
-        cold_body の空でない行と同じ。cold_marks は M の印の集合。書き手の返答を読めなければ M の印は無い"""
-        self.assertTrue(hasattr(W, "marked_lines") and hasattr(W, "cold_marks"), "印つきの行の並び marked_lines と印の集合 cold_marks が無い")
+    def test_marked_parts_tag_machine_and_writer_lines(self):
+        """貼る本文の空でない行ごとに、機械が組んだ頭の行は M<n>、書き手の頭の行は W<n>（その部分の何行目か）の印が付き、2 つをつないで印を除いた
+        行の並びは cold_body の空でない行と同じ。cold_marks は M の印の集合。書き手の返答を読めなければ M の印は無い"""
+        self.assertTrue(hasattr(W, "marked_parts") and hasattr(W, "cold_marks"), "印つきの行の並び marked_parts と印の集合 cold_marks が無い")
         self.out.mkdir(parents=True)
         (self.out / "report.md").write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
         reply = json.dumps({"text": "要約。\n\n## 1. 人が決めること\n\n- A"}, ensure_ascii=False)
-        marked = W.marked_lines(reply, place=self.out)
+        machine, writer = W.marked_parts(reply, place=self.out)
+        marked = machine + writer
+        self.assertEqual([m for m, _ in machine], ["M1", "M3"])
         self.assertEqual([m for m, _ in marked], ["M1", "M3", "W1", "W3", "W5"])
         self.assertEqual([line for _, line in marked], [x for x in W.cold_body(reply, place=self.out).splitlines() if x.strip()])
         self.assertEqual(dict(marked)["M3"], "起きたこと: 赤")
         self.assertEqual(dict(marked)["W1"], "要約。")
         self.assertEqual(W.cold_marks(reply, place=self.out), {"M1", "M3"})
-        broken = W.marked_lines("壊れた", place=self.out)
-        self.assertEqual([m for m, _ in broken], ["W1"])
+        broken = W.marked_parts("壊れた", place=self.out)
+        self.assertEqual([[m for m, _ in part] for part in broken], [[], ["W1"]])
         self.assertEqual(W.cold_marks("壊れた", place=self.out), frozenset())
 
     def test_handoff_never_reaches_the_cold_reader(self):

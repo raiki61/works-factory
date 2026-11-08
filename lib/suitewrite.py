@@ -39,8 +39,8 @@
 - fence(text): text を囲むバッククォートの柵（3 つ以上で、text の中の最長の並びより 1 つ長い。書き手の指示に test_cmd や本文を貼る口）
 - put_runner(path, body): 書き直した実行器の本文を path に実行の印つきで置き換える（一時のファイルから入れ替えるので、走っている
   ほかの組の子は前の本文か新しい本文のどちらかを読む）。本文の頭が #! でなければ置かずに ValueError（place と同じ照らし）
-- head_note(start): 報告の節「2. 止めたか」の知らせの本文（頭は状態ごとの種の文）。取り置きを使った・書いた・作れなかったのどれか（欄の無い run は空の字）。
-  note_state と note_detail を組んだ 1 行で、test-gate の suite_note も同じ字を使う
+- head_note(start): 実行器の用意の 1 行（状態の語と括弧の中身。作れなかった時は NO_LOOP を続ける）。取り置きを使った・書いた・作れなかったのどれか
+  （欄の無い run は空の字）。test-gate の返り suite_note の字。報告はこの 1 行を使わず、頭は note_state で種を選び、節「2. 止めたか」の本文は note_detail を引く
 - note_state(start): 状態の語。USED・WROTE・NOT_MADE のどれか（欄の無い run は空の字）。報告の頭が状態ごとの種を選ぶ
 - note_detail(start): 状態の括弧の中身だけ（照らしの有無・作れなかった訳・捨てた取り置きなど。無ければ空の字）
 - NO_LOOP: 作れなかった時に続ける句（TDD のループは回さない・実行器を渡せば回す）

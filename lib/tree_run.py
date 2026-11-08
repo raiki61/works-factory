@@ -178,9 +178,9 @@ def command_argv(cmd: str) -> tuple[list, str]:
     return words, "direct"
 
 
-def _first_word(cmd: str):
+def first_word(cmd: str):
     """シェルのコマンド cmd の先頭の語と、その前の代入の前置き {名: 値}。字面から引けない（割れない・展開を含む・語でなく記号か
-    向け直しで始まる）なら None"""
+    向け直しで始まる）なら None。試験のコマンドの最初の語の住処（prove_launchable と、報告の頭に語を出す line が引く）"""
     lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
     lex.whitespace_split = True
     try:
@@ -209,7 +209,7 @@ def prove_launchable(argv, cwd=None, env=None, halted=lambda: False):
     限界: 見るのは先頭の語だけ（パイプの後ろ・&& の後ろ・sh に渡したスクリプトの有無は見ない）。展開を含む語は引かずに起こす"""
     if list(argv[:2]) != ["bash", "-c"] or len(argv) < 3:
         return
-    got = _first_word(argv[2])
+    got = first_word(argv[2])
     if got is None:
         return
     word, assigns = got
