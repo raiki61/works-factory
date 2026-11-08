@@ -23,6 +23,8 @@ R3_REPLY = {"type": "object", "required": ["status", "reason", "seen", "unseen"]
             "properties": {"status": {"type": "string", "enum": ["pass", "redesign-needed", "unverifiable"]},
                            "reason": {"type": "string", "minLength": 1}, "seen": {"type": "array", "items": {"type": "string"}},
                            "unseen": {"type": "array", "items": {"type": "string"}}}}
+# lost と policy_conflicts の要素は {text, title} の行（本文 text は要る。題 title は飾りの欄で、役が本文と一緒に書く）
+ROW = {"type": "object", "required": ["text"], "additionalProperties": False, "properties": {"text": {"type": "string"}, "title": {"type": "string"}}}
 R4_REPLY = {
     "type": "object", "additionalProperties": False,
     "required": ["status", "reason", "capability_inventory", "policy_conflicts", "surfaced", "seen", "unseen"],
@@ -30,9 +32,9 @@ R4_REPLY = {
         "status": {"type": "string", "enum": ["pass", "redesign-needed", "unverifiable"]},
         "reason": {"type": "string", "minLength": 1},
         "capability_inventory": {"type": "object", "required": ["fired"], "additionalProperties": False,
-                                 "properties": {"fired": {"type": "boolean"}, "lost": {"type": "array", "items": {"type": "string"}},
+                                 "properties": {"fired": {"type": "boolean"}, "lost": {"type": "array", "items": ROW},
                                                 "note": {"type": "string"}}},
-        "policy_conflicts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "policy_conflicts": {"type": "array", "items": {**ROW, "properties": {**ROW["properties"], "text": {"type": "string", "minLength": 1}}}},
         "surfaced": {"type": "array", "items": {
             "type": "object", "required": ["where", "text"], "additionalProperties": False,
             "properties": {"where": {"type": "string"}, "text": {"type": "string"}, "mechanism": {"type": "string"},

@@ -23,6 +23,11 @@ RAN_R4 = "まま R4 を回した"
 WAITED_BY_R4 = ("r1", "r2")   # R4 が待つ目（E8）。この目が落ちても R4 は回るので、落ちた訳に尾を足す
 
 
+def _question(q):
+    """目の問いの要素。{text, title} の行は同じ行のまま、ほかは字にして運ぶ（題は line の facts が読み口 plainask で読む。ここは運ぶだけ）"""
+    return q if isinstance(q, dict) else str(q)
+
+
 def _got(received: dict, name: str) -> dict | None:
     got = received.get(name)
     return got if isinstance(got, dict) else None
@@ -91,8 +96,8 @@ def build(received: dict, *, run: bool, merge: bool, skip_why: str) -> dict:
             sections.append({"title": title, "lines": [str(x) for x in got["report"]]})
     sections.append({"title": OWN_TITLE, "lines": own})
     return {"ok": ok, **got_rows,
-            "questions": [str(q) for q in (r4 or {}).get("questions") or []] if run else [],
-            "means_questions": [str(q) for q in (r2 or {}).get("questions") or []] if run else [],
+            "questions": [_question(q) for q in (r4 or {}).get("questions") or []] if run else [],
+            "means_questions": [_question(q) for q in (r2 or {}).get("questions") or []] if run else [],
             "passes": list((r4 or {}).get("passes") or []) if run else [],
             "premise_check": premise, "notes": [str(n) for n in (r2 or {}).get("notes") or []] if run else [],
             "after": (after or {}).get("after"), "dirty": int((after or {}).get("dirty") or 0),

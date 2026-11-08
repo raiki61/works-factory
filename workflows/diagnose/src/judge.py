@@ -44,12 +44,12 @@ QUESTION_KINDS = {
     "awaiting": Kind("material", ()),
     "field": Kind("none", ()),
 }
-QUESTION_FIELDS = ("key", "kind", "status", "reason", "resolution", "options", "depends", "origin")
+QUESTION_FIELDS = ("key", "kind", "status", "reason", "resolution", "options", "depends", "origin", "title")   # 台帳の問いの欄（title は人が決める物の題。YAML の properties と同じ順）
 QUESTION_STATUS = {"held": (), "decided": ("resolution",), "resolved": ("resolution",), "escalate": ()}
 NO_OPEN_ORIGIN = ("split", "rule")
 EMPTY = ("なし", "無し", "ない", "無い", "特になし", "n/a", "none", "-", "未確認", "不明",
          "todo", "未実施", "未測定", "後で")   # 「書いていない」と同じ扱いにする語
-ONE_LINE_FIELDS = ("key", "reason")
+ONE_LINE_FIELDS = ("key", "reason", "title")   # 受け付けは照らしの前に改行を畳むだけで、題で拒まない
 # 判定の後に機械が台帳へ立てる問いの key（依頼の答えの結びを求めない字）
 ASK_KEYS = {
     "R1": "累積差分の最小性を独立に測れない（R1 unverifiable）——測る材料を人が示すか、未収束のまま報告するか",

@@ -87,9 +87,9 @@ nodes:
                 additionalProperties: false
                 properties:
                   fired: {type: boolean}
-                  lost: {type: array, items: {type: string}}
+                  lost: {type: array, items: {type: object, required: [text], additionalProperties: false, properties: {text: {type: string}, title: {type: string}}}}
                   note: {type: string}
-              policy_conflicts: {type: array, items: {type: string, minLength: 1}}
+              policy_conflicts: {type: array, items: {type: object, required: [text], additionalProperties: false, properties: {text: {type: string, minLength: 1}, title: {type: string}}}}
               surfaced:
                 type: array
                 items:
@@ -184,7 +184,13 @@ nodes:
             reason: {type: string}
         questions:
           type: array
-          items: {type: string}
+          # 要素は {text, title} の行（題 title は飾りの欄で、無い行は欄を持たない）。前の記録の字も受ける
+          items:
+            type: [string, object]
+            required: [text]
+            properties:
+              text: {type: string}
+              title: {type: string}
         passes:
           type: array
           items:

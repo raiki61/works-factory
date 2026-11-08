@@ -985,7 +985,7 @@ class ReportTest(unittest.TestCase):
         got = self.handed({**HandedTest.PLACE, "protected_hits": ["x（+1 −1）"], "protected_count": 1})["report"]
         self.assertEqual(got, [])
         for line in self.handed(HandedTest.PLACE | {"deliver": "pr"}, HandedTest.COMMIT, None)["report"]:
-            self.assertNotIn("守りのパスに当たった差分", line)
+            self.assertNotIn("当たった差分", line, "守りの当たりの件数の行は report の側が組む。merge の行には種の名の字を置かない")
             self.assertNotIn("bin/apply", line)
 
 

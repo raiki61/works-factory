@@ -3,8 +3,8 @@
 - facts(place, *, sections, facts, lang, run_id, workflow_file, repo) -> 返り: port を読み、run の記録を読み、結末を決め、機械の報告・次の依頼・
   前の失敗を書く。読めない入力は落とさず、その訳を problems に足す（結末は record_invalid）
 - write_prompt(place, *, run_id) / cold_prompt(place, raw): 書き手の指示と初見の読み手の指示を md から組む
-- finish(place, *, run_id): 書き手のループが落ちた訳を機械の報告に置き、人に向けた報告と詳細のファイルを書き、出力を返す
-- unwritten(place, name, why): ライブラリに頼らず訳だけの 1 ファイルを書く
+- finish(place, *, run_id): 書き手のループが落ちたことを機械の報告（頭は表の行、誤りの文は注意の節）に置き、人に向けた報告と詳細のファイルを書き、出力を返す
+- unwritten(place, name, why): 訳だけの 1 ファイルを書く（機械の報告の組み立てには頼らない。題の行だけ頭の表 head.py から描く）
 """
 import json
 import pathlib
@@ -16,7 +16,7 @@ import carry      # lib/
 
 import ports
 import prompt
-from src import facts_in, files, machine, outcome as outcomelib, transcript, writer
+from src import facts_in, files, head, machine, outcome as outcomelib, transcript, writer
 
 
 def unwritten(place, name: str, why: str, run_id: str = "") -> pathlib.Path:
@@ -24,7 +24,8 @@ def unwritten(place, name: str, why: str, run_id: str = "") -> pathlib.Path:
     path = pathlib.Path(place) / name
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"# 報告（run {run_id or '—'}）\n\n報告を組めなかった: {why}\n", encoding="utf-8")
+        title = head.render(head.Line.RUN_TITLE, head.RunSlot(head.RunId(run_id or "—")))   # 題の字は頭の表の 1 か所
+        path.write_text(f"{title}\n\n報告を組めなかった: {why}\n", encoding="utf-8")
     except OSError:
         pass
     return path
@@ -112,10 +113,10 @@ def write_prompt(place, *, run_id: str) -> dict:
 
 
 def cold_prompt(place, raw) -> dict:
-    """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物を、機械が組んだ行と書き手の頭に分けて貼る）。返す字の言語は
-    facts の lang（書き手と同じ。空は貼った本文の言語）。返り {prompt}"""
+    """初見の読み手の指示を組んで place に書く（本文は人に向けた報告の頭と同じ物を、機械が組んだ行と書き手の頭に分け、空でない行ごとに
+    writer.marked_parts の印を付けて『<印> | <行>』と貼る）。返す字の言語は facts の lang（書き手と同じ。空は貼った本文の言語）。返り {prompt}"""
     place = pathlib.Path(place)
-    machine, body = writer.cold_parts(raw, place=place)
+    machine, body = ("\n".join(f"{m} | {line}" for m, line in pairs) for pairs in writer.marked_parts(raw, place))
     lang = ports.text(_facts_doc(place).get("lang")).strip()
     values = {"machine": machine, "body": body, "machine_heading": files.bare(writer.MACHINE_HEADING), "lang": lang}
     out = prompt.emit(files.COLD_NODE, values, {"lang_given": bool(lang)}, prompt.round_of(files.COLD_NODE))

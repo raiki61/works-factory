@@ -30,6 +30,12 @@ def dump(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def question_texts(case, questions):
+    """finish の questions の本文。要素が {text, title?} の行でなければ、例外でなく試験の中の検査で落とす"""
+    case.assertTrue(all(isinstance(q, dict) for q in questions), f"questions の要素が行でない: {questions}")
+    return [q["text"] for q in questions]
+
+
 class _RepoCase(unittest.TestCase):
     def setUp(self):
         self.run = kit.Run(self, "r4")
@@ -109,7 +115,7 @@ class FlowCase(_RepoCase):
         done = self.finish()
         self.assertEqual((done["ok"], done["status"], done["reason"]), (True, "ran", ""))
         self.assertEqual(done["verdict"], {"status": "pass", "reason": "なし"})
-        self.assertEqual(done["questions"], ["R4 が BASE から消えたと見た能力: 別の能力"])
+        self.assertEqual(done["questions"], [{"text": "R4 が BASE から消えたと見た能力: 別の能力"}], "字の行は題なし（title の欄を持たない）")
         self.assertEqual([(p["by"], p["item"], p["node"]) for p in done["passes"]],
                          [("human", f"R4 が BASE から消えたと見た能力: {LOST}", "r4.human_gate")])
         self.assertIsNone(done["coherence"])
@@ -330,7 +336,7 @@ class AcceptCase(_RepoCase):
         self.assertEqual((got["ok"], got["done"], got["give_up"]), (False, True, True))
         done = self.finish()
         self.assertEqual((done["ok"], done["status"]), (True, "ran"))
-        self.assertEqual(done["questions"], [f"R4 が見た人の方針とのぶつかり: {LINE}"])
+        self.assertEqual(question_texts(self, done["questions"]), [f"R4 が見た人の方針とのぶつかり: {LINE}"])
         self.assertIn("名指さない行も人に聞く", done["verdict"]["reason"])
         self.assertTrue(done["verdict"]["reason"].startswith("なし"))
 
@@ -339,7 +345,7 @@ class AcceptCase(_RepoCase):
         copy = self.named_policy()["copy"]
         line = f"{copy}:2 の『空の列は試験しない』に反する"
         self.assertEqual(self.accept({**PASS, "policy_conflicts": [line]})["ok"], True)
-        self.assertEqual(self.finish()["questions"], [f"R4 が見た人の方針とのぶつかり: {line}"])
+        self.assertEqual(question_texts(self, self.finish()["questions"]), [f"R4 が見た人の方針とのぶつかり: {line}"])
 
     def test_unreadable_reply_is_a_reject(self):
         self.intake()
@@ -405,14 +411,33 @@ class AcceptCase(_RepoCase):
         self.intake(answers=dump({"before_fix": {"decision": "continue"}}), asked=dump([{"kind": "regression", "text": NARROW}]))
         self.accept({**PASS, "capability_inventory": {"fired": True, "lost": [f"[policy] {LOST}"]}})
         done = self.finish()
-        self.assertEqual(done["questions"], [f"R4 が BASE から消えたと見た能力: [policy] {LOST}"])
+        self.assertEqual(question_texts(self, done["questions"]), [f"R4 が BASE から消えたと見た能力: [policy] {LOST}"])
         self.assertEqual(done["passes"], [])
 
     def test_a_different_kind_is_asked_again(self):
         """種類が違えば聞き直す（regression で通した本文を policy_conflicts に書いても外れない）"""
         self.intake(answers=dump({"before_fix": {"decision": "continue"}}), asked=dump([{"kind": "regression", "text": NARROW}]))
         self.accept({**PASS, "policy_conflicts": [LOST]})
-        self.assertEqual(self.finish()["questions"], [f"R4 が見た人の方針とのぶつかり: {LOST}"])
+        self.assertEqual(question_texts(self, self.finish()["questions"]), [f"R4 が見た人の方針とのぶつかり: {LOST}"])
+
+
+    def test_lost_row_title_rides_on_the_question(self):
+        """範囲の役の lost の行に title が在れば、finish の questions の行がその題（改行は畳む）を持ち、本文は種類の頭つきの今の文。
+        policy_conflicts の行も同じ。題の無い行・空白だけの題の行は title の欄を持たず、字の行は今のまま。通した行と照らす鍵は種類と本文で、題は含めない"""
+        doc = self.policy_doc()
+        line = f"{doc}:2 の『空の列は試験しない』に反する"   # 記録された方針の行を名指す（名指さない行は受け付けが拒む）
+        self.intake(policy=str(doc), answers=dump({"before_fix": {"decision": "continue"}}), asked=dump([{"kind": "regression", "text": NARROW}]))
+        reply = {**PASS, "capability_inventory": {"fired": True, "lost": [
+            {"text": LOST, "title": "古い入口を\n消してよいか"}, {"text": "別の能力", "title": "別の能力を\n落としてよいか"}, {"text": "三つ目の能力", "title": " \n "}, "字の能力"]},
+            "policy_conflicts": [{"text": line, "title": "試験しない方針に反してよいか"}]}
+        self.assertTrue(self.accept(reply)["ok"])
+        done = self.finish()
+        self.assertEqual(done["questions"], [
+            {"text": "R4 が BASE から消えたと見た能力: 別の能力", "title": "別の能力を 落としてよいか"},
+            {"text": "R4 が BASE から消えたと見た能力: 三つ目の能力"},
+            {"text": "R4 が BASE から消えたと見た能力: 字の能力"},
+            {"text": f"R4 が見た人の方針とのぶつかり: {line}", "title": "試験しない方針に反してよいか"}])
+        self.assertEqual([p["item"] for p in done["passes"]], [f"R4 が BASE から消えたと見た能力: {LOST}"], "行の形でも通した行と本文で照らす（題は鍵に入れない）")
 
 
 class CoherenceCase(_RepoCase):

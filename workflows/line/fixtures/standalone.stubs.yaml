@@ -378,7 +378,6 @@ cold:
   verdict: pass
   stops: []
   guessed: []
-  machine_lines: []
   decidable: true
 write-accept:
   done: true

@@ -19,7 +19,7 @@
 - 判定役（diagnose）: 依頼の行と素材を読み、根本の単位を切ってラベルと disposition を確定させる AI の役。読むだけで、道具は Read・Grep・Glob・WebSearch・WebFetch。
 - 再審の役（rejudge）: 修正役の異議を受けて、1 回目の判定を考え直す AI の役。道具は判定役と同じ。
 - 単位: 判定の返答の `units` の 1 行。開いた単位は、ラベルが `block` か、`suggest` で disposition が `do-now` の単位（今の `is_open`）。
-- 問いの台帳: 判定の返答の `questions`。人へ回す問いは `gatemarks.asks_human` が真の行（status が held か escalate の fork など）。
+- 問いの台帳: 判定の返答の `questions`。人へ回す問いは `gatemarks.asks_human` が真の行（status が held か escalate の fork など）。行の欄は `key`・`kind`・`status`・`reason`・`resolution`・`options`・`depends`・`origin`・`title`。`title` は人が決める物の短い題（1 行）で、報告の頭の人が決めることの行になる。題は飾りの欄で、受け付けは照らしの前に改行を 1 行に畳む（`ONE_LINE_FIELDS`）だけで、題で返答を拒まない。書く決まりは共通の断片 `plain-ask` の題の段と指示の台帳の欄の一覧に在り、書かなければ報告の頭は種の名に戻る。
 - 材料のファイル: 判定役に Read させる値の JSON `diagnose-input.json`（2.3 の 4）。今の `judge/diagnose-brief.md` の値の部分だけ。
 - 例の run（判定）: 本物の run `df5e111f-ea97-409b-8066-2245d32746ab`（world.md と同じ run。判定から入る run で、差分は空・依頼の行は 1 件。判定役は 1 回目で受け付けを通った。`rejects-diagnose.json` が無い）。置き場は `<run の置き場>/judge/`。
 - 例の run（再審）: 本物の run `82d22f4f-8090-45b3-abea-e2a9cdd8be2e`（対象は持ち主の非公開のリポジトリ。この文書には値の形だけを写す）。再審の役は 1 回目で通った（`rejudge-exit.json` の `passes` が 1・答え `一部採る`）。置き場は `<run の置き場>/rejudge/`。
@@ -74,7 +74,7 @@
 - `ready`: boolean。`status` が `ok` で、開いた単位が 1 つ以上か（今の `verdict` の `ready`）。
 - `judgment`: pointer（place の `judgment.json`）。いつも在る。受けた判定（再審）が無ければ空の形（5.6 の `EMPTY_JUDGMENT`）を書いて指す（今の `_fill`。読み手が null を扱わずに済む）。
 - `units`: 開いた単位の構造の目の入力の形 `[{id, paths, summary}]`（今の `structure_units`）。`status` が `ok` でなければ `[]`。
-- `questions`: 受けた判定の台帳のうち人へ回す問いの行（`gatemarks.asks_human` が真の行。台帳の行の形のまま）。無ければ `[]`。
+- `questions`: 受けた判定の台帳のうち人へ回す問いの行（`gatemarks.asks_human` が真の行。台帳の行の形のまま。`title` の欄も含む）。無ければ `[]`。
 - `inputs`: pointer（`diagnose-input.json`）か null。判定の道で材料を書けた時だけ。再審の道の `prior_inputs` に渡す。
 - `brief`: pointer（最後に組んだ判定役の指示 `diagnose-prompt-<n>.md`。`<n>` の最も大きい物）か null。判定の道で指示を組めた時だけ。再審の道の `prior_brief` に渡す（今の再審が Read させた「判定役の材料」`diagnose-brief.md` の代わり）。
 - `materials`: pointer（`materials.json`。素材の 14 欄。11 節の 27）か null。判定の道で書けた時だけ。
@@ -123,7 +123,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 - `workflows/diagnose/src/__init__.py`（空）。
 - `workflows/diagnose/src/files.py`: place のファイルの名（1.4）・役の名 `DIAGNOSE_ROLE = "diagnose"`・`REJUDGE_ROLE = "rejudge"`・節の名 `REJUDGE_NODE = "p2.rejudge"`（`units-before.json` と差の行の `node` に書く今の字）・`GUARDED = True`（今の accept の `with: {status_guarded: true}`。`:1991`・`:2178`）・止めの語（下の 5.6）。
 - `workflows/diagnose/src/judge.py`: 判定の受け付けの芯。lib の `judge_accept.py` から写す（MOVE）:
-  - 表: `LABELS`（`:135`）・`Kind` と `QUESTION_KINDS` の `domain` と `fields`（`:233-257`。`note` の文は写さず md へ。2.6）・`QUESTION_FIELDS`（`:273-274`。同じ所の `UNIT_FIELDS` は使い手が無いので写さない）・`QUESTION_STATUS`（`:293-298`。`QUESTION_STATUS_NOTE` の文は md へ）・`NO_OPEN_ORIGIN`（`:319`）・`REVIEWS`（`:133`）・`EMPTY`・`ONE_LINE_FIELDS`（`:244-246`・`:388`）・`ASK_KEYS`（`:369-374`）・`COUNT_BUDGET`・`COUNT_CACHE_FILE`・`COUNT_BUDGET_FILE`（`:265-267`）・`PREMISE_THREE`・`_CASE_MARKS`（`:789-790`）。
+  - 表: `LABELS`（`:135`）・`Kind` と `QUESTION_KINDS` の `domain` と `fields`（`:233-257`。`note` の文は写さず md へ。2.6）・`QUESTION_FIELDS`（`:273-274`。末尾に `title` を足した。同じ所の `UNIT_FIELDS` は使い手が無いので写さない）・`QUESTION_STATUS`（`:293-298`。`QUESTION_STATUS_NOTE` の文は md へ）・`NO_OPEN_ORIGIN`（`:319`）・`REVIEWS`（`:133`）・`EMPTY`・`ONE_LINE_FIELDS`（`:244-246`・`:388`）・`ASK_KEYS`（`:369-374`）・`COUNT_BUDGET`・`COUNT_CACHE_FILE`・`COUNT_BUDGET_FILE`（`:265-267`）・`PREMISE_THREE`・`_CASE_MARKS`（`:789-790`）。
   - 写さない物: 素材の欄の全体の表 `MATERIALS`（`judge_output` が読む `:630`）は `materialkit.MATERIALS` を import する（同じ字の組。統合の設計書 integration.md の 4.4-K）。この block が読むのは `files.MATERIALS`（そこから `gate_efficacy` を除いた 14 欄。11 節の 27）。`is_open` は共通の `judgmark`（下の「使う `lib/`」。統合の設計書の 4.4-H）から `from judgmark import …` で受け、`src/judge.py` の名で出し直して `rejudge.py` と試験が引く。
   - 関数: `origin_not_awaiting`・`targets`・`settled_state_errors`（`:195-241`）・`blank`・`_keys_once`（`:248-262`）・`_run_query`（`:270-299`）・`_head_at_rev`・`_judge_tree_unchanged`（`:414-449`。写しのファイルは `tree.json`、`_moved_since` は `materialkit.moved_since`）・`_precedent_gap`・`_precedent_errors`・`_awaiting_origins`（`:505-544`）・`judge_output`（`:547-658`。`prev_deletions`・`prev_questions`・`defer_ledger` の引数と、それに頼る `_carried_r1_accounted`・`_fork_moves_forward` は写さない。11 節の 4）・`_judged`（`:667-692`。世界の解の出どころの照らしは下の `world_ref_problems`）・`unmeasured`・`origin_of`・`answer_binds`・`answer_tie_problems`（`:726-786`。依頼の答えと作り直しの行と素材は引数で受ける）・`claims_premise_three`・`recorded_question_problems`（`:793-813`。記録された方針の行は引数で受ける）・`take`・`accept`（`:816-858`）・`_unit_file_paths`・`structure_units`（`:871-910`）。
   - 足す関数: `world_ref_problems(reply, rows) -> list`（今の `worldmark.ref_problems`〔`lib/worldmark.py:148-155`〕を、控えのフォルダでなく行の並び `rows` で受ける形にした写し。`known = {r["class_id"] for r in rows}`、`cite.ref_problem(s, worldmark.SOURCE_PREFIX, known)`）。

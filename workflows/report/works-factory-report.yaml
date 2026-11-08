@@ -150,13 +150,24 @@ nodes:
           retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
-            required: [verdict, stops, guessed, machine_lines, decidable]
+            required: [verdict, stops, guessed, decidable]
             additionalProperties: false
             properties:
               verdict: {type: string, enum: [pass, redesign-needed]}
-              stops: {type: array, items: {type: string}}
-              guessed: {type: array, items: {type: string}}
-              machine_lines: {type: array, items: {type: string}}
+              stops:
+                type: array
+                items:
+                  type: object
+                  required: [line, text]
+                  additionalProperties: false
+                  properties: {line: {type: string}, text: {type: string}}
+              guessed:
+                type: array
+                items:
+                  type: object
+                  required: [line, text]
+                  additionalProperties: false
+                  properties: {line: {type: string}, text: {type: string}}
               decidable: {type: boolean}
 
         - id: write-accept

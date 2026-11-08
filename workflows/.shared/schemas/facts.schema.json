@@ -223,13 +223,93 @@
         "after": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "additionalProperties": false,
+            "description": "頭の知らせ 1 行。kind は頭の文面表 workflows/report/src/head.py の Notice の値、slots はその種の差し込み口の値（読み手の世界の値だけ）、text は返りの訳を 1 行に畳んだ字（節「2. 止めたか」に載る。頭には出ない）",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "start_refused",
+                  "answer_redirected",
+                  "base_gate_stopped",
+                  "suite_broken",
+                  "no_suite",
+                  "tests_not_run",
+                  "suite_used",
+                  "suite_wrote",
+                  "suite_not_made",
+                  "user_env",
+                  "test_cmd_note"
+                ]
+              },
+              "slots": {
+                "type": "object",
+                "patternProperties": {
+                  "^[a-z_]+$": {
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "slots",
+              "text"
+            ]
           }
         },
         "notices": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "additionalProperties": false,
+            "description": "頭の知らせ 1 行。kind は頭の文面表 workflows/report/src/head.py の Notice の値、slots はその種の差し込み口の値（読み手の世界の値だけ）、text は返りの訳を 1 行に畳んだ字（節「2. 止めたか」に載る。頭には出ない）",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "start_refused",
+                  "answer_redirected",
+                  "base_gate_stopped",
+                  "suite_broken",
+                  "no_suite",
+                  "tests_not_run",
+                  "suite_used",
+                  "suite_wrote",
+                  "suite_not_made",
+                  "user_env",
+                  "test_cmd_note"
+                ]
+              },
+              "slots": {
+                "type": "object",
+                "patternProperties": {
+                  "^[a-z_]+$": {
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "slots",
+              "text"
+            ]
           }
         }
       }

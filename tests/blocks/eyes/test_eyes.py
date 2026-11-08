@@ -66,6 +66,18 @@ class VerdictCase(unittest.TestCase):
         self.assertEqual(self.build(passing())["means_questions"], [])
         self.assertEqual(self.build({"structure-after": passing()["structure-after"]}, run=False)["means_questions"], [])
 
+    def test_question_titles_pass_through(self):
+        """R4 と R2 の問いが {text, title} で返れば、まとめの questions と means_questions に同じ行のまま載り、字の問いは字のまま載る
+        （題は line が読む。ここは運ぶだけ）"""
+        row_r4 = {"text": "R4 が BASE から消えたと見た能力: 別の能力", "title": "消えた能力を認めてよいか"}
+        row_r2 = {"text": "R2: 差分は頼みの解き方 M1「x」どおりだが、独立設計と食い違う——y", "title": "頼みどおりにするか決める"}
+        got = passing()
+        got["r4"] = {**got["r4"], "questions": [row_r4, "R4 が見た人の方針とのぶつかり: x"]}
+        got["r2"] = {**got["r2"], "questions": [row_r2, "R2: 字の問い"]}
+        out = self.build(got)
+        self.assertEqual(out["questions"], [row_r4, "R4 が見た人の方針とのぶつかり: x"])
+        self.assertEqual(out["means_questions"], [row_r2, "R2: 字の問い"])
+
     def test_any_eye_not_pass_makes_ok_false(self):
         for name in EYES:
             for status in ("fix-needed", "redesign-needed", "unverifiable"):

@@ -36,6 +36,7 @@ from typing import Callable, NamedTuple
 
 import answer
 import gatemarks
+import plainask   # 人に聞く項目の要素の読み口（題の読み口 item_title）と行を組む口 item_row
 import policy
 import stopby
 import structmark
@@ -125,7 +126,6 @@ def passage(rows: list, read: Callable[[str], Push | None]) -> Passage:
 
 # ---------------------------------------------------------------- 元 lib/gatemarks.py の承認ノードの決めの部分
 DESIGN_ONLY = gatemarks.DESIGN_ONLY
-AXIS_KIND = "plan_review"
 POLICY_CHANGED = "policy_changed"     # 関所の項目の種類（方針の文書が固めた版から変わった。元 boardview.POLICY_CHANGED）
 
 
@@ -179,8 +179,6 @@ def design_rows(structure) -> list:
         raise ValueError(f"構造の目の控え {path} の設計の行を読めない（設計の問いを数えていない）: {error}") from None
 
 
-POINTED_KIND = "pointed_elsewhere"        # 関所の項目の種類: 名指された文書が読む版に無く、ほかの版（まだ取り込まれていない枝など）にだけ在る
-POINTED_MISSING_KIND = "pointed_missing"   # 関所の項目の種類: 名指された文書がどの版にも無い（作るファイルの名や例のパスでもありうる）
 POINTED_BY_ANSWER = "人の答え（依頼の答えか承認ノードの一言）"   # 計画の往復の行 pointed の名指し手（修正案の block の answers）
 POINTED_MISSING_PUSH = {gatemarks.RECOMMEND_KEYS[0]: gatemarks.RECOMMEND_ANSWERS[0], gatemarks.RECOMMEND_KEYS[1]: "気にせず進む",
                         gatemarks.RECOMMEND_KEYS[2]: "作るファイルの名や説明のための例のパスでもありうる"}
@@ -195,7 +193,7 @@ def structure_pointed(structure) -> list:
 
 
 def pointed_items(rows, answers=()) -> tuple:
-    """版に無い名指しの関所の項目 ([(POINTED_KIND, 文)], [(POINTED_MISSING_KIND, 文)])（持ち主の決め pointed-ask）。rows は
+    """版に無い名指しの関所の項目 ([(gatemarks.POINTED_KIND, 文)], [(gatemarks.POINTED_MISSING_KIND, 文)])（持ち主の決め pointed-ask）。rows は
     {path, by, found, at}。ほかの版にだけ在る文書は、従ってよいかを人に聞く（推しを付けない）。どの版にも無い文書は推し「気にせず進む」を
     尾に付ける。人が continue で答えた同じ文の行は除く"""
     found, missing = [], []
@@ -207,11 +205,11 @@ def pointed_items(rows, answers=()) -> tuple:
         if r.get("found"):
             text = (f"{head}、ほかの版（{r.get('at') or '名の無い commit'}）にだけ在る。まだ取り込まれていない枝の文書なら、決まりとしてまだ"
                     "効いていないかもしれない。この run はその本文を読んで進めた——それに従ってよいか（従わないなら一言に）")
-            kind, out = POINTED_KIND, found
+            kind, out = gatemarks.POINTED_KIND, found
         else:
             text = (f"{head}、ほかのどの版にも無い（読めないまま進めた）"
                     + gatemarks._push({gatemarks.RECOMMEND: POINTED_MISSING_PUSH}))
-            kind, out = POINTED_MISSING_KIND, missing
+            kind, out = gatemarks.POINTED_MISSING_KIND, missing
         if not _continued(answers, text) and (kind, text) not in out:
             out.append((kind, text))
     return found, missing
@@ -382,7 +380,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の推しの尾を読む）、answered は
     同じ承認ノードの前の答え（resume で回し直した時に、continue で通した同じ文を聞き直さない）、unread は指す先が無いか読めない控えの訳
-    （判定・結び・素材の状態・構造の目・往復の記録。読めないまま修正へ進めず、UNREAD_KIND の行で開く）、pointed は構造の目の控えの
+    （判定・結び・素材の状態・構造の目・往復の記録。読めないまま修正へ進めず、gatemarks.UNREAD_KIND の行で開く）、pointed は構造の目の控えの
     版に無い名指しの行（structure_pointed）。計画の往復の行 pointed（人の答えの名指し）と合わせ、人の居る run だけ項目にする
     （pointed_items。ほかの版にだけ在る文書は開ける理由、どの版にも無い文書はほかの項目が在る時だけ並べる。無人の run は報告の行だけ。
     持ち主の決め pointed-ask）。
@@ -398,6 +396,8 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     planned は直す前で止まった無人の run の写しを人の居る run で続ける時の、写しの計画が数えた問いの台帳（takes_push の見え方。ほかは None）:
     計画が推しを答えに数えた問いの行に PLANNED_PUSH を足し、推しと違う答えなら止めて計画から回し直すと案内する（計画は推しを前提に組んで
     あり、続きの承認ノードの答えで組み直さない。答えは自由な一言なので推しと違うかを機械は読まず、人が stop で選ぶ）。
+    deferred の要素は {text, title?} の行: 台帳の問いは問いの行の題（title。無ければ題なし）、機械が組んだ項目は種類の平易な言い方
+    （gatemarks.KIND_WORDS。表に無い種類は題なし）を題にする。題は報告の頭の人が決めることの行になる。
     返り {open, go, stop_reason, items: [(種類, 文)], deferred, asked, pushed, passes, policy_changed}"""
     closed = {"open": False, "go": False, "stop_reason": "", "items": [], "deferred": [], "asked": [], "pushed": None, "passes": [],
               "policy_changed": False}
@@ -429,7 +429,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
         if why:
             text = _item(str(a.get("text") or ""), mark, why if decided else ())
             if not _continued(answered, text):
-                items.append((str(a.get("kind") or AXIS_KIND), text))
+                items.append((str(a.get("kind") or gatemarks.AXIS_KIND), text))
                 kept_asks.append(a)
         else:   # 決め手が揃う行は聞かずに通し、出どころつきで返す（L-G18・L-G19）
             passes.append({"node": gatemarks.GATE_NODE, "round": rnd, "by": gatemarks.PASSED_BY, "item": str(a.get("text") or ""),
@@ -451,7 +451,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
             if gatemarks.answered(ledger, q):
                 continue
             if unattended_run:
-                deferred.append(gatemarks.ask_text(q))   # 採れる推しの無い台帳の問いは載せず、報告と次の依頼の下書きへ（L-G33）
+                deferred.append(plainask.item_row(gatemarks.ask_text(q), plainask.item_title(q)))   # 採れる推しの無い台帳の問いは載せず、報告と次の依頼の下書きへ（L-G33）
             else:
                 push = gatemarks.run_push(planned, q) if planned is not None else ""
                 items.append((_ask_kind(q), gatemarks.ask_text(q) + (PLANNED_PUSH.format(push=push) if push else "")))
@@ -463,7 +463,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     if not items:   # 軸の訳は項目の尾に在るので、軸の行は項目が無い時だけ足す
         for key, axis in gather(kept_asks, kept_devs, ups).items():
             if not axis["ok"]:
-                items.append((AXIS_KIND, f"{AXIS_WORDS[key]}（{key}）の軸が通らない: {axis['note'] or '（訳が無い）'}"))
+                items.append((gatemarks.AXIS_KIND, f"{AXIS_WORDS[key]}（{key}）の軸が通らない: {axis['note'] or '（訳が無い）'}"))
     if items:   # どの版にも無い名指しは、それだけでは開けない（run を止めず、開いた時に並べる）
         items += missing
     changed = any(kind == POLICY_CHANGED for kind, _ in items) or agreed_policy
@@ -477,7 +477,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
         got = passage(texts, row_push)
         # 推しで抜けられずに止めた項目は誰にも見せていないので、載せなかった項目として報告と次の依頼の下書きへ（元 runreport が
         # 無人の run で関所が通さなかった事前審査の問いを下書きにしたのと同じ）
-        held = deferred if got.go else [*deferred, *texts]
+        held = deferred if got.go else [*deferred, *(plainask.item_row(text, gatemarks.KIND_WORDS.get(kind)) for kind, text in items)]
         return {**closed, "go": got.go, "stop_reason": got.stop_reason, "items": items, "deferred": held, "asked": got.asked,
                 "pushed": got.pushed, "passes": passes, "policy_changed": changed}
     return {"open": True, "go": True, "stop_reason": "", "items": items, "deferred": deferred, "asked": texts, "pushed": None,
@@ -581,7 +581,6 @@ def path_of(value, opened) -> str:
 
 
 # ---------------------------------------------------------------- 指す先が無い・読めない控え（承認ノードの開ける理由にする）
-UNREAD_KIND = "unread"   # 関所の項目の種類: 指す先のファイルが無いか読めない控え（読めないまま進めず、聞く側に倒す）
 UNREAD_TAIL = "（読めないまま進めないので人に見せる）"
 
 
@@ -633,5 +632,5 @@ def read_located(value, what: str, unread: list, opened):
 
 
 def unread_items(unread) -> list:
-    """読めなかった控えの関所の項目 [(UNREAD_KIND, 文)]（同じ訳を 2 度載せない）"""
-    return [(UNREAD_KIND, f"{row}{UNREAD_TAIL}") for row in dict.fromkeys(unread)]
+    """読めなかった控えの関所の項目 [(gatemarks.UNREAD_KIND, 文)]（同じ訳を 2 度載せない）"""
+    return [(gatemarks.UNREAD_KIND, f"{row}{UNREAD_TAIL}") for row in dict.fromkeys(unread)]

@@ -875,9 +875,23 @@
     },
     "deferred": {
       "type": "array",
-      "description": "修正前の承認ノードが後に回した項目の文",
+      "description": "修正前の承認ノードが後に回した項目（前の版の写しは文の字。今は {text, title} の行で、題は台帳の問いの title か機械が組んだ項目の種類の平易な言い方）",
       "items": {
-        "type": "string"
+        "type": [
+          "string",
+          "object"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
       }
     },
     "passes": {

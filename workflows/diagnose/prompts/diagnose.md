@@ -115,7 +115,8 @@ Deepen a tree rooted at each finding with these branches: (1) refutation (under 
 
 This section is the one place that holds the rules of the ledger.
 
-- The only fields you may write are `key`, `kind`, `status`, `reason`, `resolution`, `options`, `depends`, and `origin`.
+- The only fields you may write are `key`, `kind`, `status`, `reason`, `resolution`, `options`, `depends`, `origin`, and `title`.
+- `title` is a short title, in one line, of what a person is asked to decide in this question (the "Title" part of the shape in the shared rule below). It is shown as the question's line at the head of the report, so write it in plain words that need neither the run nor the factory. Write it for a question that goes to a person (`held`, `escalate`); it is an ornament, so leaving it out only makes the head show the kind of the question instead.
 - `kind`, with what the origin must be and the field each needs:
   - `fork` (origin is the key of the unit concerned; `options` is required): a fork in the design. The prescription reaches a new mechanism or a widened shared surface, there are several candidates, and even after consulting the world's solutions (standard specifications and the established practice of well-known OSS) it is not decided (step 7, enumerating prescriptions, and the "minimality of the prescription" of the source of the review viewpoints). If the world's solutions decide it, it is not a fork: take it as a prescription. At least two options, with the consequences written. Why the zero prescription (withdrawal, or one existing mechanism) falls short goes in `reason`.
   - `split` (origin is the key of the unit concerned): an existing defect that the fix exposed, outside the frozen purpose. A person decides whether to stack it in another PR. Collecting what was exposed stays the default (the source of the review viewpoints: "do not make deferral to a separate issue the default"); this is an application for an exception.

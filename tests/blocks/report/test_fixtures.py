@@ -39,7 +39,7 @@ class FixtureCase(unittest.TestCase):
     def test_scenarios_reach_their_words(self):
         """exec-code の筋書きの出口の出力（dry-run の trace）が、それぞれの結末を返す"""
         want = {"standalone": ("fixed", True), "no-ai-report": ("record_invalid", False), "stopped-by-request": ("stopped_by_request", True),
-                "cold-gave-up": ("fixed", False)}
+                "cold-gave-up": ("fixed", False), "cold-head-only": ("fixed", True), "cold-unmarked": ("fixed", False)}
         for name, (word, human) in want.items():
             with self.subTest(name), archon.blocks_tree(["report"]) as tree:
                 fixture = kit.fixture("report", name)

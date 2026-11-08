@@ -85,9 +85,12 @@ run の結末の語（10 語のどれか）と止めた段の語を、line が�
 - `no_fix`: boolean。既定 false。直す物が無い周（今 `_no_fix`）。
 - `left`: `[{where, text, unmeasured}]`。既定 []。fixed を名乗らせない残りの行（今 `residue` から受け止めた落ちの行を除いた物。`unmeasured` は測れていない素材の行か。今 `_is_material_row`）。
 - `proved`: boolean。既定 false。最後のテストの ok と green と封じの ok が真か（今 `_proved`）。
-- `head`: `{before, stopped, after, notices}`（どれも字の配列。既定 []）。`before` と `stopped` は節「2. 止めたか」の頭の行、`after` は報告の冒頭の知らせの行になる（`workflows/report/src/machine.py`）。`before` は今の `split_line`・`pushed_said`、`stopped` は今の `stopped_why`（止まった結末の時だけ使う）、`after` は `stop_reason_notes`（入口が入力を断った訳〔次にすることの句つき〕と直す前の試験の関門が止めた訳）・`suite_broken_notes`・`ran_notes`・`_suite_note`・`_user_env_note`。`notices` は冒頭の下に 1 行ずつ載る起こす前の注意（今の line の `notices`）。
-- `asks`: `[{kind, text, title?}]`。既定 []。`title` は決める中身を言う短い平易な題で、本文を書いた所が一緒に書く（#812。AI の役が本文を書く項目はその役の返りの形に題の欄を持ち、機械が組む項目は組むコードが決まった字で出す）。無い（古い記録・題を返さなかった役）時は種の名に戻す。人が決める物のうち、結末に依らない物（今 `_decisions` の `asks` から、種 `report.CHECKS_LEFT`・「直しきれずに残った物」・「記録が通らないこと」の 3 つを除いた物。問いの種の推しの尾は付けた後の字）。
-- `tallied`: `{<種>: 整数}`。既定 {}。行の数でなく全件の数で数える種（今の `tallied`。守りのパスに当たった差分）。
+- `head`: `{before, stopped, after, notices}`（既定 []）。`before` と `stopped` は字の配列で、節「2. 止めたか」の頭の行（`workflows/report/src/machine.py`）。`before` は今の `split_line`・`pushed_said`、`stopped` は今の `stopped_why`（止まった結末の時だけ使う）。`after` と `notices` の要素は字でなく `{kind, slots, text}`（#812）: `kind` は頭の知らせの種（`workflows/report/src/head.py` の `Notice` の値。schema の enum と同じ。試験が突き合わせる）、`slots` はその種の文の差し込み口の値（`{名: 字か整数}`。読み手の世界の値だけ。型は `head.SLOTS`）、`text` は返りの訳を 1 行に畳んだ字（種の意味の句は持たない）。頭には種の決まった文と `slots` の値だけが出て、`text` は節「2. 止めたか」の頭に `notice_lines` が並べる。`after` は `spoken_stops`（入口が入力を断った・修正前の一言の向きで止めた・直す前の試験の関門が止めた）・`suite_broken_notes`（起動スクリプトが壊れたまま・試験の実行器が無い）・`ran_notes`（最後のテストが走っていない）・`_suite_note`（TDD の実行器: 取り置きを使った・AI が書いた・作れなかったのうち `suitewrite.note_state` が選ぶ 1 つ。`text` は `suitewrite.note_detail`）・`_user_env_note`（利用者の環境で走らせた。`text` は空）が `head_notice(kind, text, **slots)` を通して作る。`notices` は起こす前の注意（試験のコマンドの注意の種 1 行ずつ。`text` は line の `notices` の行の全文）。
+- `asks`: `[{kind, text, title?}]`。既定 []。`title` は決める中身を言う短い平易な題で、本文を書いた所が一緒に書く（#812。AI の役が本文を書く項目はその役の返りの形に題の欄を持ち、機械が組む項目は組むコードが決まった字で出す）。無い（古い記録・題を返さなかった役）時は種の名に戻す。種の名は頭に出る言い方なので語の表 `glossary.json` の語を使わない（守ると決めたファイルに当たった差分・頼みの解き方どおりで、別に作った設計と食い違う所・修正の役が人に回した食い違いの知らせ。頭の全体の検査 (e) が見る）。人が決める物のうち、結末に依らない物（今 `_decisions` の `asks` から、種 `report.CHECKS_LEFT`・「直しきれずに残った物」・「記録が通らないこと」の 3 つを除いた物。問いの種の推しの尾は付けた後の字）。
+  - 題の今の状態: 題を返す役の返りの型は、判定の役の問いの台帳の行（`title`）、独立の目の比べの役の `request_conflicts` の行（`title`）、範囲の役の `lost`・`policy_conflicts` の行（`{text, title}`）、修正の役の申し送りの題（`handoff_titles`）。題の欄は飾りで、題で役の返りを拒まない（改行だけで役を出し直しにして run が止まる道を作らない）。題は読む所が 1 行に畳む（`lib/plainask.py` の `item_title`。`lib/oneline.py` の `one_line` を引き、字数では切らず、空白だけの題は題なし）。独立の目の問いと載せなかった修正前の問いは、字（前の記録）でも `{text, title}` の行でも `asks` まで運ぶ。題にも語の表の言い換えが掛かる（人に向けた報告の頭を組む `writer.collect` と、初見の読み手に貼る本文を組む `writer.cold_parts` は、題を含む頭の全体に `writer.plain_words` を掛ける。例: 役の書いた題「独立の目の指摘を通すか決める」も言い換わる）。字のまま残るのは `plain_words` が外す所（コードの囲み・長い片仮名語の一部・漢字か片仮名に続く片仮名で始まる表の語）だけ。
+  - 機械が本文を組む項目は、組むコードが決まった字の題を出す: 結末で決まる物は `outcome.OUTCOME_TITLES`（種 → 題）、line の機械が組む種は `facts.ASK_SOURCES` の決まった字（行ごとの値を差し込まない。単位の id は工場の中の値で、頭に出さない）、修正前の機械が組む項目は `gatemarks.KIND_WORDS` の種類の言い方。人が決める物の種の順と題の出どころは `facts.ASK_SOURCES` の 1 か所に在り（出どころは行の `title` の欄・決まった字・題を持たず種の名に戻す印のどれか。`decisions` は表の鍵の順にだけ種を並べるので、表に無い種は並べられない）、種ごとの行は `facts.ask_groups` が集める。同じ字の題（差し込み口の無い決まった字）は頭で 1 行にまとめて件数を添える（1.8）。
+  - 仕様を確かめる役の問い（承認し直すかの問い）は題の欄を持たない。種の見出しは入力で 2 つ（照らせた時・照らせなかった時）に分かれ、どちらの run でも `ASK_SOURCES` に在り、どちらも題を持たず種の名に戻る。古い記録で題の欄が無い行も種の名に戻る（その既定は `machine.ask_rows` の 1 か所）。
+- `tallied`: `{<種>: 整数}`。既定 {}。行の数でなく全件の数で数える種（今の `tallied`。守ると決めたファイルに当たった差分）。
 - `counted_left`: 字の配列。既定 []。結末が round_limit の時に「直しきれずに残った物」から外す `where`（今 `counted_units`。直す義務に戻せなかった単位）。
 - `decisions`: `{before, after, outside}`（どれも字の配列。既定 []）。節「1. 人が決めること」の line の行。`before` は今の `_pushed_lines`・`unrestored_lines`・`backed_out_lines` と、`_decisions` の行のうち問いと種の塊（結末に依らない種だけ）、`after` は `_decisions` の残りの行（保留の答え方の行から後の全部）、`outside` は目的の外の所見の件数の行（今 `_outside` の 3 つ目。次の run の依頼の下書きのファイルの名を持たない字にする）。
 - `apply`: `{sealed, placed, redesign, said, pr, commits}`。既定 `{sealed: false, placed: false, redesign: "", said: "", pr: null, commits: []}`。`sealed`・`placed` は今 `_seal_state`、`redesign` は R2 が作り直しが要ると言った時のその語（今 `seal.REDESIGN`。言わなければ空）、`said` は止まった run の人の一言（今 `_apply_lines` の `said`。無ければ空）、`pr` は出口の語 pr の run の `{act, url, number, is_draft, reason}`（今 `applied-diff` の `deliver`）か null、`commits` は今 `_pr_commit_lines` の行。
@@ -144,8 +147,9 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
 ### 1.5 コードの置き場
 
 - `workflows/report/src/__init__.py`（空）。
-- `workflows/report/src/files.py`: 1.4 の名の定数と、機械の報告の report の見出し（`TITLE = "# 報告（run {run}）"`・`DECISIONS_HEADING = "## 1. 人が決めること"`・`STOP_HEADING = "## 2. 止めたか"`・`WHERE_HEADING = "## 3. 見る所"`・`CALLS_HEADING = "## 4. 役が呼んだ道具"`・`PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"`・`MODEL_HEADING = "## 模型"`・`COST_HEADING = "## 費用"`・`NOTES_HEADING = "## 注意（読めなかった物）"`）。今の `lib/report.py` と lib の `runreport.py` の `promptsection.Section` の見出しを字にした物（`promptsection` は README の 9.1 で消す）。
-- `workflows/report/src/facts_in.py`: `facts` の port の値を、1.2 の表の既定を埋めた dict にする `read(value) -> dict`。形の違う欄は `ValueError`（訳を名指す。黙って既定にしない）。
+- `workflows/report/src/files.py`: 1.4 の名の定数と、機械の報告の節の見出し（題の行は頭の表 `head.py` の行 `Line.RUN_TITLE`。`DECISIONS_HEADING = "## 1. 人が決めること"`・`STOP_HEADING = "## 2. 止めたか"`・`WHERE_HEADING = "## 3. 見る所"`・`CALLS_HEADING = "## 4. 役が呼んだ道具"`・`PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"`・`MODEL_HEADING = "## 模型"`・`COST_HEADING = "## 費用"`・`NOTES_HEADING = "## 注意（読めなかった物）"`）。今の `lib/report.py` と lib の `runreport.py` の `promptsection.Section` の見出しを字にした物（`promptsection` は README の 9.1 で消す）。
+- `workflows/report/src/head.py`: 報告の頭の機械の行の文面表（1.8）。列挙 `Line`（頭の行の種）・`Notice`（知らせの種）、表 `TABLE`（`Line` → 文）・`NOTICES`（`Notice` → 文）、差し込み口の型 `SLOTS`（種 → NamedTuple。型の欄は `SLOT_TYPES` だけ）、行を描く `render(line, slots)`・`notice_row(kind, slots)`、facts の JSON を型の値にする `slots_of`、頭の 1 行を表の行に読み戻す `parse(text)`。頭の行の文を知る所はここだけ。
+- `workflows/report/src/facts_in.py`: `facts` の port の値を、1.2 の表の既定を埋めた dict にする `read(value) -> dict`。形の違う欄は `ValueError`（訳を名指す。黙って既定にしない）。`head.after`・`head.notices` の要素の種は schema の enum が、差し込み口の値の型は `machine.build` が `head.slots_of` で照らす（合わなければ `ValueError`。facts の受け皿が `record_invalid` にする）。
 - `workflows/report/src/outcome.py`: 結末の決め `decide(facts, run) -> (outcome, stop_reason)`（1.7）・残りの行 `left_all(facts, run)`・結末で決まる人が決める物 `outcome_asks(outcome, facts, left)`。写す元 lib の `outcome.py` の `decide_outcome`・`_human_stop`・`_line_stop`・`_waits`・`cut_at`・`absorbed_rows`（`:312-535`）。返りの欄を読む所は line へ行くので写さず、`facts` の欄を読む形に書き直す。
 - `workflows/report/src/transcript.py`: Archon の run の記録（`$LOG_DIR/<WORKFLOW_ID>.jsonl`）を読む `read() -> (rows, why)`（今 `boundary.transcript`、`boundary.py:299-315`）・`own_prefix()`（自分の include の頭。今 `boundary.own_prefix`、`:254-263`。`ports` に同じ口が在ればそれを呼ぶ）・`facts(rows, *, exclude_prefix, optional)`（写す元 `runreport.py` の `transcript_facts`・`_declared`・`_resubmit`・`_count_call`、`:247-347`）・`cost_rows`・`resubmit_rows`・`head_cost`（`:350-388`）と、足す `token_rows(run)`（トークンの行。1.8 の 11。`facts` の返りの `tokens`・`untokened` を読む）・`node_model_lines(run)`（`_model_lines` の node ごとの行の部分、`:411-423`）・`calls_lines(run, why, repo)`（`_reads_lines` の run の記録の道具の呼びの部分と `UNSEEN`・`CHILD_RUNS` の行、`:1727-1757`・`:1779-1786`。フックの証拠のファイルを読む部分は写さない）・`writer_fell(rows, step)`（`:2081-2093`）。
 - `workflows/report/src/machine.py`: 機械の報告を組む `build(sections, facts, outcome, stop_reason, run, *, place, run_id, run_why, repo) -> dict`（1.8）と `fallback_report(place, why)`。写す元 `runreport.build`（`:1789-1881`）の組み立ての順・`head_lines`（`:1242-1249`）・`ask_counts`（`:1237-1239`）・`_apply_lines`（`:1295-1311`）・`apply_said`・`_apply_answer`（`:1327-1355`）・`_gate_line`（`:1685-1689`）・`_bullets`（`:1722-1724`）・`fallback_report`（`:1893-1898`）。下書きの行は `gatemarks.draft_line` と `DRAFT_HEAD`（`lib/gatemarks.py:1095`・`:1136-1143`）を写す。次の依頼と前の失敗の書き込みは今の `:1866-1880`（`carry.compose`・`carry.errors`・`carry.write`）。
@@ -195,29 +199,34 @@ node の名の今との違い: `write-reject` → `write-prep`（指示を組む
 - `round_limit`: 種「直しきれずに残った物」、`left_all` のうち `where` が `counted_left` に無い行ごとに `f"{where}: {text}"`。
 - `record_invalid`: 種「記録が通らないこと」、1 件 `"record_invalid"`。
 
+返りは `(種, 1 件の文, 題)` の並びで、題は種ごとの決まった字 `OUTCOME_TITLES`（差し込み口の無い字なので、同じ種の行は頭で 1 行にまとまる）。
+
 ### 1.8 機械の報告の形（`src/machine.py` の `build`）
 
 `run_id` は環境の `WORKFLOW_ID`（単独の run では自分の run、include された時は line の run）。上から:
 
-1. `# 報告（run {run_id}）` と空行。
-2. 冒頭の行（今 `head_lines`。#812 で、初見の読み手が止まる 5 つの型を直した形）:
-   - `起きたこと: ` + `"。".join([report.OUTCOME_WORDS[outcome], 人が決める物が在れば f"人が決めること {和} 件が残っている"])`。`STOP_OUTCOMES` は `stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`（今 `runreport.STOP_OUTCOMES`）。`head.before`・`head.stopped` の字は頭に出さず（頭の読み手は頭しか読まないので、頭の外の節を指す句も置かない）、5 節の先頭（`stop_lines.before` の前）に置く（承認ノードの名・推しの件数・開けた理由は工場の内側の言葉で、頭の読み手には要らない）。
-   - `差分を当ててよいか: ` + `apply_said`（今 `apply_said`・`_apply_answer` を `apply` の欄で書き直した物。今の `_seal_state` は `apply.sealed`・`apply.placed`、`eyes.r2.status == seal.REDESIGN` は `apply.redesign` が空でないか、文の中の語は `apply.redesign` を `seal.STATUS_WORDS` で言い換えた字（「作り直しが要る」）。人が決める物の件数は下の `counts` の和）。
-   - 頭に結末の英字の語（`needs_human` など）・「封じ」・R2 などの内側の名は出さない（`差分を当ててよいか` の行は「当てる差分が無い（この run は差分を確定していない）」と言い、`bin/apply` は同じ行で「保存した差分を対象に当てる命令」と言い、`--allow-stopped` は「止まった run の差分を当てる指定」と言う）。
-   - `急ぎ: ` + `urgent_said`。機械が持つ事実だけで書く: run の記録が読めて落ちたノード（`failed`・`absorbed`）が在れば「壊れた所がある」、結末が `record_invalid`・`interrupted` でも同じ、どちらでもなければ「急ぎでない——壊れた所は無く、…」と言い、後ろの句は `apply.pr`（出口の語 pr の道の渡しの結果）で選ぶ: `pr.act` が `pr` なら「PR を作っただけで、対象の既定の枝には当てていない」、`stopped` なら「PR は作らず、対象の既定の枝には当てていない」、`unconfirmed` なら「PR を作ったかは確かめられていないが、対象の既定の枝には当てていない」、`pr` が無ければ「対象のリポジトリには何も当てていない」（run は対象に差分を当てず、差分は `bin/apply` か出口の語 pr の道が対象に渡す。E17）。run の記録が読めない時は事実が無いので行を出さない（推して書かない）。
-   - 人が決める物（`asks` = `facts.asks` + `outcome_asks`）が在れば `人が決めること: {和} 件（下の行は種類ごと。1 件ずつの本文は見出しに「人が決めること」を持つセクション）`、無ければ `次の run に渡す物: {carried} 件`（`carried` = `carry.findings`・`drafts`・`constraints` の数の和）。数は和の 1 つだけを頭に出す（1 つの決めには 1 つの数）。種ごとの件数は `ask_counts`（`tallied` に在る種はその数。種の名は括弧の前の頭の言い方で、同じ頭の種は合わせる）。
-   - その下に 1 行ずつ: 題（`asks[].title`）が在る物は 1 件 1 行 `- {題}（{種の頭の言い方}）`、題の無い物は種ごとにまとめて `- {種の頭の言い方}`（2 件以上なら `（{n} 件）`。黙って行を落とさない）。決める物の本文は頭に出さず、4 節の `## 1. 人が決めること` に在る。
-   - 最後に `head.after` を 1 行ずつ `知らせ（決めることではない）: {行}`。
-3. `head.notices` が在れば、空行の後に 1 行ずつ。
+1. 題の行 `# 報告（run {run_id}）` と空行（頭の表の行 `Line.RUN_TITLE`）。
+2. 冒頭の行（#812 で、初見の読み手が頭で止まる型を直した形）。どの行も、事実から行の種 `head.Line` と差し込み口の値を決めて `head.render` で描くだけで、文は `workflows/report/src/head.py` の表 `TABLE` の 1 か所にある（定数と自由な字の連結で組まない）。差し込み口に入れてよいのは読み手の世界の値だけ（件数・run の id・URL・PR の番号・ログのパス・試験のコマンドの最初の語・結末の語〔文は `report.OUTCOME_WORDS`〕・resume の命令）と、上流の字（人の一言の引用・人が決める物の題）を 1 行に畳んだ字 `OneLine`（字数の上限は置かない）。AI や段が書いた長い訳は頭に入れない。表の文は、何が起きて何をするかを頭の中で言い切り、頭の外の節を指す句を置かない（頭の読み手は頭しか読まない）。表の文は工場の内側の語（ノード・block の名・判定の符号・port の名・止めの語・語の表 `glossary.json` の語）を使わない。
+   - 起きたこと（`Line.WHAT_HAPPENED`、人が決める物が在れば `HAPPENED_WITH_ASKS`）: `起きたこと: {結末の言い方}`（に `。人が決めること {和} 件が残っている`）。行頭の語「起きたこと: 」は保つ（較正の道具がこの行頭で頭の行を探す）。`STOP_OUTCOMES` は `stopped_by_request`・`stopped_by_human`・`stopped_by_line`・`needs_human`。`head.before`・`head.stopped` の字は頭に出さず、節「2. 止めたか」の先頭に置く（承認ノードの名・推しの件数・開けた理由は工場の内側の言葉で、頭の読み手には要らない）。
+   - 差分を当ててよいか（`APPLY_*` の行）: 差分が無い・修正に関わっていない AI の見直しが「作り直しが要る」と言って当てない・人が決めることを決めてから当てる（差分を置かずに止まった run は `--allow-stopped` つき）・差分を置かずに止まった・当ててよい・確かめてから当てる（結末を言う）・PR を作った・下書きの PR を作った・PR を作らずに止めた・PR を作ったと確かめられなかった。PR を作らずに止めた run（`pr.act` が `stopped`）と PR を作ったと確かめられなかった run（`unconfirmed`。`pr` と言いながら在りかか番号が読めない時も）は、PR の道でない run と同じ分かれ（`machine._apply_row`）で答えを選び、その答えの行の前に PR の道の結果の句（`head.PR_SAID`。「PR を作らずに止めた。」「PR を作ったと確かめられなかった。」に「対象の既定の枝には当てていない。」）を足した行（`head.PR_ANSWER_OF` が結果の語と答えの行ごとに 1 つ持つ `APPLY_PR_STOPPED_*`・`APPLY_PR_UNCONFIRMED_*`）を出す。`bin/apply` が断る run（差分が無い・作り直しが要る・置いた差分が無いのに `--allow-stopped` が無い）に命令を案内せず、人が決めることが残る run は決めてから当てると言う（`HeadTableCase.test_pr_stopped_keeps_the_apply_answer` が、差分の状態を変えたどの場面でも、2 つの結果の語のどちらでも答えが PR の道でない run と同じかを照らす）。命令は括弧に詰めず、答えの文の後ろに `当てる命令: bin/apply {run}` の形で置き、`--allow-stopped` は同じ行で「止まった run の差分を当てる指定」と言う。PR を作らなかった訳・確かめられなかった訳（`pr.reason`）は頭にも節「2. 止めたか」にも写さず、merge の節の行の 1 か所だけに在る。
+   - 急ぎ（`URGENT_FAILED`・`URGENT_RECORD`・`URGENT_NEITHER`）: 機械が持つ事実だけで選ぶ。run の記録が読めて落ちた段（`failed`・`absorbed`）が在れば「壊れた所がある。この run の段が落ちた」、結末が `record_invalid`・`interrupted` でも「壊れた所がある。この run の結末: …」、どちらでもなければ「この run の段はどれも落ちていない。試験の外で対象が動くかは、機械は確かめていない」と言う。機械が知らない対象の状態（壊れていない・直った）は言い切らず、1 行目の「直して、最後のテストまで通った」と食い違わない。急ぐかどうかの答えは書き手の要約が頭で言う。どの行も後ろに受け渡しの句を足す: `apply.pr`（出口の語 pr の道の渡しの結果）の `pr.act` が `pr` なら「PR を作っただけで、対象の既定の枝には当てていない」、`stopped` なら「PR は作らず、対象の既定の枝には当てていない」、`unconfirmed` なら「PR を作ったかは確かめられていないが、対象の既定の枝には当てていない」、`pr` が無ければ「対象のリポジトリには何も当てていない」（run は対象に差分を当てず、差分は `bin/apply` か出口の語 pr の道が対象に渡す。E17）。run の記録が読めない時は事実が無いので行を出さない（推して書かない）。
+   - 人が決めること（`Line.DECIDE`）: 人が決める物（`asks` = `facts.asks` + `outcome_asks`）が在れば `人が決めること: {和} 件（下の行は種類ごと。題のある物は 1 件ずつ）`、無ければ `Line.NEXT_RUN` の `次の run に渡す物: {carried} 件`（`carried` = `carry.findings`・`drafts`・`constraints` の数の和）。数は和の 1 つだけを頭に出す（1 つの決めには 1 つの数）。種ごとの件数は `ask_counts`（`tallied` に在る種はその数。種の名は括弧の前の頭の言い方で、同じ頭の種は合わせる）。
+   - その下に 1 行ずつ: 題（`asks[].title`）が在る物は `Line.ASK_TITLED` の `- {題}（{種の頭の言い方}）`。同じ種の同じ字の題（機械が組む種の決まった字。1 件ごとの値を差し込まない）は 1 行にまとめ、括弧の中に件数を添える（`- {題}（{種の頭の言い方}、{n} 件）`。件数は、その種の行が全部その題ならその種の件数〔`tallied` に在ればその数〕、そうでなければその題の行の数。題が違う行・1 件ごとの値を入れた題の行は畳まない）。題の無い物は種ごとにまとめて `Line.ASK_KIND` の `- {種の頭の言い方}`（2 件以上は `Line.ASK_KIND_COUNT` の `（{n} 件）`。黙って行を落とさない）。決める物の本文は頭に出さず、4 節の `## 1. 人が決めること` に在る。
+   - 最後に知らせの行（`head.after`・`head.notices` の要素を `kind` で引いた `NOTICES` の文 1 行ずつ。同じ行は 1 度だけ）。種（`head.Notice`）ごとの文と差し込み口は `workflows/report/src/head.py` の表 `NOTICES`・`SLOTS` の 1 か所に在り、ここには写さない。TDD の実行器の種を状態から選ぶ分け方は `suitewrite.note_state` の 1 か所が持つ。
+3. 頭の全体の検査（`tests/blocks/report/test_machine.py` の `HeadTableCase`。どれも、わざと孤児の行か表の外の行を入れると赤になる）: (a) `Line`・`Notice` のどの値にも表の行がちょうど 1 つ在る。(b) 表の各行の文の差し込みの名の集合が `SLOTS` の型の欄と等しく、型は `SLOT_TYPES` だけ。(c) `build` と `note_writer_fell` が書く頭のどの行も `head.parse` で表の行に読み戻せ、描き直すと同じ字になる（場面は表のどの行にも当たる）。(d) facts の共通の形 `facts.schema.json` の `head.after`・`head.notices` の `kind` の enum が `Notice` と等しい。(e) (c) の場面で組んだ頭の全文（差し込み口の値と、人が決めることの行の種の頭の言い方を含む）・表の文・`OUTCOME_WORDS` に語の表 `glossary.json` の語が無い（例外の一覧は置かない。語を持つ種の頭の言い方は line の `facts.py` の中で平易な字に直す）。(f) `render` が表に無い鍵か型の合わない値で `TypeError` で落ちる。表の文の意味（作れなかった run に作れなかったと言うか）は (a)〜(f) が照らせないので、TDD の実行器の種だけ場面の試験を足す（`tests/blocks/line/test_head_plain.py` の `TddNoticeHeadCase`）。
+
+   頭の行を `build` の外で書く所が 4 つ在り、表の検査 (c) には掛からない: `writer._not_passed_note`（初見の読み手が通さないまま受け取った時の 1 行。詳細のファイルと人に向けた報告の頭に付く。字は平易に書く）、`steps.unwritten`（機械の報告を組めなかった時の訳だけのファイル。題の行は表の `Line.RUN_TITLE` から描く）、`scripts/facts.py`・`scripts/finish.py` の最後の落ち先（lib を読めない時に標準ライブラリだけで書く題の行。表を読めないので字を持つ）。
+
+   E11 の 3 つの答え（頭の文面表を足す前。`docs/design/README.md` の書式）: Archon が持つか → 持たない（Archon は node の出力の文面を表で縛る仕組みを持たない。`output_format` は形の宣言だけ）。ASF が持つか → 持たない（ASF に報告の頭を表から組む仕組みが無い）。本当に要るか → 要る。持ち主の依頼（#812。初見の読み手が頭で 3 回止まった）で、定数と自由な字の連結で組んだ頭は、1 つの検査で行の出どころを縛れない。keep-essence の 12 のどれにも当たらない新しい守りで、元の works と graphloops の同じ場面は無い（元は `runreport` の定数と連結）。足すのは block の中の表 1 つで、lib には置かない（lib は block を import できない）。
 4. `## 1. 人が決めること`: `decisions.before` → 結末で決まる人が決める物の塊（種ごとに `{kind}: {n} 件` と `  - {text}`）→ `decisions.after` → `次の run に渡す物: {carried} 件` に、書いた時だけ `（next-request.json）` → `decisions.outside` → 前提の検算の制約の行（`carry.constraints` ごとに `次の run の制約に足す実測（前提の検算）: {text}`）→ 下書きの行（`draft_line(carry.drafts, next_file)`。下書きが無ければ出さない）→ 差分を当てる行（今 `_apply_lines`）→ `apply.commits`。
-5. `## 2. 止めたか`: `結末: {平易な言い方}（{outcome}）`・`止めた段と理由の語: {stop_reason か「止めていない」}` → `head.before`・（止まった結末の）`head.stopped` → `stop_lines.before` → run の記録が読めれば、`run.failed` ごとに `{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: …）`、`run.retried` ごとに `{report.RETRIED_HEAD}: …`、`run.absorbed` ごとに `{report.ABSORBED_HEAD}: …`（今 `_stop_lines` の字）→ 落ちた node の誤りが fan_out の子の run の名乗り（`child N (run <id の先頭 8 字>)`）を持てば、子の run の記録（親の記録と同じ置き場の `<子の run の id>.jsonl`）の落ちた node ごとに `子の run {先頭 8 字} のノード {node} が落ちた（誤り: …）`、記録が読めなければ `子の run {先頭 8 字} の記録が読めない（…）`（Archon が親の node の誤りに書くのは子の失敗の総括だけで、provider の 429 などの訳は子の記録にだけ在る。`transcript.child_falls`）→ `stop_lines.after` → `problems` ごとに `結果を名乗れない訳: {p}`。
+5. `## 2. 止めたか`: 先頭に `notice_lines`（`head.after`・`head.notices` の要素の本文 `text` を `{知らせの種の句}: {text}` で。本文の無い種は出さない）→ `結末: {平易な言い方}（{outcome}）`・`止めた段と理由の語: {stop_reason か「止めていない」}` → `head.before`・（止まった結末の）`head.stopped` → `stop_lines.before` → run の記録が読めれば、`run.failed` ごとに `{report.INTERRUPTED_HEAD}: ノード {s} が落ちた（誤り: …）`、`run.retried` ごとに `{report.RETRIED_HEAD}: …`、`run.absorbed` ごとに `{report.ABSORBED_HEAD}: …`（今 `_stop_lines` の字）→ 落ちた node の誤りが fan_out の子の run の名乗り（`child N (run <id の先頭 8 字>)`）を持てば、子の run の記録（親の記録と同じ置き場の `<子の run の id>.jsonl`）の落ちた node ごとに `子の run {先頭 8 字} のノード {node} が落ちた（誤り: …）`、記録が読めなければ `子の run {先頭 8 字} の記録が読めない（…）`（Archon が親の node の誤りに書くのは子の失敗の総括だけで、provider の 429 などの訳は子の記録にだけ在る。`transcript.child_falls`）→ `stop_lines.after` → `problems` ごとに `結果を名乗れない訳: {p}`。
 6. `## 3. 見る所`: `sections` の `files` を節の順に `{label}（{title}）: {パス}`。1 つも無ければ `出力にポインタが無い`（今の字）。
 7. `## 4. 役が呼んだ道具`: `transcript.calls_lines`。今の `CHILD_RUNS`「fix の組の子の run の道具の呼びは…」は「子の run の道具の呼びは子の run の記録に在り、上のノードごとの行に入らない」にする（block の名を持たない字）。`CHILD_LOOPS` も同じく「子の run のループの回り直しは子の run の記録に在り、この行に入らない」にする。
 8. `sections` を並びのまま 1 節ずつ: `## {title}` と、行に `_bullets` を当てた物。`lines` が空の節は `- この段は報告の行を返していない` の 1 行を置く（自分で決めた。9 節）。
 9. `## 次の run に引き継ぐ落ちた理由`: `report.prior_lines(carry.prior, next_file)`。
 10. `## 模型`: `transcript.node_model_lines(run)` と結末の行 `"／".join([f"結末: {平易な言い方}（{outcome}）", outcome_parts.gate, outcome_parts.eyes, f"次の run に渡す物: {carried} 件", f"持ち越した失敗: {len(carry.prior)} 件", outcome_parts.data])`（空の句は飛ばす）。
 11. `## 費用`: `transcript.head_cost(run, run_why)`。費用の合計・node ごとの費用と時間の行（`cost_rows`）の後に、トークンの行（`token_rows`）が続き、回り直しの行（`resubmit_rows`）で終わる。トークンの行は、合計の行（「トークンの合計: 入力 N（うちキャッシュの読み R・書き W・キャッシュ外 U）・出力 O」。`入力` は Archon の `spend.tokens.input` で `cacheRead`・`cacheWrite` を含む総量なので足し直さず、`U = N − R − W`）と node ごとの同じ形の行。記録の無い node は「トークンの記録なし（記録の無い行 n 件）」、cacheRead・cacheWrite の欠けた起動か `cachePartial` の起動が在る所は「キャッシュの内訳が不明な起動 n 件」を言ってキャッシュ外を出さない。数えるのは費用と同じく自分の費用を言う行（`accounting: node`）だけで、言い直しの行（`aggregate`）は数えない。
-12. `## 注意（読めなかった物）`: `facts.notes` と 6 の開けない `files` の訳と run の記録の読めなさ。無ければ `無い`。
+12. `## 注意（読めなかった物）`: `facts.notes` と 6 の開けない `files` の訳と run の記録の読めなさ。書き手のループが落ちた時は、誤りの文の全文を `書き手の段が落ちた誤り: {誤り}` の 1 行（`writer.note_writer_fell`。頭には表の行 `Line.WRITER_FELL_OTHER`・`Line.WRITER_FELL_QUOTA` だけが出る）。無ければ `無い`。
 
 節 4〜12 の行には `_bullets` で頭の `- ` を付ける（今の `build`）。節と節の間は空行 1 つ。最後に改行。`carry` を書く時、次の依頼は `carry.compose(findings, prior, drafts, constraints)` を `carry.errors(doc, carry.NEXT_SCHEMA)` で、前の失敗は `carry.errors(prior, carry.PRIOR_SCHEMA)` で照らし、2 つとも照らしてから書く（合わなければ `ValueError`。facts の受け皿が `record_invalid` にする。今の `:1866-1880`）。
 
@@ -399,6 +408,7 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 - 移した: 言語の 1 行（md:1。`$facts.output.lang_line`。`rolekit.LANG_RULE`）と「報告は依頼の言語で書く」（md:16）を、構成の頭の `Write the report in {lang}. This covers every field a person reads…` の文に（訳さない物の句も含む）。
 - 移した: 機械が照らす字（見出しの字「人が決めること」・セルの字数 50・機械の報告の節の見出し）を `{decisions_head}`・`{cell_limit}`・`{decisions_heading}`・`{stop_heading}`・`{where_heading}` の値に（README の 5.3 の「md と validation が同じ字を持つべき値」）。今は md の字と `report_roles` の定数が別々に同じ字を持っていた。
 - 替えた: 機械の報告の節の名指し「1. 人が決めること」「2. 入口・段・決めた人」「3. 止めたか」「5. 見る所」を、新しい番号（1.9）の値に。「2. 入口・段・決めた人」の入口の行（md:20・21）は、節を名指さず "the facts say that this run entered at the judgment" にした（その節は line が見出しを付けるので、report の md が名を持たない）。
+- 替えた: 書式の決まりの「機械の頭の行」の言い方（#812）。頭は種ごとの決まった文と型の決まった値だけで、判断に要る訳の要点（止めた訳・関門の訳・知らせの本文・書き手の落ちの誤り）は頭に無く節「2. 止めたか」と注意の節に在る。そこで、訳の要点と急ぐかどうかは書き手の要約が頭で言うと書いた（機械の急ぎの行は、段が落ちていないことと、試験の外で対象が動くかを確かめていないことしか言わない）。
 - 替えた: 構成 5 の R1 の削ったコメントと残した why の読み方（md:24。`$ARTIFACTS_DIR/eyes/` の下の `r1.json` の欄 `deletions` と `r1-comments.json` の欄 `kept` を Read で読め）を、「facts の R1 の節に並ぶ物」に。ほかの block の place のファイルの名と欄の名を report の md が持たないため。r1 の block がその行を `report` の欄に組む（1.6）。
 - 消した: `$ARTIFACTS_DIR/` の字（md:5・7・24）。Archon が `prompt:` の値の中の `$…` を置き換えるのに頼っていた。新しい形では prep が絶対パスを入れる。
 - 消した: 語の表のファイルの名 `glossary.json` と例の語（md:12「根本の単位・レンズ」）。書き手は語の表を開かず、機械が言い換えることだけを知ればよい。
@@ -431,9 +441,9 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 1. 返答を読む（JSON のオブジェクトでない・本文 `text` が空なら拒む。種 `answer`）。
 2. `terms` の型（`TERM_SCHEMA`。種 `answer`）。
 3. 表のセルの書式（`format_problems`。「。」を含むか `CELL_LIMIT` 字を超えるセル。`` `code` `` とコードの囲みの中は数えない。種 `format`）。
-4. 初見の読み手の判定が `pass` でなければ拒む（種 `cold`。理由は `_cold_reason` の字。止まった所と推測した所を全部並べ、機械が組んだ行の所は書き手には直せない物として分けて言う）。ただし次の 2 つは受け取り、`not_passed` に止まった所と推測した所を残す: (a) 読み手が通さなかった所が機械が組んだ行（`machine_lines`）だけの時（`machine_only`。書き手には直せないので、どの回でも書き直させない。`ai.json` の `machine_only` が真。#834）、(b) `rolekit.is_last_attempt` の回。
+4. 初見の読み手の判定が `pass` でなければ拒む（種 `cold`。理由は `_cold_reason` の字。本文の指摘だけを並べ、機械が組んだ頭の行の指摘は書き手に渡さない。指摘は読み手の文 `text` で出し、行の印は書き手にも人にも出さない）。指摘が頭の行か本文かは、読み手の自己申告の欄でなく、機械が貼る本文の行に付けた印で決める（`writer.marked_parts`。機械の行は `M<n>`、書き手の行は `W<n>`。指摘の `line` を `writer.cold_marks` の集合と比べる）。印の無い指摘・貼っていない印の指摘は本文の指摘として扱う（fail-closed）。ただし次の 2 つは受け取り、`not_passed` に止まった所と推測した所を残す: (a) すべての指摘の印が貼った機械の行の印の時（`head_only`。書き手には直せないので、どの回でも書き直させない。`ai.json` の `machine_only` が真。#834。機械の行の指摘は、受け取った時の知らせの行（`_not_passed_note`）に 1 度だけ載る）、(b) `rolekit.is_last_attempt` の回。この置き換え（決めの記録が revisit の条件に挙げた「出どころの印への置き換え」）は、返す JSON の形（`stops`・`guessed` の要素が字から `{line, text}` になり、`machine_lines` が無くなる）を変えるので、指示書の「形を同じに保つなら書き直してよい」許しの外になる。形の変更は依頼の D3 による。
 - 拒んだ回は、本文と `terms` を前の答えの控え（`candidate-report.json`）に、`handoff` を `r<n>/handoff.json` に置く（今の `_carry_rejected`）。前の周のメモが読めない・控えに書けない時は、出し直させても直らないので 1 回目で諦める（`give_up`）。
-- 3 回目の拒否でループを抜ける（`rolekit.GIVE_UP_AFTER`）。諦めた時・控えが扱えない時は `ai.json` に `{accepted: false, reason, cold, rejects}` を書く。受け取った時は `{accepted: true, text, terms, cold, not_passed, machine_only, rejects}`。
+- 3 回目の拒否でループを抜ける（`rolekit.GIVE_UP_AFTER`）。諦めた時・控えが扱えない時は `ai.json` に `{accepted: false, reason, cold, rejects}` を書く。受け取った時は `{accepted: true, text, terms, cold, not_passed, machine_only, rejects}`（`cold` の `stops`・`guessed` の要素は `{line, text}`）。
 - 返り `{done, ok, reason, kind, prev_file}`。`prev_file` はまだ諦めていない拒否の回で前の答えの控えが在る時だけ、その絶対パス（今は run directory からの相対だった。prep が読むだけになったので絶対パスにした）。今の `reason_file` は返さない（却下の段落の中身は prep が控えから組む）。
 - 却下の理由の文（日本語）は、返答の中身で変わる所（セルの字数・止まった所と推測した所・型の拒み）を Python に残す（`CELL_REASON`・`_cold_reason`・型の拒みの文）。毎回同じ字の直し方の段落（初見の読み手が通さなかった時の書き直し方・表のセルの直し方）は `prompts/write.md` の `rejected` の段落が持つ（#764）。ループを諦めた時に `ai.json` の `reason` を通って人に向けた報告の頭に載るので、人に見せる文として日本語のまま（README の 5.3）。
 
@@ -444,6 +454,8 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
   - `no-ai-report.stubs.yaml`: `facts` が `{}`。結末は `record_invalid`、書き手のループは飛び、`finish` の `human` が null（今の筋書きの写し）。
   - `stopped-by-request.stubs.yaml`: `facts.gates` に、`decision` が `answer.STOP_WORDS` の語で `text` が `request:` で始まる答え。結末は `stopped_by_request`（今の筋書きの写し）。
   - `cold-gave-up.stubs.yaml`: `cold` が 3 回とも `redesign-needed`。3 回目に受け取り、人に向けた報告の冒頭に `report_roles.NOT_PASSED` の行が在る（今は筋書きが無い）。
+  - `cold-head-only.stubs.yaml`: `cold` が `redesign-needed` で、指摘が機械の行の印（`M1`）だけ。書き直させずに 1 回目で受け取り、結末は `fixed` で、人に向けた報告が在る。
+  - `cold-unmarked.stubs.yaml`: `cold` が `redesign-needed` で、指摘が貼っていない印（`M99`）。本文の指摘として拒み（kind `cold`）、書き直させる。結末は `fixed` で、人に向けた報告はまだ無い。
 - `tests/blocks/report/`:
   - `test_outcome.py`: 1.7 の 11 の順を、`facts` と `run` の組で 1 つずつ照らす。写す元 lib の試験の `test_outcome.py` の `TableCase`・`LineStopCase`・`OrderCase`（返りの欄を組む見本を、`facts` の欄の見本に替える）。`ReadingCase`・`ConflictNamesCase`（返りの欄の読み分け）は写さず line の試験へ。
   - `test_machine.py`: 1.8 の節の並びと字。写す元 `test_runreport.py` の `BuildCase` のうち冒頭 3 行・止めたか・見る所・模型・費用・注意の物、`DraftsCase`・`CarryCase`（次の依頼と前の失敗の書き込みと schema の照らし）、`StampCase`。節の中身を返りから組む試験（`LinesCase`・`DecisionsCase` の大半・`LedgerCase`・`FixBesideLinesCase`・`TddCase`・`TypedCase`）は作り手の block と line の試験へ。
@@ -474,8 +486,8 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 1. `{shared:role-cold-reader}`（役の定義。決まった文）。
 2〜3. `{shared:report-head-check}`（報告の頭の確かめの 2 段落。下の md の 2・3 段落目をこの断片に置く。この block の PR が足す。使うのは report の block の初見の読み手だけで、cold-read の block は使わない）。断片の中の差し込み口 `{machine_heading}` ← `report_roles.MACHINE_HEADING` の `## ` を外した字（「機械が各段の出力と run の記録から組んだ事実（AI は書き換えていない）」。詳細のファイルの見出しと同じ字）。
 4. 渡した物だけを読めの 1 文（決まった文）。
-5. 区切りの行で分けた 2 つ: `{machine}`（機械が組んだ行。機械の報告の冒頭）と `{body}`（書き手の頭とその頭に現れる語の定義の節）。どちらも `writer.cold_parts(writer, place=place)` が語の表で言い換えた物で、この順につなぐと人に向けた報告の頭と同じ字（`writer.cold_body`）。分けるのは、読み手が止まった所が書き手の書いた所か機械が組んだ行かを返せるようにするため（#834）。
-6. 返す物と判定の決まり（決まった文）。止まった所と推測した所は、書き手の書いた所なら `stops`・`guessed`、機械が組んだ行なら `machine_lines` に置く。どれかに 1 つでも在れば `redesign-needed`（基準は変えない）。
+5. 区切りの行で分けた 2 つ: `{machine}`（機械が組んだ行。機械の報告の冒頭）と `{body}`（書き手の頭とその頭に現れる語の定義の節）。どちらも `writer.cold_parts(writer, place=place)` が語の表で言い換えた物で、この順につなぐと人に向けた報告の頭と同じ字（`writer.cold_body`。この字は印なしのまま変えない）。貼る時は空でない行ごとに印を付けて `<印> | <行>` と描く（`writer.marked_parts` が 2 つに分けて返す並び。機械の行は `M1`・`M2`…、書き手の行は `W1`・`W2`…。数字はその部分の何行目か。印の書式を知るのは `marked_parts` の 1 か所）。印を付けるのは、読み手が止まった所が書き手の書いた所か機械が組んだ行かを、読み手の自己申告でなく機械が決めるため（#834 の入れ分けを置き換えた）。
+6. 返す物と判定の決まり（決まった文）。止まった所は `stops`、推測した所は `guessed` に置き、各要素に止まった行の印を `line` に（印の字だけを）、一文を `text` に書く。どれかに 1 つでも在れば `redesign-needed`（基準は変えない）。機械が組んだ行で止まった指摘も、書き手の本文でも分からない時だけ、その行の印で書く。
 7. 書き方の 2 項目: 1 項目に 1 文で本文の所を名指す、と言語の行（`<!-- if lang_given -->` の `{lang}` ← facts の `lang`。空なら `<!-- if not lang_given -->` の「貼った本文の言語」）。cold-read の block の `prompts/cold.md` と同じ形。言語の行が無いと、読み手は指示の英語のまま返すことがあり、その字が書き手への拒否の理由と人に向けた報告の冒頭に載る。
 8. 結びの 1 文。
 
@@ -485,7 +497,7 @@ md の本文（英語）の正本は `prompts/cold.md` と共通の断片 `workf
 
 ### 3.4 返す形
 
-`output_format`（`workflows/report/works-factory-report.yaml` の cold）: `verdict`（`pass`・`redesign-needed`）・`stops`（字の配列。書き手の書いた所で止まった所）・`guessed`（字の配列。書き手の書いた所で推測した所）・`machine_lines`（字の配列。機械が組んだ行で止まったか推測した所。#834 で足した）・`decidable`（boolean）。`required` は 5 つ全部・`additionalProperties: false`。人に見せる欄は `stops`・`guessed`・`machine_lines`（拒んだ回は書き手への拒否の理由に、受け取った回は人に向けた報告の冒頭の印と詳細のファイルに載る。`machine_lines` の行は「機械が組んだ行で止まった所（書き手には直せない）」と分けて言う）。言語は 3.3 の 7 の行が名指す（facts の `lang`。空は貼った本文の言語）。
+`output_format`（`workflows/report/works-factory-report.yaml` の cold）: `verdict`（`pass`・`redesign-needed`）・`stops`（`{line, text}` の配列。止まった所。`line` は貼った行の印、`text` は一文）・`guessed`（`{line, text}` の配列。推測した所）・`decidable`（boolean）。`required` は 4 つ全部・`additionalProperties: false`（要素も `line`・`text` の 2 つが required で `additionalProperties: false`）。`machine_lines` は無い（#834 で足した欄を、印による分けに置き換えて外した）。人に見せる欄は `stops`・`guessed` の `text`（拒んだ回は書き手への拒否の理由に本文の指摘だけが、受け取った回は人に向けた報告の冒頭の印と詳細のファイルに頭の指摘も含めて載る。行の印は載せない）。言語は 3.3 の 7 の行が名指す（facts の `lang`。空は貼った本文の言語）。
 
 ### 3.5 描いた骨組み（例の run の値。3 回目の回）
 
@@ -501,10 +513,13 @@ You have no context: …
 ==== lines the machine built begin ====
 # 報告（run df5e111f-ea97-409b-8066-2245d32746ab）
 
-起きたこと: 決めた周の数のうちに直しきれずに止まった（round_limit）。TDD の実行器を作れなかった（…）——TDD のループは回さない。…
+起きたこと: 決めた回数のうちに直しきれずに止まった。人が決めること 15 件が残っている
 差分を当ててよいか: PR を作った: https://github.com/raiki61/works-factory/pull/759（下書きの PR #759。merge は対象のレビューと決まりに任せる）
-人が決めること: 15 件——許したテストの変更 13 件・直しきれずに残った物 2 件（1 件ずつ下の行。…）
-- 許したテストの変更: lib/tests の test_runreport.py
+急ぎ: この run の段はどれも落ちていない。試験の外で対象が動くかは、機械は確かめていない。PR を作っただけで、対象の既定の枝には当てていない
+人が決めること: 15 件（下の行は種類ごと。題のある物は 1 件ずつ）
+- 許したテストの変更（13 件）
+- 直しきれずに残った物（2 件）
+知らせ（決めることではない）: TDD の実行器を作れなかった。TDD のループは回さない。JUnit XML を第 1 引数に書く実行器を入力 tdd_suite に渡せば回す
 …
 ==== lines the machine built end ====
 
@@ -554,15 +569,15 @@ graphloops の `prompts/review-loop/report.cold_check.md` は書き手の前の�
 
 - `facts.py`: `INPUTS_SECTIONS`・`INPUTS_FACTS`・`INPUTS_LANG` を `os.environ.get(…)` の字のままで読み、`ports.json(…, "shared:sections.schema.json")`・`ports.json(…, "shared:facts.schema.json")`・`ports.text(…)` で値にし、`facts_in.read` で既定を埋める。読めない入力は落とさず、その訳を `problems` に足す（結末は `record_invalid`）。`transcript.read()`、`transcript.facts(rows, exclude_prefix=transcript.own_prefix(), optional=facts.optional)`、`outcome.decide`、`machine.build` の順に呼び、`facts.json` を書いて返す。返り `{outcome, ok, stop_reason, machine, next_request, prior_failures, ai_go, stamp}`（`ai_go` は結末が `record_invalid` でない時に真。`stamp` は `writer.stamp(run_id, <block の YAML のパス>, facts.round, facts.line_rev, facts.start_ok)`）。思わぬ誤りは捕まえ、`machine.fallback_report` の機械の報告（`report-unwritten.md`）を指す `record_invalid` の返りにする。lib を読めない時は標準ライブラリだけで `report-facts-unwritten.md` を書いて返す（今の `facts.py` の 3 段のまま）。
 - `write_prep.py`: `writer.note_writer_fell(<report.md>, None, run_id=…)`（resume の前に finish が置いた行を外す。今の `reject.py`）→ 2.3 の値と真偽を組み、`prompt.render("write", values, when)`、`write-prompt-<n>.md` に書いて `{prompt}` を返す。
-- `cold_prep.py`: `INPUTS_WRITER` を字のままで読み、`machine, body = writer.cold_parts(raw, place=place)`、`prompt.render("cold", {"machine": machine, "body": body, "machine_heading": …, "lang": <facts の lang>}, {"lang_given": <lang が空でないか>})`（3.3 の 5・7）、`cold-prompt-<n>.md` に書いて `{prompt}` を返す。
+- `cold_prep.py`: `INPUTS_WRITER` を字のままで読み、`writer.marked_parts(raw, place)` の 2 つの並びをそれぞれ `<印> | <行>` に描いた `machine`（機械の行）と `body`（書き手の行）、`prompt.render("cold", {"machine": machine, "body": body, "machine_heading": …, "lang": <facts の lang>}, {"lang_given": <lang が空でないか>})`（3.3 の 5・7）、`cold-prompt-<n>.md` に書いて `{prompt}` を返す。
 - `write_accept.py`: `INPUTS_REPLY`・`INPUTS_COLD` を字のままで読み、`writer.accept(reply, cold, place=place)` の返りから `{done, ok, reason, kind, prev_file}` を返す。思わぬ誤り（`rejects-report.md` に書けないなど）は捕まえない: node が落ちて run が failed になり、finish が「書き手のノードが落ちた」を機械の報告の頭に置き、resume できる（今の `report_accept.py` と同じ）。
 - `finish.py`: `facts.json` と run の記録を読み、書き手のループ（`transcript.own_prefix() + "write-loop"`）が落ちていれば `writer.note_writer_fell(<report.md>, fell, run_id=…)`（使用枠の切れなら resume の命令 `answer.resume(run_id)` を添える。#702）。`writer.collect(<report.md の字>, place=place, stamp=…)` で人に向けた報告と詳細のファイルを書く（`ai.json` が無ければ書かない）。返りは 1.2 の出力の 9 欄。落ちない: 思わぬ誤りは捕まえて `record_invalid` と訳を返し、facts の機械の報告の pointer が在ればそれを指す（今の `collect.py` の `fallen`）。lib を読めない時は `report-finish-unwritten.md` を書いて指す。
 
 ## 5 受け付けの文と諦め
 
 - 却下の理由の文は Python（`src/writer.py`）が組む日本語の文。中身は今のまま（本文が無い・`terms` の型・表のセル・初見の読み手の止まった所と推測）。
-- 3 回目の拒否でループを抜ける。初見の読み手だけが通さない時は、3 回目に受け取って印を残す（`NOT_PASSED` の字を人に向けた報告の冒頭と詳細のファイルの拒みの数の行に）。初見の読み手が通さなかった所が機械が組んだ行だけの時は、その回に書き直させずに受け取り、同じ印に `MACHINE_ONLY` の訳を添える（#834。初見の読み手の基準も回数も変えず、書き手に直せない所で輪を回さない）。ほかの拒みで 3 回目に届いた時は受け取らず、人に向けた報告の頭の所に「報告（AI の報告を最後まで作れなかった）」と訳を置く（今の `collect` の `FAILED_TITLE`）。
-- 書き手のループが落ちた時（使用枠の切れなど）は、run を failed で終え（Archon が落ちた node で run を落とす）、finish が機械の報告の冒頭に訳と resume の道を置いて返る（#702）。
+- 3 回目の拒否でループを抜ける。初見の読み手だけが通さない時は、3 回目に受け取って印を残す（`NOT_PASSED` の字を人に向けた報告の冒頭と詳細のファイルの拒みの数の行に）。初見の読み手のすべての指摘が機械が組んだ頭の行の印を指す時（`head_only`）は、その回に書き直させずに受け取り、同じ印に `MACHINE_ONLY` の訳を添える（#834。初見の読み手の基準も回数も変えず、書き手に直せない所で輪を回さない）。ほかの拒みで 3 回目に届いた時は受け取らず、人に向けた報告の頭の所に「報告（AI の報告を最後まで作れなかった）」と訳を置く（今の `collect` の `FAILED_TITLE`）。
+- 書き手のループが落ちた時（使用枠の切れなど）は、run を failed で終え（Archon が落ちた node で run を落とす）、finish が機械の報告に落ちたことを置いて返る（#702）。頭の終わりには使用枠の切れか、ほかの落ちかの表の行（使用枠の切れの行だけが resume の命令つき）、誤りの文の全文は注意の節の 1 行。resume で書き直した run では両方を外す。
 
 ## 6 単独で呼ぶ
 

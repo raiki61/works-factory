@@ -3,6 +3,7 @@ notes の行と、前提の検算の行（今の runreport._eye_lines の R2 の
 import eyekit    # lib/
 import gatemarks  # lib/。頼みの解き方の言い方・人に聞く訳・推しの尾（PR 1 の means_drift_text と同じ字）
 import oneline   # lib/
+import plainask  # lib/。人に聞く項目の要素の読み口（問いは字でも {text, title} の行でも本文を読む）
 
 from src import notes as notes_mod
 
@@ -22,9 +23,10 @@ def means_conflict_text(row: dict, said: dict, gaps: list) -> str:
 
 def lines(row: dict, notes: list, premise_check, replied: bool = True, questions=()) -> list:
     """row は判定の行、notes は notes の行、premise_check は検算の道の時の {verdict, reason, key, resolution, facts}（ほかは None）、
-    replied は検算の役の返答のファイルが読めたか、questions は頼みどおりの違いの問いの文（means_conflict_text）"""
+    replied は検算の役の返答のファイルが読めたか、questions は頼みどおりの違いの問い（本文は means_conflict_text の文。字でも {text, title} の行でもよく、
+    報告の行には本文を並べる）"""
     out = [eyekit.headline("R2", row)]
-    out += [f"  - {q}" for q in questions]
+    out += [f"  - {plainask.item_text(q)}" for q in questions]
     out += [f"  - {x}" for x in notes]
     if premise_check:
         out.append(PREMISE_LINE.format(verdict=premise_check.get("verdict") or "語が無い", reason=oneline.one_line(premise_check.get("reason") or "")))

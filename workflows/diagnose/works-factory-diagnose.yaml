@@ -166,6 +166,7 @@ nodes:
                       type: array
                       items: {type: string}
                     origin: {type: string}
+                    title: {type: string}
               framing: {type: string}
               one_shot: {type: string}
               materials_missing:
@@ -463,6 +464,7 @@ nodes:
               options: {type: array, items: {type: string}}
               depends: {type: array, items: {type: string}}
               origin: {type: string}
+              title: {type: string}
         inputs: &pointer_or_null
           description: 'json(shared:diagnose-input.schema.json): 判定役が読んだ材料のファイル'
           type: [object, 'null']

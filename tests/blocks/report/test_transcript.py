@@ -191,7 +191,7 @@ class WriterFellCase(unittest.TestCase):
     """#702: 書き手のループが落ちた訳を run の記録から読む"""
     QUOTA = "Loop-group node 'write-loop' failed at iteration 1: 'write': usage or credit limit is used up\n詳しい行"
     SAFEGUARDS = "Loop-group node 'write-loop' failed at iteration 1: 'write': API Error: Sonnet 5.5's safeguards flagged this message"
-    MACHINE = "# 報告（run run-1）\n\n起きたこと\n当ててよいか\n人が決めること\n\n## 1. 結末\n\n本文\n"
+    MACHINE = "# 報告（run run-1）\n\n起きたこと\n当ててよいか\n人が決めること\n\n## 1. 結末\n\n本文\n\n## 注意（読めなかった物）\n\n- 無い\n"
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -213,17 +213,25 @@ class WriterFellCase(unittest.TestCase):
             with self.subTest(rows=rows):
                 self.assertIsNone(M.transcript.writer_fell(rows, "report__write-loop"))
 
+    def notes(self) -> str:
+        return self.machine.read_text(encoding="utf-8").split("## 注意（読めなかった物）\n\n", 1)[1]
+
     def test_note_names_the_error_and_resume_only_for_quota(self):
+        H = M.head
         M.writer.note_writer_fell(self.machine, {"error": "API Error: x", "quota": False}, run_id="run-1")
-        self.assertTrue(self.head().endswith(M.writer.WRITER_FELL.format(error="API Error: x")), self.head())
-        self.assertNotIn("resume", self.head())
+        self.assertTrue(self.head().endswith(H.render(H.Line.WRITER_FELL_OTHER)), self.head())
+        self.assertNotIn("resume の命令", self.head(), "使用枠の切れでない落ちには resume の命令を付けない")
+        self.assertNotIn("API Error: x", self.head(), "誤りの文の全文は頭に置かない")
+        self.assertEqual(self.notes(), "- 書き手の段が落ちた誤り: API Error: x\n", "誤りの文は注意の節に 1 行")
         self.assertIn("## 1. 結末\n\n本文", self.machine.read_text(encoding="utf-8"))
         M.writer.note_writer_fell(self.machine, {"error": "used up", "quota": True}, run_id="run-1")
-        lines = [x for x in self.head().splitlines() if x.startswith("AI が書く報告の本文は無い")]
-        self.assertEqual(len(lines), 1, "前の周の訳を置き換える")
-        self.assertIn("used up", lines[0])
-        self.assertIn("run-1", lines[0])
-        self.assertIn("鎖の run を resume する", lines[0])
+        quota = H.render(H.Line.WRITER_FELL_QUOTA, H.QuotaSlot(H.Command(M.writer.answer.resume("run-1"))))
+        fell = [x for x in self.head().splitlines() if H.parse(x) and H.parse(x).kind in (H.Line.WRITER_FELL_OTHER, H.Line.WRITER_FELL_QUOTA)]
+        self.assertEqual(fell, [quota], "前の周の行を置き換える")
+        self.assertIn("run-1", quota)
+        self.assertIn("別のアカウントで run を resume すれば", quota)
+        self.assertNotIn("used up", self.head())
+        self.assertEqual(self.notes(), "- 書き手の段が落ちた誤り: used up\n", "前の周の誤りの行を置き換える")
 
     def test_rewritten_run_drops_the_note_and_untouched_report_stays(self):
         M.writer.note_writer_fell(self.machine, None, run_id="run-1")

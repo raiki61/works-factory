@@ -65,6 +65,9 @@
           },
           "origin": {
             "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         }
       }
