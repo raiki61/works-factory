@@ -254,7 +254,7 @@ def final_head(got: dict, why: list) -> list:
 
 
 def returned_section(got: dict) -> list:
-    """返した周の節（見出しは eyesback.HEAD、行は eyesback.lines。報告の節と同じ口。返した周が 0 なら出さない）"""
+    """返した周の節（見出しは eyesback.HEAD、行は eyesback.lines。報告の節と同じ口。行が無ければ出さない）"""
     record = got["eyes_back"] or {}
     rows = [f"- {x}" for x in eyesback.lines(record.get("rows"), record.get("exit") or "", record.get("left"))]
     return [f"## {eyesback.HEAD}（{eyesback.count(record.get('rows'))} 回）", "", *rows, ""] if rows else []

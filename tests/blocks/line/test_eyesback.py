@@ -173,10 +173,23 @@ class TurnCase(_Case):
         more = self.run_turn(fixed=fixed(more=[{"ok": True}]))
         self.assertEqual(more["more"], [{"ok": True}])
 
-    def _script_const(self, name: str, const: str) -> str:
-        import re
-        text = (kit.BLOCKS / BLOCK / "scripts" / f"{name}.py").read_text(encoding="utf-8")
-        return re.search(rf'^{const} = "([^"]+)"', text, re.M).group(1)
+    def test_no_fix_run_does_not_return(self):
+        """直す物が無い run（合わせの no_fix が真）は、目が作り残しを言っても修正の段へ返さずに抜ける（計画の無いまま修正役を起こさない）"""
+        got = self.run_turn(fixed=fixed(no_fix=True))
+        self.assertEqual((got["go"], got["exit"], got["rows"]), (False, "直す物が無い run は返さない", []))
+
+    def test_items_left_unreturned_are_named_even_with_no_round(self):
+        """1 周目に返さずに抜けた時（修正の段が止めた・直す物が無い run）も、目が返そうとした項目と抜けた訳を、承認ノードと報告が読む lines の
+        1 行に出す。目が返す物を言わなかった run は今どおり空"""
+        for over in ({"fixed": fixed(objection="設計に異議")}, {"fixed": fixed(no_fix=True)}):
+            with self.subTest(over=over):
+                got = self.run_turn(**over)
+                out = self.e.lines(got["rows"], got["exit"], got["left"])
+                self.assertEqual(len(out), 1, out)
+                self.assertIn(got["exit"], out[0])
+                self.assertIn("R2: 入口が足りない", out[0])
+        stay = self.run_turn(eyes=eyes("stay"))
+        self.assertEqual(self.e.lines(stay["rows"], stay["exit"], stay["left"]), [])
 
 
 class LastCase(_Case):

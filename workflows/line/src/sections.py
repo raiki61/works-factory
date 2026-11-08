@@ -372,7 +372,7 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
 
 
 def back_lines(record) -> list:
-    """返した周の節の行（最後の承認ノードと同じ eyesback.lines。返す輪の集めの記録 eyes_back から。返した周が 0 なら空）"""
+    """返した周の節の行（最後の承認ノードと同じ eyesback.lines。返す輪の集めの記録 eyes_back から。返した周が 0 で返さなかった項目も無ければ空）"""
     return eyesback.lines(_d(record).get("rows"), _d(record).get("exit") or "", _d(record).get("left"))
 
 

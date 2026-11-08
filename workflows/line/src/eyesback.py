@@ -9,7 +9,7 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕と、それぞ�
 - LIMIT: 返す周の数（YAML の周の節の数と同じ数。周の頭 turn はここを直に読む）。計画の往復の上限 rounds.LIMIT とは別の物
 - HEAD: 最後の承認ノードと報告が返した周の節に付ける見出し
 - FIELDS: 周の頭の出力の欄の名。RECORD: 集め eyes-back の出力の欄の名（最後に走った周の頭の状態）
-- EXITS・CAP_WHY: 輪を抜けた訳の字（fell・stop・unchanged・cap。目の route が stay の時は目の route_why が訳）
+- EXITS・CAP_WHY: 輪を抜けた訳の字（fell・stop・unchanged・no_fix・cap。目の route が stay の時は目の route_why が訳）
 - row(k, eyes, items)・count(rows)・capped(record)・left_text(left): 周の記録の行と数え方
 - turn(...) -> 周の頭の出力: 返すかを決め、返す時は修正の段への入力（only_items・notes・prior ほか）を組む
 - last(heads) -> 集め eyes-back の出力・current(eyes_back, fixed, tests, eyes) -> (fixed, tests, eyes): 最後の周の状態の選びの 1 か所
@@ -31,10 +31,12 @@ EXITS = {
     "fell": "返す周のノードが落ちた（周の頭が前の周の出力か、案の直しの出力を読めなかった）",
     "stop": "修正の段が止めた",
     "unchanged": "返しの修正で差分が変わらなかった",
+    "no_fix": "直す物が無い run は返さない",
     "cap": CAP_WHY,
 }
 NOT_REVIEWED = "返した段の差分は、段ごとの差分の審査・並行 PR との重なりの確かめ直し・仕様の照らし・異議の再審を通っていない"
 NOTHING = "返す物が無い"
+UNRETURNED = "独立の目が返す項目を挙げたが、修正の段へ返さなかった（{why}）——返さなかった項目: {items}"
 UNTIED = "返す項目を修正案の項目に結べなかったので、全部の項目を対象にする"
 NOTE_HEAD = "独立の目"
 FIELDS = ("go", "round", "only_items", "notes", "prior", "plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun", "more", "rows",
@@ -125,7 +127,9 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     前の周の頭の記録（抜けた訳・返した周の行・残った作り残し・最後の状態）をそのまま運ぶ。決める順:
     0. k が 2 以上で前の周の頭が返さなかった（go が真でない）→ 前の記録をそのまま運ぶ
     1. 前の周の頭か合わせが欠けた（k が 2 以上で prev が無い・fixed が無い）→ 輪の節が落ちた
-    2. 前の段の修正の stop_reason か異議が空でない・合わせが進めない（k が 1 なら判定の stop_reason も）→ 修正の段が止めた
+    2. 前の段の修正の stop_reason か異議が空でない・合わせが進めない（k が 1 なら判定の stop_reason も）→ 修正の段が止めた。
+       合わせの no_fix が真（直す物が無い run。計画が無いので修正役を起こせない）→ 直す物が無い run は返さない。
+       どちらも、目が返そうとした項目を left に運ぶ（周の行が 0 でも lines が名指す）
     3. 試験か目の返りが欠けた → k が 2 以上なら輪の節が落ちた。1 周目は目か試験が返らなかっただけ（輪の節は落ちていない）なので返す物を読めない訳で抜ける
     4. k が 2 以上で試験の指紋の diff_hash が前の周と同じ → 返しの修正で差分が変わらなかった
     5. 目の route が fix でない・返す項目が無い → 目の route_why（無ければ『返す物が無い』）
@@ -145,11 +149,14 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
         return leave(EXITS["fell"], sealable=False if k > 1 else out["sealable"])
     if not isinstance(fixed, dict) or (k > 1 and not isinstance(prev, dict)):
         return fall()
+    pending = [dict(i) for i in _items(eyes)] if _d(eyes).get("route") == FIX_ROUTE else []
     stops = [str(fixed.get("stop_reason") or ""), oneline.one_line(fixed.get("objection") or ""),
              str(_d(judged).get("stop_reason") or "") if k == 1 else ""]
     why = next((s for s in stops if s), "" if fixed.get("go") is True else "修正の段の合わせが進めなかった")
     if why:
-        return leave(f"{EXITS['stop']}（{why}）")
+        return leave(f"{EXITS['stop']}（{why}）", left=pending)
+    if fixed.get("no_fix") is True:
+        return leave(EXITS["no_fix"], left=pending)
     if not isinstance(tests, dict) or not isinstance(eyes, dict):
         return fall() if k > 1 else leave(NO_RETURN)
     if k > 1 and _diff_hash(tests) and _diff_hash(tests) == str(_d(_d(prev).get("fingerprint")).get("diff_hash") or ""):
@@ -208,11 +215,12 @@ def current(eyes_back, fixed, tests, eyes) -> tuple:
 # ---------------------------------------------------------------- 返した周の行
 def lines(rows, exit_: str = "", left=()) -> list:
     """最後の承認ノードと報告が同じ行に読む、返した周の行。返した周ごとに『k 周目: 返した（R1: <語>・R2: <語>）——返した項目: …』を並べ、
-    返した周が 1 つ以上在れば返した段が通っていない確かめの 1 行と、抜けた訳の 1 行（残った作り残しがあれば名指す）を付ける。0 回なら空。
-    目の語の言い方は gatemarks.REVIEW_WORDS（字をここで持たない）"""
+    返した周が 1 つ以上在れば返した段が通っていない確かめの 1 行と、抜けた訳の 1 行（残った作り残しがあれば名指す）を付ける。0 回の時は、
+    目が返そうとした項目 left が在れば返さなかった訳と項目の 1 行（UNRETURNED）、無ければ空。目の語の言い方は gatemarks.REVIEW_WORDS
+    （字をここで持たない）"""
     done = [r for r in rows or [] if isinstance(r, dict)]
     if not done:
-        return []
+        return [UNRETURNED.format(why=exit_ or "訳の記録が無い", items=left_text(left))] if left_text(left) else []
     word = lambda s: gatemarks.REVIEW_WORDS.get(s, s or "判定の語が無い")   # noqa: E731
     out = [f"{r.get('round')} 周目: 返した（R1: {word(r.get('r1'))}・R2: {word(r.get('r2'))}）——返した項目: "
            + ("／".join(item_text(i) for i in r.get("items") or [] if isinstance(i, dict)) or "無し") for r in done]
