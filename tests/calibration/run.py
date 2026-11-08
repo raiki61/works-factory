@@ -587,10 +587,10 @@ def _returned_outcome(doc) -> tuple[object, str, str | None]:
     return None, field, None
 
 
-def _result_word(doc) -> tuple[str | None, str, None]:
+def _result_word(doc) -> tuple[str | None, str, str]:
     """claude -p の結果の is_error の真偽を done・error に。欄が無いか真偽でなければ None（本物の結果はいつも真偽を持つ）"""
     flag = _object(doc).get("is_error")
-    return (("error" if flag else "done") if isinstance(flag, bool) else None), "is_error", None
+    return (("error" if flag else "done") if isinstance(flag, bool) else None), "is_error", "無いか真偽でない"
 
 
 def _object(value) -> dict:

@@ -574,9 +574,11 @@ def plain_fix(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
     ended = plain.ended(mine)
     got.update(run_id=session, state=plain.state(attempt, session or ""), outcome=ended["outcome"],
                outcome_state=ended["outcome_state"], outcome_why=ended["outcome_why"], factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"])
-    if got["state"] != run.DONE:
+    if got["state"] != run.DONE and ended["outcome_state"] != reviewbench.READ_OK:
+        got["error"] = f"claude -p の結果から is_error を読めなかった: {ended['outcome_why']}"
+    elif got["state"] != run.DONE:
         said = run._object(run._read_json(mine, run.PlainClaude.RESULT)).get("result")
-        got["error"] = f"claude -p が誤りで終わった: {apply.one_line(str(said or '結果の JSON が無い'))}"
+        got["error"] = f"claude -p が誤りで終わった: {apply.one_line(str(said or '結果の文が無い'))}"
 
 
 def give_origin(attempt: Path, workdir: Path):
