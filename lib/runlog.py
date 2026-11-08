@@ -115,8 +115,7 @@ def _prefix_of(path) -> str:
 
 def own_prefix() -> str:
     """自分の node の実行の記録（ARCHON_NODE_EXECUTION）の path から、自分の include の node の id の頭（入れ子なら outer__inner__。
-    include の外なら空）。記録の行の step はループの本体では素の id で、include の頭とループの道は行の execution.path と
-    ARCHON_NODE_EXECUTION の path に在る。その読みは _prefix_of 1 か所"""
+    include の外なら空）"""
     try:
         doc = json.loads(os.environ.get("ARCHON_NODE_EXECUTION") or "{}")
     except ValueError:

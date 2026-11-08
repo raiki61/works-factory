@@ -9,7 +9,7 @@ always_run: true）。sections は src/sections.py、facts は src/facts.py が�
 got）は要る欄を全部名指して読む（欄の欠けた前の版の返りを resume で受けたら空と読まない。integration.md 4.3-12）。固定材料の run は
 判定・計画が飛ぶので、fix-in が運んだ写し（received）で埋める（facts.returns_of・sections.build）。
 
-落ちない: 組めない時も fallback が訳だけの sections と facts（problems に訳。結末は record_invalid）を書いて、2 つの pointer と、書いた中身の指紋 digest を返す。facts の
+落ちない: 組めない時も fallback が訳だけの sections と facts（problems に訳。結末は record_invalid）を書く。facts の
 部分ごとの組めなさは facts.build が訳を problems・notes に足す。
 
 入力（with:）: notices（testcmd の注意の字）・start・answer_start・tiers・owed・structure_in・design_in・ask_before_fix・answer_before_fix・
