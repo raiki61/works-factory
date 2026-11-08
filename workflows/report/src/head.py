@@ -8,6 +8,7 @@ OneLine でだけ受ける（字数の上限は置かない）。AI や段が書
 - SLOT_TYPES: 差し込み口に許す型の全部
 - Line・Notice: 頭の行の種・知らせの種の列挙（値は表の鍵。Notice の値は facts の共通の形 facts.schema.json の kind の enum と同じ）
 - TABLE・NOTICES: 種 → 文（`{名}` が差し込み口）。SLOTS: 種 → 差し込み口の型（NamedTuple）
+- PR_STOPPED_OF: 差分を当ててよいかの答えの行 → 出口の語 pr の道で PR を作る前に止めた run の同じ答えの行（文は答えの前に PR_STOPPED を足した物）
 - render(line, slots) -> str・notice_row(kind, slots) -> str: 行を描く。種でない鍵や、型に合わない差し込み口の値は TypeError（既定の文に黙って落とさない）
 - slots_of(kind, values) -> 差し込み口: facts の JSON の slots を型の付いた値に直す。形が違えば ValueError
 - parse(text) -> Row | None: 頭の 1 行を表の行に読み戻す（描いた字と同じ字になる行だけ。表の外の行は None）
@@ -170,7 +171,13 @@ class Line(str, enum.Enum):
     APPLY_CHECK_FIRST = "apply_check_first"
     APPLY_PR = "apply_pr"
     APPLY_PR_DRAFT = "apply_pr_draft"
-    APPLY_PR_STOPPED = "apply_pr_stopped"
+    APPLY_PR_STOPPED_NO_DIFF = "apply_pr_stopped_no_diff"
+    APPLY_PR_STOPPED_REFUSED = "apply_pr_stopped_refused"
+    APPLY_PR_STOPPED_DECIDE_FIRST = "apply_pr_stopped_decide_first"
+    APPLY_PR_STOPPED_DECIDE_FIRST_STOPPED = "apply_pr_stopped_decide_first_stopped"
+    APPLY_PR_STOPPED_NOT_PLACED = "apply_pr_stopped_not_placed"
+    APPLY_PR_STOPPED_OK = "apply_pr_stopped_ok"
+    APPLY_PR_STOPPED_CHECK_FIRST = "apply_pr_stopped_check_first"
     APPLY_PR_UNCONFIRMED = "apply_pr_unconfirmed"
     URGENT_FAILED = "urgent_failed"
     URGENT_RECORD = "urgent_record"
@@ -202,6 +209,7 @@ class Notice(str, enum.Enum):
 _APPLY = "差分を当ててよいか: "
 _STOPPED_FLAG = "（--allow-stopped は止まった run の差分を当てる指定）"
 _INFO = "知らせ（決めることではない）: "
+PR_STOPPED = "PR を作らずに止めた。対象の既定の枝には当てていない。"   # 出口の語 pr の道で PR を作る前に止めた run の答えの前に足す句
 _FELL = "AI が書く報告の本文は無い。書き手の段が"
 
 TABLE = {
@@ -219,7 +227,6 @@ TABLE = {
     Line.APPLY_CHECK_FIRST: _APPLY + "確かめてから当てる。この run の結末: {outcome}。当てる命令: bin/apply {run}",
     Line.APPLY_PR: _APPLY + "PR を作った: {url}（PR #{number}。merge は対象のレビューと決まりに任せる）",
     Line.APPLY_PR_DRAFT: _APPLY + "PR を作った: {url}（下書きの PR #{number}。merge は対象のレビューと決まりに任せる）",
-    Line.APPLY_PR_STOPPED: _APPLY + "PR を作らずに止めた。対象の既定の枝には当てていない。差分を手元で当てる命令: bin/apply {run}",
     Line.APPLY_PR_UNCONFIRMED: _APPLY + "PR を作ったと確かめられなかった。対象の既定の枝には当てていない。差分を手元で当てる命令: bin/apply {run}",
     Line.URGENT_FAILED: "急ぎ: 壊れた所がある。この run の段が落ちた。{handover}",
     Line.URGENT_RECORD: "急ぎ: 壊れた所がある。この run の結末: {outcome}。{handover}",
@@ -261,12 +268,20 @@ NOTICE_TOPIC = {
     Notice.SUITE_USED: "TDD の実行器の状態", Notice.SUITE_WROTE: "TDD の実行器の状態", Notice.SUITE_NOT_MADE: "TDD の実行器の状態",
     Notice.USER_ENV: "利用者の環境で走らせた", Notice.TEST_CMD_NOTE: "試験のコマンドの注意",
 }
+# 出口の語 pr の道で PR を作る前に止めた run の行: PR の道でない run と同じ答え（差分が無い・作り直しが要るので当てない・決めてから当てる・
+# --allow-stopped つき…）の行の前に PR_STOPPED を足す。答えの分かれは PR の道でない行と同じ 1 か所（report の machine._apply_row）が選ぶ
+PR_STOPPED_OF = {Line.APPLY_NO_DIFF: Line.APPLY_PR_STOPPED_NO_DIFF, Line.APPLY_REFUSED: Line.APPLY_PR_STOPPED_REFUSED,
+                 Line.APPLY_DECIDE_FIRST: Line.APPLY_PR_STOPPED_DECIDE_FIRST,
+                 Line.APPLY_DECIDE_FIRST_STOPPED: Line.APPLY_PR_STOPPED_DECIDE_FIRST_STOPPED,
+                 Line.APPLY_NOT_PLACED: Line.APPLY_PR_STOPPED_NOT_PLACED, Line.APPLY_OK: Line.APPLY_PR_STOPPED_OK,
+                 Line.APPLY_CHECK_FIRST: Line.APPLY_PR_STOPPED_CHECK_FIRST}
+TABLE.update({stopped: _APPLY + PR_STOPPED + TABLE[base].removeprefix(_APPLY) for base, stopped in PR_STOPPED_OF.items()})
 
 SLOTS = {
     Line.RUN_TITLE: RunSlot, Line.WHAT_HAPPENED: OutcomeSlot, Line.HAPPENED_WITH_ASKS: OutcomeAsksSlot, Line.APPLY_NO_DIFF: Plain,
     Line.APPLY_REFUSED: Plain, Line.APPLY_DECIDE_FIRST: DecideApplySlot, Line.APPLY_DECIDE_FIRST_STOPPED: DecideApplySlot,
     Line.APPLY_NOT_PLACED: RunSlot, Line.APPLY_OK: RunSlot, Line.APPLY_CHECK_FIRST: CheckApplySlot, Line.APPLY_PR: PrSlot,
-    Line.APPLY_PR_DRAFT: PrSlot, Line.APPLY_PR_STOPPED: RunSlot, Line.APPLY_PR_UNCONFIRMED: RunSlot, Line.URGENT_FAILED: UrgentSlot,
+    Line.APPLY_PR_DRAFT: PrSlot, Line.APPLY_PR_UNCONFIRMED: RunSlot, Line.URGENT_FAILED: UrgentSlot,
     Line.URGENT_RECORD: UrgentEndSlot, Line.URGENT_NEITHER: UrgentSlot, Line.DECIDE: CountSlot, Line.NEXT_RUN: CountSlot,
     Line.ASK_TITLED: TitledSlot, Line.ASK_KIND: KindSlot, Line.ASK_KIND_COUNT: KindCountSlot, Line.WRITER_FELL_OTHER: Plain,
     Line.WRITER_FELL_QUOTA: QuotaSlot,
@@ -274,6 +289,7 @@ SLOTS = {
     Notice.NO_SUITE: GroupSlot, Notice.TESTS_NOT_RUN: Plain, Notice.SUITE_USED: Plain, Notice.SUITE_WROTE: Plain,
     Notice.SUITE_NOT_MADE: Plain, Notice.USER_ENV: Plain, Notice.TEST_CMD_NOTE: Plain,
 }
+SLOTS.update({stopped: SLOTS[base] for base, stopped in PR_STOPPED_OF.items()})   # PR を作る前に止めた行の差し込み口は、同じ答えの行と同じ
 
 
 # ---------------------------------------------------------------- 描く

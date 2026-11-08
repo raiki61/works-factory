@@ -86,7 +86,7 @@ ESCALATED_KIND = "前提の検算が人に上げた物"
 SPEC_HEADS = {unchecked: gatemarks.spec_words(unchecked).head for unchecked in (False, True)}   # 仕様を確かめる役の問いの見出し（照らせなかったか → 見出し。選びは spec_words の 1 か所）
 # 人が決める物の種 → 題の出どころ。種の順と題の出どころはここ 1 か所（decisions は ask_groups が集めた {種: 行} をこの鍵の順に並べるだけで、
 # 表に無い種は並べられない）。値: ROW_TITLE（行の title の欄）・KIND_NAME（題を持たず種の名に戻す）・字（機械が本文を組む種の決まった題。
-# 行ごとの値は {単位の id} のように差し込み、差し込み口の無い字は報告の頭で 1 行にまとまる）。仕様を確かめる役の問いの見出しは入力で
+# 行ごとの値を差し込まない〔単位の id は工場の中の値で、頭の読み手の世界の値でない〕ので、同じ種の行は報告の頭で 1 行にまとまる）。仕様を確かめる役の問いの見出しは入力で
 # 2 つに分かれる（照らせた時・照らせなかった時。gatemarks.spec_words）ので、2 つとも種の名に戻す印で置く。字の題は報告の頭に出るので語の表の語を使わない
 ASK_SOURCES = {
     UNRESTORED_GROUP_HEAD: "戻せずに当たったままの修正を、人が確かめる",
@@ -99,7 +99,7 @@ ASK_SOURCES = {
     CONFLICT_ASK_HEAD: "修正の役が人に回した食い違いに答える",
     fixboard.HANDOFF_HEAD: ROW_TITLE,
     PROTECTED_HITS_HEAD: "守ると決めたファイルに当たった差分を確かめる",
-    UNRETURNED_KIND: "修正 {unit_id} を直しの対象に戻せなかった訳を確かめる",
+    UNRETURNED_KIND: "直しの対象に戻せなかった修正の訳を確かめる",
     UNCOMPARED_HEAD: "直す前の版と比べられなかった赤を、人が確かめる",
     ESCALATED_KIND: "前提の検算が人に上げた判定を決める",
 }
@@ -1003,17 +1003,16 @@ def _deferred_said(q) -> str:
 # ---------------------------------------------------------------- 人が決めること
 class AskRow(typing.NamedTuple):
     """人が決める物の 1 行: text は 1 行に畳んだ本文、title は本文を書いた所の題（読み口が畳んだ字。無ければ None）、push は問いの種の行
-    （推しの尾を足す）、slots は種ごとの決まった題に差し込む値"""
+    （推しの尾を足す）"""
     text: str
     title: str | None = None
     push: bool = False
-    slots: dict = {}
 
 
-def _rows(items, *, push: bool = False, titles=None, slots=None) -> list:
-    """items の各要素を AskRow に（本文は _item_said を 1 行に畳む）。titles は要素の並びと同じ長さの題の並び、slots は要素 → 差し込み口の関数"""
+def _rows(items, *, push: bool = False, titles=None) -> list:
+    """items の各要素を AskRow に（本文は _item_said を 1 行に畳む）。titles は要素の並びと同じ長さの題の並び"""
     import oneline
-    return [AskRow(oneline.one_line(_item_said(x)), (titles[i] if titles else None), push, slots(x) if slots else {}) for i, x in enumerate(items)]
+    return [AskRow(oneline.one_line(_item_said(x)), (titles[i] if titles else None), push) for i, x in enumerate(items)]
 
 
 def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, unreturned: list, closed: bool) -> dict:
@@ -1054,16 +1053,16 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, un
         CONFLICT_ASK_HEAD: _rows(asked_conflicts(returns, closed)),
         fixboard.HANDOFF_HEAD: _rows(handoffs, titles=[plainask.item_title({"title": handoff_titles.get(x)}) for x in handoffs]),
         PROTECTED_HITS_HEAD: _rows(hits[:5]),
-        UNRETURNED_KIND: _rows(unreturned, slots=lambda u: {"unit_id": u.get("unit_id")}),
+        UNRETURNED_KIND: _rows(unreturned),
         UNCOMPARED_HEAD: _rows(uncompared_rows(returns)),
         ESCALATED_KIND: _rows([premise] if premise.get("verdict") == "escalate" else []),
     }
 
 
 def ask_title(kind: str, row: AskRow) -> str | None:
-    """行の題。出どころは表 ASK_SOURCES: 行の title の欄・決まった字（行の差し込み口の値を入れる）・題なし（種の名に戻す）。空白だけの題は題なし"""
+    """行の題。出どころは表 ASK_SOURCES: 行の title の欄・決まった字（行ごとの値を差し込まない）・題なし（種の名に戻す）。空白だけの題は題なし"""
     source = ASK_SOURCES[kind]
-    title = row.title if source is ROW_TITLE else None if source is KIND_NAME else source.format(**row.slots)
+    title = row.title if source is ROW_TITLE else None if source is KIND_NAME else source
     return title if isinstance(title, str) and title.strip() else None
 
 

@@ -172,7 +172,7 @@ class AskTitleCase(unittest.TestCase):
         terms = [r["term"] for r in json.loads((kit.BLOCKS / "report" / "src" / "glossary.json").read_text(encoding="utf-8"))["terms"]]
         for kind, source in self.f.ASK_SOURCES.items():
             if isinstance(source, str):
-                self.assertEqual([t for t in terms if t in source.format(unit_id="u1")], [], f"{kind}: {source}")
+                self.assertEqual([t for t in terms if t in source], [], f"{kind}: {source}")
         # 照らせなかった run でも、仕様の問いは種の名のまま asks に並ぶ（2 つの見出しのどちらでも）
         for unchecked in (True, False):
             with self.subTest(unchecked=unchecked):
@@ -231,15 +231,15 @@ class AskTitleCase(unittest.TestCase):
                          [("載せなかった問い", "空の列の扱いを決める"), ("字だけの問い", None), ("題の無い行", None)])
 
     def test_a_machine_built_kind_gets_its_fixed_title(self):
-        """機械が本文を組む種の行は、種ごとの決まった字の題を持つ。単位の id を差し込む種は id を入れた題"""
+        """機械が本文を組む種の行は、種ごとの決まった字の題を持つ。題に単位の id（工場の中の値）を差し込まない"""
         self.assertTrue(hasattr(self.f, "ASK_SOURCES"), "人が決める物の種ごとの題の出どころの表 ASK_SOURCES が無い")
         v = base.passing()
         v["fixed"] = {**v["fixed"], "units": [{"unit_id": "u1", "status": "fixed"}, {"unit_id": "u9", "status": self.fix.NOT_DONE, "reason": "直せなかった"}]}
         v["merge_seal"] = {**v["merge_seal"], "protected_hits": ["lib/protected.json"], "protected_count": 4}
         asks = self.asks(v)
         [unit] = self.of_kind(asks, "直しの対象に戻せなかった項目")
-        self.assertEqual(unit.get("title"), self.f.ASK_SOURCES["直しの対象に戻せなかった項目"].format(unit_id="u9"))
-        self.assertIn("u9", unit["title"])
+        self.assertEqual(unit.get("title"), self.f.ASK_SOURCES["直しの対象に戻せなかった項目"])
+        self.assertNotIn("u9", unit["title"])
         [hit] = self.of_kind(asks, self.f.PROTECTED_HITS_HEAD)
         self.assertEqual(hit.get("title"), self.f.ASK_SOURCES[self.f.PROTECTED_HITS_HEAD])
         for ask in asks:

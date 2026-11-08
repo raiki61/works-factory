@@ -250,9 +250,10 @@ class HeadFor19b99137Case(Base):
                       "--allow-stopped（--allow-stopped は止まった run の差分を当てる指定）", text)
         _, text = self.build(apply={**sealed, "pr": {"act": "pr", "url": "https://example.test/pr/1", "number": 1, "is_draft": True}})
         self.assertIn("差分を当ててよいか: PR を作った: https://example.test/pr/1（下書きの PR #1。merge は対象のレビューと決まりに任せる）", text)
-        for act, said in (("stopped", "PR を作らずに止めた"), ("unconfirmed", "PR を作ったと確かめられなかった")):
+        for act, said in (("stopped", "PR を作らずに止めた。対象の既定の枝には当てていない。当ててよい。当てる命令"),
+                          ("unconfirmed", "PR を作ったと確かめられなかった。対象の既定の枝には当てていない。差分を手元で当てる命令")):
             _, text = self.build(apply={**sealed, "pr": {"act": act, "reason": "push が拒まれた"}})
-            self.assertIn(f"差分を当ててよいか: {said}。対象の既定の枝には当てていない。差分を手元で当てる命令: bin/apply {RUN_ID}", text)
+            self.assertIn(f"差分を当ててよいか: {said}: bin/apply {RUN_ID}", text)
             self.assertNotIn("push が拒まれた", text, "PR を作らなかった訳は merge の節の 1 か所だけ。頭にも 2 節にも写さない")
 
     def test_apply_lines_for_a_stopped_run(self):
@@ -320,7 +321,23 @@ class HeadTableCase(Base):
         return {name: (2 if ann is int else "サンプル") for name, ann in shape.__annotations__.items()}
 
     def scenarios(self):
-        """結末・差分の状態・PR の道・急ぎ・知らせ・人が決める物を変えた build の引数。全部の行の種に当たることは試験の中で照らす"""
+        """結末・差分の状態・PR の道・急ぎ・知らせ・人が決める物を変えた build の引数と、差分の状態を変えたどの場面にも出口の語 pr の道で
+        PR を作らずに止めた（act stopped）写しを足した物。全部の行の種に当たることは試験の中で照らす"""
+        for kw in self.base_scenarios():
+            yield kw
+            if self.pr_stoppable(kw):
+                yield self.pr_stopped(kw)
+
+    @staticmethod
+    def pr_stoppable(kw) -> bool:
+        return "apply" in kw and "pr" not in kw["apply"]
+
+    @staticmethod
+    def pr_stopped(kw) -> dict:
+        """場面 kw を、出口の語 pr の道で merge が PR を作る前に止めた run にした写し"""
+        return {**kw, "apply": {**kw["apply"], "pr": {"act": "stopped", "reason": "訳"}}}
+
+    def base_scenarios(self):
         sealed = {"sealed": True, "placed": True}
         notices = [notice(n.value, "訳", **self.sample_slots(n)) for n in M.head.Notice]
         pr = {"url": "https://example.test/pr/1", "number": 1}
@@ -355,6 +372,22 @@ class HeadTableCase(Base):
             _, text = self.build()
             M.writer.note_writer_fell(self.place / "report.md", {"error": "Loop-group node failed: x", "quota": quota}, run_id=RUN_ID)
             yield M.writer.machine_head((self.place / "report.md").read_text(encoding="utf-8"))
+
+    def test_pr_stopped_keeps_the_apply_answer(self):
+        """出口の語 pr の道で PR を作らずに止めた run の「差分を当ててよいか」の行は、PR の道でない同じ場面の答え（差分が無い・作り直しが要るので
+        当てない・決めてから当てる・--allow-stopped つき…）を変えず、PR を作らなかったことを前に足すだけ（bin/apply が断る命令を案内しない）"""
+        lead, said = "差分を当ててよいか: ", "PR を作らずに止めた。対象の既定の枝には当てていない。"
+
+        def apply_row(kw) -> str:
+            _, text = self.build(**kw)
+            [row] = [x for x in M.writer.machine_head(text).splitlines() if x.startswith(lead)]
+            return row
+
+        for kw in self.base_scenarios():
+            if self.pr_stoppable(kw):
+                base = apply_row(kw)
+                with self.subTest(apply=kw["apply"], asks=bool(kw.get("asks")), outcome=kw.get("outcome")):
+                    self.assertEqual(apply_row(self.pr_stopped(kw)), lead + said + base.removeprefix(lead))
 
     def test_every_line_and_notice_has_exactly_one_row(self):
         H = self.head()

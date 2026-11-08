@@ -162,24 +162,26 @@ def apply_said(apply: dict, outcome: str, run_id: str, decisions: int) -> str:
         return head.render(head.Line.APPLY_PR_DRAFT if pr.get("is_draft") else head.Line.APPLY_PR, head.PrSlot(head.Url(pr["url"]), number))
     if pr.get("act") in ("pr", "unconfirmed"):   # PR を作ったと言いながら在りかか番号が読めない時も、作ったと言い切らない
         return head.render(head.Line.APPLY_PR_UNCONFIRMED, head.RunSlot(run))
-    if pr.get("act") == "stopped":
-        return head.render(head.Line.APPLY_PR_STOPPED, head.RunSlot(run))
-    return _apply_answer(apply, outcome, run, decisions)
+    line, slots = _apply_row(apply, outcome, run, decisions)
+    if pr.get("act") == "stopped":   # PR を作る前に止めた run も、差分の答え（bin/apply が断る run に命令を案内しない）は PR の道でない run と同じ
+        line = head.PR_STOPPED_OF[line]
+    return head.render(line, slots)
 
 
-def _apply_answer(apply: dict, outcome: str, run: head.RunId, decisions: int) -> str:
+def _apply_row(apply: dict, outcome: str, run: head.RunId, decisions: int) -> tuple:
+    """差分を当ててよいかの答えの (行の種, 差し込み口)。分かれ（差分が無い・作り直しが要るので当てない・決めてから当てる・--allow-stopped つき…）は
+    ここ 1 か所で、PR を作る前に止めた run も同じ分かれを引く"""
     if not apply["sealed"]:
-        return head.render(head.Line.APPLY_NO_DIFF)
+        return head.Line.APPLY_NO_DIFF, None
     if not apply["placed"] and apply["redesign"]:
-        return head.render(head.Line.APPLY_REFUSED)
+        return head.Line.APPLY_REFUSED, None
     if decisions:
-        return head.render(head.Line.APPLY_DECIDE_FIRST if apply["placed"] else head.Line.APPLY_DECIDE_FIRST_STOPPED,
-                           head.DecideApplySlot(decisions, run))
+        return (head.Line.APPLY_DECIDE_FIRST if apply["placed"] else head.Line.APPLY_DECIDE_FIRST_STOPPED), head.DecideApplySlot(decisions, run)
     if not apply["placed"]:
-        return head.render(head.Line.APPLY_NOT_PLACED, head.RunSlot(run))
+        return head.Line.APPLY_NOT_PLACED, head.RunSlot(run)
     if outcome in outcomelib.OK_OUTCOMES:   # 人の確かめが残る結末は、その残りを人が決める物に数えて上で返る
-        return head.render(head.Line.APPLY_OK, head.RunSlot(run))
-    return head.render(head.Line.APPLY_CHECK_FIRST, head.CheckApplySlot(head.Outcome(outcome), run))
+        return head.Line.APPLY_OK, head.RunSlot(run)
+    return head.Line.APPLY_CHECK_FIRST, head.CheckApplySlot(head.Outcome(outcome), run)
 
 
 def apply_lines(apply: dict, outcome: str, stop_reason: str, run_id: str) -> list:
