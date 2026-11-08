@@ -596,12 +596,11 @@ def touched_allowed(rows: list, touched) -> tuple:
 def stage_delta_lines(stage_rows: list, skip_why: str) -> list:
     """段ごとの差分の審査とレンズの行: 回った段は lens と delta-review の report の行のまま、回さなかった段は訳の 1 行"""
     out = []
-    for n, s in enumerate(stage_rows or [], 1):
+    for s, kind, label in zip(stage_rows or [], stages.kinds(stage_rows), stages.names(stage_rows)):
         if not isinstance(s, dict) or s.get("fix") is None:
             continue
-        label = report.stage_name(n)
         lens, delta = s.get("lens"), s.get("delta")
-        if n > len(report.TDD_STAGES):
+        if kind == report.RETURNED:
             out.append(f"差分の審査（{label}）: {RETURNED_NOT_RUN}")
             continue
         if lens is None and delta is None:
@@ -614,7 +613,8 @@ def stage_delta_lines(stage_rows: list, skip_why: str) -> list:
 
 def fix_beside(stage_rows: list) -> dict:
     """修正の段ごとの返りの控えの欄から最後の承認ノードに並べる行（src.stages の read と行の口。integration.md の 4.5-3）"""
-    got = stages.read([stages.stage(s["fix"]) for s in stage_rows or [] if isinstance(s, dict) and isinstance(s.get("fix"), dict)],
+    got = stages.read([stages.stage(s["fix"], name) for s, name in zip(stage_rows or [], stages.names(stage_rows))
+                       if isinstance(s, dict) and isinstance(s.get("fix"), dict)],
                       stages.resolve)
     return {"stuck": stages.closure_lines(got, stuck_only=True), "closure": stages.closure_lines(got),
             "tests_left": stages.tests_left_lines(got), "gates": [*stages.gates_lines(got), *stages.plan_ask_lines(got)],

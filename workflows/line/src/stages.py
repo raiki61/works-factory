@@ -81,9 +81,34 @@ def resolve(ptr, field: str) -> pathlib.Path:
     return got
 
 
-def stage(got) -> dict:
-    """修正の返り got（受け皿の got）から、読み手の口に渡す段 {diff, 控えの欄}（line が 1 回目と 2 度目の修正の段を並べる形）"""
-    return {"diff": got["diff"], **{field: got[field] for field in (*PORTS, *FROM)}}
+def stage(got, name: str) -> dict:
+    """修正の返り got（受け皿の got）から、読み手の口に渡す段 {name, diff, 控えの欄}（name は段の名。names が fixed の stages の行から引く）"""
+    return {"name": name, "diff": got["diff"], **{field: got[field] for field in (*PORTS, *FROM)}}
+
+
+def kinds(rows) -> list:
+    """fixed の stages の行ごとの段の種類（行の kind）。kind の欄の無い行（kind を持つ前の記録を続きの run で読む時）は、その頃の並び
+    （1 段目・2 段目は案の直しの後・3 段目からは返した段）の番号 stage から引く"""
+    import report
+    out = []
+    for n, row in enumerate(rows or [], 1):
+        row = row if isinstance(row, dict) else {}
+        if "kind" in row:
+            out.append(row["kind"])
+            continue
+        k = row.get("stage") if isinstance(row.get("stage"), int) and not isinstance(row.get("stage"), bool) else n
+        out.append(report.FIRST if k <= 1 else report.REFIX if k == 2 else report.RETURNED)
+    return out
+
+
+def names(rows) -> list:
+    """fixed の stages の行ごとの段の名（kinds の種類で report.stage_name を引く。返した段は何回目かを返した段の中で数える）"""
+    import report
+    out, returned = [], 0
+    for kind in kinds(rows):
+        returned += kind == report.RETURNED
+        out.append(report.stage_name(kind, returned))
+    return out
 
 
 def _load(path: pathlib.Path, unread: list, *, rows: bool = False):
@@ -176,12 +201,11 @@ def _accepted_tests(trace: list) -> list:
 
 
 def read(stages, resolve) -> dict:
-    """修正の段ごとの返りの控えの欄の dict（fix と 2 度目の修正の順。ポインタのまま）を読み合わせる（元 fixbeside.read。差分の審査の
+    """修正の段ごとの返りの控えの欄の dict（stage が組む、段の名 name つきの物を段の順に。ポインタのまま）を読み合わせる（元 fixbeside.read。差分の審査の
     穴とレンズの控えは fix の出力に無くなったので読まない）。返り {closure, claimed, trace, tests, removed, allowed, removed_tests,
     untested, unread, closure_unread}。removed は段ごとの並び [(段の名, 中身)]。removed_tests・untested は段の欄の行に段の名 stage を
     足して段の順に並べた物（消した試験・試験を求めなかった直し。下書き 4.1 の 7）。null・戻せない・読めない・無い控えと {"error"} は
     unread に訳"""
-    import report
     got = {"closure": {}, "claimed": [], "trace": [], "tests": [], "removed": [], "allowed": [], "removed_tests": [], "untested": [],
            "unread": [], "closure_unread": []}
     for n, stage in enumerate(stages or [], 1):
@@ -189,7 +213,7 @@ def read(stages, resolve) -> dict:
             got["unread"].append("修正の段の出力が dict でない")
             continue
         place = _place(stage, resolve)
-        label = report.stage_name(n)
+        label = stage.get("name") or f"段 {n}"
         closure_unread: list = []
         path = _port(stage, "closure", resolve, closure_unread)
         closure = (_load(path, closure_unread) if path is not None else None) or {}
@@ -427,10 +451,10 @@ def left_rows(values: dict) -> list:
     """止めずに残りに数える行（7.2 の left）: 差分の審査が通らなかった・諦めた段と、案の直しを諦めた項目"""
     import report
     rows = []
-    for n, key in ((1, "delta"), (2, "delta_2")):
+    for kind, key in ((report.FIRST, "delta"), (report.REFIX, "delta_2")):
         d = values.get(key)
         if isinstance(d, dict) and d.get("ok") is True and d.get("pass") is not True:
-            rows.append({"where": "差分の審査", "text": f"{report.stage_name(n)}の差分の審査が通っていない（{d.get('status')}・"
+            rows.append({"where": "差分の審査", "text": f"{report.stage_name(kind)}の差分の審査が通っていない（{d.get('status')}・"
                                                      f"{d.get('rounds')} 回。{d.get('reason') or '訳の記録が無い'}）"})
     for key in ("replan",):
         for r in _d(values.get(key)).get("gave_up") or []:
@@ -456,10 +480,24 @@ def empty() -> dict:
             MORE: [], "left": [], "stop_reason": ""}
 
 
+def tdd_slots(stages: list) -> list:
+    """段ごとの fix の tdd を種類の席に並べる（report.tdd_stage_groups が席の番号で段の名を引く）: first の席、返した段が在るか refix が
+    走れば refix の席（走らなければ空の配列）、返した段の席を返した順に。fix の got が無い席は空の配列。どの段も got が無ければ空"""
+    import report
+    if not any(isinstance(s.get("fix"), dict) for s in stages):
+        return []
+    of = lambda s: s["fix"]["tdd"] if isinstance(s.get("fix"), dict) and isinstance(s["fix"].get("tdd"), list) else []   # noqa: E731
+    first = [of(s) for s in stages if s["kind"] == report.FIRST]
+    refix = [of(s) for s in stages if s["kind"] == report.REFIX]
+    returned = [of(s) for s in stages if s["kind"] == report.RETURNED]
+    return [*first, *(refix or [[]] if returned else refix), *returned]
+
+
 def fixed(values: dict) -> dict:
     """2 つの修正の段と段ごとの差分の審査を合わせる（docs/design/line.md の 4.3。今の fixed.py の決まりのまま）。values の鍵は
     fixed.py の入力の名（fix_in・fix・after_fix・raise・lens・delta・replan・refix・lens_2・delta_2。走らなかった物は None）"""
     import itemcommits
+    import report
     fix_in = _d(values.get("fix_in"))
     if fix_in.get("no_fix") is True:
         return no_fix(values)
@@ -487,10 +525,10 @@ def fixed(values: dict) -> dict:
         held, go, done = True, False, False
     scalars = {k: v for f in fixes for k, v in _d(f.get("x_scalars")).items()}
     again = values.get("replan") if refix is not None and isinstance(values.get("replan"), dict) else None
-    stages = [{"stage": 1, "fix": values.get("fix"), "lens": values.get("lens"), "delta": values.get("delta")}]
+    stages = [{"stage": 1, "kind": report.FIRST, "fix": values.get("fix"), "lens": values.get("lens"), "delta": values.get("delta")}]
     if refix is not None:
-        stages.append({"stage": 2, "fix": refix, "lens": values.get("lens_2"), "delta": values.get("delta_2")})
-    stages += [{"stage": len(stages) + 1, "fix": m, "lens": None, "delta": None} for m in more]
+        stages.append({"stage": 2, "kind": report.REFIX, "fix": refix, "lens": values.get("lens_2"), "delta": values.get("delta_2")})
+    stages += [{"stage": len(stages) + 1, "kind": report.RETURNED, "fix": m, "lens": None, "delta": None} for m in more]
     carry = union(*(_d(s.get(k)).get("carry") for s in stages for k in ("lens", "delta")))
     if isinstance(raise_, dict):
         checks, eyes_due, skip_why = raise_.get("checks") is True, raise_.get("eyes_due") is True, str(raise_.get("skip_why") or "")
@@ -503,7 +541,7 @@ def fixed(values: dict) -> dict:
         "rejudge": bool(objection) and not held and not spec_stop,
         "refixed": refix is not None,
         "stages": stages, "carry": carry,
-        "tdd": [s["fix"].get("tdd") if isinstance(s["fix"].get("tdd"), list) else [] for s in stages if isinstance(s.get("fix"), dict)],
+        "tdd": tdd_slots(stages),
         "units": list(units.values()),
         "groups": union(*(f.get("groups") for f in fixes)),
         "conflicts": [c for c in (next((f.get("conflicts") for f in reversed(fixes) if f.get("conflicts")), None),) if c],

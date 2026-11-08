@@ -20,7 +20,7 @@ ITEMS = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている
 def fixed(**over) -> dict:
     """合わせ（stages.fixed）の出力のうち周の頭が読む欄"""
     got = {"go": True, "stop_reason": "", "objection": "", "refixed": False, "plan": FIXED_PLAN, "ripple": FIRST_RIPPLE, "more": [],
-           "stages": [{"stage": 1, "fix": {"carry": {"loops": []}}, "lens": None, "delta": None}], "item_claims": {"items": [], "claims": []}}
+           "stages": [{"stage": 1, "kind": "first", "fix": {"carry": {"loops": []}}, "lens": None, "delta": None}], "item_claims": {"items": [], "claims": []}}
     return {**got, **over}
 
 

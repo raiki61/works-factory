@@ -1627,7 +1627,7 @@ nodes:
         skip_why: {type: string}
         rejudge: {type: boolean}
         refixed: {type: boolean}
-        stages: {type: array, items: {type: object, properties: {stage: {type: integer}, fix: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 段の修正の出力（受け皿の got）'}, lens: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 段の観点の出力（受け皿の got）'}, delta: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 段の差分の審査の出力（受け皿の got）'}}}}
+        stages: {type: array, items: {type: object, properties: {stage: {type: integer}, kind: {type: string, enum: [first, refix, returned], description: '段の種類（段の名は lib/report.py の stage_name がこれで引く）'}, fix: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 段の修正の出力（受け皿の got）'}, lens: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 段の観点の出力（受け皿の got）'}, delta: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 段の差分の審査の出力（受け皿の got）'}}}}
         carry: {type: array, items: &where_text {type: object, required: [where, text], properties: {where: {type: string}, text: {type: string}}}}
         tdd: {type: array, description: 'json(shared:tdd.schema.json): 修正の段ごとの TDD の記録'}
         units: {type: array, description: 'json(shared:fixes.schema.json): 修正の単位ごとの結末', items: {type: object, properties: {unit_id: {type: string}, group_id: {type: string}, status: {type: string}, reason: {type: string}}}}

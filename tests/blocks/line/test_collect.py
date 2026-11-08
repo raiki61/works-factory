@@ -64,7 +64,7 @@ def passing() -> dict:
     seal = {"mode": "seal", "ok": True, "hash": "h", "diff": ptr("merge-seal/diff"), "protected_hits": [], "protected_count": 0,
             "reason": "", "deliver": None, "report": ["- 封じた"]}
     fixed = {"go": True, "done": True, "held": False, "no_fix": False, "diffed": True, "checks": True, "eyes_due": True, "skip_why": "",
-             "rejudge": False, "refixed": False, "stages": [{"stage": 1, "fix": fix, "lens": None, "delta": None}], "carry": [],
+             "rejudge": False, "refixed": False, "stages": [{"stage": 1, "kind": "first", "fix": fix, "lens": None, "delta": None}], "carry": [],
              "tdd": [fix["tdd"]], "units": fix["units"], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": fix["diff"],
              "item_claims": None, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [],
              "plan_declared": [], "plan": None, "ripple": None, "left": [], "stop_reason": ""}
