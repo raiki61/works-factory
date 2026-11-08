@@ -121,6 +121,31 @@ class NodesCase(unittest.TestCase):
                 self.assertIn(repr(word), str(caught.exception))
                 self.assertIn(KEY, str(caught.exception))
 
+    def test_unread_outcomes_are_listed_apart_from_the_words(self):
+        """結末の語は読めた run だけを語ごとに数え、読めなかった run は課題・状態・控えの結末の訳 outcome_why を別に並べ、どの語にも
+        数えない。why_null の費用・秒の訳は結末の訳に混ぜない。状態の無い前の版の控え（空の語）は、訳を「控えに訳が無い」に倒し、
+        状態に convert の命令で読み直せる旨を添える（前の版の控えは why_null に費用の訳だけを持ちうる）"""
+        convert = self.out / "works-factory" / "convert"
+        record = json.loads((convert / f"{KEY}.json").read_text(encoding="utf-8"))
+        said = "record/parent.json の terminal_record.returns.value.outcome が無いか字でない"
+        cost = "usd: run の記録の metadata.total_cost_usd が読めない"
+        for name, extra in (("t-unread", {"outcome": None, "outcome_state": reviewbench.NO_FIELD, "outcome_why": said,
+                                          "why_null": f"{cost}。outcome: {said}"}),
+                            ("t-old", {"outcome": "", "why_null": cost})):
+            (convert / f"{name}.json").write_text(json.dumps({**record, "key": name, **extra}, ensure_ascii=False), encoding="utf-8")
+        got = nodes.table(self.out, runner.WorksFactory())
+        self.assertEqual(got["outcomes"], {"needs_human": 1})
+        [old, unread] = got["outcome_unread"]
+        self.assertEqual(unread, {"task": "t-unread", "state": reviewbench.NO_FIELD, "why": said})
+        self.assertEqual((old["task"], old["why"]), ("t-old", None))
+        self.assertTrue(old["state"].startswith(nodes.NO_STATE), old["state"])
+        self.assertIn("run.py convert works-factory", old["state"])
+        md = nodes.markdown(got)
+        self.assertIn("- 結末の語（読めた run だけ）: needs_human 1。結末が読めなかった run: 2 件。", md)
+        self.assertIn(f"- t-unread: {reviewbench.NO_FIELD}（{said}）", md)
+        self.assertIn(f"- t-old: {old['state']}（{nodes.NO_WHY}）", md)
+        self.assertNotIn(cost, md.split("## 結末が読めなかった run")[1])
+
     def test_plain_claude_is_one_row_per_task(self):
         record = {"key": KEY, "attempt": str(self.tmp / "nowhere"), "seconds": 60.0, "usd": None,
                   "findings": [{"file": "a.py", "start_line": 1, "end_line": 1, "message": "m", "node": "claude",

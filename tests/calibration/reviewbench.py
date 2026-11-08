@@ -33,10 +33,23 @@ Source = namedtuple("Source", "file rows kind text prefer", defaults=(None, None
 
 
 MISSING = "無い"   # 読み元のファイルが無い時の unread の字（全部の読み元が無ければ convert が止まる）
+# 結末の語の読めた状態: 読めた・読み元が無い（MISSING）・読み元が壊れている・読み元に欄が無い（か字でない）・欄が空・語の表に無い語。
+# 言い分けは run.py の _read_outcome
+READ_OK, UNREADABLE, NO_FIELD, BLANK, OFF_TABLE = "読めた", "読めない", "欄が無い", "空", "表に無い語"
 
 
 class BenchError(Exception):
     pass
+
+
+def read_doc(path) -> tuple[object, str | None]:
+    """(JSON の中身, 読めなかった訳)。読めたら訳は None、ファイルが無ければ MISSING、ほかは UNREADABLE と例外の型の名"""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, MISSING
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        return None, f"{UNREADABLE}（{type(e).__name__}）"
 
 
 def name(entry: dict) -> str:
@@ -245,13 +258,9 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
     sources = [source._replace(file=source.prefer) if source.prefer and (ev / source.prefer).is_file() else source
                for source in producer.sources]
     for source in sources:
-        try:
-            doc = json.loads((ev / source.file).read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            unread[source.file] = MISSING
-            continue
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
-            unread[source.file] = f"読めない（{type(e).__name__}）"
+        doc, why = read_doc(ev / source.file)
+        if why is not None:
+            unread[source.file] = why
             continue
         for c in candidates(source, doc):
             found = [c["loc"]] if "loc" in c else [r for t in c["texts"] for r in refs(t)]
@@ -269,16 +278,19 @@ def convert(producer, entry: dict, attempt: Path, run_id: str, base: str, head: 
     if sources and all(why == MISSING for why in unread.values()) and len(unread) == len(sources):
         raise BenchError(f"{producer.name} の読み元が全部無い（{', '.join(unread)}）。置き場の道が run の記録と合っていない。"
                          "0 件で採点を続けない")
-    seconds, usd = ended.get("seconds"), ended.get("usd")
+    seconds, usd, outcome = ended.get("seconds"), ended.get("usd"), ended.get("outcome")
+    outcome_why = None if outcome is not None else ended.get("outcome_why")   # 結末の訳の 1 か所。why_null はここから組む
     usage = {**({"time_in_ms": int(seconds * 1000)} if seconds is not None else {}),
              **({"cost_usd": usd} if usd is not None else {})}
     doc = {"pr": {"repo": entry["repo"], "pr_number": int(entry["pr_number"]), "base": base, "head": head},
            "agent": producer.name, "findings": findings, **({"usage": usage} if usage else {})}
     record = {
         "key": key(entry), "producer": producer.name, "run_id": run_id, "attempt": str(attempt), "base": base, "head": head,
-        "outcome": ended.get("outcome"), "seconds": seconds, "usd": usd, "usd_from": ended.get("usd_from"),
+        "outcome": outcome, "outcome_state": ended.get("outcome_state"), "outcome_why": outcome_why,
+        "seconds": seconds, "usd": usd, "usd_from": ended.get("usd_from"),
         "why_null": "。".join(([] if usd is not None else [f"usd: {ended.get('usd_from')} が読めない"])
-                             + ([] if seconds is not None else ["seconds: run の始めと終わりの時刻が読めない"])),
+                             + ([] if seconds is not None else ["seconds: run の始めと終わりの時刻が読めない"])
+                             + ([] if outcome is not None else [f"outcome: {outcome_why}"])),
         "sources": [s.file for s in sources], "unread": unread,
         "findings": kept, "resolved_count": sum(f["ref_as_written"] is not None for f in kept),
         "dropped": dropped, "dropped_count": len(dropped),

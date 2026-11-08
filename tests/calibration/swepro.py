@@ -68,7 +68,7 @@ amd64 を強いると立たない）。docker の CLI に compose の差し込�
 - 無人の run が人に聞いて止まった（承認ノードで待った・結末の種が chain.KIND_HUMAN）時は stopped を立てる。封じた差分が在れば
   --allow-stopped で当て、封じる前に止まった run は当てずに空の patch（未解決）として数える。run を resume しない。
   /app の変更を取れなかった時も stopped を立て、model_patch を null にする（変更は /app に残っていて、空の patch ではない）。
-- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない・結末が BROKE か空か report.OUTCOME_KINDS に
+- 作り手が落ちた（認証の拒否・工場の run が起きない・封じた差分が当たらない・結末の語が BROKE か、記録から読めないか、report.OUTCOME_KINDS に
   無い語）時と起こし役が落ちた時は error に訳を書き、予測の failed を立てる。ふつうの未解決（直せなかった）と分けて数える。
   BROKE（record_invalid・interrupted）は工場そのものが壊れて終わった結末で、人の判断を待っていないので stopped（人待ち）に
   入れない。
@@ -108,7 +108,7 @@ from bin._lib import apply, launcher, pack  # noqa: E402
 import chain  # noqa: E402
 import report  # noqa: E402
 from tests.bin import sandbox_probe  # noqa: E402
-from tests.calibration import run  # noqa: E402
+from tests.calibration import reviewbench, run  # noqa: E402
 from tests.e2e import evidence, make_target  # noqa: E402
 
 PLACE = "/opt/works-bench"
@@ -547,7 +547,7 @@ def child_env(place: str, auth: dict, base: dict) -> dict:
             **QUIET_ENV, **auth}
 
 
-def stopped(state: str, outcome: str) -> bool:
+def stopped(state: str, outcome: str | None) -> bool:
     """無人の run が人に聞いて止まった（承認ノードで待った・結末の種が人待ち）"""
     return state == "paused" or report.OUTCOME_KINDS.get(outcome) == chain.KIND_HUMAN
 
@@ -573,7 +573,7 @@ def plain_fix(attempt: Path, workdir: Path, out: Path, task: dict, got: dict):
     session = plain.find_run(attempt)
     ended = plain.ended(mine)
     got.update(run_id=session, state=plain.state(attempt, session or ""), outcome=ended["outcome"],
-               factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"])
+               outcome_state=ended["outcome_state"], outcome_why=ended["outcome_why"], factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"])
     if got["state"] != run.DONE:
         said = run._object(run._read_json(mine, run.PlainClaude.RESULT)).get("result")
         got["error"] = f"claude -p が誤りで終わった: {apply.one_line(str(said or '結果の JSON が無い'))}"
@@ -655,7 +655,8 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict
         return
     ended = producer.finish(attempt, run_id)
     shutil.copytree(attempt / evidence.EVIDENCE, out / evidence.EVIDENCE, symlinks=True, dirs_exist_ok=True)
-    got.update(outcome=ended["outcome"], factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"],
+    got.update(outcome=ended["outcome"], outcome_state=ended["outcome_state"], outcome_why=ended["outcome_why"],
+               factory_seconds=ended["seconds"], usd=ended["usd"], usd_from=ended["usd_from"],
                children=ended["children"], target_changed_during_run=status(workdir) != before)
     said_out, said_err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(said_out), contextlib.redirect_stderr(said_err):
@@ -666,13 +667,17 @@ def drive_factory(attempt: Path, workdir: Path, out: Path, task: dict, got: dict
     if code != 0 and meant_to_deliver(attempt / evidence.EVIDENCE):
         got["error"] = f"封じた差分が当たらない: {got['apply']['line']}"
     if not got.get("error"):
-        got["error"] = broken_outcome(run_id, ended["outcome"])
+        got["error"] = broken_outcome(run_id, ended["outcome"], ended["outcome_state"], ended["outcome_why"])
 
 
-def broken_outcome(run_id: str, outcome: str) -> str | None:
-    """終わった run の結末が工場の落ちならその訳。空の結末は終わりの記録に結末が無い run（run.WorksFactory.ended）"""
-    if outcome not in report.OUTCOME_KINDS:
-        return f"工場の run {run_id} が結末の語の表（lib/report.py の OUTCOME_KINDS）に無い結末 {outcome or '（空）'} で終わった"
+def broken_outcome(run_id: str, outcome: str | None, state: str = reviewbench.READ_OK, why: str | None = None) -> str | None:
+    """終わった run の結末が工場の落ちならその訳。語が読めなかった run（outcome が None）は state で言い分ける:
+    空の欄と表に無い語は「表に無い結末」、記録が無い・読めない・欄が無いは「記録から読めなかった」（why が読み先と理由）。
+    表に無い語を None にするのは作り手の ended（run.py の _read_outcome）なので、語が在れば表の内"""
+    if outcome is None and state in (reviewbench.BLANK, reviewbench.OFF_TABLE):
+        return f"工場の run {run_id} が結末の語の表（lib/report.py の OUTCOME_KINDS）に無い結末で終わった: {why}"
+    if outcome is None:
+        return f"工場の run {run_id} の結末の語を記録から読めなかった: {why}"
     if outcome in BROKE:
         return f"工場の run {run_id} が結末 {outcome} で終わった（工場が壊れた）"
     return None
@@ -736,7 +741,7 @@ def inside(args) -> int:
 
 
 # ---------------------------------------------------------------- 予測と数え
-def stop_why(state: str, outcome: str, gate: str | None, captured: bool) -> str:
+def stop_why(state: str, outcome: str | None, gate: str | None, captured: bool) -> str:
     """止まった訳（止まっていなければ空）"""
     if not captured:
         return f"{WORKDIR} の変更を {PATCH} に取れなかった（変更は {WORKDIR} に残る）"
@@ -751,7 +756,7 @@ def prediction(instance_id: str, producer: str, patch: str | None, result: dict 
     seconds は殻が exec の前後で測った秒（作り手に依らず同じ物差し）"""
     wrote = isinstance(result, dict)
     got = result if wrote else {}
-    state, outcome = got.get("state") if wrote else DRIVER_FAILED, got.get("outcome") or ""
+    state, outcome = got.get("state") if wrote else DRIVER_FAILED, got.get("outcome")
     error = got.get("error") if wrote else "起こし役 swepro.py inside が結果を書かずに終わった"
     why = stop_why(state, outcome, got.get("gate"), patch is not None)
     return {**got, "instance_id": instance_id, "producer": producer, "model_patch": patch, "state": state, "outcome": outcome,

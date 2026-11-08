@@ -24,6 +24,7 @@ import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import git
+from tests.calibration import reviewbench
 from tests.calibration import run as runner
 from tests.calibration.test_reviewbench import commit
 
@@ -142,8 +143,6 @@ if who == "use.sh" and args[0] == "start":
     (home / "runs" / f"{rid}.json").write_text("{}", encoding="utf-8")
     board = home / "out" / "artifacts" / "runs" / rid / "board"
     board.mkdir(parents=True)
-    (board / "report.md").write_text(f"# 報告（run {rid}）\\n\\n起きたこと: 直した（{plan.get('outcome', 'fixed')}）\\n",
-                                     encoding="utf-8")
     for name, text in plan.get("board", {"out/r1/p2.diagnose.json": UNITS}).items():
         (board / name).parent.mkdir(parents=True, exist_ok=True)
         (board / name).write_text(text, encoding="utf-8")
@@ -159,6 +158,19 @@ if who == "use.sh" and args[0] == "start":
                 (rid,))
     for n, gate in enumerate(plan.get("asks", []), 1):
         con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'approval_requested', ?, '{}', '', ?)", (rid, gate, n))
+    # Archon v0.11.1 の script のノードの行の data: output_format を照らした structured_output と、その JSON の node_output（32KB を
+    # 超えると頭で切られる。truncated）。機械の報告 report の出力を出口 result が結末を替えずに写す。structured を偽にすると
+    # structured_output を書かない前の世代の行、no_result を真にすると出口 result の完了の出来事が無い列
+    out = {"ok": True, "outcome": plan.get("outcome", "fixed"), "report_file": "board/report.md"}
+    text = json.dumps(out)[:20] if plan.get("truncated") else json.dumps(out)
+    script = {"type": "script", "runtime": "uv", "node_output": text,
+              **({"structured_output": out} if plan.get("structured", True) else {}),
+              **({"node_output_truncated": True} if plan.get("truncated") else {})}
+    events = [("node_completed", "report", script), *([] if plan.get("no_result") else [("node_completed", "result", script)])]
+    if plan.get("decoy"):   # result の後に済んだ、outcome の欄を持つほかのノード
+        events.append(("node_completed", "reporting__collect", {**script, "structured_output": {"ok": True, "outcome": "repaired"}}))
+    for n, (kind, step, data) in enumerate(events, 50):
+        con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, ?, ?, ?, '', ?)", (rid, kind, step, json.dumps(data), n))
     con.execute("INSERT INTO remote_agent_workflow_events VALUES (?, 'workflow_completed', '', ?, '', 99)",
                 (rid, json.dumps({"cost_usd": plan.get("usd", 12.5)})))
     con.commit()
@@ -496,6 +508,44 @@ class RunTest(RunnerCase):
         [old] = self.records("works")
         self.assertEqual((old["usd"], old["seconds"], old["outcome"]), (12.5, 7200.0, "fixed"))
         self.assertEqual(old["provenance"]["archon"], "v0.11.1")
+
+    def test_old_works_outcome_comes_from_the_machine_record(self):
+        """今の works の結末は、報告の文面でなく、出口のノード result の出力の outcome から読む。node_output が切られても
+        structured_output から読み、structured_output を書かない前の世代の記録は node_output の JSON から読み、ほかのノードの
+        outcome の欄は見ない"""
+        for plan in ({"truncated": False}, {"truncated": True}, {"structured": False}):
+            with self.subTest(**plan):
+                self.set_plan(outcome="no_fix_needed", decoy=True, **plan)
+                self.assertRan(self.run_tasks("works", self.one))
+                [record] = self.records("works")
+                self.assertEqual((record["outcome"], record.get("outcome_state")), ("no_fix_needed", reviewbench.READ_OK))
+                shutil.rmtree(self.attempts)
+                shutil.rmtree(self.out)
+        self.set_plan(outcome="made_up", decoy=True)
+        self.assertRan(self.run_tasks("works", self.one))
+        [record] = self.records("works")
+        self.assertIsNone(record["outcome"])
+        self.assertEqual(record.get("outcome_state"), reviewbench.OFF_TABLE)
+        self.assertIn("made_up", record["why_null"])
+
+    def test_old_works_unread_outcome_says_why(self):
+        """前の世代の works で結末が読めない時、出口 result の完了の出来事が無い run と、structured_output が無く node_output が
+        32KB で切られて（印 node_output_truncated）JSON として読めない run を、別の訳で控えに残す"""
+        whys = {}
+        for name, plan in (("no_result", {"no_result": True}), ("truncated", {"structured": False, "truncated": True})):
+            with self.subTest(name):
+                self.set_plan(decoy=True, **plan)
+                self.assertRan(self.run_tasks("works", self.one))
+                [record] = self.records("works")
+                self.assertIsNone(record["outcome"])
+                self.assertEqual(record.get("outcome_state"), reviewbench.NO_FIELD)
+                whys[name] = record["outcome_why"]
+                shutil.rmtree(self.attempts)
+                shutil.rmtree(self.out)
+        self.assertIn("node_completed の出来事が無い", whys["no_result"])
+        self.assertIn("node_output_truncated", whys["truncated"])
+        self.assertNotIn("node_output_truncated", whys["no_result"])
+        self.assertNotIn("node_completed の出来事が無い", whys["truncated"])
 
     def test_paused_run_is_not_answered(self):
         for producer, plan in (("works-factory", {"status": "paused"}),
@@ -852,6 +902,26 @@ class PlainClaudeEnvTest(unittest.TestCase):
         read = set(re.findall(r"\$(RB_[A-Z_]+)", runner.PLAIN_PROMPT))
         self.assertTrue(read)
         self.assertLessEqual(read, set(runner.PlainClaude.RUN_ENV))
+
+
+class PlainClaudeStateTest(unittest.TestCase):
+    """claude -p の結果の is_error が真偽で在る時だけ済み・誤りを言う。is_error の無い object は claude -p の結果の形でない
+    （Agent SDK の SDKResultMessage はどの subtype でも is_error: boolean を持つ）ので、済みにせず run_one が起こし直す"""
+
+    def test_result_without_is_error_is_not_done(self):
+        attempt = hermetic.tmpdir(self)
+        (attempt / "out").mkdir()
+        producer = runner.PlainClaude()
+        for doc, state, outcome in (({"is_error": False}, runner.DONE, "done"), ({"is_error": True}, "failed", "error"),
+                                    ({}, "failed", None), ({"is_error": "false"}, "failed", None)):
+            with self.subTest(doc=doc):
+                (attempt / "out" / runner.PlainClaude.RESULT).write_text(
+                    json.dumps({"type": "result", "session_id": "s-1", **doc}), encoding="utf-8")
+                self.assertEqual(producer.state(attempt, "s-1"), state)
+                ended = runner.PlainClaude.ended(attempt / "out")
+                self.assertEqual(ended["outcome"], outcome)
+                if outcome is None:
+                    self.assertEqual(ended["outcome_state"], reviewbench.NO_FIELD)
 
 
 class WebCallsTest(unittest.TestCase):
