@@ -198,6 +198,15 @@ class HeadFor19b99137Case(Base):
         for word in ("壊れた所は無く", "直ったかは分からない"):
             self.assertNotIn(word, top, "機械が知らない対象の状態を言い切らず、1 行目の『直して、最後のテストまで通った』と食い違わない")
 
+    def test_a_pr_without_its_place_is_unconfirmed_in_both_head_lines(self):
+        """出口の語が pr でも PR の在りかか番号が読めない run は、差分の行も急ぎの行も PR を作ったと確かめられなかったと言う（頭の中で食い違わない）"""
+        for pr in ({"act": "pr", "url": None, "number": None}, {"act": "pr", "url": "u", "number": None}, {"act": "pr", "url": "", "number": 1}):
+            with self.subTest(pr=pr):
+                _, top = self.top(apply={"sealed": True, "placed": True, "pr": pr})
+                lines = top.splitlines()
+                self.assertTrue(any(x.startswith("差分を当ててよいか: PR を作ったと確かめられなかった。") for x in lines), top)
+                self.assertIn(f"{self.NEITHER}PR を作ったかは確かめられていないが、対象の既定の枝には当てていない", lines)
+
     def test_apply_command_is_said_with_what_it_does_in_the_same_line(self):
         _, top = self.top(apply={"sealed": True, "placed": False})
         line = next(x for x in top.splitlines() if x.startswith("差分を当ててよいか: "))

@@ -75,10 +75,29 @@ def ask_counts(asks: list, tallied: dict) -> dict:
     return counts
 
 
+def _pr_made(apply: dict) -> tuple | None:
+    """PR を作ったと言える時の (在りか, 番号)。出口の語 pr の道の結果 act が pr で、在りかと整数の番号が読める時だけ（ほかは None）"""
+    pr = _dict(apply["pr"])
+    number = pr.get("number")
+    number = int(number) if isinstance(number, str) and number.isdigit() else number
+    if pr.get("act") == "pr" and pr.get("url") and isinstance(number, int) and not isinstance(number, bool):
+        return pr["url"], number
+    return None
+
+
+def _pr_act(apply: dict) -> str:
+    """出口の語 pr の道の結果の語（pr・stopped・unconfirmed。PR の道でない run は空）。判じる所はここ 1 か所で、差分の行（apply_said）と
+    急ぎの行（_handover）が引く。act が pr でも在りかか番号が読めなければ、作ったと言い切らず unconfirmed"""
+    act = _dict(apply["pr"]).get("act")
+    if act == "pr":
+        return "pr" if _pr_made(apply) else "unconfirmed"
+    return act if act in ("stopped", "unconfirmed") else ""
+
+
 def _handover(apply: dict) -> head.Handover:
     """出口の語 pr の道の渡しの結果（run は対象に差分を当てない）。頭の急ぎの行の受け渡しの句を選ぶ"""
     return {"pr": head.Handover.PR, "stopped": head.Handover.STOPPED,
-            "unconfirmed": head.Handover.UNCONFIRMED}.get(_dict(apply["pr"]).get("act"), head.Handover.NONE)
+            "unconfirmed": head.Handover.UNCONFIRMED}.get(_pr_act(apply), head.Handover.NONE)
 
 
 def urgent_said(apply: dict, outcome: str, run: dict) -> str:
@@ -155,15 +174,13 @@ def head_lines(run_id: str, outcome: str, apply: dict, run: dict, counts: dict, 
 def apply_said(apply: dict, outcome: str, run_id: str, decisions: int) -> str:
     """冒頭の「差分を当ててよいか」の行。出口の語 pr の run は、PR を作った・作らずに止めた・作ったと確かめられなかったのどれかを言う
     （作らなかった訳は merge の節の 1 か所にだけ在る）"""
-    pr, run = _dict(apply["pr"]), head.RunId(run_id)
-    number = pr.get("number")
-    number = int(number) if isinstance(number, str) and number.isdigit() else number
-    if pr.get("act") == "pr" and pr.get("url") and isinstance(number, int) and not isinstance(number, bool):
-        return head.render(head.Line.APPLY_PR_DRAFT if pr.get("is_draft") else head.Line.APPLY_PR, head.PrSlot(head.Url(pr["url"]), number))
+    run, act, made = head.RunId(run_id), _pr_act(apply), _pr_made(apply)
+    if made:
+        url, number = made
+        return head.render(head.Line.APPLY_PR_DRAFT if _dict(apply["pr"]).get("is_draft") else head.Line.APPLY_PR, head.PrSlot(head.Url(url), number))
     line, slots = _apply_row(apply, outcome, run, decisions)
-    # PR を作る前に止めた run と、PR を作ったと確かめられなかった run（作ったと言いながら在りかか番号が読めない時も、作ったと言い切らない）も、
-    # 差分の答え（bin/apply が断る run に命令を案内しない）は PR の道でない run と同じで、PR の道の結果を前に足すだけ
-    act = "unconfirmed" if pr.get("act") == "pr" else pr.get("act")
+    # PR を作る前に止めた run と、PR を作ったと確かめられなかった run（_pr_act が判じる）も、差分の答え（bin/apply が断る run に命令を
+    # 案内しない）は PR の道でない run と同じで、PR の道の結果を前に足すだけ
     if act in head.PR_ANSWER_OF:
         line = head.PR_ANSWER_OF[act][line]
     return head.render(line, slots)
