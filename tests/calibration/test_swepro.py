@@ -62,6 +62,9 @@ with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
 if os.environ.get("FAKE_CLAUDE_ERROR"):
     print(json.dumps({"is_error": True, "result": os.environ["FAKE_CLAUDE_ERROR"], "session_id": "s"}))
     sys.exit(1)
+if "FAKE_CLAUDE_RAW" in os.environ:
+    sys.stdout.write(os.environ["FAKE_CLAUDE_RAW"])
+    sys.exit(0)
 with open("a.py", "w", encoding="utf-8") as f:
     f.write("x = 3\\n")
 print(json.dumps({"is_error": False, "total_cost_usd": 1.5, "duration_ms": 1000, "session_id": "s"}))
@@ -663,6 +666,20 @@ class InsideTest(unittest.TestCase):
         self.assertIn("Invalid bearer token", result["error"])
         self.assertEqual(self.patch(), "")
         self.assertTrue(self.predicted(result)["failed"])
+
+    def test_plain_claude_result_without_is_error_is_named_as_unreadable(self):
+        """is_error を読めない結果は、誤りで終わったと言わず、読めなかった事と状態を言う。is_error が真で result の無い結果は誤りの方"""
+        for raw, state, said in ((json.dumps({"result": "ok", "session_id": "s"}), reviewbench.NO_FIELD, "is_error を読めなかった"),
+                                 ("", reviewbench.UNREADABLE, "is_error を読めなかった"),
+                                 (json.dumps({"is_error": True, "session_id": "s"}), reviewbench.READ_OK, "誤りで終わった: 結果の文が無い")):
+            with self.subTest(state=state):
+                self.secret()   # 起こし役は読んだ認証のファイルを消す
+                self.env["FAKE_CLAUDE_RAW"] = raw
+                done, result = self.inside("claude")
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual((result["state"], result["outcome_state"]), ("failed", state))
+                self.assertIn(said, result["error"])
+                self.assertTrue(self.predicted(result)["failed"])
 
     def test_capture_outside_git_leaves_no_patch(self):
         (self.out / swepro.PATCH).parent.mkdir(parents=True, exist_ok=True)
