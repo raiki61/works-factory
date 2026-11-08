@@ -9,7 +9,7 @@
 
 - If the test tool exits with a non-zero code and the first argument has no JUnit XML file (the tool failed before it wrote one), the runner writes that file itself before it exits: one `testcase` with `classname="{synth_classname}"` and `name="{synth_name}"`, holding an `error` element whose `message` says `exit <n>` (`<n>` is the tool's exit code) and whose body says where the tool's log is. The machine reads that one testcase as "the tool exited red before it wrote any per-test outcome", not as a test result. The exit code stays the tool's exit code as it is.
 - Do not write it when the tool's exit code is 126 or 127 (the command was not found or could not be executed). The machine reads those two as "the tool could not be run" and stops there. When the test_cmd is one tool, a JUnit XML file the tool did write is left as it is.
-- When the test_cmd is written part by part (a chain joined only by `&&`, step 1 below), apply the two rules above to each part to which you added the JUnit option, as step 1 says. A part that does not get the JUnit option (a build step, for example) never gets this testcase.
+- When the test_cmd is written part by part (a chain joined only by `&&`, step 1 below), apply the two rules above to each part to which you added the JUnit option, as step 1 says.
 
 ## How to write it
 
@@ -23,7 +23,7 @@
      - If a part to which you added the JUnit option ended without writing its outcome, whatever its exit code (0 included), do not drop it silently: put the reserved testcase of the section above (`classname="{synth_classname}"`, `name="{synth_name}"`, with the `error` element as that section says) into the gathered file. In its `message`, `<n>` is the exit code the chain itself exits with. In its body, give the part's number and where that part's log is. However many parts wrote nothing, write this testcase once, and list every such part's number, exit code and log place in its body. Keep the other parts' outcomes as they are. Do not do this for a part that does not get the JUnit option.
      - If a part that does not run tests (a build step, for example) fails, stop there, write nothing to the first argument, and exit with its non-zero code.
      - Pass the test-file arguments only to the parts that can take them. If you cannot decide which parts can, run every part as a whole suite.
-     - Exit with the first non-zero exit code among the parts, or 0 if all are 0 (the value the `&&` chain itself returns); when a part exited 126 or 127, exit with the code of the first such part.
+     - Exit with the first non-zero exit code among the parts, or 0 if all are 0 (the value the `&&` chain itself returns).
 2. If there is no test_cmd, decide the command that runs the tests from the CI definitions and `{decl_name}`. If the target has no tests yet, you may write a runner that runs the place where the target's conventions put tests and, when it finds none, writes a JUnit XML with zero tests.
 3. Write the report for a red exit without JUnit XML as the section above says, for a chain part by part as step 1 says (a failure of the tool before it wrote its report is a red exit, not a runner that cannot run).
 4. Make the first line of the body a `#!` line (the machine does not place a body that does not start with `#!`).

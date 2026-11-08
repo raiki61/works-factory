@@ -1472,7 +1472,6 @@ class PromptCase(ScriptCase):
 
     @staticmethod
     def chain_section(text: str) -> str:
-        """鎖の節（『joined only by `&&` at the top level』から『2. If there is no test_cmd』まで）"""
         head = text.index("joined only by `&&` at the top level")
         return text[head:text.index("2. If there is no test_cmd", head)]
 

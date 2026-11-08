@@ -213,7 +213,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
             probs.append(f"{t}: {'一式の結末に居ない' if c is None else c['outcome']}——名指しのテストが緑でない")
     probs += [f"{_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
               for c in _broken_others(cases, baseline, hit, scope)]
-    return probs + _synth_problems(cases)   # scope の絞りの前の cases 全体に当てる（narrow の回でも抜けない）
+    return probs + _synth_problems(cases)
 
 
 def nice19() -> None:
