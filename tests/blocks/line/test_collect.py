@@ -37,7 +37,7 @@ def check(value, schema: pathlib.Path) -> list:
 
 
 def passing() -> dict:
-    """どの段も通った run の collect の入力の値（受け皿の got と line の script の出力）"""
+    """どの段も通った run の collect の入力の値（block の返りと line の script の出力）"""
     tests = {"mode": "final", "ok": True, "green": True, "red_cause": "", "ran_steps": {"ran": ["t"], "unran": []}, "baseline": None,
              "fingerprint": None, "test_outcomes": None, "evidence": ptr("test-gate-final/evidence.txt"), "by": "test_cmd", "suites_line": "",
              "log": "", "baseline_line": "直す前のテスト: 緑", "reason": "", "suite": "", "suite_note": "",
@@ -54,7 +54,7 @@ def passing() -> dict:
             "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "findings": [], "route": "stay",
             "route_why": "返す物が無い（どの目も通った）", "report": ["- 目: 通した"],
             "sections": [{"title": "独立の目 R1 最小性とコメント", "lines": ["- R1 通した"]}, {"title": "直した後の構造の実測", "lines": ["- 実測"]}]}
-    judge = {"ok": True, "stop_reason": "", "reason": "", "ready": True, "units": [{"id": "u1"}], "judgment": None, "answer_ties": None,
+    judge = {"ok": True, "stop_reason": "", "reason": "", "ready": True, "units": [{"id": "u1"}], "questions": [], "judgment": None, "answer_ties": None,
              "out_of_purpose": None, "materials": None, "brief": None, "inputs": None, "purpose": None, "purpose_text": "P",
              "purpose_source": "", "means": [], "purpose_review": None, "constraints": None, "world": None, "world_state": {"status": "ok", "reason": ""},
              "spec": None, "spec_rows": None, "spec_origin": "", "excluded": None, "pr_drafts": None, "downgrades": [], "decisions": None,
@@ -492,7 +492,7 @@ class CollectScriptCase(unittest.TestCase):
         self.assertNotEqual(before["digest"], after["digest"])
 
     def test_the_not_run_section_reaches_the_report_through_collect(self):
-        """試験の関門の返りの related は、collect の受け皿の欄を通って報告の節「走らせなかった範囲」に届く（欄の一覧から外れると、絞った run
+        """試験の関門の返りの related は、collect の返りの欄の名を通って報告の節「走らせなかった範囲」に届く（欄の一覧から外れると、絞った run
         でも走らせ方の行に落ち、「工場は絞らない」と誤って出る）"""
         run = self.seeded_run()
         v = passing()
@@ -529,7 +529,7 @@ class CollectScriptCase(unittest.TestCase):
         self.assertNotIn("最後の周の目: 通した", text)
 
     def test_prior_version_return_is_not_read_as_empty(self):
-        """前の版の返り（受け皿の got の欄の欠け）を resume で受けたら空と読まず、訳だけの facts で record_invalid に倒す（4.3-12）"""
+        """前の版の返り（返りの欄の欠け）を resume で受けたら空と読まず、訳だけの facts で record_invalid に倒す（4.3-12）"""
         run = kit.Run(self, BLOCK)
         v = passing()
         v["judge"] = {k: x for k, x in v["judge"].items() if k != "tier_record"}

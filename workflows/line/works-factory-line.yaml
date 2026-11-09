@@ -181,24 +181,6 @@ nodes:
       purpose: "$start.output.ports.theme_text"
       web: "$start.output.ports.web"
       lang: "$start.output.ports.lang"
-  - id: theme-world-out
-    # 受け皿の本体はここ 1 か所。ほかは <<: *receiver で受け、id・depends_on・with だけを書く（names は運ぶ欄の名）
-    <<: &receiver
-      script: returned
-      runtime: uv
-      mutates_checkout: false
-      output_format: &received
-        type: object
-        additionalProperties: false
-        required: [got, why]
-        properties:
-          got: {type: [object, 'null'], description: '受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ。form は受け皿ごとに output_format で書き替える）。飛ばされた block は null'}
-          why: {type: string}
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-world): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [theme-world]
-    with:
-      got: "$theme-world.output"
-      names: "ok status reason rows classes dropped report"
   - id: theme-world-in
     # 返しの本体はここ 1 か所（docs/design/line.md の 1.5 の relay）。ほかは <<: *relay で受け、output_format だけを書き替える
     <<: &relay
@@ -230,13 +212,6 @@ nodes:
       base: "$start.output.ports.base"
       head: "$start.output.ports.base_rev"
       lang: "$start.output.ports.lang"
-  - id: theme-blind-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-independent-design): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [theme-blind]
-    with:
-      got: "$theme-blind.output"
-      names: "ok status stands design premises reason downgrades report"
   - id: theme-design-in
     <<: *relay
     depends_on: [answer-start, theme-blind]
@@ -389,28 +364,22 @@ nodes:
             attention: "$theme-talk.output.text"
             form: select
             options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}, {id: revise}]
-  - id: theme-rounds-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], additionalProperties: false, properties: {<<: *theme_talk_props, optional: {type: 'null', description: '受け皿の returned が足す欄（往復は落ちてよい node を宣言しないので null）'}}}, why: {type: string}}}
-    depends_on: [theme-rounds]
-    with:
-      got: "$theme-rounds.output"
-      names: "done ok status round prior_design record design design_md review stalled capped review_status review_reason reason report
-        stop_reason open text asked agreed talks notes shown timeline"
   - id: theme-descend
     script: theme_descend
     runtime: uv
     mutates_checkout: false
-    depends_on: [theme-rounds-out]
+    depends_on: [theme-rounds]
     when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
     with:
-      rounds: "$theme-rounds-out.output.got"
+      rounds: "$theme-rounds.output"
       ports: "$start.output.ports"
     output_format:
       type: object
       additionalProperties: false
-      required: [go, stop_reason, reason, answer, no_change, request, request_file, request_answers, approved, rows, notes, report]
+      required: [go, stop_reason, reason, answer, no_change, request, request_file, request_answers, approved, rows, notes, report, rounds]
       properties:
+        # 受けた設計の往復の返りをそのまま運ぶ（緩い読み手 collect は落ちうる loop_group を直に結ばず、ここから読む。docs/design/line.md の 13 節）
+        rounds: {type: [object, 'null'], properties: *theme_talk_props}
         go: {type: boolean}
         stop_reason: {type: string}
         reason: {type: string}
@@ -470,20 +439,6 @@ nodes:
       reuse_key: "$start.output.ports.run_id"
       user_env_dir: "$start.output.ports.user_env_dir"
       lang: "$start.output.ports.lang"
-  - id: test-gate-base-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [test-gate-base]
-    with:
-      got: "$test-gate-base.output"
-      names: "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
-  - id: spec-entry-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-spec-driven): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [spec-entry]
-    with:
-      got: "$spec-entry.output"
-      names: "ok stop_reason reason request origin purpose spec spec_files tdd out_of_scope mismatches report"
   # 4 判定のまとめ（docs/design/judge-eyes.md の 1 節）。仕様駆動の run では回さない（判定の役だけを spec-diagnose で 1 回）
   - id: judge
     include: works-factory-judge
@@ -507,15 +462,6 @@ nodes:
       baseline: "$test-gate-base.output.baseline"
       policy: "$start.output.ports.policy"
       lang: "$start.output.ports.lang"
-  - id: judge-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-judge): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [judge]
-    with:
-      got: "$judge.output"
-      names: "ok stop_reason reason ready units questions judgment answer_ties out_of_purpose materials brief inputs purpose purpose_text purpose_source
-        means purpose_review constraints world world_state spec spec_rows spec_origin excluded pr_drafts downgrades decisions tier tier_why
-        row_asks tier_record verify verify_why report sections"
   # 5 段 → 回す物の表（docs/design/line.md の 5.1）
   - id: tiers
     script: tiers
@@ -575,13 +521,6 @@ nodes:
       intent: "[]"
       policy: "$start.output.ports.policy"
       lang: "$start.output.ports.lang"
-  - id: structure-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-structure): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [structure]
-    with:
-      got: "$structure.output"
-      names: "ok status reason structure after dirty escalate report"
   - id: structure-in
     <<: *relay
     depends_on: [judge, structure]
@@ -613,13 +552,6 @@ nodes:
       base: "$start.output.ports.base"
       head: "$start.output.ports.base_rev"
       lang: "$start.output.ports.lang"
-  - id: independent-design-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-independent-design): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [independent-design]
-    with:
-      got: "$independent-design.output"
-      names: "ok status stands design premises reason downgrades report"
   - id: design-in
     <<: *relay
     depends_on: [judge, independent-design]
@@ -642,7 +574,7 @@ nodes:
   # 次の周の頭の design-turn が読む。until_bash は飛びうる関所の出力を読まない）。対話モードは人の指摘の受け箱を周の頭で拾い、周ごとの設計を
   # 控えに書いて告げ、指摘が 1 つも入らなかった run だけ関所で待つ（3.1 節・#830）。通常の run は関所がいつも飛び、往復は今と同じ
   - id: plan-rounds
-    depends_on: [judge, judge-out, owed, structure-in, design-in, tiers]
+    depends_on: [judge, owed, structure-in, design-in, tiers]
     when: "$judge.output.ready == true && $owed.output.stop_reason == '' && $structure-in.output.stop_reason == '' && $tiers.output.stop_reason == ''"
     loop_group:
       max_iterations: 22   # 往復の安全の上限 rounds.LIMIT（20）と、一言の空の revise で聞き直す周 talk.EMPTY_LIMIT（2）
@@ -779,11 +711,11 @@ nodes:
             plan_out: {from: "$plan-out.output", if_skipped: null}
             previous: "$LOOP_PREV.design-talk.output"
             structure: "$structure-in.output.structure"
-            judge: "$judge-out.output.got"
+            judge: "$judge.output"
             record: "$start.output.record"
             ports: "$start.output.ports"
             request: "$request-in.output"
-          output_format:   # 往復の loop_group の出力（欄は plan-rounds-out が &design_talk_props で受ける）
+          output_format:   # 往復の loop_group の出力（直後の ask-before-fix が欄 rounds で &design_talk_props のまま運ぶ）
             type: object
             additionalProperties: false
             required: [done, ok, status, round, plan_prior, record, plan, fix_plan, reply, handoffs, ripple, owed, gave_up, stalled, capped,
@@ -807,24 +739,16 @@ nodes:
             attention: "$design-talk.output.text"
             form: select
             options: [{id: approve}, {id: continue}, {id: stop}, {id: reject}, {id: revise}, {id: redesign}]
-  - id: plan-rounds-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], additionalProperties: false, properties: {<<: *design_talk_props, optional: {type: 'null', description: '受け皿の returned が足す欄（往復は落ちてよい node を宣言しないので null）'}}}, why: {type: string}}}
-    depends_on: [plan-rounds]
-    with:
-      got: "$plan-rounds.output"
-      names: "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations
-        review_status review_reason stop_reason pointed open text asked agreed talks notes shown timeline"
   # 8.5 設計へ戻す（テーマの run で、計画の承認ノード gate-design に redesign と答えた時だけ書き出す。docs/design/line.md の 3.3 節）。
   # run を閉じるのは修正前の承認ノード（agreed の redesign は通す語でないので human:gate-design で止める）
   - id: theme-return
     script: theme_return
     runtime: uv
     mutates_checkout: false
-    depends_on: [plan-rounds-out, theme-descend]
+    depends_on: [plan-rounds, theme-descend]
     when: "$start.output.ports.theme != ''"
     with:
-      rounds: "$plan-rounds-out.output.got"
+      rounds: "$plan-rounds.output"
       ports: "$start.output.ports"
       record: "$start.output.record"
       descended: "$theme-descend.output"
@@ -863,11 +787,13 @@ nodes:
           policy_changed: {type: boolean}
           agreed: *talked
           plan: {type: array, items: {type: string}, description: '承認に掛けた計画の行（項目ごとのやり方と書く所）。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復・修正案の項目が無い run は空'}
-    depends_on: [plan-rounds-out, judge-out, structure-in]
+          # 受けた計画の往復の返り（入力 rounds。写しの run は写しの値）をそのまま運ぶ。緩い読み手 collect は落ちうる loop_group を直に結ばず、ここから読む
+          rounds: {type: [object, 'null'], properties: *design_talk_props}
+    depends_on: [plan-rounds, judge, structure-in]
     with:
-      rounds: "$plan-rounds-out.output.got"
+      rounds: "$plan-rounds.output"
       structure: "$structure-in.output.structure"
-      judge: "$judge-out.output.got"
+      judge: "$judge.output"
       fixture: ""   # 直す前で止まった写しの run の fixture-ask-before-fix だけが写しの運ぶ値を渡す
       record: "$start.output.record"
       ports: "$start.output.ports"
@@ -900,6 +826,8 @@ nodes:
     depends_on: [ask-before-fix, gate-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
+      direction: "null"   # 一言の向きを照らすのは仕様駆動の道と写しの道だけ（本線は照らさない）
+      direction_due: "false"
       gate: {from: "$gate-before-fix.output", if_skipped: null}
       go: "$ask-before-fix.output.go"
       stop_reason: "$ask-before-fix.output.stop_reason"
@@ -911,7 +839,7 @@ nodes:
       record: "$start.output.record"
       ports: "$start.output.ports"
   # 9.5 仕様駆動の道（docs/design/spec-driven.md の 6.2 の足す node の 3〜11）。判定の役と計画の部品を 1 回ずつ通し、仕様とリポジトリの
-  # 食い違いを照らし、今の受け皿の形に組み直して、今と同じ条件で修正前の承認ノードを出す。依頼の文の run は全部飛ぶ
+  # 食い違いを照らし、判定と計画の往復の返りの形に組み直して、今と同じ条件で修正前の承認ノードを出す。依頼の文の run は全部飛ぶ
   - id: spec-diagnose
     include: works-factory-diagnose
     depends_on: [spec-entry, test-gate-base]
@@ -925,14 +853,6 @@ nodes:
       baseline: "$test-gate-base.output.baseline"
       policy: "$start.output.ports.policy"
       lang: "$start.output.ports.lang"
-  - id: spec-diagnose-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-diagnose): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [spec-diagnose]
-    with:
-      got: "$spec-diagnose.output"
-      names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties rejudge_verdict
-        rejudge_exit rejudge_diff downgrades report"
   - id: spec-plan
     include: works-factory-plan
     depends_on: [spec-entry, spec-diagnose]
@@ -952,13 +872,6 @@ nodes:
       review_rev: "$start.output.ports.review_rev"
       diff_base: "$start.output.ports.base"
       lang: "$start.output.ports.lang"
-  - id: spec-plan-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-plan): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [spec-plan]
-    with:
-      got: "$spec-plan.output"
-      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up pointed report"
   - id: spec-check
     include: works-factory-spec-driven
     depends_on: [spec-entry, test-gate-base, spec-diagnose, spec-plan]
@@ -974,30 +887,23 @@ nodes:
       plan: {from: "$spec-plan.output.plan", if_skipped: null}
       plan_ok: {from: "$spec-plan.output.ok", if_skipped: null}
       base: "$start.output.ports.base_rev"
-  - id: spec-check-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-spec-driven): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [spec-check]
-    with:
-      got: "$spec-check.output"
-      names: "ok stop_reason reason request origin purpose spec spec_files tdd out_of_scope mismatches report"
   - id: spec-rounds
     script: spec_rounds
     runtime: uv
     mutates_checkout: false
-    depends_on: [spec-check, spec-diagnose-out, spec-plan-out, spec-entry-out]
+    depends_on: [spec-check, spec-diagnose, spec-plan, spec-entry]
     when: "$spec-check.output.ok == true"
     with:
-      diagnose: "$spec-diagnose-out.output.got"
-      plan: "$spec-plan-out.output.got"
-      entry: "$spec-entry-out.output.got"
+      diagnose: "$spec-diagnose.output"
+      plan: "$spec-plan.output"
+      entry: "$spec-entry.output"
       ports: "$start.output.ports"
     output_format:
       type: object
       additionalProperties: false
       required: [judge, rounds, stop_reason, reason]
       properties:
-        judge: {type: [object, 'null'], description: 'json(returns:works-factory-judge): judge-out の got と同じ欄の組（src/specrounds.py の judge_part）'}
+        judge: {type: [object, 'null'], description: 'json(returns:works-factory-judge): 判定の出力と同じ欄の組（src/specrounds.py の judge_part）'}
         rounds: {<<: *plan_out_shape, type: [object, 'null']}  # plan-out の出力と同じ欄の組（rounds_part）
         stop_reason: {type: string}
         reason: {type: string}
@@ -1023,7 +929,7 @@ nodes:
     when: "$start.output.from_spec == true && $spec-ask-before-fix.output.open == true"
   # 一言の向きの判定（docs/design/answer-direction.md）。承認ノードが開いて人が答えた後に、答えの一言を承認に掛けた計画と見せた項目に照らす。
   # 照らすのは仕様駆動の道と写しの道だけ（本線の answer-before-fix には足さない）。止めるかは spec-answer-before-fix が決める。承認ノードが
-  # 開かない run では飛び、受け皿の got は null になる（その時は spec-answer-before-fix も一言を照らさない）
+  # 開かない run では飛び、返りは null で受ける（その時は spec-answer-before-fix も一言を照らさない）
   - id: spec-direction
     include: works-factory-answer-direction
     depends_on: [spec-ask-before-fix, spec-gate-before-fix]
@@ -1034,19 +940,12 @@ nodes:
       asked: "$spec-ask-before-fix.output.asked"
       plan: {from: "$spec-ask-before-fix.output.plan", if_skipped: null}
       lang: "$start.output.ports.lang"
-  - id: spec-direction-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-answer-direction): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [spec-direction]
-    with:
-      got: "$spec-direction.output"
-      names: "ok status reason direction aligned why report"
   - id: spec-answer-before-fix
     <<: *before_fix_answer
-    depends_on: [spec-ask-before-fix, spec-gate-before-fix, spec-direction-out]
+    depends_on: [spec-ask-before-fix, spec-gate-before-fix, spec-direction]
     trigger_rule: none_failed_min_one_success
     with:
-      direction: {from: "$spec-direction-out.output.got", if_skipped: null}
+      direction: {from: "$spec-direction.output", if_skipped: null}
       direction_due: "true"
       gate: {from: "$spec-gate-before-fix.output", if_skipped: null}
       go: "$spec-ask-before-fix.output.go"
@@ -1091,19 +990,12 @@ nodes:
       asked: "$fixture-ask-before-fix.output.asked"
       plan: {from: "$fixture-ask-before-fix.output.plan", if_skipped: null}
       lang: "$start.output.ports.lang"
-  - id: fixture-direction-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-answer-direction): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [fixture-direction]
-    with:
-      got: "$fixture-direction.output"
-      names: "ok status reason direction aligned why report"
   - id: fixture-answer-before-fix
     <<: *before_fix_answer
-    depends_on: [fixture-ask-before-fix, fixture-gate-before-fix, fixture-direction-out]
+    depends_on: [fixture-ask-before-fix, fixture-gate-before-fix, fixture-direction]
     trigger_rule: none_failed_min_one_success
     with:
-      direction: {from: "$fixture-direction-out.output.got", if_skipped: null}
+      direction: {from: "$fixture-direction.output", if_skipped: null}
       direction_due: "true"
       gate: {from: "$fixture-gate-before-fix.output", if_skipped: null}
       go: "$fixture-ask-before-fix.output.go"
@@ -1120,20 +1012,20 @@ nodes:
     script: fix_in
     runtime: uv
     mutates_checkout: false
-    depends_on: [answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, design-in, plan-rounds-out, ask-before-fix,
-                 answer-before-fix, spec-rounds, spec-ask-before-fix, spec-answer-before-fix, fixture-ask-before-fix, fixture-answer-before-fix]
+    depends_on: [answer-start, test-gate-base, judge, tiers, owed, structure, design-in, plan-rounds, ask-before-fix, answer-before-fix, spec-rounds,
+                 spec-ask-before-fix, spec-answer-before-fix, fixture-ask-before-fix, fixture-answer-before-fix]
     trigger_rule: none_failed_min_one_success
     with:
       fixture: "$start.output.fixture"
       start_go: "$answer-start.output.go"
       ports: "$start.output.ports"
       record: "$start.output.record"
-      test_gate_base: {from: "$test-gate-base-out.output.got", if_skipped: null}
-      judge: {from: "$judge-out.output.got", if_skipped: null}
+      test_gate_base: {from: "$test-gate-base.output", if_skipped: null}
+      judge: {from: "$judge.output", if_skipped: null}
       tiers: {from: "$tiers.output", if_skipped: null}
-      structure: {from: "$structure-out.output.got", if_skipped: null}
+      structure: {from: "$structure.output", if_skipped: null}
       design: {from: "$design-in.output", if_skipped: null}
-      rounds: {from: "$plan-rounds-out.output.got", if_skipped: null}
+      rounds: {from: "$plan-rounds.output", if_skipped: null}
       before_fix_go: {from: "$answer-before-fix.output.go", if_skipped: null}
       before_fix_answer: {from: "$answer-before-fix.output.answer", if_skipped: null}
       before_fix_policy: {from: "$answer-before-fix.output.policy", if_skipped: null}
@@ -1239,15 +1131,6 @@ nodes:
       suite_made: "$fix-in.output.suite_made"
       skip_rerun: "$fix-in.output.skip_rerun"
       excluded: "$fix-in.output.excluded"
-  - id: fix-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [fix]
-    with:
-      got: "$fix.output"
-      names: &fix_names "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes
-        changed x_scalars handoffs handoff_titles mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
-        tdd_refused item_claims freeze_off removed_tests untested report"
   # 12 案の直しを差し込むか（run に 1 度）と、案の直しの plan に渡す前の周（docs/design/line.md の 4.2）
   - id: after-fix
     script: after_fix
@@ -1316,19 +1199,12 @@ nodes:
     with:
       base: "$fix.output.start_tree"
       lang: "$start.output.ports.lang"
-  - id: lens-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [lens]
-    with:
-      got: "$lens.output"
-      names: "ok status reason rows ran failed not_routed carry report"
   - id: lens-in
     <<: *relay
-    depends_on: [raise, lens-out]
+    depends_on: [raise, lens]
     trigger_rule: none_failed_min_one_success
     with:
-      got: {from: "$lens-out.output.got", if_skipped: null}
+      got: {from: "$lens.output", if_skipped: null}
       field: "rows"
     output_format:
       type: object
@@ -1351,17 +1227,10 @@ nodes:
       policy: "$fix-in.output.policy"
       request: "$request-in.output.request"
       lang: "$start.output.ports.lang"
-  - id: delta-review-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [delta-review]
-    with:
-      got: "$delta-review.output"
-      names: "ok status reason rounds pass holes diff carry report"
   # 15 案の直し（一度だけ。docs/design/line.md の 4.2）。作業ツリーを変える手直しの後に回す
   - id: replan
     include: works-factory-plan
-    depends_on: [after-fix, delta-review-out]
+    depends_on: [after-fix, delta-review]
     trigger_rule: none_failed_min_one_success
     when: "$after-fix.output.replan == true"
     with:
@@ -1388,13 +1257,6 @@ nodes:
       review_rev: "$start.output.ports.review_rev"
       diff_base: "$start.output.ports.base"
       lang: "$start.output.ports.lang"
-  - id: replan-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-plan): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [replan]
-    with:
-      got: "$replan.output"
-      names: "ok status reason mode round owed plan fix_plan reply handoff replan ripple rejects gave_up pointed report"
   - id: replan-review
     include: works-factory-plan-review
     depends_on: [replan]
@@ -1421,22 +1283,15 @@ nodes:
       ruling: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
       lang: "$start.output.ports.lang"
-  - id: replan-review-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-plan-review): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [replan-review]
-    with:
-      got: "$replan-review.output"
-      names: "ok status form round reason holes blocks pass asks deviations replan gave_up reads report"
   - id: ask-replan
     script: ask_replan
     runtime: uv
     mutates_checkout: false
-    depends_on: [replan-out, replan-review-out]
+    depends_on: [replan, replan-review]
     trigger_rule: none_failed_min_one_success
     with:
-      replan: "$replan-out.output.got"
-      review: {from: "$replan-review-out.output.got", if_skipped: null}
+      replan: "$replan.output"
+      review: {from: "$replan-review.output", if_skipped: null}
       old_plan: "$fix-in.output.plan"
       items: "$fix.output.replan_items"
       conflicts: "$fix.output.conflicts"
@@ -1478,8 +1333,8 @@ nodes:
       before_fix: "$fix-in.output.answer"
       asked: "$ask-replan.output.asked"
       pushed: "$ask-replan.output.pushed"
-      replan: "$replan-out.output.got"
-      review: {from: "$replan-review-out.output.got", if_skipped: null}
+      replan: "$replan.output"
+      review: {from: "$replan-review.output", if_skipped: null}
       items: "$fix.output.replan_items"
       first_ripple: "$fix-in.output.ripple"
       units_tier: "$fix-in.output.units_tier"
@@ -1531,15 +1386,6 @@ nodes:
       suite_made: "$fix-in.output.suite_made"
       skip_rerun: "$answer-replan.output.skip_rerun"
       excluded: "$fix-in.output.excluded"
-  - id: refix-run-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [refix-run]
-    with:
-      got: "$refix-run.output"
-      names: "ok reason units groups conflicts carry replan_items objection diff start_tree reply ruled_reply scope checked allowed_test_changes
-        changed x_scalars handoffs handoff_titles mismatched plan_declared stop_reason allowed_tests accept_trace closure tdd_unit tdd frozen removed
-        tdd_refused item_claims freeze_off removed_tests untested report"
   # 16 2 度目の段の差分の審査（2 度目の修正が走った時だけ）。形と when: の決めは 14 と同じで、値は 2 度目の fix から。上げ直しはしない
   - id: lens-2
     include: works-factory-lens
@@ -1548,19 +1394,12 @@ nodes:
     with:
       base: "$refix-run.output.start_tree"
       lang: "$start.output.ports.lang"
-  - id: lens-2-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [lens-2]
-    with:
-      got: "$lens-2.output"
-      names: "ok status reason rows ran failed not_routed carry report"
   - id: lens-2-in
     <<: *relay
-    depends_on: [refix-run, lens-2-out]
+    depends_on: [refix-run, lens-2]
     trigger_rule: none_failed_min_one_success
     with:
-      got: {from: "$lens-2-out.output.got", if_skipped: null}
+      got: {from: "$lens-2.output", if_skipped: null}
       field: "rows"
     output_format:
       type: object
@@ -1583,34 +1422,27 @@ nodes:
       policy: "$fix-in.output.policy"
       request: "$request-in.output.request"
       lang: "$start.output.ports.lang"
-  - id: delta-review-2-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [delta-review-2]
-    with:
-      got: "$delta-review-2.output"
-      names: "ok status reason rounds pass holes diff carry report"
   # 17 2 つの修正の段と、段ごとの差分の審査を合わせる（docs/design/line.md の 4.3）
   - id: fixed
     script: fixed
     runtime: uv
     mutates_checkout: false
-    depends_on: [fix-in, after-fix, raise, fix-out, lens-out, delta-review-out, replan-out, refix-run-out, lens-2-out, delta-review-2-out]
+    depends_on: [fix-in, after-fix, raise, fix, lens, delta-review, replan, refix-run, lens-2, delta-review-2]
     trigger_rule: none_failed_min_one_success
     with: &fixed_with
       more: "null"   # 返す周の節 back-k-fixed だけが前の周までに返した段の並びと、この周の修正の got を渡す
       add: "null"
       from_spec: "$start.output.from_spec"
       fix_in: "$fix-in.output"
-      fix: {from: "$fix-out.output.got", if_skipped: null}
+      fix: {from: "$fix.output", if_skipped: null}
       after_fix: {from: "$after-fix.output", if_skipped: null}
       raise: {from: "$raise.output", if_skipped: null}
-      lens: {from: "$lens-out.output.got", if_skipped: null}
-      delta: {from: "$delta-review-out.output.got", if_skipped: null}
-      replan: {from: "$replan-out.output.got", if_skipped: null}
-      refix: {from: "$refix-run-out.output.got", if_skipped: null}
-      lens_2: {from: "$lens-2-out.output.got", if_skipped: null}
-      delta_2: {from: "$delta-review-2-out.output.got", if_skipped: null}
+      lens: {from: "$lens.output", if_skipped: null}
+      delta: {from: "$delta-review.output", if_skipped: null}
+      replan: {from: "$replan.output", if_skipped: null}
+      refix: {from: "$refix-run.output", if_skipped: null}
+      lens_2: {from: "$lens-2.output", if_skipped: null}
+      delta_2: {from: "$delta-review-2.output", if_skipped: null}
     output_format: &fixed_output
       type: object
       additionalProperties: false
@@ -1628,7 +1460,7 @@ nodes:
         skip_why: {type: string}
         rejudge: {type: boolean}
         refixed: {type: boolean}
-        stages: {type: array, items: {type: object, properties: {stage: {type: integer}, kind: {type: string, enum: [first, refix, returned], description: '段の種類（段の名は lib/report.py の stage_name がこれで引く）'}, fix: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 段の修正の出力（受け皿の got）'}, lens: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 段の観点の出力（受け皿の got）'}, delta: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 段の差分の審査の出力（受け皿の got）'}}}}
+        stages: {type: array, items: {type: object, properties: {stage: {type: integer}, kind: {type: string, enum: [first, refix, returned], description: '段の種類（段の名は lib/report.py の stage_name がこれで引く）'}, fix: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 段の修正の出力'}, lens: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 段の観点の出力'}, delta: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 段の差分の審査の出力'}}}}
         carry: {type: array, items: &where_text {type: object, required: [where, text], properties: {where: {type: string}, text: {type: string}}}}
         tdd: {type: array, description: 'json(shared:tdd.schema.json): 修正の段ごとの TDD の記録'}
         units: {type: array, description: 'json(shared:fixes.schema.json): 修正の単位ごとの結末', items: {type: object, properties: {unit_id: {type: string}, group_id: {type: string}, status: {type: string}, reason: {type: string}}}}
@@ -1647,7 +1479,7 @@ nodes:
         plan_declared: {type: array, description: 'json(shared:declared.schema.json): 直さずに残すと答えた事前審査の block の行', items: {type: string}}
         plan: {<<: *pointer_or_null, description: 'json(shared:plan-fields.schema.json): 修正が使った修正案の欄の控え（案の直しの後はその物）'}
         ripple: {<<: *pointer_or_null, description: 'json(shared:ripple.schema.json): 修正が使った波及の一覧'}
-        more: {type: array, description: '独立の目から修正の段へ返した段の修正の got の並び（返した順。落ちた段は null）。stages の 3 段目以降になる', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力（受け皿の got）'}}
+        more: {type: array, description: '独立の目から修正の段へ返した段の修正の got の並び（返した順。落ちた段は null）。stages の 3 段目以降になる', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力'}}
         left: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
         stop_reason: {type: string}
         stop_why: {type: string, description: '止めの語と組の止めた訳（1 行。訳が無ければ空）'}
@@ -1662,13 +1494,6 @@ nodes:
       changed: "[]"
       lang: "$start.output.ports.lang"
       stage: after
-  - id: parallel-pr-after-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-parallel-pr): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [parallel-pr-after]
-    with:
-      got: "$parallel-pr-after.output"
-      names: "ok status stop_reason reason material excluded drafts reads downgrades report"
   - id: rejudge-run
     include: works-factory-diagnose
     depends_on: [fixed]
@@ -1686,14 +1511,6 @@ nodes:
       verify: "$fix-in.output.verify"
       excluded: "$fix-in.output.excluded"
       lang: "$start.output.ports.lang"
-  - id: rejudge-run-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-diagnose): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [rejudge-run]
-    with:
-      got: "$rejudge-run.output"
-      names: "ok status mode stop_reason reason ready judgment units questions inputs brief materials out_of_purpose answer_ties rejudge_verdict
-        rejudge_exit rejudge_diff downgrades report"
   - id: spec-check-run
     include: works-factory-spec
     depends_on: [fixed]
@@ -1703,26 +1520,19 @@ nodes:
       spec: "$fix-in.output.spec"
       user_env_dir: "$start.output.ports.user_env_dir"
       lang: "$start.output.ports.lang"
-  - id: spec-check-run-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-spec): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [spec-check-run]
-    with:
-      got: "$spec-check-run.output"
-      names: "ok status stop_reason reason spec added_rows added_origin questions unchecked report"
-  # 19 判定（再審が走れば再審）を後ろへ渡す（docs/design/line.md の 4.4）。再審の返す node が落ちても落ちないように受け皿を読む
+  # 19 判定（再審が走れば再審）を後ろへ渡す（docs/design/line.md の 4.4）
   - id: judged
     script: judged
     runtime: uv
     mutates_checkout: false
-    depends_on: [fixed, rejudge-run-out]
+    depends_on: [fixed, rejudge-run]
     trigger_rule: none_failed_min_one_success
     with:
       fix_in: "$fix-in.output"
       rejudge_due: "$fixed.output.rejudge"
       objection: "$fixed.output.objection"
       fixed_units: "$fixed.output.units"
-      rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
+      rejudge: {from: "$rejudge-run.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -1748,7 +1558,7 @@ nodes:
   # 20 試験の関門（final）。上げ直しの止めは fixed.go が偽にして運ぶ
   - id: test-gate-final
     include: works-factory-test-gate
-    depends_on: [judged, parallel-pr-after-out, spec-check-run-out]
+    depends_on: [judged, parallel-pr-after, spec-check-run]
     trigger_rule: none_failed_min_one_success
     when: "$fixed.output.go == true && $judged.output.stop_reason == ''"
     with: &gate_with
@@ -1764,24 +1574,17 @@ nodes:
       reuse_key: "$start.output.ports.run_id"
       user_env_dir: "$start.output.ports.user_env_dir"
       lang: "$start.output.ports.lang"
-  - id: test-gate-final-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [test-gate-final]
-    with:
-      got: "$test-gate-final.output"
-      names: &gate_names "mode ok green red_cause ran_steps baseline fingerprint test_outcomes evidence by suites_line log baseline_line reason suite suite_note related report"
   # 21 独立の目のまとめ（docs/design/judge-eyes.md の 2 節）。回すか・まとめるかは eyes-in が組む（docs/design/line.md の 5.4）
   - id: eyes-in
     script: eyes_in
     runtime: uv
     mutates_checkout: false
-    depends_on: [test-gate-final-out]
+    depends_on: [test-gate-final]
     with:
       fix_in: "$fix-in.output"
       fixed: "$fixed.output"
       start_answer: {from: "$answer-start.output.answer", if_skipped: null}
-      replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
+      replan_review: {from: "$replan-review.output", if_skipped: null}
       judged: "$judged.output"
       ports: "$start.output.ports"
       request: "$request-in.output"
@@ -1836,14 +1639,6 @@ nodes:
       decisions: "$fix-in.output.decisions"
       intent: "[]"
       lang: "$start.output.ports.lang"
-  - id: eyes-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [eyes]
-    with:
-      # 最初の目の返り。1 周目の頭が route と findings を、最後の承認ノードが最初の目の行を、ここから読む
-      got: "$eyes.output"
-      names: &eyes_names "ok r1 r2 r3 r4 questions means_questions passes premise_check notes after dirty escalate after_ok findings route route_why report sections"
   # 21.5 独立の目から修正の段へ返す輪（docs/design/line.md の 1.3・5.4）。止めた Archon は loop_group の本体に子の run の節を置けず、修正は組を子の run で回すので、
   # 周を LIMIT 周分並べる。周 k の頭 back-k は毎周走り（Archon は飛んだ node の出力を when: が読むと誤りにするので when: を置かない。2 周目以降の頭と back-k-fixed は one_success。docs/design/line.md の 1.3 の 22 の後の段落）、目の route と findings を読んで返すかを決める。前の周の頭が返さなかった周は前の記録をそのまま運ぶ。返す周だけ修正・合わせ・最後の試験・独立の目が走る。
   # back-4 は上限の訳を記録するだけで返す節を持たない。集め eyes-back が最後に走った周の頭の状態を運ぶ
@@ -1851,16 +1646,16 @@ nodes:
     script: eyes_back
     runtime: uv
     mutates_checkout: false
-    depends_on: [eyes-out]
+    depends_on: [eyes]
     with:
       round: "1"
       prev: "null"
       fixed: "$fixed.output"
       judged: "$judged.output"
       fix_in: "$fix-in.output"
-      tests: {from: "$test-gate-final-out.output.got", if_skipped: null}
-      eyes: {from: "$eyes-out.output.got", if_skipped: null}
-      replan: {from: "$replan-out.output.got", if_skipped: null}
+      tests: {from: "$test-gate-final.output", if_skipped: null}
+      eyes: {from: "$eyes.output", if_skipped: null}
+      replan: {from: "$replan.output", if_skipped: null}
       answer_replan: {from: "$answer-replan.output", if_skipped: null}
     output_format: &back_output
       type: object
@@ -1880,13 +1675,13 @@ nodes:
         plan_review: {<<: *pointer_or_null, description: 'json(shared:plan-review-reply.schema.json): 返しの修正が使う事前審査の返答'}
         answers: *answer
         skip_rerun: {type: array, items: {type: string}}
-        more: {type: array, description: 'この周より前に返した段の修正の got の並び', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力（受け皿の got）'}}
+        more: {type: array, description: 'この周より前に返した段の修正の got の並び', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力'}}
         rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目と、返した時の作業ツリーの木 tree）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, kind: {type: string}, where: {type: string}, text: {type: string}}}}, tree: {type: string, description: '返した時の作業ツリーの木の sha（取れなかった行は持たない）'}}}}
         exit: {type: string, description: '返す周のループを抜けた訳（返す周は空）'}
         left: {type: array, description: '抜けた時に残った作り残し（上限なら最後の周の目の findings、返した段が止まった・落ちたなら最後に返した周の項目、差分が変わらなければ今の周の目の項目）', items: *eye_item}
         fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後に試験と独立の目を通った状態の合わせの出力（返した段が止まった・落ちた周は、返した段の合わせの封じる差分を語る欄を返す前の物に替えた物）'}
-        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後に試験と独立の目を通った周の試験の受け皿の got'}
-        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後に試験と独立の目を通った周の目の受け皿の got'}
+        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後に試験と独立の目を通った周の試験の出力'}
+        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後に試験と独立の目を通った周の目の出力'}
         fingerprint: {type: [object, 'null'], properties: {head: {type: string}, diff_hash: {type: string}}}
         green_ok: {type: boolean}
         eyes_ok: {type: boolean}
@@ -1909,24 +1704,17 @@ nodes:
       item_kinds: "$back-1.output.item_kinds"
       prior: "$back-1.output.prior"
       skip_rerun: "$back-1.output.skip_rerun"
-  - id: back-1-fix-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-1-fix]
-    with:
-      got: "$back-1-fix.output"
-      names: *fix_names
   - id: back-1-fixed
     script: fixed
     runtime: uv
     mutates_checkout: false
-    depends_on: [back-1, back-1-fix-out]
+    depends_on: [back-1, back-1-fix]
     trigger_rule: one_success
     when: "$back-1.output.go == true"
     with:
       <<: *fixed_with
       more: "$back-1.output.more"
-      add: {from: "$back-1-fix-out.output.got", if_skipped: null}
+      add: {from: "$back-1-fix.output", if_skipped: null}
     output_format: *fixed_output
   - id: back-1-gate
     include: works-factory-test-gate
@@ -1934,16 +1722,9 @@ nodes:
     when: "$back-1-fixed.output.go == true"
     with:
       <<: *gate_with
-  - id: back-1-gate-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-1-gate]
-    with:
-      got: "$back-1-gate.output"
-      names: *gate_names
   - id: back-1-eyes
     include: works-factory-eyes
-    depends_on: [back-1-gate-out]
+    depends_on: [back-1-gate]
     trigger_rule: none_failed_min_one_success
     when: "$back-1-fixed.output.go == true"
     with:
@@ -1960,18 +1741,11 @@ nodes:
       green: "$back-1-gate.output.ok"
       checks: "$back-1-gate.output.evidence"
       test_outcomes: "$back-1-gate.output.test_outcomes"
-  - id: back-1-eyes-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-1-eyes]
-    with:
-      got: "$back-1-eyes.output"
-      names: *eyes_names
   - id: back-2
     script: eyes_back
     runtime: uv
     mutates_checkout: false
-    depends_on: [back-1, back-1-fixed, back-1-fix-out, back-1-gate-out, back-1-eyes-out]
+    depends_on: [back-1, back-1-fixed, back-1-fix, back-1-gate, back-1-eyes]
     trigger_rule: one_success
     with:
       round: "2"
@@ -1979,8 +1753,8 @@ nodes:
       fixed: {from: "$back-1-fixed.output", if_skipped: null}
       judged: "$judged.output"
       fix_in: "$fix-in.output"
-      tests: {from: "$back-1-gate-out.output.got", if_skipped: null}
-      eyes: {from: "$back-1-eyes-out.output.got", if_skipped: null}
+      tests: {from: "$back-1-gate.output", if_skipped: null}
+      eyes: {from: "$back-1-eyes.output", if_skipped: null}
       replan: "null"
       answer_replan: "null"
     output_format: *back_output
@@ -2000,24 +1774,17 @@ nodes:
       item_kinds: "$back-2.output.item_kinds"
       prior: "$back-2.output.prior"
       skip_rerun: "$back-2.output.skip_rerun"
-  - id: back-2-fix-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-2-fix]
-    with:
-      got: "$back-2-fix.output"
-      names: *fix_names
   - id: back-2-fixed
     script: fixed
     runtime: uv
     mutates_checkout: false
-    depends_on: [back-2, back-2-fix-out]
+    depends_on: [back-2, back-2-fix]
     trigger_rule: one_success
     when: "$back-2.output.go == true"
     with:
       <<: *fixed_with
       more: "$back-2.output.more"
-      add: {from: "$back-2-fix-out.output.got", if_skipped: null}
+      add: {from: "$back-2-fix.output", if_skipped: null}
     output_format: *fixed_output
   - id: back-2-gate
     include: works-factory-test-gate
@@ -2025,16 +1792,9 @@ nodes:
     when: "$back-2-fixed.output.go == true"
     with:
       <<: *gate_with
-  - id: back-2-gate-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-2-gate]
-    with:
-      got: "$back-2-gate.output"
-      names: *gate_names
   - id: back-2-eyes
     include: works-factory-eyes
-    depends_on: [back-2-gate-out]
+    depends_on: [back-2-gate]
     trigger_rule: none_failed_min_one_success
     when: "$back-2-fixed.output.go == true"
     with:
@@ -2051,18 +1811,11 @@ nodes:
       green: "$back-2-gate.output.ok"
       checks: "$back-2-gate.output.evidence"
       test_outcomes: "$back-2-gate.output.test_outcomes"
-  - id: back-2-eyes-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-2-eyes]
-    with:
-      got: "$back-2-eyes.output"
-      names: *eyes_names
   - id: back-3
     script: eyes_back
     runtime: uv
     mutates_checkout: false
-    depends_on: [back-2, back-2-fixed, back-2-fix-out, back-2-gate-out, back-2-eyes-out]
+    depends_on: [back-2, back-2-fixed, back-2-fix, back-2-gate, back-2-eyes]
     trigger_rule: one_success
     with:
       round: "3"
@@ -2070,8 +1823,8 @@ nodes:
       fixed: {from: "$back-2-fixed.output", if_skipped: null}
       judged: "$judged.output"
       fix_in: "$fix-in.output"
-      tests: {from: "$back-2-gate-out.output.got", if_skipped: null}
-      eyes: {from: "$back-2-eyes-out.output.got", if_skipped: null}
+      tests: {from: "$back-2-gate.output", if_skipped: null}
+      eyes: {from: "$back-2-eyes.output", if_skipped: null}
       replan: "null"
       answer_replan: "null"
     output_format: *back_output
@@ -2091,24 +1844,17 @@ nodes:
       item_kinds: "$back-3.output.item_kinds"
       prior: "$back-3.output.prior"
       skip_rerun: "$back-3.output.skip_rerun"
-  - id: back-3-fix-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-3-fix]
-    with:
-      got: "$back-3-fix.output"
-      names: *fix_names
   - id: back-3-fixed
     script: fixed
     runtime: uv
     mutates_checkout: false
-    depends_on: [back-3, back-3-fix-out]
+    depends_on: [back-3, back-3-fix]
     trigger_rule: one_success
     when: "$back-3.output.go == true"
     with:
       <<: *fixed_with
       more: "$back-3.output.more"
-      add: {from: "$back-3-fix-out.output.got", if_skipped: null}
+      add: {from: "$back-3-fix.output", if_skipped: null}
     output_format: *fixed_output
   - id: back-3-gate
     include: works-factory-test-gate
@@ -2116,16 +1862,9 @@ nodes:
     when: "$back-3-fixed.output.go == true"
     with:
       <<: *gate_with
-  - id: back-3-gate-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-3-gate]
-    with:
-      got: "$back-3-gate.output"
-      names: *gate_names
   - id: back-3-eyes
     include: works-factory-eyes
-    depends_on: [back-3-gate-out]
+    depends_on: [back-3-gate]
     trigger_rule: none_failed_min_one_success
     when: "$back-3-fixed.output.go == true"
     with:
@@ -2142,18 +1881,11 @@ nodes:
       green: "$back-3-gate.output.ok"
       checks: "$back-3-gate.output.evidence"
       test_outcomes: "$back-3-gate.output.test_outcomes"
-  - id: back-3-eyes-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [back-3-eyes]
-    with:
-      got: "$back-3-eyes.output"
-      names: *eyes_names
   - id: back-4
     script: eyes_back
     runtime: uv
     mutates_checkout: false
-    depends_on: [back-3, back-3-fixed, back-3-fix-out, back-3-gate-out, back-3-eyes-out]
+    depends_on: [back-3, back-3-fixed, back-3-fix, back-3-gate, back-3-eyes]
     trigger_rule: one_success
     with:
       round: "4"
@@ -2161,8 +1893,8 @@ nodes:
       fixed: {from: "$back-3-fixed.output", if_skipped: null}
       judged: "$judged.output"
       fix_in: "$fix-in.output"
-      tests: {from: "$back-3-gate-out.output.got", if_skipped: null}
-      eyes: {from: "$back-3-eyes-out.output.got", if_skipped: null}
+      tests: {from: "$back-3-gate.output", if_skipped: null}
+      eyes: {from: "$back-3-eyes.output", if_skipped: null}
       replan: "null"
       answer_replan: "null"
     output_format: *back_output
@@ -2186,8 +1918,8 @@ nodes:
         exit: {type: string, description: '返す周のループを抜けた訳（周のノードが落ちた時は eyesback.EXITS の fell）'}
         left: {type: array, items: *eye_item}
         fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後に試験と独立の目を通った周の合わせの出力（返さなかった run は最初の物。返した段が止まった・落ちた周は返す前の状態）'}
-        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後に試験と独立の目を通った周の試験の受け皿の got（返さなかった run は最初の物）'}
-        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後に試験と独立の目を通った周の目の受け皿の got（返さなかった run は最初の物）'}
+        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後に試験と独立の目を通った周の試験の出力（返さなかった run は最初の物）'}
+        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後に試験と独立の目を通った周の目の出力（返さなかった run は最初の物）'}
         fingerprint: {type: [object, 'null'], properties: {head: {type: string}, diff_hash: {type: string}}}
         green_ok: {type: boolean}
         eyes_ok: {type: boolean}
@@ -2227,32 +1959,24 @@ nodes:
       green_ok: "$eyes-back.output.green_ok"
       # 目の ok も最後に試験と独立の目を通った周の物（最初の目の ok ではない。返した段が止まった・落ちた周は返す前の周の物）
       eyes_ok: "$eyes-back.output.eyes_ok"
-  - id: merge-seal-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-merge): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [merge-seal]
-    with:
-      got: "$merge-seal.output"
-      names: "mode ok hash diff protected_hits protected_count reason deliver report"
-  # 23 最後の承認ノード（docs/design/line.md の 2 節の 4）。受け皿の got だけを読み、置く段に渡す値も返す（受け皿の got の中の欄は with: で読めない）
+  # 23 最後の承認ノード（docs/design/line.md の 2 節の 4）。置く段に渡す値も返す
   - id: ask-final
     script: ask_final
     runtime: uv
     mutates_checkout: false
-    depends_on: [eyes-out, eyes-back, eyes-back-restore, merge-seal-out]
+    depends_on: [eyes, eyes-back, eyes-back-restore, merge-seal]
     trigger_rule: none_failed_min_one_success
     with:
       fix_in: "$fix-in.output"
       fixed: "$fixed.output"
       judged: "$judged.output"
-      tests: {from: "$test-gate-final-out.output.got", if_skipped: null}
-      eyes: {from: "$eyes-out.output.got", if_skipped: null}
+      tests: {from: "$test-gate-final.output", if_skipped: null}
+      eyes: {from: "$eyes.output", if_skipped: null}
       eyes_back: {from: "$eyes-back.output", if_skipped: null}
       back_restore: {from: "$eyes-back-restore.output", if_skipped: null}
-      seal: {from: "$merge-seal-out.output.got", if_skipped: null}
-      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
-      parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
-      replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
+      seal: {from: "$merge-seal.output", if_skipped: null}
+      spec_check: {from: "$spec-check-run.output", if_skipped: null}
+      parallel_after: {from: "$parallel-pr-after.output", if_skipped: null}
       replan_answer: {from: "$answer-replan.output.answer", if_skipped: null}
       widened: {from: "$ask-replan.output.widened", if_skipped: null}
       start_answer: {from: "$answer-start.output.answer", if_skipped: null}
@@ -2315,13 +2039,6 @@ nodes:
       request: "$request-in.output.request_file"
       user_env_dir: "$start.output.ports.user_env_dir"
       items: "$eyes-back.output.item_claims"
-  - id: merge-apply-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-merge): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [merge-apply]
-    with:
-      got: "$merge-apply.output"
-      names: "mode ok hash diff protected_hits protected_count reason deliver report"
   # 25 報告へ渡す 2 つの形（sections・facts）を組む（docs/design/line.md の 7 節）。前の段が落ちても飛ばされても走る。resume でも
   # 回し直す（always_run。report は include で、Archon は include の always_run を捨てるので、collect の返りが変われば report が回し直る。pointer の path は決まった名で
   # 中身が変わっても値が変わらないので、返りは書いた 2 つのファイルの中身の指紋 digest を持つ）
@@ -2329,65 +2046,65 @@ nodes:
     script: collect
     runtime: uv
     mutates_checkout: false
-    depends_on: [testcmd, start, answer-start, test-gate-base-out, judge-out, tiers, owed, structure-out, structure-in, independent-design-out,
-                 design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
-                 delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
-                 delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
-                 eyes-out, back-1, back-1-fix-out, back-1-gate-out, back-1-eyes-out, back-2-fix-out, back-2-gate-out, back-2-eyes-out, back-3-fix-out, back-3-gate-out, back-3-eyes-out, eyes-back, eyes-back-restore, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
-                 spec-check-out, spec-rounds, spec-ask-before-fix, spec-direction-out, spec-answer-before-fix, fixture-ask-before-fix, fixture-direction-out,
-                 fixture-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
-                 theme-rounds-out, theme-descend, request-in, theme-return]
+    depends_on: [testcmd, start, answer-start, test-gate-base, judge, tiers, owed, structure, structure-in, independent-design, design-in,
+                 ask-before-fix, answer-before-fix, fix-in, fix, after-fix, raise, lens, lens-in, delta-review, replan, replan-review, ask-replan,
+                 answer-replan, refix-run, lens-2, lens-2-in, delta-review-2, fixed, parallel-pr-after, rejudge-run, spec-check-run, judged,
+                 test-gate-final, eyes-in, eyes, back-1, back-1-fix, back-1-gate, back-1-eyes, back-2-fix, back-2-gate, back-2-eyes, back-3-fix,
+                 back-3-gate, back-3-eyes, eyes-back, eyes-back-restore, merge-seal, ask-final, answer-final, merge-apply, spec-entry, spec-diagnose,
+                 spec-plan, spec-check, spec-rounds, spec-ask-before-fix, spec-direction, spec-answer-before-fix, fixture-ask-before-fix,
+                 fixture-direction, fixture-answer-before-fix, theme-world, theme-world-in, theme-blind, theme-design-in, theme-descend,
+                 request-in, theme-return]
     trigger_rule: all_done
     always_run: true
     with:
       notices: {from: "$testcmd.output.reason", if_skipped: null}
       start: {from: "$start.output", if_skipped: null}
       answer_start: {from: "$answer-start.output", if_skipped: null}
-      test_gate_base: {from: "$test-gate-base-out.output.got", if_skipped: null}
-      judge: {from: "$judge-out.output.got", if_skipped: null}
+      test_gate_base: {from: "$test-gate-base.output", if_skipped: null}
+      judge: {from: "$judge.output", if_skipped: null}
       tiers: {from: "$tiers.output", if_skipped: null}
       owed: {from: "$owed.output", if_skipped: null}
-      structure: {from: "$structure-out.output.got", if_skipped: null}
+      structure: {from: "$structure.output", if_skipped: null}
       structure_in: {from: "$structure-in.output", if_skipped: null}
-      independent_design: {from: "$independent-design-out.output.got", if_skipped: null}
+      independent_design: {from: "$independent-design.output", if_skipped: null}
       design_in: {from: "$design-in.output", if_skipped: null}
-      rounds: {from: "$plan-rounds-out.output.got", if_skipped: null}
+      rounds: {from: "$ask-before-fix.output.rounds", if_skipped: null}
       ask_before_fix: {from: "$ask-before-fix.output", if_skipped: null}
       answer_before_fix: {from: "$answer-before-fix.output", if_skipped: null}
       fix_in: {from: "$fix-in.output", if_skipped: null}
-      fix: {from: "$fix-out.output.got", if_skipped: null}
+      fix: {from: "$fix.output", if_skipped: null}
       after_fix: {from: "$after-fix.output", if_skipped: null}
       raise: {from: "$raise.output", if_skipped: null}
-      lens: {from: "$lens-out.output.got", if_skipped: null}
+      lens: {from: "$lens.output", if_skipped: null}
       lens_in: {from: "$lens-in.output", if_skipped: null}
-      delta: {from: "$delta-review-out.output.got", if_skipped: null}
-      replan: {from: "$replan-out.output.got", if_skipped: null}
-      replan_review: {from: "$replan-review-out.output.got", if_skipped: null}
+      delta: {from: "$delta-review.output", if_skipped: null}
+      replan: {from: "$replan.output", if_skipped: null}
+      replan_review: {from: "$replan-review.output", if_skipped: null}
       ask_replan: {from: "$ask-replan.output", if_skipped: null}
       answer_replan: {from: "$answer-replan.output", if_skipped: null}
-      refix: {from: "$refix-run-out.output.got", if_skipped: null}
-      lens_2: {from: "$lens-2-out.output.got", if_skipped: null}
+      refix: {from: "$refix-run.output", if_skipped: null}
+      lens_2: {from: "$lens-2.output", if_skipped: null}
       lens_2_in: {from: "$lens-2-in.output", if_skipped: null}
-      delta_2: {from: "$delta-review-2-out.output.got", if_skipped: null}
+      delta_2: {from: "$delta-review-2.output", if_skipped: null}
       fixed: {from: "$fixed.output", if_skipped: null}
-      parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
-      rejudge: {from: "$rejudge-run-out.output.got", if_skipped: null}
-      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
+      parallel_after: {from: "$parallel-pr-after.output", if_skipped: null}
+      rejudge: {from: "$rejudge-run.output", if_skipped: null}
+      spec_check: {from: "$spec-check-run.output", if_skipped: null}
       judged: {from: "$judged.output", if_skipped: null}
-      test_gate_final: {from: "$test-gate-final-out.output.got", if_skipped: null}
+      test_gate_final: {from: "$test-gate-final.output", if_skipped: null}
       eyes_in: {from: "$eyes-in.output", if_skipped: null}
-      eyes: {from: "$eyes-out.output.got", if_skipped: null}
+      eyes: {from: "$eyes.output", if_skipped: null}
       eyes_back: {from: "$eyes-back.output", if_skipped: null}
       back_restore: {from: "$eyes-back-restore.output", if_skipped: null}
       back_1: {from: "$back-1.output", if_skipped: null}
-      merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
+      merge_seal: {from: "$merge-seal.output", if_skipped: null}
       ask_final: {from: "$ask-final.output", if_skipped: null}
       answer_final: {from: "$answer-final.output", if_skipped: null}
-      merge_apply: {from: "$merge-apply-out.output.got", if_skipped: null}
+      merge_apply: {from: "$merge-apply.output", if_skipped: null}
       # 仕様駆動の run だけ（ほかの run は null。docs/design/spec-driven.md の 6.2 の変える node の 7）
-      spec_entry: {from: "$spec-entry-out.output.got", if_skipped: null}
-      spec_diagnose: {from: "$spec-diagnose-out.output.got", if_skipped: null}
-      spec_driven_check: {from: "$spec-check-out.output.got", if_skipped: null}
+      spec_entry: {from: "$spec-entry.output", if_skipped: null}
+      spec_diagnose: {from: "$spec-diagnose.output", if_skipped: null}
+      spec_driven_check: {from: "$spec-check.output", if_skipped: null}
       spec_rounds: {from: "$spec-rounds.output", if_skipped: null}
       spec_ask_before_fix: {from: "$spec-ask-before-fix.output", if_skipped: null}
       spec_answer_before_fix: {from: "$spec-answer-before-fix.output", if_skipped: null}
@@ -2396,9 +2113,9 @@ nodes:
       fixture_answer_before_fix: {from: "$fixture-answer-before-fix.output", if_skipped: null}
       # テーマの run だけ（ほかの run は request-in のほか null。docs/design/line.md の 3.3 節）
       theme_world_in: {from: "$theme-world-in.output", if_skipped: null}
-      theme_blind: {from: "$theme-blind-out.output.got", if_skipped: null}
+      theme_blind: {from: "$theme-blind.output", if_skipped: null}
       theme_design_in: {from: "$theme-design-in.output", if_skipped: null}
-      theme_rounds: {from: "$theme-rounds-out.output.got", if_skipped: null}
+      theme_rounds: {from: "$theme-descend.output.rounds", if_skipped: null}
       theme_descend: {from: "$theme-descend.output", if_skipped: null}
       request_in: {from: "$request-in.output", if_skipped: null}
       theme_return: {from: "$theme-return.output", if_skipped: null}
@@ -2456,11 +2173,11 @@ nodes:
     always_run: true
     with:
       report: {from: "$report.output", if_skipped: null}
-      merge_apply: {from: "$merge-apply-out.output.got", if_skipped: null}
-      merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
+      merge_apply: {from: "$merge-apply.output", if_skipped: null}
+      merge_seal: {from: "$merge-seal.output", if_skipped: null}
       eyes: {from: "$eyes-back.output.eyes", if_skipped: null}
       answer_final: {from: "$answer-final.output.answer", if_skipped: null}
-      spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
+      spec_check: {from: "$spec-check-run.output", if_skipped: null}
       children: {from: "$sweep-children.output", if_skipped: null}
     output_format:
       type: object

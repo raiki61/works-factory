@@ -1,6 +1,6 @@
 """設計の段から計画の段へ降りる道と、計画の段から設計へ戻す道（docs/design/line.md の 3.3 節）。
 
-- descend(got, *, given, record, place) -> dict: theme-descend。設計の往復の返り got（theme-rounds-out の got）から、承認された設計の変える所を
+- descend(got, *, given, record, place) -> dict: theme-descend。設計の往復の返り got（theme-rounds の返り）から、承認された設計の変える所を
   依頼の行に、関所の答えと推しを採った問いを依頼の答えの行にした依頼のファイル（files.THEME_DESCENDED）と、承認された設計の md の写し
   （files.THEME_APPROVED）を書く。人の居る run は関所の合意（agreed が通す語）だけで降り、止める答え・往復の止めは止めの語を返す。無人の
   run は関所の項目（src.themetalk.items）が無い時だけ降り（推しで進んだ印 answer.PUSHED を gates/gate-theme.json に残す）、項目が在れば

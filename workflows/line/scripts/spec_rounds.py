@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""仕様駆動の run の判定と計画の往復を、今の受け皿の形に組み直す node spec-rounds（docs/design/spec-driven.md の 6.2 の足す node の 8。
+"""仕様駆動の run の判定と計画の往復を、判定のまとめと計画の往復の返りの形に組み直す node spec-rounds（docs/design/spec-driven.md の 6.2 の足す node の 8。
 決まりは src/specrounds.py）。返り {judge, rounds, stop_reason, reason}。例外の時は止めの語 works:line-script で、後ろは when: で飛ぶ。
 
 入力（with:）: diagnose（spec-diagnose-out の got）・plan（spec-plan-out の got）・entry（spec-entry-out の got）・ports（start の配る値）
@@ -28,11 +28,10 @@ def _doc(ptr, opened):
 
 def compute():
     from src import specrounds
-    raw = {"diagnose": os.environ.get("INPUTS_DIAGNOSE"), "plan": os.environ.get("INPUTS_PLAN"),
-           "entry": os.environ.get("INPUTS_ENTRY"), "ports": os.environ.get("INPUTS_PORTS")}
-    diagnose = dict(ports.picked(raw["diagnose"], DIAGNOSE) or {})
-    plan = dict(ports.picked(raw["plan"], PLAN) or {})
-    entry = dict(ports.picked(raw["entry"], ENTRY) or {})
+    raw = {"ports": os.environ.get("INPUTS_PORTS")}
+    diagnose = dict(ports.picked(os.environ.get("INPUTS_DIAGNOSE"), DIAGNOSE) or {})
+    plan = dict(ports.picked(os.environ.get("INPUTS_PLAN"), PLAN) or {})
+    entry = dict(ports.picked(os.environ.get("INPUTS_ENTRY"), ENTRY) or {})
     if not (diagnose and plan and entry):
         raise ValueError("判定の役・計画の部品・入口の返す値のどれかが無い（spec-rounds は 3 つが揃った run だけで回る）")
     given = ports.parsed(raw["ports"]) or {}

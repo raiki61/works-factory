@@ -18,7 +18,7 @@
 - carried_file(row) -> Path | None: form を値と一緒に運ぶ行 {ref, form}（報告の節の files のように、種類の違うファイルを 1 つの欄で
   中継する値）の ref を、行の form で file と同じに照らしてパスを返す。form は書き手が出どころの宣言の form を字で書く
 - 形の名: block の schemas/ のファイル名・shared:<名>（pack の .shared/schemas/）・lib:<名>（lib/ の下。lib に住処の在る形）・
-  returns:<workflow の名>（include した workflow の返す節の output_format。graph の受け皿の節の output_format だけが書け、口は読まない）。
+  returns:<workflow の名>（include した workflow の返す節の output_format。その workflow を include する graph の節の output_format だけが書け、口は読まない）。
   引き方は _shape_path の 1 か所
 - form_of(description) -> (form, 名) | None: form の語（text・file・flag・choice(a|b)・json(<名>)・jsonl(<名>)）の住処。入力の
   description・形の中の description・口の呼びの form の字が使う

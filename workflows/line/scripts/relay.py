@@ -6,7 +6,7 @@
 lens-2-in。今の structure_in.py の形を 1 本にした物）。include の with: は `{from, if_skipped}` の束ねを読まないため、後ろの include は
 ここの欄を読む。
 
-入力（with:）: got（作り手の出力まるごとか受け皿の got。`{from, if_skipped: null}` で受ける。飛ばされたら null）と field（運ぶ欄の名を
+入力（with:）: got（作り手の出力まるごと。`{from, if_skipped: null}` で受ける。飛ばされたら null）と field（運ぶ欄の名を
 空白で区切った字）。出力は field の欄と stop_reason。got が null なら各欄 null（読み手の block は値の無い run として進む）。
 got が field の欄を持たなければ（前の版の返り）、例外の時と同じく各欄 null と止めの語 works:line-script を返し、後ろへ進めない
 """

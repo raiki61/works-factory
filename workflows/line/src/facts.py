@@ -1,11 +1,11 @@
 """report の block へ渡す facts を組む（docs/design/line.md の 7.2。欄と意味は docs/design/report.md の 1.2 の表）。
 
 元は組み込みで消えた outcome（結末の読み分けの部分）と runreport（line だけが使う部分）の同じ名の関数（integration.md の
-4.5-4 (f)）。元は block の返り（returns: 段の役の名 → 返り）を読んだので、ここでも受け皿の got を元の役の名の returns に詰め直して
+4.5-4 (f)）。元は block の返り（returns: 段の役の名 → 返り）を読んだので、ここでも block の返りを元の役の名の returns に詰め直して
 （returns_of）、同じ名の関数で読む。pointer は stages.resolve で place の中のパスに戻す。結末の 10 語と決める順は report の
 block の src/outcome.py が持ち、ここは止め・人待ち・残り・証の事実に仕分けるだけ。lib は KEEP の物だけを読む（関数の中で import する。stopby・gatemarks・fixboard だけは表 HEAD_NOTICE・ASK_SOURCES の鍵に使うので頭で読む）。
 
-- returns_of(values, record) -> returns: collect が受けた値（受け皿の got・line の script の出力）を元の役の名の dict に
+- returns_of(values, record) -> returns: collect が受けた値（block の返り・line の script の出力）を元の役の名の dict に
 - build(values, record, record_why) -> facts（facts.schema.json の欄の全部）
 - 部分ごとに組めなかった時は、結末に効く部分（止め・人待ち・残り・証）なら problems（結末を名乗らせない）、見せるだけの部分なら notes に
   訳を足して先へ進む（黙って空にしない）
@@ -141,7 +141,7 @@ def read_ptr(ptr, field: str):
         return None, f"{ptr.get('path') if isinstance(ptr, dict) else ptr} が読めない: {oneline.one_line(e)}"
 
 
-# ---------------------------------------------------------------- 受け皿の got を元の役の名の returns に
+# ---------------------------------------------------------------- block の返りを元の役の名の returns に
 def returns_of(values: dict, record: dict | None) -> dict:
     """元の役の名の returns: judge（fix-in が運んだ固定材料の値で埋める）・rejudge・plan（計画の往復の記録 plan-out）・plan-review
     （最後の往復の事前審査の値。plan-out の stalled・asks を持つ）・replan・replan-review-result・fix（fixed の合わせ）・before-tests・
@@ -1290,7 +1290,7 @@ def cmd_skipped(tdd_stages: list) -> int:
 
 # ---------------------------------------------------------------- 組む
 def optional_of(values: dict) -> list:
-    """落ちても受け止める段の宣言: line 自身の宣言（collect の入力 optional）と、受け皿が運んだ judge の graph の宣言（頭 judge__）"""
+    """落ちても受け止める段の宣言: line 自身の宣言（collect の入力 optional）と、判定の返りが運ぶ judge の graph の宣言（頭 judge__）"""
     own = [h for h in _list(values.get("optional")) if isinstance(h, str) and h]
     for row in _list(as_dict(values.get("judge")).get("optional")):
         if isinstance(row, dict) and isinstance(row.get("node"), str) and row["node"]:

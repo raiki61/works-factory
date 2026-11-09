@@ -212,7 +212,7 @@ def forge_lines(cwd) -> list:
 
 
 def ran_lines(values: dict) -> list:
-    """走った段と、飛ばされた・出力の無い段（include の id。受け皿の got が在るか）"""
+    """走った段と、飛ばされた・出力の無い段（include の id。返りが在るか）"""
     ran = [rid for rid, name in factslib.RETURNED if isinstance(values.get(name), dict)]
     skipped = [rid for rid, name in factslib.RETURNED if not isinstance(values.get(name), dict)]
     return [f"走った段: {'・'.join(ran) or '無い'}", f"飛ばされた・出力の無い段: {'・'.join(skipped) or '無い'}"]

@@ -35,10 +35,11 @@ def record_doc(ptr, unread: list):
         return None
 
 
-def materials(rounds: dict | None, *, structure_raw, judge_raw, record_raw, dealt: dict, unattended: bool, place: Path) -> dict:
+def materials(rounds: dict | None, *, structure_raw, judge, record_raw, dealt: dict, unattended: bool, place: Path) -> dict:
+    """judge は判定の返りの欄 judgment・answer_ties・materials・means（means は無くてよい）を ports.picked で名指した物か None
+    （読む script が with: の judge を口で読む。tests/layers/scan.py の E5）"""
     from src import files, fixture, gates, rounds as rounds_mod, startrec
 
-    judge = ports.picked(judge_raw, ("judgment", "answer_ties", "materials", "means"), optional=("means",))
     record_path = ports.file(record_raw, "json(start-record.schema.json)")
     record = startrec.load(record_path) if record_path else {}
     unread: list = []   # 指す先が無い・読めない控え（開ける理由にする。形の違う pointer は落ちる）

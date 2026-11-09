@@ -1,75 +1,75 @@
 {
-  "about": "見る道具の段の表（トレースの段の span と run の span の段ごとの費用の表が読む）。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。受け皿の -out・返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix と一言の向きの判定の受け皿 spec-direction-out と、直す前で止まった写しの run の fixture-ask-before-fix・fixture-answer-before-fix と受け皿 fixture-direction-out）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.5）。source は段の出どころ（docs/design/line.md の 1.3 の番号）で、表を直す人が読む（見る道具の部品は読まない）",
+  "about": "見る道具の段の表（トレースの段の span と run の span の段ごとの費用の表が読む）。line（メイングラフ）の一番上のノードを、人の言葉の段に畳む。工場の中は読まない（viewer/AGENTS.md の E25）。line にノードを足したら、ここのどれか 1 つの段の nodes に足す（tests/viewer/test_stages.py が照らす）。wiring はその段のノードのうち配線（合流・受け渡しだけで段の仕事をしない物。返しの -in・fix-in・fixed・judged・eyes-in・修正前の承認の聞きと受け ask-before-fix・answer-before-fix と仕様駆動の run の spec-ask-before-fix・spec-answer-before-fix と、直す前で止まった写しの run の fixture-ask-before-fix・fixture-answer-before-fix）で、段の状態（通った・飛んだ）に数えない。修正の段が飛んだ run でも fix-in・fixed・judged は走るので、数えると飛んだ段が通ったに見える。ask-before-fix・answer-before-fix（仕様駆動の spec- も）も人が聞かれずに止めや通しを受け渡すだけで走る（docs/design/viewer.md の 6.5）。source は段の出どころ（docs/design/line.md の 1.3 の番号）で、表を直す人が読む（見る道具の部品は読まない）",
   "graph": "line",
   "stages": [
     {
       "name": "受付",
       "source": "docs/design/line.md の 1.3 の 0〜2.8",
-      "nodes": ["testcmd", "testcmd-stop", "start", "gate-start", "answer-start", "spec-entry", "spec-entry-out", "request-in"],
-      "wiring": ["spec-entry-out"]
+      "nodes": ["testcmd", "testcmd-stop", "start", "gate-start", "answer-start", "spec-entry", "request-in"],
+      "wiring": []
     },
     {
       "name": "設計の段",
       "source": "docs/design/line.md の 1.3 の 2.7・3.3 節",
-      "nodes": ["theme-world", "theme-world-out", "theme-world-in", "theme-blind", "theme-blind-out", "theme-design-in", "theme-rounds", "theme-rounds-out", "theme-descend", "theme-return"],
-      "wiring": ["theme-world-out", "theme-world-in", "theme-blind-out", "theme-design-in", "theme-rounds-out"]
+      "nodes": ["theme-world", "theme-world-in", "theme-blind", "theme-design-in", "theme-rounds", "theme-descend", "theme-return"],
+      "wiring": ["theme-world-in", "theme-design-in"]
     },
     {
       "name": "試験の土台",
       "source": "docs/design/line.md の 1.3 の 3",
-      "nodes": ["test-gate-base", "test-gate-base-out"],
-      "wiring": ["test-gate-base-out"]
+      "nodes": ["test-gate-base"],
+      "wiring": []
     },
     {
       "name": "判定",
       "source": "docs/design/line.md の 1.3 の 4",
-      "nodes": ["judge", "judge-out", "spec-diagnose", "spec-diagnose-out"],
-      "wiring": ["judge-out", "spec-diagnose-out"]
+      "nodes": ["judge", "spec-diagnose"],
+      "wiring": []
     },
     {
       "name": "計画",
       "source": "docs/design/line.md の 1.3 の 5〜8・3 節",
-      "nodes": ["tiers", "owed", "structure", "structure-out", "structure-in", "independent-design", "independent-design-out", "design-in", "plan-rounds", "plan-rounds-out", "spec-plan", "spec-plan-out", "spec-check", "spec-check-out", "spec-rounds"],
-      "wiring": ["structure-out", "structure-in", "independent-design-out", "design-in", "plan-rounds-out", "spec-plan-out", "spec-check-out"]
+      "nodes": ["tiers", "owed", "structure", "structure-in", "independent-design", "design-in", "plan-rounds", "spec-plan", "spec-check", "spec-rounds"],
+      "wiring": ["structure-in", "design-in"]
     },
     {
       "name": "修正前の承認",
       "source": "docs/design/line.md の 1.3 の 9・2 節の 2",
       "nodes": ["ask-before-fix", "gate-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-gate-before-fix", "spec-direction",
-                "spec-direction-out", "spec-answer-before-fix", "fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction",
-                "fixture-direction-out", "fixture-answer-before-fix"],
-      "wiring": ["ask-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-direction-out", "spec-answer-before-fix", "fixture-ask-before-fix",
-                 "fixture-direction-out", "fixture-answer-before-fix"]
+                "spec-answer-before-fix", "fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction",
+                "fixture-answer-before-fix"],
+      "wiring": ["ask-before-fix", "answer-before-fix", "spec-ask-before-fix", "spec-answer-before-fix", "fixture-ask-before-fix",
+                 "fixture-answer-before-fix"]
     },
     {
       "name": "修正",
       "source": "docs/design/line.md の 1.3 の 10〜17・4 節",
-      "nodes": ["fix-in", "fix", "fix-out", "after-fix", "raise", "lens", "lens-out", "lens-in", "delta-review", "delta-review-out", "replan", "replan-out", "replan-review", "replan-review-out", "ask-replan", "gate-replan", "answer-replan", "refix-run", "refix-run-out", "lens-2", "lens-2-out", "lens-2-in", "delta-review-2", "delta-review-2-out", "fixed"],
-      "wiring": ["fix-in", "fix-out", "lens-out", "lens-in", "delta-review-out", "replan-out", "replan-review-out", "refix-run-out", "lens-2-out", "lens-2-in", "delta-review-2-out", "fixed"]
+      "nodes": ["fix-in", "fix", "after-fix", "raise", "lens", "lens-in", "delta-review", "replan", "replan-review", "ask-replan", "gate-replan", "answer-replan", "refix-run", "lens-2", "lens-2-in", "delta-review-2", "fixed"],
+      "wiring": ["fix-in", "lens-in", "lens-2-in", "fixed"]
     },
     {
       "name": "確かめ直し",
       "source": "docs/design/line.md の 1.3 の 18〜20",
-      "nodes": ["parallel-pr-after", "parallel-pr-after-out", "rejudge-run", "rejudge-run-out", "spec-check-run", "spec-check-run-out", "judged", "test-gate-final", "test-gate-final-out"],
-      "wiring": ["parallel-pr-after-out", "rejudge-run-out", "spec-check-run-out", "judged", "test-gate-final-out"]
+      "nodes": ["parallel-pr-after", "rejudge-run", "spec-check-run", "judged", "test-gate-final"],
+      "wiring": ["judged"]
     },
     {
       "name": "独立の目",
       "source": "docs/design/line.md の 1.3 の 21",
-      "nodes": ["eyes-in", "eyes", "eyes-out"],
-      "wiring": ["eyes-in", "eyes-out"]
+      "nodes": ["eyes-in", "eyes"],
+      "wiring": ["eyes-in"]
     },
     {
       "name": "独立の目から修正へ返す",
       "source": "docs/design/line.md の 1.3 の 21.5",
-      "nodes": ["back-1", "back-1-fix", "back-1-fix-out", "back-1-fixed", "back-1-gate", "back-1-gate-out", "back-1-eyes", "back-1-eyes-out", "back-2", "back-2-fix", "back-2-fix-out", "back-2-fixed", "back-2-gate", "back-2-gate-out", "back-2-eyes", "back-2-eyes-out", "back-3", "back-3-fix", "back-3-fix-out", "back-3-fixed", "back-3-gate", "back-3-gate-out", "back-3-eyes", "back-3-eyes-out", "back-4", "eyes-back"],
-      "wiring": ["back-1", "back-1-fix-out", "back-1-fixed", "back-1-gate-out", "back-1-eyes-out", "back-2", "back-2-fix-out", "back-2-fixed", "back-2-gate-out", "back-2-eyes-out", "back-3", "back-3-fix-out", "back-3-fixed", "back-3-gate-out", "back-3-eyes-out", "back-4", "eyes-back"]
+      "nodes": ["back-1", "back-1-fix", "back-1-fixed", "back-1-gate", "back-1-eyes", "back-2", "back-2-fix", "back-2-fixed", "back-2-gate", "back-2-eyes", "back-3", "back-3-fix", "back-3-fixed", "back-3-gate", "back-3-eyes", "back-4", "eyes-back"],
+      "wiring": ["back-1", "back-1-fixed", "back-2", "back-2-fixed", "back-3", "back-3-fixed", "back-4", "eyes-back"]
     },
     {
       "name": "封じと最後の承認",
       "source": "docs/design/line.md の 1.3 の 22〜24・2 節の 4",
-      "nodes": ["eyes-back-restore", "merge-seal", "merge-seal-out", "ask-final", "gate-final", "answer-final", "merge-apply", "merge-apply-out"],
-      "wiring": ["merge-seal-out", "merge-apply-out"]
+      "nodes": ["eyes-back-restore", "merge-seal", "ask-final", "gate-final", "answer-final", "merge-apply"],
+      "wiring": []
     },
     {
       "name": "報告",

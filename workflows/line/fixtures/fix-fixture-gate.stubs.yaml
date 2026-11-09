@@ -5,7 +5,7 @@
 fixture:
   expect: completed
   inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json, fix_fixture: fixture-dir}
-  reached: [start, gate-start, answer-start, fixture-ask-before-fix, fixture-gate-before-fix, fixture-direction__finish, fixture-direction-out, fixture-answer-before-fix, fix-in, fix__finish, after-fix, judged, fixed, raise, test-gate-final__result, eyes__verdict, merge-seal__merge, ask-final, gate-final, answer-final, merge-apply__merge, collect, report__finish, sweep-children, result]
+  reached: [start, gate-start, answer-start, fixture-ask-before-fix, fixture-gate-before-fix, fixture-direction__finish, fixture-answer-before-fix, fix-in, fix__finish, after-fix, judged, fixed, raise, test-gate-final__result, eyes__verdict, merge-seal__merge, ask-final, gate-final, answer-final, merge-apply__merge, collect, report__finish, sweep-children, result]
 exec-code: true
 gate-start: {decision: approve, text: ''}
 fixture-gate-before-fix: {decision: continue, text: '問いの答え: 推しのとおりに通す'}

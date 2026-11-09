@@ -592,10 +592,10 @@ class BeforeFixAgreedCase(unittest.TestCase):
         agreed = {"decision": "continue", "text": "q-a は x", "asked": asked}
         with run.env():
             asking = kit.load(BLOCK, "asking")
-            judge = json.dumps({"judgment": json.loads(run.pointer("judgment.json")), "answer_ties": None, "materials": None})
+            judge = {"judgment": json.loads(run.pointer("judgment.json")), "answer_ties": None, "materials": None, "means": None}
             for given, want in ((agreed, False), (None, True)):
                 with self.subTest(agreed=given is not None):
-                    kw = asking.materials({**rounds(), "agreed": given}, structure_raw=None, judge_raw=judge, record_raw="",
+                    kw = asking.materials({**rounds(), "agreed": given}, structure_raw=None, judge=judge, record_raw="",
                                           dealt={}, unattended=False, place=run.artifacts)
                     out = self.g.before_fix(rounds(), unattended_run=False, design=False, agreed=given, **kw)
                     self.assertEqual(out["open"], want)

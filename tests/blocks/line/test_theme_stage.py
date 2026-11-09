@@ -214,11 +214,11 @@ class ThemeStageCase(TalkBase):
         (self.run.artifacts / "answer-ties.json").write_text(json.dumps(ties, ensure_ascii=False), encoding="utf-8")
         with self.run.env():
             asking = kit.load(BLOCK, "asking")
-            judge = json.dumps({"judgment": json.loads(self.run.pointer("judgment.json")),
-                                "answer_ties": json.loads(self.run.pointer("answer-ties.json")), "materials": None})
+            judge = {"judgment": json.loads(self.run.pointer("judgment.json")),
+                     "answer_ties": json.loads(self.run.pointer("answer-ties.json")), "materials": None, "means": None}
             for dealt, want in ((self.d.dealt(self.given, json.dumps(rin)), []), (self.given, ["q-a"])):
                 with self.subTest(descended=dealt is not self.given):
-                    kw = asking.materials(None, structure_raw=None, judge_raw=judge, record_raw="", dealt=dealt, unattended=False,
+                    kw = asking.materials(None, structure_raw=None, judge=judge, record_raw="", dealt=dealt, unattended=False,
                                           place=self.run.artifacts)
                     self.assertEqual([q["key"] for q in gm.pending(kw["ledger"])], want)
 

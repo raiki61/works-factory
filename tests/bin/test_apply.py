@@ -417,7 +417,7 @@ class ApplyTest(TargetCase):
         self.assertEqual(apply.RETURN_READS, {
             "works-factory-line": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
             "works-factory-chain": ("", apply.RESULT_FORM, apply.RESULT_PATHS),
-            ("works-factory-line", apply.SEAL_STEP): ("got", apply.SEAL_FORM, apply.SEAL_PATHS),
+            ("works-factory-line", apply.SEAL_STEP): ("", apply.SEAL_FORM, apply.SEAL_PATHS),
             ("works-factory-line", apply.EYES_STEP): (apply.LAST_EYES, apply.EYES_FORM, apply.EYES_PATHS),
             ("works-factory-line", apply.ANSWER_STEP): ("", apply.ANSWER_FORM, apply.ANSWER_PATHS)})
 
@@ -537,7 +537,7 @@ class FailedAfterSealTest(TargetCase):
                     "artifacts": {"root": str(self.root), "files": [], "limitations": []}}}
 
     def events(self, seal=None, r2=None, *, seal_data=None, answer=None) -> dict:
-        """出来事の列つきの答え。封じのノードの受け皿の出力は素の出力（JSON の字）で、独立の目の受け皿と承認ノードの答えの出力は型つきの出力で持つ"""
+        """出来事の列つきの答え。封じの返す節の出力は素の出力（JSON の字）で、返す周の集めと承認ノードの答えの出力は型つきの出力で持つ"""
         sealed = {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
                   "protected_hits": [], "reason": ""} if seal is None else seal
         verdict = {"ok": True, "r1": None, "r2": r2, "r3": None, "r4": None, "questions": [], "premise_check": None,
@@ -545,7 +545,7 @@ class FailedAfterSealTest(TargetCase):
         events = [
             {"event_type": "node_started", "step_name": apply.SEAL_STEP, "data": {}},
             {"event_type": "node_completed", "step_name": apply.SEAL_STEP,
-             "data": seal_data if seal_data is not None else {"node_output": json.dumps({"got": sealed, "stop_reason": ""})}},
+             "data": seal_data if seal_data is not None else {"node_output": json.dumps(sealed)}},
             {"event_type": "node_completed", "step_name": apply.EYES_STEP,
              "data": json.dumps({"node_output": "", "structured_output": {"eyes": verdict}})},
         ]
@@ -621,13 +621,13 @@ class FailedAfterSealTest(TargetCase):
                                 2, f"この run には封じのノード {apply.SEAL_STEP} が無い", f"git -C {self.target} apply {place}")
 
     def test_unreadable_seal_output_is_refused(self):
-        whole = json.dumps({"got": {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
-                                    "protected_hits": [], "reason": ""}, "stop_reason": ""})
+        whole = json.dumps({"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
+                            "protected_hits": [], "reason": ""})
         cases = {"切り詰めた": {"node_output": whole, "node_output_truncated": True},
                  "JSON でない": {"node_output": "not json"},
                  "出力が無い": {},
-                 "受け皿の形でない": {"node_output": json.dumps({"mode": "seal", "ok": True, "hash": sha(self.diff)})},
-                 "seal の形でない": {"node_output": json.dumps({"got": {"mode": "apply", "ok": True, "hash": sha(self.diff)}})}}
+                 "seal の形でない": {"node_output": json.dumps({"mode": "apply", "ok": True, "hash": sha(self.diff), "diff": None,
+                                                              "reason": ""})}}
         for name, data in cases.items():
             with self.subTest(name):
                 self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events(seal_data=data)),
@@ -644,7 +644,7 @@ class FailedAfterSealTest(TargetCase):
                                 2, apply.EYES_STEP, "R2")
 
     def test_events_off_the_declared_shape_are_refused(self):
-        """--allow-failed の道が出来事から読む 3 つの出力（封じの受け皿の got・独立の目の受け皿の got・最後の承認ノードの答え）も、
+        """--allow-failed の道が出来事から読む 3 つの出力（封じの返す節の出力・返す周の集めの最後の目・最後の承認ノードの答え）も、
         result と同じく表 RETURN_READS の形で照らし、欄の名がずれていれば訳に欄を出して終了の値 2 で止まる（欄 r2 の名がずれた出力を
         作り直しを言っていないと、欄 answer の名がずれた答えを方針で開かなかったと読み違えて当てない）"""
         go = {"go": True, "answer": {"decision": "approve", "text": "", "asked": []}, "stop_reason": ""}
@@ -667,9 +667,8 @@ class FailedAfterSealTest(TargetCase):
 
     def test_structured_output_is_read_before_the_truncation_mark(self):
         """Archon の terminal-record.ts と同じく、型つきの出力が在れば切り詰めの印を見ない"""
-        got = {"got": {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"),
-                       "protected_hits": [], "reason": ""}, "stop_reason": ""}
-        data = {"node_output": "{", "node_output_truncated": True, "structured_output": got}
+        sealed = {"mode": "seal", "ok": True, "hash": sha(self.diff), "diff": pointer("merge/sealed.diff"), "protected_hits": [], "reason": ""}
+        data = {"node_output": "{", "node_output_truncated": True, "structured_output": sealed}
         self.assert_applied(self.run_apply(self.failed_run(), "--allow-failed", events=self.events(seal_data=data)))
 
     def test_redesign_is_refused_even_with_flag(self):
@@ -681,10 +680,11 @@ class FailedAfterSealTest(TargetCase):
         self.place("merge/sealed.diff", self.diff + b"\n")
         self.assert_refused(self.run_apply(self.failed_run(), "--allow-failed", events=self.events()), 1, "封じた hash と合わない")
 
-    def test_steps_are_the_line_seal_and_eyes_receivers_and_the_final_answer(self):
-        """SEAL_STEP は mode: seal で merge を include するノードの受け皿、EYES_STEP は返す輪の集め（script eyes_back_end）で、最後の周の
-        独立の目の got を欄 eyes（description が json(returns:works-factory-eyes)）に持つ。最後の承認ノードは EYES_STEP の出力を eyes_back で
-        読み、line の返す node は欄 eyes を読む。ANSWER_STEP は merge-apply に人の答えを渡すノード。どれもメイングラフの run の記録に出るノードの id"""
+    def test_steps_are_the_line_seal_return_the_eyes_collector_and_the_final_answer(self):
+        """SEAL_STEP は mode: seal で merge を include するノードの返す節（<include の id>__<merge の returns>）、EYES_STEP は返す輪の集め
+        （script eyes_back_end）で、最後の周の独立の目の返りを欄 eyes（description が json(returns:works-factory-eyes)）に持つ。最後の承認
+        ノードは EYES_STEP の出力を eyes_back で読み、line の返す node は欄 eyes を読む。ANSWER_STEP は merge-apply に人の答えを渡すノード。
+        どれもメイングラフの run の記録に出るノードの id"""
         nodes = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
         by_id = {n["id"]: n for n in nodes}
         (sealer,) = [n for n in nodes if n.get("include") == "works-factory-merge" and n["with"]["mode"] == "seal"]
@@ -692,9 +692,10 @@ class FailedAfterSealTest(TargetCase):
         r2_from = applier["with"]["r2"].removeprefix("$").removesuffix(".output.r2")
         self.assertEqual(by_id[r2_from]["with"]["eyes_back"]["from"], f"${apply.EYES_STEP}.output")
         self.assertEqual(by_id["result"]["with"]["eyes"]["from"], f"${apply.EYES_STEP}.output.{apply.LAST_EYES}")
-        self.assertEqual(by_id[apply.SEAL_STEP]["script"], "returned")
-        self.assertEqual(by_id[apply.SEAL_STEP]["with"]["got"], f"${sealer['id']}.output")
-        self.assertLessEqual({"mode", "ok", "hash", "diff", "reason"}, set(by_id[apply.SEAL_STEP]["with"]["names"].split()))
+        merge = yaml.safe_load(MERGE.read_text(encoding="utf-8"))
+        self.assertEqual(apply.SEAL_STEP, f"{sealer['id']}__{merge['returns']}")
+        (returned,) = [n for n in merge["nodes"] if n["id"] == merge["returns"]]
+        self.assertLessEqual({"mode", "ok", "hash", "diff", "reason"}, set(returned["output_format"]["required"]))
         collector = by_id[apply.EYES_STEP]
         self.assertEqual((collector["script"], collector["trigger_rule"]), ("eyes_back_end", "none_failed_min_one_success"))
         self.assertTrue(collector["output_format"]["properties"][apply.LAST_EYES]["description"].startswith("json(returns:works-factory-eyes):"))

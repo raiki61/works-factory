@@ -349,8 +349,8 @@ class RecordCase(unittest.TestCase):
         got, summed = self._built("works-factory-line", "completed", "succeeded", [
             ("judge", "agent", "node_start", "2026-11-04T01:00:03.000Z"),
             ("judge", "agent", "node_complete", "2026-11-04T01:00:09.500Z"),
-            ("judge-out", "script", "node_start", ""),
-            ("judge-out", "script", "node_complete", "2026-11-04T01:00:11.000Z")], [("workflow_completed", "2026-11-04 01:00:12")])
+            ("tiers", "script", "node_start", ""),
+            ("tiers", "script", "node_complete", "2026-11-04T01:00:11.000Z")], [("workflow_completed", "2026-11-04 01:00:12")])
         self.assertIn("2026-11-04T01:00:11.000Z", [row["end"] for row in summed])
         self._stages_hold_their_sums(got, summed)
 

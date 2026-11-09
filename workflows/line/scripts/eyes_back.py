@@ -11,8 +11,9 @@
 最後の承認ノードが開ける理由にする）。
 
 入力（with:）: round（周の番号）・prev（前の周の頭の出力。1 周目は null）・fixed（直前の修正の段の合わせ）・judged・fix_in
-（line の node の返り）・tests・eyes（直前の最後の試験と独立の目の受け皿の got）・replan・answer_replan（案の直しの受け皿の got と答えの node の
-出力。1 周目だけ読み、ほかは null）。include の返りは受け皿の got だけを読む。
+（line の node の返り）・tests・eyes（直前の最後の試験と独立の目の返り）・replan・answer_replan（案の直しの返りと答えの node の
+出力。1 周目だけ読み、ほかは null）。include の返りは直に結び（落ちた後にも走る one_success の読み手なので、結ぶ返す節は落ちない形に縛る。
+docs/design/line.md の 13.1）、口 ports.picked で欄を名指して読む。
 """
 import json
 import os
@@ -32,8 +33,7 @@ ANSWER_REPLAN = ("plan_review", "fix_answers", "fix_ripple", "skip_rerun")
 EXIT_FELL = "返す周のノードが落ちた（周の頭が前の周の出力か、案の直しの出力を読めなかった）"   # src/eyesback.py の EXITS["fell"] と同じ字（試験が突き合わせる）
 
 
-def picked(raw, names):
-    got = ports.picked(raw, names)
+def dicted(got):
     return None if got is None else dict(got)
 
 
@@ -53,13 +53,13 @@ def compute():
     from src import eyesback
     raw = {"round": os.environ.get("INPUTS_ROUND"), "prev": os.environ.get("INPUTS_PREV"),
            "fixed": os.environ.get("INPUTS_FIXED"), "judged": os.environ.get("INPUTS_JUDGED"), "fix_in": os.environ.get("INPUTS_FIX_IN"),
-           "tests": os.environ.get("INPUTS_TESTS"), "eyes": os.environ.get("INPUTS_EYES"), "replan": os.environ.get("INPUTS_REPLAN"),
            "answer_replan": os.environ.get("INPUTS_ANSWER_REPLAN")}
     fixed = ports.parsed(raw["fixed"])
     return eyesback.turn(
         k=int(ports.text(raw["round"])), prev=ports.parsed(raw["prev"]), fixed=fixed,
-        judged=ports.parsed(raw["judged"]), fix_in=ports.parsed(raw["fix_in"]), tests=picked(raw["tests"], TESTS),
-        eyes=picked(raw["eyes"], EYES), replan=picked(raw["replan"], REPLAN), answer_replan=picked(raw["answer_replan"], ANSWER_REPLAN),
+        judged=ports.parsed(raw["judged"]), fix_in=ports.parsed(raw["fix_in"]), tests=dicted(ports.picked(os.environ.get("INPUTS_TESTS"), TESTS)),
+        eyes=dicted(ports.picked(os.environ.get("INPUTS_EYES"), EYES)), replan=dicted(ports.picked(os.environ.get("INPUTS_REPLAN"), REPLAN)),
+        answer_replan=dicted(ports.picked(raw["answer_replan"], ANSWER_REPLAN)),
         plan_fields=plan_fields(fixed), snap=lambda: eyesback.tree_now(Path.cwd()))
 
 

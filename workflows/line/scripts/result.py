@@ -8,16 +8,16 @@ report の返りを受けて返し、結末の語が fixed・fixed_needs_check �
 report・report_ai で写す（report の設計書の 1.6）。report の返りの detail（詳しい報告 report-detail.md の pointer）と report（報告の行の配列）は、人がどこを開けばよいかと
 報告の要点を line の返りで見られるように report_detail・report_lines で写す（line の返りを読むのは人と起動の殻）。
 report が届かなければ（report の中の node が落ちた）結末の語は空で、fixed は偽。
-差分を当てる殻 bin/apply・chain・通しの試験が読む欄を、受け皿の got から足す（merge の返りを直に読むと、merge の返す node が落ちた時に
-line の返りまで落ちる）: apply（merge-apply の {ok, hash, diff, reason}。飛ばされたら null）・sealed（merge-seal の {ok, hash, diff}）・
+差分を当てる殻 bin/apply・chain・通しの試験が読む欄を、block の返りを直に結んで足す（merge の返す節は落ちない形に縛る。落ちれば
+line の返りも落ち、殻は run の記録の落ちたノードを言う。docs/design/line.md の 13 節）: apply（merge-apply の {ok, hash, diff, reason}。飛ばされたら null）・sealed（merge-seal の {ok, hash, diff}）・
 r2_status（最後に試験と独立の目を通った周の独立の目の R2 の status。省いた・飛ばされたら null）・final_answer（最後の承認ノードの答え {decision, text, asked}。開かなかったら
 null）・spec_questions（仕様の照らしが残した承認し直すかの問いの数。照らせなかった時の問いも数える。bin/apply は止めの語でなくこの数を読む）・
 children（後始末の node sweep-children の返り {cleaned, left, error}。飛ばされたら null）。
 返す node は落ちない: 共通の口を読めない時も、標準ライブラリだけで fallback の返りを書く（止めの語は works:line-script。
 src/guard.py の LINE_SCRIPT と同じ字で、tests/blocks/line/test_scripts_misc.py が突き合わせる）。
 
-入力（with:）: report（report の返りまるごと）・merge_apply・merge_seal・spec_check（受け皿の got）・eyes（返す輪の集め eyes-back の欄 eyes。最後に試験と独立の目を通った周の
-独立の目の got で、返さなかった run は最初の物）・answer_final（最後の承認ノードの
+入力（with:）: report（report の返りまるごと）・merge_apply・merge_seal・spec_check（block の返り）・eyes（返す輪の集め eyes-back の欄 eyes。最後に試験と独立の目を通った周の
+独立の目の返りで、返さなかった run は最初の物）・answer_final（最後の承認ノードの
 答え）・children（sweep-children の返り）。どれも `{from, if_skipped: null}`
 """
 import json
@@ -37,6 +37,7 @@ FIXED = ("fixed", "fixed_needs_check")
 LINE_SCRIPT = "works:line-script"
 APPLY = ("ok", "hash", "diff", "reason")
 SEALED = ("ok", "hash", "diff")
+QUESTIONS = ("questions",)
 REPORT = ("ok", "outcome", "stop_reason", "machine", "human", "detail", "next_request", "prior_failures", "report")
 
 
@@ -63,12 +64,14 @@ def result(report, *, merge_apply, merge_seal, eyes, spec_check, answer_final, c
 
 def compute() -> dict:
     report = ports.picked(os.environ.get("INPUTS_REPORT"), REPORT)
-    raw = {"merge_apply": os.environ.get("INPUTS_MERGE_APPLY"),
-           "merge_seal": os.environ.get("INPUTS_MERGE_SEAL"), "eyes": os.environ.get("INPUTS_EYES"),
-           "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "answer_final": os.environ.get("INPUTS_ANSWER_FINAL"),
+    returned = {"merge_apply": ports.picked(os.environ.get("INPUTS_MERGE_APPLY"), APPLY),
+                "merge_seal": ports.picked(os.environ.get("INPUTS_MERGE_SEAL"), SEALED),
+                "spec_check": ports.picked(os.environ.get("INPUTS_SPEC_CHECK"), QUESTIONS)}
+    raw = {"eyes": os.environ.get("INPUTS_EYES"), "answer_final": os.environ.get("INPUTS_ANSWER_FINAL"),
            "children": os.environ.get("INPUTS_CHILDREN")}
     value = ports.polyfill("skip_value").value
-    return result(None if report is None else dict(report), **{name: value(got) for name, got in raw.items()})
+    return result(None if report is None else dict(report), **{name: None if got is None else dict(got) for name, got in returned.items()},
+                  **{name: value(got) for name, got in raw.items()})
 
 
 def fallback(reason: str) -> dict:

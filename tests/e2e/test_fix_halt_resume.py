@@ -3,14 +3,14 @@
 
 fix ブロックの配線（組の節の fan_out の join・join の節と柵 nodes-ok と落ちの後ろの節の trigger_rule・返す節 finish の trigger_rule）を
 works-factory-fix.yaml から、修正の後ろの節 fixed の trigger_rule と、受け止める段の宣言（collect の with: の optional）と
-レンズの受け皿の結びを works-factory-line.yaml から、レンズの段の配線を works-factory-lens.yaml から読んで、AI の無い節の使い捨ての
+レンズの返りを直に結ぶ中継の結びを works-factory-line.yaml から、レンズの段の配線を works-factory-lens.yaml から読んで、AI の無い節の使い捨ての
 工程に組む。写しの柵 nodes-ok の依存は、実物と同じ決まり（guarded）で写しの節から組む。include の id は線の実物と同じ fix・lens。
 - 組の子: 子 → 組の節 → join → 柵・落ちの後ろの節 → 返す節 finish → メイングラフの後ろ。子は項目 b の 1 回目だけ落ちる
   （使用枠の切れの代わり）
 - 組でない節: prep → 1 回目だけ落ちる節 step（裁定や修正のループの代わり）→ 落ちの後ろの節 clean・assert-changed → 柵 → 返す節
   finish → メイングラフの後ろと fixed
 - レンズ（F327）: レンズは組み込みで fix から分かれた自分のブロック（works-factory-lens）で、柵を持たない。支度 → 落ちるレンズ →
-  受け取り（飛ぶ）→ 返す節 finish → 線の受け皿 lens-out・中継 lens-in。落ちたレンズの節は、線の collect の optional が受け止めると
+  受け取り（飛ぶ）→ 返す節 finish → 線の中継 lens-in（返りを直に結ぶ）。落ちたレンズの節は、線の collect の optional が受け止めると
   宣言した中に在る
 """
 import json
@@ -143,7 +143,7 @@ nodes:
 
 
 # レンズの段の写し。受け取りと返す節は bash の代わり: 受け取りはレンズが落ちると飛ぶので走らず、実物の返す節は place の控えを
-# 読んで組むので、ここで照らす配線（落ちても走って受け皿へ渡す）の外。{lens} は実物のレンズの節の id
+# 読んで組むので、ここで照らす配線（落ちても走って線の中継へ渡す）の外。{lens} は実物のレンズの節の id
 LENS_BLOCK = """name: works-factory-lens-block
 description: lens ブロックの配線の写し
 returns: finish
@@ -175,13 +175,9 @@ description: メイングラフの写し
 nodes:
   - id: lens
     include: works-factory-lens-block
-  - id: lens-out
-    bash: echo received
-    depends_on: {lens_out_deps}
-    mutates_checkout: false
   - id: lens-in
     bash: echo relayed
-    depends_on: [lens-out]
+    depends_on: [lens]
     trigger_rule: {lens_in_rule}
     mutates_checkout: false
 """
@@ -220,13 +216,13 @@ def wiring() -> dict:
     (lens,) = [nid for nid, n in lens_nodes.items() if "prompt" in n]
     assert lens_nodes[f"{lens}-prep"]["depends_on"] == ["intake"] and lens_nodes[lens]["depends_on"] == [f"{lens}-prep"], lens
     returns = lens_doc["returns"]
+    assert "lens" in line["lens-in"]["depends_on"], "線の中継 lens-in はレンズの include を待つ"
     return {"fan_join": fan_joins.pop(), "join_rule": nodes["join"]["trigger_rule"],
             "guard_rule": nodes["nodes-ok"]["trigger_rule"], "chain_rule": chain.pop(),
             "finish_rule": nodes[FIX_RETURNS]["trigger_rule"], "fixed_rule": line["fixed"]["trigger_rule"],
             "lens": lens, "take_deps": json.dumps(lens_nodes[f"{lens}-take"]["depends_on"]),
             "lens_finish_deps": json.dumps(lens_nodes[returns]["depends_on"]),
-            "lens_finish_rule": lens_nodes[returns]["trigger_rule"],
-            "lens_out_deps": json.dumps(line["lens-out"]["depends_on"]), "lens_in_rule": line["lens-in"]["trigger_rule"]}
+            "lens_finish_rule": lens_nodes[returns]["trigger_rule"], "lens_in_rule": line["lens-in"]["trigger_rule"]}
 
 
 class FixHaltResumeCase(unittest.TestCase):
@@ -264,7 +260,7 @@ class FixHaltResumeCase(unittest.TestCase):
         self.assertEqual(len(prep_runs), 1, "resume は落ちた節から続け、済んだ節を走らせ直さない")
 
     def test_failed_lens_is_recorded_and_the_line_goes_on(self):
-        """F327: レンズが落ちても受け取りが飛ぶだけで、返す節は走り、線の受け皿と中継まで進む（レンズのブロックは柵を持たない。
+        """F327: レンズが落ちても受け取りが飛ぶだけで、返す節は走り、線の中継まで進む（レンズのブロックは柵を持たない。
         run は落ちた節を持つので failed で終わり、落ちた節は線の collect の optional が受け止めると宣言した中に在るので、報告が
         受け止めた落ちに載せる）"""
         lens = wiring()["lens"]
@@ -277,7 +273,7 @@ class FixHaltResumeCase(unittest.TestCase):
         self.assertIn(("node_failed", f"lens__{lens}"), events)
         self.assertTrue(line_absorbs(f"lens__{lens}"), "落ちたレンズの節を線が受け止めると宣言していない")
         self.assertIn(("node_skipped", f"lens__{lens}-take"), events)
-        for ran in ("lens__finish", "lens-out", "lens-in"):
+        for ran in ("lens__finish", "lens-in"):
             self.assertIn(("node_completed", ran), events)
 
     def _place(self, tmp, files):

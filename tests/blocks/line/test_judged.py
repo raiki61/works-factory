@@ -26,7 +26,7 @@ class JudgedCase(unittest.TestCase):
                          (FIRST["units"], FIRST["judgment"], False, ""))
 
     def test_rejudge_that_did_not_return_stops(self):
-        """L-D48: 走るはずが受け皿の got が null（返す node が落ちた）なら止めの語で止める"""
+        """L-D48: 走るはずが返りが null（返す node が飛んだ）なら止めの語で止める"""
         got = self.s.judged(FIRST, None, due=True, objection="違う")
         self.assertEqual((got["stop_reason"], got["unread"]), ("works:rejudge", self.s.REJUDGE_FELL))
         self.assertEqual(got["carry"], [{"where": self.s.REJUDGE_LEFT_WHERE, "text": "違う"}], "再審されずに残った異議を次の依頼へ")

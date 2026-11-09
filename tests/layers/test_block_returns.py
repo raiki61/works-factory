@@ -45,7 +45,7 @@ READS = (
 GATE_NAMES = 'NAMES = ("ready", "units")\n'
 GATE_CALL = 'got = ports.picked(os.environ.get("INPUTS_GOT"), NAMES)\n'
 GATE = GATE_NAMES + GATE_CALL
-# 受け皿の口（workflows/line/scripts/returned.py と同じ形）。名の並びは節の with: の names
+# 受け皿の口（workflows/judge/scripts/returned.py と同じ形）。名の並びは節の with: の names
 DECLARED = 'got = ports.picked(os.environ.get("INPUTS_GOT"), ports.text(os.environ.get("INPUTS_NAMES")).split())\n'
 
 
@@ -295,20 +295,21 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
 
     def test_common_field_name_declared_by_a_real_receiver_is_red(self):
-        """本物の木で、線の受け皿 judge-out の names にありふれた名（note）を足すと、judge の返りに無いので赤（線の YAML の行を指す）"""
-        line = "workflows/line/works-factory-line.yaml"
+        """本物の木で、判定の graph の受け皿 diagnose-run-out の names にありふれた名（note）を足すと、diagnose の返りに無いので赤
+        （graph の YAML の行を指す）"""
+        graph = "workflows/judge/works-factory-judge.yaml"
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             for part in ("workflows", "lib"):
                 shutil.copytree(ROOT / part, root / part, ignore=shutil.ignore_patterns("tests", "fixtures", "__pycache__"))
             before = scan.problems("E5", root)
-            text = (root / line).read_text(encoding="utf-8")
-            head = text.index("names: \"", text.index("\n  - id: judge-out\n")) + len("names: \"")
-            (root / line).write_text(text[:head] + "note " + text[head:], encoding="utf-8")
+            text = (root / graph).read_text(encoding="utf-8")
+            head = text.index("names: \"", text.index("\n  - id: diagnose-run-out\n")) + len("names: \"")
+            (root / graph).write_text(text[:head] + "note " + text[head:], encoding="utf-8")
             got = [p for p in scan.problems("E5", root) if p not in before]
         self.assertEqual(len(got), 1, got)
-        self.assertTrue(got[0].startswith(f"{line}:"), got)
-        self.assertIn("宣言した欄 note が works-factory-judge の返りに無い", got[0])
+        self.assertTrue(got[0].startswith(f"{graph}:"), got)
+        self.assertIn("宣言した欄 note が works-factory-diagnose の返りに無い", got[0])
 
     def test_declared_name_not_in_the_output_format_is_red(self):
         got = self.gated('NAMES = ("ready", "units", "extra")\n' + GATE_CALL)
@@ -639,11 +640,13 @@ class ShapesTest(unittest.TestCase):
     def test_shell_reads_of_a_node_fit_the_node_output(self):
         """殻の表 RETURN_READS の鍵が (グラフ, ノードの id) の行（run の記録の出来事からノードの出力を読む。bin/_lib/apply.py の
         --allow-failed の道）は、ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節の
-        output_format）が form の形に合い、読む欄の道はその形に在る"""
+        output_format。ノードの id が <include の id>__<返す節の id> なら差し込んだ block の返す節の output_format）が form の形に合い、
+        読む欄の道はその形に在る"""
         good = "units: {type: [object, 'null'], properties: {key: {type: string}}}"
         rows = ('(LINE, "judge-out"): ("got", "json(shared:read.schema.json)", ("units.key", "ready")), '
                 '(LINE, "ans"): ("", "json(shared:go.schema.json)", ("go",))')
-        self.assertEqual(self.node_reading(good, rows), [])
+        returned = '(LINE, "judge__verdict"): ("", "json(shared:read.schema.json)", ("units.key", "ready"))'
+        self.assertEqual(self.node_reading(good, f"{rows}, {returned}"), [])
         cases = (
             ("units: {type: [object, 'null'], properties: {name: {type: string}}}", rows,
              "works-factory-line のノード judge-out の 欄 got の出力が json(shared:read.schema.json) の形に合わない: $.units: 読み手の要る欄 key"),
@@ -652,6 +655,10 @@ class ShapesTest(unittest.TestCase):
             (good, '(LINE, "ans"): ("", "json(shared:go.schema.json)", ("stop",))', "の読む欄 stop が json(shared:go.schema.json) の形に無い"),
             (good, '(LINE, "judge-out"): ("why", "json(shared:read.schema.json)", ())', "のノード judge-out: 欄 why が output_format に無い"),
             (good, '(LINE, "gone"): ("", "json(shared:go.schema.json)", ())', "のノード gone: ノードか、その output_format が works-factory-line に無い"),
+            ("units: {type: [object, 'null'], properties: {name: {type: string}}}", returned,
+             "works-factory-line のノード judge__verdict の出力が json(shared:read.schema.json) の形に合わない: $.units: 読み手の要る欄 key"),
+            (good, '(LINE, "judge__stub"): ("", "json(shared:read.schema.json)", ())',
+             "のノード judge__stub: ノードか、その output_format が works-factory-line に無い"),
         )
         for fields, table, want in cases:
             with self.subTest(table=table, fields=fields):

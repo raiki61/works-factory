@@ -258,7 +258,7 @@ class TurnCase(_Case):
 
     def test_first_round_takes_the_plan_and_answers_the_fixed_stage_used(self):
         """1 周目の turn は plan を合わせの出力のまま運び、fix_plan・plan_review・answers・skip_rerun を、合わせの refixed が真なら案の直しの
-        受け皿の got と答えの node から、偽なら fix-in から取る。ripple は最後の修正の段が使った物（refixed が真なら答えの node の fix_ripple）。
+        返りと答えの node から、偽なら fix-in から取る。ripple は最後の修正の段が使った物（refixed が真なら答えの node の fix_ripple）。
         refixed が真なのに案の直しの返りが無ければ、返さずに輪の節が落ちたとして抜ける。照らしは返す時だけ（返さない周は抜けた訳のまま）"""
         plain = self.run_turn()
         self.assertEqual((plain["plan"], plain["fix_plan"], plain["ripple"]), (FIXED_PLAN, FIX_IN["fix_plan"], FIRST_RIPPLE))

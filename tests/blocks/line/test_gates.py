@@ -34,7 +34,7 @@ def ask_row(text=NARROW, *, decided=False, why=None, mark=None, kind="regression
 
 
 def rounds(**over) -> dict:
-    """計画の往復の受け皿の got（plan-out の返り）。既定は修正へ進む抜け方で、人に回しうる行は無い"""
+    """計画の往復の返り（plan-out の返り）。既定は修正へ進む抜け方で、人に回しうる行は無い"""
     return {"done": True, "ok": True, "status": "ok", "round": 1, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
             "reply": None, "handoffs": [], "ripple": None, "owed": ["u1"], "gave_up": None, "stalled": False, "capped": False,
             "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "", **over}
@@ -996,7 +996,7 @@ class AskFinalCase(unittest.TestCase):
         self.assertLess(text.index(self.f.PARALLEL_HEAD), text.index("独立の目の判定"))
 
     def test_merge_values_come_from_the_receivers(self):
-        """merge の apply に渡す値は受け皿の got から。封じが飛んだ・落ちた時は sealed_hash が空"""
+        """merge の apply に渡す値は封じの返りから。封じが飛んだ時は sealed_hash が空"""
         tests = {"ok": True, "fingerprint": {"head": "h", "diff_hash": "d"}}
         eyes = {"ok": False, "r2": {"status": "pass", "reason": ""}}
         got = self.f.merge_values(tests, eyes, {"ok": True, "hash": "x"})
@@ -1071,7 +1071,7 @@ class DirectionStopCase(unittest.TestCase):
 
 
 class ScriptCase(unittest.TestCase):
-    """script を子のプロセスで回す（受け皿の got・line の node の返りを JSON の字で渡す）"""
+    """script を子のプロセスで回す（block の返り・line の node の返りを JSON の字で渡す）"""
 
     def setUp(self):
         self.run = kit.Run(self, BLOCK)
@@ -1196,7 +1196,7 @@ class ScriptCase(unittest.TestCase):
             with self.subTest(name):
                 went = self.before_fix_answer(record, direction=json.dumps(direction), due="true")
                 self.assertEqual((went["go"], went["stop_reason"], went["reason"]), (True, "", ""), went)
-        # 判定の返りが無い（受け皿が空）・落ちた（ok 偽）時は止める（fail-closed）。訳は落ちた訳を言う
+        # 判定の返りが無い（飛んだ）・落ちた（ok 偽）時は止める（fail-closed）。訳は落ちた訳を言う
         failed = {"ok": False, "status": "failed", "reason": "役が返答を返さなかった", "direction": "", "aligned": False, "why": "", "report": []}
         for name, direction, said in (("null", "null", ""), ("failed", json.dumps(failed), failed["reason"])):
             with self.subTest(name):
@@ -1432,7 +1432,7 @@ class ScriptCase(unittest.TestCase):
                 self.assertEqual(out["review"]["verdict"], "unread")
 
     def test_ask_final_without_a_seal_does_not_seal(self):
-        """封じの受け皿が飛んだ（直す物が在る周）なら、差分を封じられなかったを開ける理由にし、置く段に hash を渡さない（閉じた側に倒れる）"""
+        """封じの返りが無い（直す物が在る周）なら、差分を封じられなかったを開ける理由にし、置く段に hash を渡さない（閉じた側に倒れる）"""
         fix_in = {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": []}
         fixed = {"no_fix": False, "conflicts": [], "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [],
                  "stages": [], "replan_items": [], "refixed": False, "skip_why": ""}
@@ -1468,9 +1468,9 @@ class ScriptCase(unittest.TestCase):
         base = {"fix-in": {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": []},
                 "fixed": {"no_fix": False, "conflicts": [], "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [],
                           "stages": [], "replan_items": [], "refixed": False, "skip_why": ""},
-                "test-gate-final-out": {"got": {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd",
-                                                "suites_line": "1 本", "log": "l", "baseline_line": "b", "reason": "",
-                                                "fingerprint": {"head": "h", "diff_hash": "d"}}},
+                "test-gate-final": {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd",
+                                    "suites_line": "1 本", "log": "l", "baseline_line": "b", "reason": "",
+                                    "fingerprint": {"head": "h", "diff_hash": "d"}},
                 "start": {"record": None, "final_gate": "protected_only", "ports": json.loads(self.ports())},
                 "request-in": json.loads(handed({}))}
         outputs = {**base, **outputs}
@@ -1493,13 +1493,13 @@ class ScriptCase(unittest.TestCase):
     def test_ask_final_opens_when_the_fix_overlaps_open_prs(self):
         """8.1: 修正の後の並行 PR の確かめ直しが重なり（found）を返した run は、配線どおりに回した script が開き方 when_needed で開き、
         無人の run は当てずに止まる（重なる差分を聞かずに当てない）"""
-        found = {"got": {"ok": True, "status": "found", "material": {"status": "found", "count": 1}, "reason": "", "stop_reason": "", "report": ["- 重なり 1 件"]}}
+        found = {"ok": True, "status": "found", "material": {"status": "found", "count": 1}, "reason": "", "stop_reason": "", "report": ["- 重なり 1 件"]}
         start = {"record": None, "final_gate": "when_needed", "ports": json.loads(self.ports())}
-        out = self.ask_final_wired(**{"parallel-pr-after-out": found, "start": start})
+        out = self.ask_final_wired(**{"parallel-pr-after": found, "start": start})
         self.assertIs(out["open"], True, out)
         self.assertIn("開いている PR と重なる", out["text"])
         alone = {**start, "ports": json.loads(self.ports(unattended=True))}
-        stopped = self.ask_final_wired(**{"parallel-pr-after-out": found, "start": alone})
+        stopped = self.ask_final_wired(**{"parallel-pr-after": found, "start": alone})
         self.assertEqual((stopped["open"], stopped["go"]), (False, False), stopped)
         clean = self.ask_final_wired(start=start)
         self.assertNotIn("開いている PR と重なる", clean["text"], "重なりが無ければ重なりを開く訳にしない")

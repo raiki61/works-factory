@@ -7,8 +7,8 @@ resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProdu
 落ちてはいけない節（NeverFail。表を持たず YAML から組む。持ち主の決め shape-checks-only）:
 - どの graph でも、返す節が with:・when:・本文で読む $<id>.output の節（返す節はどれも trigger_rule: all_done で、落ちた節の後にも走る）
 - 落ちた節の後にも走る節（trigger_rule が all_done・one_success か always_run）が include の節の出力を直に読めば、include した
-  block の返す節。受け皿（埋め P8。既定の trigger_rule で受ける節。docs/design/line.md の頭の語）を通して読む block の返す節は、
-  落ちても受け皿が飛ぶだけなので入らない
+  block の返す節。loop_group の出力を直に読めば、その loop_group の節（中の節が 1 つ落ちるとその場で落ちるので、script の節でない
+  loop_group は下の照らしで赤になる。輪の返りは輪の後ろの既定の trigger_rule の script が運ぶ。docs/design/line.md の 13 節）
 - ほかの run を workflow: で起こす graph と、起こされる graph（周の鎖・line・fix・merge）の返す節。run の結果を殻と鎖が読む
 - 結ばれた include の節は、その block の返す節に置き換えて同じ照らしを当てる
 
@@ -113,7 +113,7 @@ def never_fail(pack: pathlib.Path = WORKFLOWS) -> dict[tuple[str, str], str]:
                 continue
             for nid in bound_ids(n):
                 m = node(doc, nid)
-                if m is not None and target(m) in docs:
+                if m is not None and (target(m) in docs or "loop_group" in m):
                     add(block, nid, f"{block} の {n['id']}（{n.get('trigger_rule') or 'always_run'}）が ${nid}.output を直に読む")
     called = {n["workflow"][len(PREFIX):] for doc in docs.values() for n in all_nodes(doc["nodes"])
               if isinstance(n.get("workflow"), str) and n["workflow"].startswith(PREFIX)}
@@ -407,8 +407,8 @@ class SeedCase(unittest.TestCase):
         self.assertNotEqual(alone_problems(done, schema), [])
 
     def test_seed_bindings_make_never_failing_nodes(self):
-        """返す節が結ぶ節・落ちた後にも走る節が直に読む include の返す節・workflow: で起こす graph の返す節を拾い、受け皿を通して
-        読む include の返す節と、既定の trigger_rule の節が読む節は拾わない"""
+        """返す節が結ぶ節・落ちた後にも走る節が直に読む include の返す節と loop_group・workflow: で起こす graph の返す節を拾い、
+        既定の trigger_rule の節が読む節（輪の後ろで輪の返りを運ぶ節が読む輪も）は拾わない"""
         pack = self.dir / "pack"
 
         def graph(name: str, doc: dict) -> None:
@@ -421,13 +421,17 @@ class SeedCase(unittest.TestCase):
         graph("top", {"returns": "result", "nodes": [
             {"id": "leaf", "include": f"{PREFIX}leaf"},
             {"id": "other", "include": f"{PREFIX}other"},
-            {"id": "other-out", "script": "returned", "depends_on": ["other"], "with": {"got": "$other.output"}},
+            {"id": "other-in", "script": "relay", "depends_on": ["other"], "with": {"got": "$other.output"}},
             {"id": "plain", "script": "plain", "with": {"x": "$leaf.output.x"}},
+            {"id": "rounds", "loop_group": {"nodes": [{"id": "turn", "script": "turn"}]}},
+            {"id": "carry", "script": "carry", "depends_on": ["rounds"], "with": {"rounds": "$rounds.output"}},
+            {"id": "loose", "script": "loose", "trigger_rule": "all_done", "with": {"rounds": "$rounds.output"}},
             {"id": "result", "script": "result", "trigger_rule": "all_done",
-             "with": {"leaf": "$leaf.output", "other": "$other-out.output.got"}}]})
+             "with": {"leaf": "$leaf.output", "other": "$other-in.output.got", "carried": "$carry.output.rounds"}}]})
         graph("caller", {"returns": "done", "nodes": [{"id": "child", "workflow": f"{PREFIX}leaf"},
                                                       {"id": "done", "script": "done", "trigger_rule": "all_done"}]})
-        self.assertEqual(sorted(never_fail(pack)), [("caller", "done"), ("leaf", "end"), ("leaf", "work"), ("top", "other-out")])
+        self.assertEqual(sorted(never_fail(pack)), [("caller", "done"), ("leaf", "end"), ("leaf", "work"), ("top", "carry"),
+                                                    ("top", "other-in"), ("top", "rounds")])
 
     def test_seed_return_node_with_the_default_trigger_rule_is_red(self):
         pack = self.dir / "pack"

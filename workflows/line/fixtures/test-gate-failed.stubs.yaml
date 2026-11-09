@@ -4,7 +4,7 @@
 fixture:
   expect: failed
   inputs: {request: .archon/workflows/works-factory/line/fixtures/request.json}
-  reached: [test-gate-final__result, test-gate-final-out, collect, report__finish, result]
+  reached: [test-gate-final__result, collect, report__finish, result]
   fail-node: [test-gate-final__run]
 exec-code: true
 gate-start: {decision: approve, text: ''}

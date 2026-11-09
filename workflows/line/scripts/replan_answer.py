@@ -101,15 +101,14 @@ def units_tier(first: list, owed: list) -> list:
 def compute() -> dict:
     raw = {"gate": os.environ.get("INPUTS_GATE"), "go": os.environ.get("INPUTS_GO"), "stop_reason": os.environ.get("INPUTS_STOP_REASON"),
            "place": os.environ.get("INPUTS_PLACE"), "before_fix": os.environ.get("INPUTS_BEFORE_FIX"),
-           "asked": os.environ.get("INPUTS_ASKED"), "pushed": os.environ.get("INPUTS_PUSHED"), "replan": os.environ.get("INPUTS_REPLAN"),
-           "review": os.environ.get("INPUTS_REVIEW"), "items": os.environ.get("INPUTS_ITEMS"),
+           "asked": os.environ.get("INPUTS_ASKED"), "pushed": os.environ.get("INPUTS_PUSHED"), "items": os.environ.get("INPUTS_ITEMS"),
            "first_ripple": os.environ.get("INPUTS_FIRST_RIPPLE"), "units_tier": os.environ.get("INPUTS_UNITS_TIER")}
     import answer
     from src import gates
 
     asked = ports.parsed(raw["asked"]) or []
-    replan = ports.picked(raw["replan"], REPLAN)
-    review = ports.picked(raw["review"], REVIEW)
+    replan = ports.picked(os.environ.get("INPUTS_REPLAN"), REPLAN)
+    review = ports.picked(os.environ.get("INPUTS_REVIEW"), REVIEW)
     items = ports.parsed(raw["items"]) or []
     first_tier = ports.parsed(raw["units_tier"]) or []
     got = answer.taken(ports.parsed(raw["gate"]), go=ports.flag(raw["go"]), stop_reason=ports.text(raw["stop_reason"]),

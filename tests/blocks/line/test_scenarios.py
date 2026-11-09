@@ -68,37 +68,43 @@ def ran(trace: dict, node: str) -> bool:
 
 
 def out(trace: dict, node: str):
-    """node の出力（JSON）。受け皿 `<id>-out` の got は `got(trace, id)`"""
+    """node の出力（JSON）。include した block の返りは `got(trace, id)`"""
     return json.loads(trace[node]["output"])
 
 
+def returned(include: str) -> str:
+    """include の id → trace の中の返す節の id（`<include の id>__<block の returns:>`。Archon が `$<include>.output` を解く先）"""
+    inner = str(nodes()[include]["include"]).removeprefix("works-factory-")
+    doc = yaml.safe_load((kit.BLOCKS / inner / f"works-factory-{inner}.yaml").read_text(encoding="utf-8"))
+    return f"{include}__{doc['returns']}"
+
+
 def got(trace: dict, include: str):
-    """include した block の返り（受け皿 `<include>-out` の got。飛んだ受け皿は None）"""
-    return out(trace, f"{include}-out")["got"] if ran(trace, f"{include}-out") else None
+    """include した block の返り（返す節の出力。返す節が走らなければ None）"""
+    node = returned(include)
+    return out(trace, node) if ran(trace, node) else None
+
+
+def _traced(trace: dict, node: str) -> str:
+    """with: が名指す node の trace の行の id（include は返す節）"""
+    return node if node in trace or "include" not in nodes().get(node, {}) else returned(node)
 
 
 def bound(trace: dict, value):
     """line の node の with: の 1 つの値を、dry-run の trace の出力で結ぶ（`$<id>.output.<欄>`・まるごとの参照 `$<id>.output` と
-    `{from, if_skipped}`。include した block の返りは trace に include の id の行が無いので、受け皿 `<id>-out` の got から読む）"""
+    `{from, if_skipped}`。include した block の返りは trace に include の id の行が無いので、返す節の行から読む）"""
     if isinstance(value, dict) and "from" in value:
-        node = value["from"].split(".", 1)[0].lstrip("$")
-        node = node if node in trace else f"{node}-out"
+        node = _traced(trace, value["from"].split(".", 1)[0].lstrip("$"))
         if node not in trace or trace[node]["state"] == "skipped":
             return value.get("if_skipped")
         value = value["from"]
     if isinstance(value, str) and value.startswith("$") and value.endswith(".output"):
-        node = value[1:-len(".output")]
-        if node in trace:
-            return trace[node].get("output")
-        if f"{node}-out" in trace:
-            raw = trace[f"{node}-out"].get("output")
-            return json.loads(raw)["got"] if raw else None
+        node = _traced(trace, value[1:-len(".output")])
+        return trace[node].get("output") if node in trace else None
     if not (isinstance(value, str) and value.startswith("$") and ".output." in value):
         return value
     node, field = value[1:].split(".output.", 1)
-    if node in trace:
-        return json.loads(trace[node]["output"]).get(field)
-    return (json.loads(trace[f"{node}-out"]["output"])["got"] or {}).get(field)
+    return json.loads(trace[_traced(trace, node)]["output"]).get(field)
 
 
 class LineReturnsTest(unittest.TestCase):
@@ -179,16 +185,16 @@ class NoFixRoundTest(unittest.TestCase):
         fix_in, fixed = out(self.trace, "fix-in"), out(self.trace, "fixed")
         self.assertEqual((fix_in["no_fix"], fixed["no_fix"], fixed["go"]), (True, True, True), (fix_in, fixed))
         self.assertEqual(fix_in["design"]["path"], "independent-design/design.json")
-        for node in ("independent-design__finish", "test-gate-final-out", "eyes-out", "eyes__r2__finish", "ask-final", "answer-final"):
+        for node in ("independent-design__finish", "test-gate-final__result", "eyes__verdict", "eyes__r2__finish", "ask-final", "answer-final"):
             self.assertTrue(ran(self.trace, node), node)
-        for node in ("plan-rounds", "fix__finish", "merge-seal-out", "merge-apply-out"):
+        for node in ("plan-rounds", "fix__finish", "merge-seal__merge", "merge-apply__merge"):
             self.assertFalse(ran(self.trace, node), node)
         self.assertEqual(out(self.trace, "result")["outcome"], "no_fix_needed")
 
 
 class FailedBlockTest(unittest.TestCase):
-    """block の node（block-failed）・最後の試験の関門の node（test-gate-failed）が落ちた run は、後ろの段が飛んでも collect・report・
-    result まで走る（collect が block の返りを直に読むと collect も落ちる）。block が落ちた run は封じも当てもしない。試験の関門が落ちた
+    """block の中の node（block-failed）・最後の試験の関門の中の node（test-gate-failed）が落ちた run は、後ろの段が飛んでも collect・report・
+    result まで走る（block の返す node は中の落ちを受けて返るか飛ぶので、返りを直に結ぶ collect は落ちない。docs/design/line.md の 13.1）。block が落ちた run は封じも当てもしない。試験の関門が落ちた
     run は試験を緑と数えない: 最後の承認ノードが認証できなかった訳で開き、当ての段へ渡す緑の値が偽のまま（通すのは人の答えだけ）"""
 
     NAMES = ("block-failed", "test-gate-failed")
@@ -217,7 +223,6 @@ class FailedBlockTest(unittest.TestCase):
     def test_the_test_gate_still_returns_without_the_run(self):
         trace = self.traces["test-gate-failed"]
         self.assertTrue(ran(trace, "test-gate-final__result"))
-        self.assertTrue(ran(trace, "test-gate-final-out"))
 
     def test_a_fallen_test_gate_is_not_counted_green(self):
         trace = self.traces["test-gate-failed"]
@@ -263,12 +268,12 @@ class FixFixtureGateTest(unittest.TestCase):
 class DirectionStopTest(unittest.TestCase):
     """一言の向きの止め（docs/design/line.md の 2 節の 2・docs/design/answer-direction.md）: 承認ノードの continue に添えた一言が計画と
     逆向きと判定されると、答えの node が go 偽・止めの語 works:answer-redirected・止めた訳を返し、修正へ進まない。差すのは include の中の
-    返す node（spec-direction__finish）だけで、答えの node と受け皿と fix-in は本物の script で回る。写しの道が同じ答えの node に届く配線は
+    返す node（spec-direction__finish）だけで、答えの node と fix-in は本物の script で回る。写しの道が同じ答えの node に届く配線は
     tests/blocks/line/test_wiring.py の DirectionWiringCase が見る"""
 
     def test_spec_redirected_note_stops_before_the_fix(self):
         trace = line_traces(("spec-direction",))["spec-direction"]
-        for node in ("spec-ask-before-fix", "spec-gate-before-fix", "spec-direction-out", "spec-answer-before-fix", "fix-in"):
+        for node in ("spec-ask-before-fix", "spec-gate-before-fix", "spec-direction__finish", "spec-answer-before-fix", "fix-in"):
             self.assertTrue(ran(trace, node), node)
         self.assertIs(got(trace, "spec-direction")["aligned"], False)
         answered = out(trace, "spec-answer-before-fix")
@@ -284,7 +289,7 @@ class DirectionStopTest(unittest.TestCase):
         その go を結ぶ。筋書きは fix-in を stub で差すので、fix-in の with: を trace の値で結んで照らす（読めば go 偽で進まないことは
         tests/blocks/line/test_fix_in.py が見る）"""
         trace = line_traces(("fixture-direction",))["fixture-direction"]
-        for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction-out", "fixture-answer-before-fix"):
+        for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction__finish", "fixture-answer-before-fix"):
             self.assertTrue(ran(trace, node), node)
         answered = out(trace, "fixture-answer-before-fix")
         self.assertEqual((answered["go"], answered["stop_reason"]), (False, "works:answer-redirected"), answered)
@@ -322,7 +327,7 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual((last["exit"], last["sealable"], last["eyes_ok"], last["green_ok"]), ("返す物が無い", True, True, True))
         self.assertEqual(last["fingerprint"]["diff_hash"], "e" * 64, "最後の周の試験の指紋")
         self.assertEqual(last["eyes"]["r1"]["status"], "pass")
-        self.assertTrue(ran(trace, "merge-seal-out"))
+        self.assertTrue(ran(trace, "merge-seal__merge"))
         asked = out(trace, "ask-final")
         self.assertEqual(asked["fingerprint"]["diff_hash"], "e" * 64, "封じて当てる値は最後の周の物")
         self.assertIs(asked["eyes_ok"], True)
@@ -357,8 +362,8 @@ ROUND_NODE = re.compile(r"back-\d+(?:-.+)?|eyes-back")
 
 def settle(seed: dict, failing: set, go: dict) -> dict:
     """返す輪の節（周の節と集め eyes-back）の結末を、depends_on と trigger_rule（待ち方の模型は test_wiring.would_run の 1 か所）と when で
-    求める。結末は would_run の状態の語。seed は輪の外の節（eyes-out など）の結末、failing は走って誤りで落ちる節、go は when の
-    `.go == true` が読む節の値"""
+    求める。結末は would_run の状態の語。seed は輪の外の節（eyes など）の結末、failing は走って誤りで落ちる節（include なら中の節が落ち、
+    返す節は落ちずに返る。待ち方の上では落ちた節に見える）、go は when の `.go == true` が読む節の値"""
     top = nodes()
     state = dict(seed)
     todo = [n for n in top if ROUND_NODE.fullmatch(n)]
@@ -385,19 +390,20 @@ class EyesBackFellTest(unittest.TestCase):
     GO = {"back-1": True}   # 1 周目の頭は返す。返した段の合わせは落ちた段を受けて進めない。ほかの頭は返さない
 
     def test_internal_error_in_the_returned_stage_seals_the_state_before_the_return(self):
-        fell = settle({"eyes-out": "completed"}, {"back-1-fix"}, self.GO)
+        fell = settle({"eyes": "completed"}, {"back-1-fix"}, self.GO)
         self.assertEqual(fell["back-1-fix"], "failed")
         for node in ("back-1-gate", "back-1-eyes"):
             self.assertNotEqual(fell[node], "completed", f"{node} は落ちた修正の段の後ろなので走らない")
         for node in ("back-1-fixed", "back-2", "back-3", "back-4", "eyes-back"):
             self.assertEqual(fell[node], "completed", f"{node} は落ちた周の後ろでも走る")
-        stopped = settle({"eyes-out": "skipped"}, set(), self.GO)
+        stopped = settle({"eyes": "skipped"}, set(), self.GO)
         self.assertEqual({n: s for n, s in stopped.items() if s == "completed"}, {}, "周の頭が 1 つも走らない run では集めも飛ぶ")
         try:
             trace = line_traces(("eyes-back-fell",))["eyes-back-fell"]
         except unittest.SkipTest:
             return
-        self.assertEqual(trace["back-1-fix__finish"]["state"], "failed")
+        self.assertEqual(trace["back-1-fix__intake"]["state"], "failed")
+        self.assertTrue(ran(trace, "back-1-fix__finish"), "修正の block の返す節は中の落ちを受けて返る")
         for node in ("back-1-gate__result", "back-1-eyes__verdict"):
             self.assertFalse(ran(trace, node), f"{node} は落ちた修正の段の後ろなので走らない")
         for node in ("back-2", "eyes-back", "eyes-back-restore", "merge-seal__merge", "ask-final", "gate-final", "collect", "result"):
@@ -410,7 +416,7 @@ class EyesBackFellTest(unittest.TestCase):
         self.assertTrue(last["sealable"], last)
         self.assertEqual(last["checkpoint"]["round"], 1)
         self.assertEqual(last["checkpoint"]["tree"], first["rows"][-1]["tree"])
-        self.assertEqual(last["fingerprint"], out(trace, "test-gate-final-out")["got"]["fingerprint"], "封じる指紋は返す前の試験の物")
+        self.assertEqual(last["fingerprint"], got(trace, "test-gate-final")["fingerprint"], "封じる指紋は返す前の試験の物")
         asked = out(trace, "ask-final")
         self.assertIn("封じに出したのは 1 周目に返す前の状態", asked["text"])
         self.assertIn("返したが直せなかった項目", asked["text"])

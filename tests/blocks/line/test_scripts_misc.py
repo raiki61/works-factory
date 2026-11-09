@@ -1,7 +1,7 @@
-"""line の小さな script（docs/design/line.md の 1.5）の振る舞い: testcmd（頭の止め）・gate_answer（承認ノードの答え）・returned（受け皿）・
+"""line の小さな script（docs/design/line.md の 1.5）の振る舞い: testcmd（頭の止め）・gate_answer（承認ノードの答え）・
 relay（返し）・result（line の返す node）・sweep_children（後始末）。
 
-元は test_line.py の GateAnswerCase・ReturnedCase・SweepChildrenCase・CollectAndResultCase の result の部分と
+元は test_line.py の GateAnswerCase・SweepChildrenCase・CollectAndResultCase の result の部分と
 test_testcmd_head.py の TestCmdNodeTest（README 9.5）。script は子のプロセスで回すか（kit.Run.script。port の値だけを
 INPUTS_<名> で渡す）、名で読んで関数を直に呼ぶ。testcmd が run を cancel する Archon の dry-run の場面は line の筋書きが持つ。
 """
@@ -166,28 +166,6 @@ class GateAnswerCase(ScriptRun):
         kept = json.loads((self.run.artifacts / "gates" / "gate-final.json").read_text(encoding="utf-8"))
         self.assertEqual(kept, got["answer"])
         self.assertEqual(self.take("null", place="gate-start"), {"go": True, "answer": None, "stop_reason": ""})
-
-
-class ReturnedCase(ScriptRun):
-    def test_whole_output_gives_the_declared_fields(self):
-        """受け皿は got（受ける node の返りまるごと）の names で宣言した欄だけを、型を保ったまま got にする。optional は無くてよい"""
-        whole = {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": "", "extra": 1}
-        got = self.run.script("returned", got=json.dumps(whole), names="mode ok hash diff protected_hits reason")
-        self.assertEqual(got, {"got": {**{k: v for k, v in whole.items() if k != "extra"}, "optional": None}, "why": ""})
-
-    def test_missing_declared_field_is_a_null_got_with_the_why(self):
-        """宣言した欄が無い返り（前の版の block の返り）は空と読まず、got: null と訳（integration.md の 4.3-12）"""
-        got = self.run.script("returned", got=json.dumps({"ok": True}), names="ok hash")
-        self.assertIsNone(got["got"])
-        self.assertIn("hash", got["why"])
-
-    def test_unreadable_got_is_a_null_got(self):
-        for case, inputs in {"無い": {"names": "ok"}, "null": {"got": "null", "names": "ok"}, "配列": {"got": "[]", "names": "ok"},
-                             "names が無い": {"got": "{}"}}.items():
-            with self.subTest(case):
-                got = self.run.script("returned", **inputs)
-                self.assertIsNone(got["got"])
-                self.assertTrue(got["why"])
 
 
 class RelayCase(ScriptRun):

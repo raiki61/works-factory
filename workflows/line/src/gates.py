@@ -372,7 +372,7 @@ def _depart_items(deviations: list, answered, rnd: int, passes: list) -> tuple:
 def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledger=None, design_rows_=(), policy_row: str = "",
                stuck_reason: str = "", record_doc: dict | None = None, answered=(), unread=(), agreed: dict | None = None,
                pointed=(), means=(), plan_fields=None, prescriptions=None, planned=None) -> dict:
-    """修正前の承認ノードの決め。rounds は計画の往復の受け皿の got（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
+    """修正前の承認ノードの決め。rounds は計画の往復の返り（plan-out の返りの欄）、ledger は問いの台帳の値の見え方
     （gatemarks.ledger。判定が無ければ None）、design_rows_ は構造の目の設計の行、policy_row は方針の文書の変化の行（変わっていなければ
     空）、stuck_reason は止まった往復の理由（止まっていなければ空）、record_doc は往復の記録（止まりの行の欄 recommend の推しを読む）、answered は
     同じ承認ノードの前の答え（resume で回し直した時に、continue で通した同じ文を聞き直さない）、unread は指す先が無いか読めない控えの訳
@@ -532,7 +532,7 @@ NO_RECORD = "往復の記録が渡されていない"
 
 def review_verdict(record: dict | None, *, round_: int | None, gave_up=None, replan_review: dict | None = None) -> dict:
     """修正が使った修正案を審査した最後の往復の結論 {round, verdict, blocks, why}（shared:plan-verdict.schema.json の形）。
-    案の直しが走れば、その事前審査（replan_review。受け皿の got）の結論。ほかは往復の記録 record（plan-converge.json の中身）の最後の
+    案の直しが走れば、その事前審査（replan_review。案の直しの事前審査の返り）の結論。ほかは往復の記録 record（plan-converge.json の中身）の最後の
     往復で、round_ は修正が使った案の周（往復の番号と組まなければ unread）、gave_up は事前審査が諦めた訳の並び"""
     if isinstance(replan_review, dict):
         k = replan_review.get("round") if isinstance(replan_review.get("round"), int) and replan_review["round"] >= 1 else 1

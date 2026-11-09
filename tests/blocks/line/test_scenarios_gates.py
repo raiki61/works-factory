@@ -131,12 +131,13 @@ class UnattendedCase(unittest.TestCase):
         self.assertTrue(ran(trace, "report__finish"))
 
     def test_eyes_failure_never_applies(self):
-        """L-G50: 独立の目の graph が落ちた run は、封じる段から先が飛んだまま差分を当てない。報告と線の返りは出る"""
+        """L-G50: 独立の目の graph の返す node が落ちた run は、封じる段から先が飛んだまま差分を当てない。返りを直に結ぶ collect も落ち、
+        報告の代わりは Archon の run の記録が持つ（docs/design/line.md の 13.1。dry-run は report の中を台本で差すので、線の返りは出る）"""
         trace = self.t["eyes-failed"]
         self.assertEqual(trace["eyes__verdict"]["state"], "failed")
         for node in ("merge-seal__merge", "ask-final", "gate-final", "answer-final", "merge-apply__merge"):
             self.assertFalse(ran(trace, node), node)
-        self.assertTrue(ran(trace, "report__finish"))
+        self.assertEqual(trace["collect"]["state"], "failed")
         self.assertIsNone(out(trace, "result")["apply"])
 
 

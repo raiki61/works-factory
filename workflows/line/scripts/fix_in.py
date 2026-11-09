@@ -6,7 +6,7 @@
 
 修正から後ろの node（fix・replan・replan-review・refix-run・lens・delta-review の 2 段・rejudge-run・spec-check-run・eyes-in・eyes）は、
 判定・構造の目・独立設計・計画の往復の値を、ここの返りの欄（$fix-in.output.<欄>）からだけ読む。
-- 通常の run: 受け皿の got（直す前のテスト・判定のまとめ・構造の目）と返し（段の表・独立設計・計画の往復）と修正前の承認の答えを
+- 通常の run: block の返り（直す前のテスト・判定のまとめ・構造の目）と返し（段の表・独立設計・計画の往復）と修正前の承認の答えを
   運ぶ値 received_live に組み、平らな欄にする。go は修正前の承認を通ったか。go が真なら、修正の前に 1 度だけ run の置き場を固定材料に
   写す（src.fixture.noted_capture。運ぶ値を控えに入れる。写せなくても止めない）。修正前の承認ノードが人の判断待ちで止めた時
   （止めの語 before_fix_stop が works:needs-human か human:gate-before-fix）も、計画の往復の got を運ぶ値の fixture.GATE_KEY に足して写す
@@ -36,13 +36,17 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
-# 運ぶ値の部ごとに読む欄（received の鍵 → 欄の名）。欄を変える時は src.fixture.FORMAT を上げる
+# 運ぶ値の部ごとに読む欄（received の鍵 → 欄の名）。欄を変える時は src.fixture.FORMAT を上げる。block の返り（試験の土台・判定・構造の目）は
+# compute が口 ports.picked で字の呼びのまま読む（tests/layers/scan.py の E5）
+TEST_GATE = ("baseline", "suite", "suite_note")
+JUDGE = ("ok", "stop_reason", "ready", "units", "judgment", "answer_ties", "out_of_purpose", "materials", "brief", "inputs", "purpose",
+         "purpose_text", "means", "constraints", "world", "spec", "excluded", "decisions", "tier", "tier_record", "verify")
+STRUCTURE = ("structure",)
 NAMES = {
-    "test_gate_base": ("baseline", "suite", "suite_note"),
-    "judge": ("ok", "stop_reason", "ready", "units", "judgment", "answer_ties", "out_of_purpose", "materials", "brief", "inputs", "purpose",
-              "purpose_text", "means", "constraints", "world", "spec", "excluded", "decisions", "tier", "tier_record", "verify"),
+    "test_gate_base": TEST_GATE,
+    "judge": JUDGE,
     "tiers": ("tier", "omits", "merge", "tree", "adds", "lines"),
-    "structure": ("structure",),
+    "structure": STRUCTURE,
     "design": ("design", "reason", "premises"),
     "rounds": ("ok", "status", "round", "record", "plan", "fix_plan", "reply", "handoffs", "ripple", "owed", "review"),
 }
@@ -50,8 +54,6 @@ JUDGE_FLAT = ("judgment", "units", "answer_ties", "materials", "out_of_purpose",
               "spec", "purpose", "purpose_text", "means", "constraints", "brief", "inputs")
 ROUND_FLAT = ("plan", "fix_plan", "ripple", "reply", "review", "record", "handoffs", "owed", "round")
 NOTHING_OWED = "nothing_owed"   # plan の出力 status の語（直す義務 0 件の周）
-# 直す前で止まった写しの run だけが渡す、続きの修正前の承認の入力（fixture-ask-before-fix・fixture-answer-before-fix の返り）
-FIXTURE_GATE = ("fixture_before_fix_go", "fixture_before_fix_answer", "fixture_before_fix_policy", "fixture_deferred", "fixture_passes")
 
 
 def _part(raw, names):
@@ -136,8 +138,8 @@ SPEC_GATE = {"before_fix_go": "spec_before_fix_go", "before_fix_answer": "spec_b
 
 
 def spec_raw(raw: dict) -> dict:
-    """仕様駆動の run（入力 spec が在る）の運ぶ値の元: 判定の部と往復の部は spec-rounds の返り {judge, rounds}（今の judge-out と
-    plan-rounds-out の受け皿の got と同じ形）、修正前の承認の答えは spec- の付いた入力から取る。段の表・構造の目・独立設計・記録された
+    """仕様駆動の run（入力 spec が在る）の運ぶ値の元: 判定の部と往復の部は spec-rounds の返り {judge, rounds}（判定のまとめと
+    計画の往復の返りと同じ形）、修正前の承認の答えは spec- の付いた入力から取る。段の表・構造の目・独立設計・記録された
     方針は仕様駆動の run では回らないので null（docs/design/spec-driven.md の 6.2 の変える node の 4・6.8 の 1）。ほかの run は raw のまま"""
     spec = ports.parsed(raw.get("spec"))
     if spec is None:
@@ -194,10 +196,12 @@ def fix_in(raw: dict, place: Path, repo: Path, run_id: str) -> dict:
 
 
 def compute() -> dict:
+    returned = {"test_gate_base": ports.picked(os.environ.get("INPUTS_TEST_GATE_BASE"), TEST_GATE),
+                "judge": ports.picked(os.environ.get("INPUTS_JUDGE"), JUDGE),
+                "structure": ports.picked(os.environ.get("INPUTS_STRUCTURE"), STRUCTURE)}
     raw = {"fixture": os.environ.get("INPUTS_FIXTURE"), "start_go": os.environ.get("INPUTS_START_GO"),
-           "ports": os.environ.get("INPUTS_PORTS"), "test_gate_base": os.environ.get("INPUTS_TEST_GATE_BASE"),
-           "judge": os.environ.get("INPUTS_JUDGE"), "tiers": os.environ.get("INPUTS_TIERS"),
-           "structure": os.environ.get("INPUTS_STRUCTURE"), "design": os.environ.get("INPUTS_DESIGN"),
+           "ports": os.environ.get("INPUTS_PORTS"), "tiers": os.environ.get("INPUTS_TIERS"), "design": os.environ.get("INPUTS_DESIGN"),
+           **{name: "null" if got is None else json.dumps(dict(got), ensure_ascii=False) for name, got in returned.items()},
            "rounds": os.environ.get("INPUTS_ROUNDS"), "before_fix_go": os.environ.get("INPUTS_BEFORE_FIX_GO"),
            "before_fix_answer": os.environ.get("INPUTS_BEFORE_FIX_ANSWER"), "before_fix_policy": os.environ.get("INPUTS_BEFORE_FIX_POLICY"),
            "before_fix_stop": os.environ.get("INPUTS_BEFORE_FIX_STOP"),
@@ -207,7 +211,10 @@ def compute() -> dict:
            "spec_before_fix_answer": os.environ.get("INPUTS_SPEC_BEFORE_FIX_ANSWER"),
            "spec_before_fix_policy": os.environ.get("INPUTS_SPEC_BEFORE_FIX_POLICY"),
            "spec_deferred": os.environ.get("INPUTS_SPEC_DEFERRED"), "spec_passes": os.environ.get("INPUTS_SPEC_PASSES"),
-           **{name: os.environ.get(f"INPUTS_{name.upper()}") for name in FIXTURE_GATE}}
+           "fixture_before_fix_go": os.environ.get("INPUTS_FIXTURE_BEFORE_FIX_GO"),
+           "fixture_before_fix_answer": os.environ.get("INPUTS_FIXTURE_BEFORE_FIX_ANSWER"),
+           "fixture_before_fix_policy": os.environ.get("INPUTS_FIXTURE_BEFORE_FIX_POLICY"),
+           "fixture_deferred": os.environ.get("INPUTS_FIXTURE_DEFERRED"), "fixture_passes": os.environ.get("INPUTS_FIXTURE_PASSES")}
     return fix_in(raw, ports.place(), Path.cwd(), os.environ.get("WORKFLOW_ID", ""))
 
 
