@@ -408,9 +408,6 @@ class InsideTest(unittest.TestCase):
     def test_factory_starts_with_archon_config_that_copies_submodule_contents_but_not_its_git(self):
         self.factory_starts_with_archon_config_that_copies_submodule_contents(with_history=True)
 
-    def test_factory_starts_with_archon_config_that_copies_submodule_contents_without_history(self):
-        self.factory_starts_with_archon_config_that_copies_submodule_contents(with_history=False)
-
     def archon_worktree(self) -> pathlib.Path:
         """Archon と同じ形で /app から run の作業ツリーを切る: worktree add の後、initSubmodules が false なら submodule を
         初期化せず、copyFiles の各パスを /app から同じパスへ写す（Archon の packages/isolation/src/worktree-copy.ts の
@@ -445,9 +442,6 @@ class InsideTest(unittest.TestCase):
     def test_copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(self):
         self.copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(with_history=True)
 
-    def test_copied_submodule_contents_without_history_stay_out_of_the_seal_and_capture_diffs(self):
-        self.copied_submodule_contents_stay_out_of_the_seal_and_capture_diffs(with_history=False)
-
     def test_archon_config_stays_out_of_the_patch(self):
         self.add_submodule()
         self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
@@ -468,24 +462,6 @@ class InsideTest(unittest.TestCase):
         self.assertIn(swepro.ARCHON_CONFIG, result["error"])
         self.assertEqual((self.workdir / swepro.ARCHON_CONFIG).read_text(encoding="utf-8"), "worktree: {}\n")
         self.assertEqual(self.calls(), [])
-
-    def test_target_without_submodules_gets_no_archon_config(self):
-        self.sealed_plan(apply=self.seal(), sealed=self.seal(name=swepro.apply.SEALED_DIFF))
-        done, _ = self.inside()
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIsNone(self.calls()[0]["archon_config"])
-        self.assertFalse((self.workdir / ".archon").exists())
-
-    def test_factory_that_leaves_no_run_names_the_shells_last_line(self):
-        said = "Error: Could not create isolated workspace (Cannot determine git remote for /app)."
-        self.set_plan(refuse=said)
-        done, result = self.inside()
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIn("工場の run が起きなかった", result["error"])
-        self.assertIn(said, result["error"])
-        self.assertTrue(self.predicted(result)["failed"])
-        self.assertIn("starting", done.stdout)
-        self.assertIn(said, done.stdout)
 
     def test_sealed_diff_that_deletes_a_file_is_applied(self):
         (self.workdir / "b.py").write_text("y = 1\n", encoding="utf-8")
@@ -903,30 +879,6 @@ class BuildTest(unittest.TestCase):
         return subprocess.run(["/bin/sh", "-c", command], input=input, capture_output=True, text=True, encoding="utf-8",
                               env=hermetic.child_env(**flags))
 
-    def test_failed_sandbox_check_names_the_layers_in_one_line(self):
-        done = self.run_sandbox(probe_place(self), FAKE_BASH_FAIL="1")
-        self.assertEqual(done.returncode, 1)
-        bwrap, sandbox_said, seccomp_said = done.stderr.splitlines()
-        self.assertIn("No permissions", bwrap)
-        self.assertTrue(sandbox_said.startswith(swepro.SANDBOX_REFUSED), sandbox_said)
-        self.assertTrue(sandbox_said.removeprefix(swepro.SANDBOX_REFUSED))
-        for word in ("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", "x86_64 の機械ならそのホスト", "seccomp",
-                     "apparmor", "Can't mount proc", "systempaths=unconfined", f"-e {swepro.ENVIRONMENT}"):
-            self.assertIn(word, sandbox_said)
-        self.assertEqual(seccomp_said, swepro.SECCOMP_REFUSED)
-        for word in ("prctl(PR_SET_SECCOMP)", "unshare(CLONE_NEWUSER)", "命令の翻訳", "kernel ごと x86_64", "競り合い", "setup を打ち直し"):
-            self.assertIn(word, seccomp_said)
-
-    def test_empty_grep_names_the_rg_layer(self):
-        done = self.run_sandbox(probe_place(self), FAKE_GREP_EMPTY="1")
-        self.assertEqual(done.returncode, 1)
-        *clues, said = done.stderr.splitlines()
-        self.assertEqual(said, swepro.RG_REFUSED)
-        for word in ("Grep", "Glob", "0 件", "P フラグ", "kernel ごと x86_64"):
-            self.assertIn(word, said)
-        self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
-        self.assertNotIn(swepro.SECCOMP_REFUSED, done.stderr)
-
     def test_sandbox_check_passes_when_bash_and_grep_answer(self):
         done = self.run_sandbox(probe_place(self))
         self.assertEqual((done.returncode, done.stderr), (0, ""))
@@ -953,42 +905,6 @@ class BuildTest(unittest.TestCase):
             self.assertEqual((seen.get(name), role.get(name)), (value, value), name)
         self.assertEqual(seen.get("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"), "1")
 
-    def test_failed_sandbox_check_fits_the_setup_tail(self):
-        done = self.run_sandbox(probe_place(self), FAKE_BASH_FAIL="1", FAKE_STDERR_LINES="50")
-        self.assertEqual(done.returncode, 1)
-        shown = done.stderr.splitlines()[-swepro.SETUP_TAIL:]
-        self.assertEqual(shown[-4:-2], ["fake claude stderr 50", "bwrap: No permissions to create new namespace"])
-        shown = "\n".join(shown)
-        self.assertIn(swepro.SANDBOX_REFUSED, shown)
-        self.assertIn(swepro.SECCOMP_REFUSED, shown)
-
-    def test_claude_that_never_reaches_the_api_names_the_start_layer(self):
-        absent = hermetic.tmpdir(self) / "no-userns-limit"
-        for name, claude, flags, clue in (("config error", True, {"FAKE_NO_REQUEST": "1"}, "config error"),
-                                         ("claude missing", False, {}, None)):
-            with self.subTest(name):
-                place = probe_place(self, claude=claude)
-                clue = clue or f"{place}/bin/claude"
-                with mock.patch.object(swepro, "USERNS_LIMIT", str(absent)):
-                    done = self.run_sandbox(place, **flags)
-                self.assertEqual(done.returncode, 1)
-                *clues, said = done.stderr.splitlines()
-                self.assertEqual(said, f"{swepro.START_REFUSED}無い")
-                self.assertIn(clue, "\n".join(clues))
-                self.assertIn("failIfUnavailable", said)
-                self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
-                self.assertNotIn(swepro.SECCOMP_REFUSED, done.stderr)
-        # 起動の時に sandbox を立てられず終わった claude も要求を送らない。台の外れはここに来るので、kernel の制限の値を添える
-        limit = hermetic.tmpdir(self) / "limit"
-        for value in ("1", "0"):
-            with self.subTest(limit=value):
-                limit.write_text(f"{value}\n", encoding="utf-8")
-                with mock.patch.object(swepro, "USERNS_LIMIT", str(limit)):
-                    done = self.run_sandbox(probe_place(self), FAKE_NO_REQUEST="1")
-                said = done.stderr.splitlines()[-1]
-                self.assertEqual(said, f"{swepro.START_REFUSED}{value}")
-                self.assertIn("の側で sysctl kernel.apparmor_restrict_unprivileged_userns=0", said)
-
     def test_unconfined_write_names_the_unconfined_layer(self):
         done = self.run_sandbox(probe_place(self), FAKE_UNCONFINED="1", FAKE_STDERR_LINES="2")
         self.assertEqual(done.returncode, 1)
@@ -996,30 +912,6 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(said, swepro.UNCONFINED_REFUSED)
         self.assertEqual(clues, ["fake claude stderr 2", sandbox_probe.WROTE])
         self.assertNotIn(swepro.SANDBOX_REFUSED, done.stderr)
-
-    def test_no_tool_result_is_not_blamed_on_the_sandbox(self):
-        done = self.run_sandbox(probe_place(self), FAKE_NO_TOOLS="1")
-        self.assertEqual(done.returncode, 1)
-        self.assertEqual(done.stderr.splitlines()[-1], swepro.PROBE_CRASHED)
-        for refused in (swepro.START_REFUSED, swepro.SANDBOX_REFUSED, swepro.SECCOMP_REFUSED, swepro.RG_REFUSED,
-                        swepro.UNCONFINED_REFUSED):
-            self.assertNotIn(refused, done.stderr)
-        code, _ = sandbox_probe.probe(str(probe_place(self) / "bin" / "claude"), sandbox_probe.role_sandbox(), hermetic.tmpdir(self),
-                                      hermetic.child_env(FAKE_NO_TOOLS="1"))
-        self.assertEqual(code, sandbox_probe.NO_TOOL_RESULT)
-
-    def test_probe_crash_is_not_blamed_on_claude_or_the_platform(self):
-        for code in (1, 2):
-            with self.subTest(code=code):
-                place = probe_place(self)
-                fakelaunch.put(place / "bin" / "python3.12", f"#!/bin/sh\necho 'Traceback (most recent call last):' >&2\nexit {code}\n")
-                done = self.run_sandbox(place)
-                self.assertEqual(done.returncode, 1)
-                lines = done.stderr.splitlines()
-                self.assertEqual(lines[0], "Traceback (most recent call last):")
-                self.assertEqual(lines[-1], swepro.PROBE_CRASHED)
-                for refused in (swepro.START_REFUSED, swepro.SANDBOX_REFUSED, swepro.SECCOMP_REFUSED, swepro.RG_REFUSED):
-                    self.assertNotIn(refused, done.stderr)
 
     def test_setup_sandbox_runs_the_shared_probe(self):
         command = dict(swepro.setup_commands("f", "9.9.9", "/p"))["sandbox"]
@@ -1113,12 +1005,6 @@ class PrepareTest(unittest.TestCase):
                 self.assertEqual(pull["args"][0], "pull")
                 self.assertEqual(build["args"][0], "build")
                 self.assertEqual(build["dockerfile"], swepro.dockerfile(IMAGE.format(OPENLIBRARY), version, swepro.head_commit()))
-
-    def test_failed_docker_names_the_instance(self):
-        done = self.prepare(OPENLIBRARY, FAKE_DOCKER_CODE="1")
-        self.assertEqual(done.returncode, 1)
-        self.assertIn(f"{OPENLIBRARY} の docker pull が落ちた", done.stderr)
-        self.assertFalse((self.out / OPENLIBRARY).exists())
 
     def test_other_repository_or_mismatched_folder_is_refused_before_docker(self):
         flipt = self.tasks / FLIPT

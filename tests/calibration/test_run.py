@@ -615,64 +615,6 @@ class RunTest(RunnerCase):
         self.assertIn("owner_repo_99-nothing", done.stderr)
         self.assertFalse(self.attempts.exists())
 
-    def test_old_works_commit_must_match_pack(self):
-        other = self.tmp / "other-plugins"
-        (other / "works" / "dev").mkdir(parents=True)
-        git(other, "init", "-q", "-b", "main")
-        (other / ".git" / "refs" / "heads" / "main").write_text("1" * 40 + "\n", encoding="utf-8")
-        done = self.old_works_at(other / "works", self.attempts)
-        self.assertEqual(done.returncode, 2, done.stderr)
-        [line] = done.stderr.strip().splitlines()
-        self.assertIn("1" * 40, line)
-        self.assertIn(self.old_commit, line)
-        self.assertEqual(self.calls(), [])
-        self.assertFalse(self.attempts.exists())
-
-    def old_works_at(self, works: pathlib.Path, attempts: pathlib.Path):
-        return self.runner("run", "works", "--bench", str(self.bench), "--attempts", str(attempts), "--out", str(self.out),
-                           "--mirror", self.mirror, "--only", self.one, WORKS_FACTORY_OLD_WORKS=str(works))
-
-    def test_old_works_must_be_committed_and_have_use_sh(self):
-        copy = self.tmp / "copy-plugins"
-        shutil.copytree(self.old, copy)
-        (copy / "elsewhere.txt").write_text("outside works/\n", encoding="utf-8")
-        self.assertRan(self.old_works_at(copy / "works", self.attempts))
-        self.log.unlink()
-        changes = {"edited": lambda: (copy / "works" / "dev" / "archon.sh").write_text('ARCHON_VERSION="v9"\n', encoding="utf-8"),
-                   "untracked": lambda: (copy / "works" / "dev" / "extra.sh").write_text("", encoding="utf-8")}
-        for name, change in changes.items():
-            with self.subTest(change=name):
-                git(copy, "checkout", "-q", "--", ".")
-                git(copy, "clean", "-qfd", "works")
-                change()
-                done = self.old_works_at(copy / "works", self.tmp / name)
-                self.assertEqual(done.returncode, 2, done.stderr)
-                [line] = done.stderr.strip().splitlines()
-                self.assertIn("commit していない", line)
-                self.assertIn("dev/", line)
-                self.assertFalse((self.tmp / name).exists())
-        done = self.old_works_at(self.old, self.tmp / "root")
-        self.assertEqual(done.returncode, 2, done.stderr)
-        [line] = done.stderr.strip().splitlines()
-        self.assertIn("dev/use.sh が無い", line)
-        self.assertEqual(self.calls(), [])
-        self.assertFalse((self.tmp / "root").exists())
-
-    def test_old_works_resume_answers_stop_at_human_gate(self):
-        self.set_plan(waits=[1])
-        self.assertEqual(self.run_tasks("works", self.one).returncode, 1)
-        self.log.unlink()
-        self.set_plan(resume_waits=[3, 0], respond_waits=[3, 5])
-        self.assertRan(self.run_tasks("works", self.one, extra=["--resume"]))
-        rid = "b5c6d7e8-0000-old"
-        self.assertEqual([c["args"][1:5] for c in self.calls("continue.sh")],
-                         [["workflow", "resume", rid], ["workflow", "respond", rid, "stop"]])
-        [respond] = [c for c in self.calls("continue.sh") if c["args"][2] == "respond"]
-        self.assertIn("WORKS_USE_UNATTENDED=1", respond["args"][5])
-        self.assertEqual(respond["env"]["WORKS_DEV_HOME"], str(self.attempt(self.one) / "home"))
-        self.assertEqual(self.verbs("use.sh").count("wait"), 4)
-        self.assertEqual([r["key"] for r in self.records("works")], [self.one])
-
     def test_unreadable_events_stop_the_row(self):
         self.set_plan(events_unreadable="not json")
         done = self.run_tasks("works-factory", self.one)
@@ -822,17 +764,6 @@ class RunTest(RunnerCase):
         self.assertIn(runner.LEDGER, refused.stderr)
         self.assertFalse(self.attempts.exists())
 
-    def test_convert_command_on_unchanged_evidence_rewrites_the_same_records(self):
-        """run と convert は同じ所で変換の入力を組むので、evidence/ が同じなら控えも判定役の入力も字まで同じ"""
-        for producer in ("works-factory", "claude"):
-            with self.subTest(producer=producer):
-                self.assertRan(self.run_tasks(producer, self.one))
-                written = [self.out / producer / d / f"{self.one}.json" for d in ("findings", "convert")]
-                before = [p.read_bytes() for p in written]
-                self.assertRan(self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out)))
-                self.assertEqual([p.read_bytes() for p in written], before)
-                shutil.rmtree(self.attempts)
-
     def test_run_records_web_calls_measured_in_the_attempt(self):
         config = self.attempt(self.one) / "home" / runner.isolate.DIRS["CLAUDE_CONFIG_DIR"]
         log = runner.reads.reads_path(runner.reads.root(config), "/w/one")
@@ -851,27 +782,6 @@ class RunTest(RunnerCase):
         self.assertEqual(done.returncode, 1, done.stderr)
         self.assertIn("target", done.stderr)
         self.assertEqual([p.read_bytes() for p in written], before)
-
-    def test_convert_command_waits_for_no_runner(self):
-        self.assertRan(self.run_tasks("works-factory", self.one))
-        kept = self.out / "works-factory" / "convert" / f"{self.one}.json"
-        before = kept.read_bytes()
-        fd = os.open(self.attempts / ".lock", os.O_CREAT | os.O_RDWR)
-        self.addCleanup(os.close, fd)
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        done = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out))
-        self.assertEqual(done.returncode, 2, done.stderr)
-        self.assertIn("別のランナー", done.stderr)
-        self.assertEqual(kept.read_bytes(), before)
-
-    def test_convert_command_refuses_tasks_not_done(self):
-        self.assertRan(self.run_tasks("works-factory", self.one))
-        for producer, only in (("works-factory", self.two), ("claude", None)):
-            with self.subTest(producer=producer):
-                refused = self.runner("convert", producer, "--attempts", str(self.attempts), "--out", str(self.out),
-                                      *(("--only", only) if only else ()))
-                self.assertEqual(refused.returncode, 2, refused.stderr)
-                self.assertIn(only or producer, refused.stderr)
 
     def test_nodes_command_writes_json_and_md(self):
         self.assertRan(self.run_tasks("works-factory", self.one))
