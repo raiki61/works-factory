@@ -992,20 +992,22 @@ class TestPlanContract(ContractCase):
         self.assertNotIn("受け入れのテストを名指していない", got["reason"])
         self.assertEqual(self.st()["units"][MEAN]["red"], "ok")
 
-    def test_handoff_tells_not_to_name_the_earlier_tests(self):
-        """earlier が [A] の時、引き継ぎの行に A の id と『名指すな』の行が前の単位の行の後・今の段の行の前に載り、test の段の約束に
-        前の段で確かめ済みの試験は名指さない文が在る。前の単位の行の有無（段落 handoff の真偽）は earlier で変わらない。earlier が空なら行は無い"""
+    def test_earlier_tests_reach_the_prompt_as_a_value(self):
+        """earlier が [A] の時、test の段の指示の値 earlier_tests が A の id で段落 earlier が真になり、組んだ指示に A の id が載る。名指さない
+        決まりの文は md の 1 か所だけが持ち、Python は id を値で渡すだけ（憲法の 2）なので、引き継ぎの行には A を載せず、前の単位の行の
+        有無（段落 handoff の真偽）も earlier で変わらない。earlier が空なら段落 earlier は偽で値は空"""
         self.route()
         plain, plain_when = self.values()
-        self.assertNotIn(MEAN_ID, plain["handoff_rows"])
+        self.assertEqual((plain["earlier_tests"], plain_when["earlier"]), ("", False))
+        self.assertNotIn(MEAN_ID, self.prompt())
         self.set_earlier([MEAN_ID])
         vals, when = self.values()
-        rows = vals["handoff_rows"].splitlines()
-        line = next((r for r in rows if MEAN_ID in r), "")
-        self.assertIn("名指すな", line)
-        self.assertLess(rows.index(line), next(i for i, r in enumerate(rows) if r.startswith("- 今の段:")))
+        self.assertEqual((vals["earlier_tests"], when["earlier"]), (MEAN_ID, True))
+        self.assertNotIn(MEAN_ID, vals["handoff_rows"])
         self.assertEqual(when["handoff"], plain_when["handoff"])
-        self.assertIn("already verified in an earlier stage", self.prompt())
+        self.assertIn(MEAN_ID, self.prompt())
+        md = (kit.BLOCKS / "fix" / "prompts" / "parts" / "tdd.md").read_text(encoding="utf-8")
+        self.assertEqual(md.count("{earlier_tests}"), 1, "名指さない決まりの文は md の 1 か所")
 
     def test_contract_lands_in_state(self):
         self.assertEqual(self.st()["contract"], self.CONTRACT)

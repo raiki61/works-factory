@@ -391,8 +391,8 @@ def current_lines(st) -> list:
 
 def handoff_lines(st) -> list:
     """今の単位より前に済んだ単位の 1 行ずつ（単位の key・直したファイル・緑にしたテスト・整え・止めた理由・direct に回した理由）と、
-    返した段の輪なら前の段が赤→緑を確かめたテスト（_earlier。名指すなの 1 行）と、今の周の段・今の単位・この単位の前の段の結果
-    （current_lines）。周ごとに新しい会話で起きるので、節はいつも載せる"""
+    今の周の段・今の単位・この単位の前の段の結果（current_lines）。周ごとに新しい会話で起きるので、節はいつも載せる。返した段の
+    前の段が確かめ済みのテスト（_earlier）は載せない（id は prompts.tdd_values が値 earlier_tests で md に渡す）"""
     rows = []
     for k in st["queue"][:st["cur"]]:
         u = st["units"].get(k)
@@ -414,9 +414,7 @@ def handoff_lines(st) -> list:
             bits.append(f"整え {u['refactor']}")
         rows.append(f"- {k}: " + "・".join(bits))
     head = ["前の単位の直しは作業ツリーに在る（緑の木）。戻したり作り直したりするな。", ""] if rows else []
-    earlier = [f"- 前の段（返す前の修正の段）が赤→緑を確かめた受け入れのテスト（brief の tests に在っても名指すな。凍っている。返された指摘は"
-               f"新しいテストで赤にせよ）: {', '.join(st['earlier'])}", ""] if _earlier(st) else []
-    return [HANDOFF_HEAD, "", *head] + rows + ([""] if rows else []) + earlier + current_lines(st) + [""]
+    return [HANDOFF_HEAD, "", *head] + rows + ([""] if rows else []) + current_lines(st) + [""]
 
 
 def _items(st, k) -> set:
@@ -526,7 +524,7 @@ def _cur(st) -> dict:
 
 def _earlier(st) -> set:
     """返した段の輪で、前の段が赤→緑を確かめたテストの id の集まり（_norm_id。状態の欄 earlier。最初の段では空）。_test の名指しの外し・
-    _covered_by の確かめ済みの数え・handoff_lines の行が同じ集まりを読む"""
+    _covered_by の確かめ済みの数え・指示の値 earlier_tests の有無（prompts.tdd_values）が同じ集まりを読む"""
     return {_norm_id(t) for t in st.get("earlier") or []}
 
 
