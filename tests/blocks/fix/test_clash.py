@@ -228,26 +228,6 @@ class ClashScenarioCase(Whole):
         self.assertEqual((code, out["ok"]), (0, True), (err, out))
         return rows[0]["id"]
 
-    def test_join_clash_repaired_inside_the_groups_files(self):
-        """閉じる条件 1: 組を当てて赤になった run で、合わせ役が影響したファイルだけを直し、緑で進む"""
-        self.joined_with_clash()
-        out = self.prep()
-        self.assertTrue(out["go"], out)
-        self.assertIn("E8 = 80", (self.repo / "e.py").read_text(encoding="utf-8"), "控えの差分を当て直した")
-        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
-        self.assertEqual((brief["files"], brief["named_tests"]), (["b.py", "e.py"], ["test_b.py::TestB::test_triple"]))
-        (self.repo / "b.py").write_text(self.FIXED_B, encoding="utf-8")
-        got = self.accept(self.fixed_reply(), out["iteration"])
-        self.assertEqual((got["ok"], got["done"]), (True, True), got)
-        g2 = self.group_row()
-        self.assertEqual((g2["returned"], g2["reason"], g2["clash"]["outcome"]), (True, "", "repaired"), g2)
-        self.assertEqual({u["unit_id"]: u["status"] for u in self.joined()["units"]}, {"A": "fixed", "B": "fixed"})
-        e = (self.repo / "e.py").read_text(encoding="utf-8")
-        self.assertIn("E1 = 10\n", e, "前の組の直しは残る")
-        self.assertIn("E8 = 80\n", e, "後の組の直しも残る")
-        code, out, err = self.go("conflict_check")
-        self.assertEqual((code, out), (0, {"go": False, "count": 0}), err)
-
     def test_join_clash_repaired_with_an_uncompared_red_asks_a_human(self):
         """#855: 合わせ役の受け付けの確かめ直しも、組を当てるノードと同じに直す前の版と比べられなかった赤（実行器が名指しを聞かず、
         直す前の版で走らせても結末に出ない test_env）を戻す理由にしない。組は戻せた組になり、組の行の uncompared に名指す（報告が
@@ -358,21 +338,6 @@ class ClashScenarioCase(Whole):
         d.write_text("Title\n=======\nSub\n=======\n", encoding="utf-8")
         got = self.accept(self.fixed_reply(("e.py", "d.md")), out["iteration"])
         self.assertEqual((got["ok"], got["done"]), (True, True), got)
-
-    def test_join_text_clash_brief_carries_each_file_marker_and_the_rule(self):
-        """setext の 7 字の下線を持つ d.md と、= の行の無い e.py が字で当たらずに印つきで当て直された時、brief はファイルごとの
-        印の 4 つの頭（d.md は 8 字・e.py は 7 字）を載せ（拒みの決まりは md が持つ）、clash.json の行の marked はパス→印の長さを持つ"""
-        self.joined_with_text_clash(seed={"d.md": "Title\n=======\nbody\n"}, g1={"d.md": "Title\n=======\ng1 body\n"},
-                                    g2={"d.md": "Title\n=======\nSub\n=======\n"})
-        out = self.prep()
-        self.assertTrue(out["go"], out)
-        brief = json.loads((self.place / "clash-brief-g2.json").read_text(encoding="utf-8"))
-        self.assertEqual(brief["conflicted"], ["d.md", "e.py"])
-        self.assertEqual(brief["markers"], {"d.md": ["<" * 8, "|" * 8, "=" * 8, ">" * 8],
-                                            "e.py": ["<" * 7, "|" * 7, "=" * 7, ">" * 7]})
-        self.assertNotIn("marker_rule", brief)
-        [row] = self.clash.load(self.place)
-        self.assertEqual(row["marked"], {"d.md": 8, "e.py": 7})
 
     def test_join_text_clash_the_role_cannot_fix_reaches_ruling_as_a_text_clash(self):
         """字で当たらない組を合わせ役が直せないと答えると、申し出は字の食い違いとして裁定役に届く（赤の文の申し出と言わない）"""

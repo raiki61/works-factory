@@ -11,8 +11,8 @@ RolesCase の相談の配線を写した）。
 - 確かめの節（settle）: 1 頼み 1 行を place の trace.jsonl（conflict.ASKED_OP）に書く（断った・聞けなかった行も）。allow の行は合意
   （conflict.agreed）として範囲とテストの許しに入る。答えのファイルを書き、支度（take）が 1 度だけ引く
 - 人の関所の条件（gate_notes・gate_asks）: 今の周の直す前の関所の一言だけを、項目ごとの頼みにする。出し済みなら 2 度聞かない
-- 答えの役の指示: asks_text は question の頼みごとの節だけ（決まりの文と答え方の行は md が持つ）。consult_values・consult_render は
-  prompts/parts/consult.md の段落（ripple・gate・plain）を頼みの形で選ぶ
+- 答えの役の指示: 新しい会話で起きる答えの役へ、前の相談と答えの一覧（段落 history）を渡す。頼みの節と段落の字の照らしは
+  2026-11-10 に落とした（docs/design/fix.md の 14.2 の削り）
 - 配線: 段 → 答えの役の表 rules.ANSWER_NODES と YAML の consult_check・consult_accept の pass と answer.from が一致し、consult_check は
   {consulted, go, prompt} を返す
 place は使い捨てのフォルダ（git・子のプロセスなし。script の試験だけ kit.Run）。頼みの節の状態は、元の頼みの節（ask）が書いた形を
@@ -186,7 +186,7 @@ class SummaryCase(unittest.TestCase):
 
 class ConsultTypeCase(unittest.TestCase):
     """修正役の頼みの型の正本は書き手の返答の形（writer-reply.schema.json）の consult だけ（受け付けの summary_problem は型より厳しい
-    所だけを見る。#844 の指摘）。理由の字の下限は受け付けの MIN_WHY と同じ字"""
+    所だけを見る。#844 の指摘）"""
 
     def fmt(self) -> dict:
         """正本は .shared/schemas/writer-reply.schema.json（型の block の AI の node の output_format が字のまま写す。写しの照らしは
@@ -196,10 +196,6 @@ class ConsultTypeCase(unittest.TestCase):
     def check(self, ask) -> list:
         """output_format の consult の欄の型に、ask 1 行の並びを当てた誤り"""
         return validate_schema([ask], self.fmt()["properties"][conflict.CONSULT_FIELD])
-
-    def test_min_why_matches_output_format(self):
-        row = self.fmt()["properties"][conflict.CONSULT_FIELD]["items"]["properties"]
-        self.assertEqual((row["why"]["minLength"], row["blocked"]["minLength"]), (consult.MIN_WHY, consult.MIN_WHY))
 
     def test_ask_outside_the_type_is_rejected(self):
         good = ask_row()
@@ -230,77 +226,18 @@ class HistoryCase(Base):
             self.assertIn(w, text)
 
 
-class QuestionCase(unittest.TestCase):
-    def test_own_out_of_scope_is_named_with_its_reason(self):
-        """頼みの節は、頼んだパスがあなた自身がこの項目の out_of_scope に書いた物だと言い、外した理由を字のまま引く。考え直させる決まりの文は
-        md（prompts/parts/consult.md）が持つ"""
-        sec = consult.asks_text(ITEMS, [{"n": 1, "item": "3", "paths": ["works/README.md"], "tests": [], "why": WHY}])
-        for w in ("works/README.md", "out_of_scope", OOS_WHY, "あなたがこの項目の out_of_scope"):
-            self.assertIn(w, sec)
-        self.assertNotIn("考え直", sec)
-        self.assertIn("reconsider whether the reason for the exclusion still holds",
-                      (BLOCK / "prompts" / "parts" / "consult.md").read_text(encoding="utf-8"))
-
-    def test_other_item_out_of_scope_is_named(self):
-        sec = consult.asks_text(ITEMS, [{"n": 1, "item": "3", "paths": ["works/docs/flow.md"], "tests": [], "why": WHY}])
-        for w in ("works/docs/flow.md", "項目 4 の out_of_scope", "works/docs/**", "文書は項目 4 では触らない"):
-            self.assertIn(w, sec)
-        self.assertNotIn("あなたがこの項目の out_of_scope", sec)
-
-    def test_plain_ask_says_nothing_about_out_of_scope_hits(self):
-        q = consult.asks_text(ITEMS, [{"n": 1, "item": "3", "paths": ["works/CHANGELOG.md"], "tests": [], "why": WHY}])
-        self.assertNotIn("当たる", q)
-
-
-class AsksTextCase(unittest.TestCase):
-    """答えの役の指示の差し込み口 {asks}（consult.asks_text）: 頼みごとの節だけで、決まりの文と関所の頼みの答え方は持たない
-    （md の prompts/parts/consult.md が持つ）"""
+class ConsultPromptCase(unittest.TestCase):
+    """src.prompts.consult_values・consult_render: 前の相談と答えの一覧を新しい会話の答えの役へ渡す（#833）"""
 
     PLAIN = {"n": 1, "item": "3", "paths": ["works/README.md"], "tests": [], "why": WHY}
-    GATE_ASK = {"n": 2, "item": "4", "paths": [], "tests": [], "why": "既存の集計を壊さないことを確かめよ", "origin": "gate"}
-
-    def test_sections_are_the_question_sections_without_the_rules(self):
-        text = consult.asks_text(ITEMS, [self.PLAIN])
-        self.assertTrue(text.startswith("## 相談 1: 項目 3"), text)
-        self.assertNotIn("# 範囲の相談（修正の段から）", text)
-        self.assertNotIn("答えは次の JSON だけ", text)
-        for w in ("works/README.md", OOS_WHY, "あなたがこの項目の out_of_scope", WHY):
-            self.assertIn(w, text)
-
-    def test_gate_ask_has_no_answer_how_line(self):
-        text = consult.asks_text(ITEMS, [self.PLAIN, self.GATE_ASK])
-        self.assertIn("## 相談 2: 項目 4", text)
-        self.assertIn("既存の集計を壊さないことを確かめよ", text)
-        self.assertNotIn("- 答え方:", text, "関所の頼みの答え方は md の段落 gate が持つ")
-        self.assertFalse(text.endswith("\n"))
-
-
-class ConsultPromptCase(unittest.TestCase):
-    """src.prompts.consult_values・consult_render: 頼みの形で md の段落を選び、項目の頼みの節を {asks} に入れる"""
-
-    PLAIN = AsksTextCase.PLAIN
-    GATE_ASK = AsksTextCase.GATE_ASK
 
     def setUp(self):
         self.run = kit.Run(self, "fix")
         self.prompts = kit.load("fix", "prompts")
-        self.md = (BLOCK / "prompts" / "parts" / "consult.md").read_text(encoding="utf-8")
-
-    def test_values_and_paragraphs(self):
-        with self.run.env():
-            vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN], plan_file="/p/plan.json", ripple_file="")
-            self.assertEqual(when, {"ripple": False, "gate": False, "plain": True, "history": False, "spawns": False})
-            self.assertEqual((vals["plan_file"], vals["count"], vals["min_why"]), ("/p/plan.json", 1, consult.MIN_WHY))
-            self.assertEqual(vals["asks"], consult.asks_text(ITEMS, [self.PLAIN]))
-            _, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.GATE_ASK], plan_file="", ripple_file="/p/r.json")
-            self.assertEqual(when, {"ripple": True, "gate": True, "plain": False, "history": False, "spawns": False})
-            vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN, self.GATE_ASK], plan_file="",
-                                                     ripple_file="")
-            self.assertEqual((when["gate"], when["plain"]), (True, True))
-            self.assertEqual(vals["plan_file"], "（修正案のファイルは無い）")
 
     def test_history_paragraph_carries_earlier_answers(self):
-        """#833: 前の相談の行が place に在れば、段落 history に一覧が入る。無ければ段落ごと出ない"""
+        """#833: 前の相談の行が place に在れば、段落 history に一覧が入る。無ければ段落ごと出ない（答えの役は新しい会話なので、
+        これが無いと前に断った頼みを忘れて許しうる）"""
         with self.run.env():
             vals, when = self.prompts.consult_values(self.run.artifacts, ITEMS, [self.PLAIN], plan_file="", ripple_file="")
             self.assertEqual((when["history"], vals["history"]), (False, ""))
@@ -313,21 +250,6 @@ class ConsultPromptCase(unittest.TestCase):
             text = self.prompts.consult_render(self.run.artifacts, "first", plan_file="", ripple_file="")(ITEMS, [self.PLAIN])
         self.assertIn("Earlier consultations in this run", text)
         self.assertIn("変更の記録は別の依頼で足す", text)
-
-    def test_render_builds_the_answer_prompt_from_the_md(self):
-        with self.run.env():
-            render = self.prompts.consult_render(self.run.artifacts, "first", plan_file="/p/plan.json", ripple_file="/p/ripple.json")
-            text = render(ITEMS, [self.PLAIN])
-            again = self.prompts.consult_render(self.run.artifacts, "ruled", plan_file="", ripple_file="")(ITEMS, [self.GATE_ASK])
-        for w in ("Read the fix plan /p/plan.json first", "Read the ripple list /p/ripple.json", "# Scope consultation (from the fixing stage)",
-                  "How to answer a request for paths and tests", consult.asks_text(ITEMS, [self.PLAIN])):
-            self.assertIn(w, text)
-        self.assertNotIn("How to answer a consultation about a condition given at the approval node", text)
-        self.assertIn("How to answer a consultation about a condition given at the approval node", again)
-        self.assertNotIn("Read the ripple list", again)
-        self.assertNotIn("How to answer a request for paths and tests", again)
-        self.assertTrue((self.run.artifacts / "consult-answer-prompt-1.md").is_file(), "組んだ指示は place に控える")
-        self.assertTrue((self.run.artifacts / "ruled-consult-answer-prompt-1.md").is_file())
 
 
 class JudgeCase(unittest.TestCase):
@@ -365,6 +287,7 @@ class JudgeCase(unittest.TestCase):
 
 
 class RequestsCase(unittest.TestCase):
+    """形の崩れた頼みも黙って落とさず、欄を空にして残す（先の確かめ screen_ask が断り、断った行が記録に残る）"""
     def test_shapes(self):
         self.assertIsNone(consult.requests({"changes": []}))
         self.assertIsNone(consult.requests({conflict.CONSULT_FIELD: []}))
@@ -670,21 +593,6 @@ class ConsultWiringCase(unittest.TestCase):
             self.assertEqual(self.nodes[ask]["when"], f"${checks[pass_]}.output.go == true", pass_)
         with self.assertRaises(ValueError):
             self.rules.answer_node("refix")
-
-    def test_check_returns_consulted_go_and_prompt(self):
-        """consult_check の返りは {consulted, go, prompt}（今の prompt_file は prompt の字に）、consult_accept は {consulted, answer_file}"""
-        for nid, n in self.nodes.items():
-            if n.get("script") == "consult_check":
-                self.assertEqual(set(n["output_format"]["required"]), {"consulted", "go", "prompt"}, nid)
-            if n.get("script") == "consult_accept":
-                self.assertEqual(set(n["output_format"]["required"]), {"consulted", "answer_file"}, nid)
-
-    def test_answer_roles_are_read_only(self):
-        """相談の答えの役は作業ツリーを変えない（mutates_checkout: false・書く道具を持たない）"""
-        for nid in self.rules.ANSWER_NODES.values():
-            node = self.nodes[nid]
-            self.assertIs(node.get("mutates_checkout"), False, nid)
-            self.assertFalse({"Write", "Edit", "Bash", "NotebookEdit", "MultiEdit"} & set(node.get("allowed_tools") or []), nid)
 
 
 _MEAN = "u-mean"

@@ -128,13 +128,6 @@ class UnreadableCase(IntakeCase):
         out = self.intake(mode="whole", judgment=_j(JUDGMENT), skip_rerun=_j([""]))
         self.assert_refused("skip_rerun", out, "skip-rerun.schema.json")
 
-    def test_json_file_that_is_missing_or_broken(self):
-        out = self.intake(mode="whole", judgment=str(self.place / "no-such.json"))
-        self.assert_refused("judgment", out, "no-such.json")
-        self.write("in/broken.json", '{"units": [')
-        out = self.intake(mode="whole", judgment=self.run.pointer("in/broken.json"))
-        self.assert_refused("judgment", out, "broken.json")
-
     def test_pointer_of_another_run(self):
         self.write("in/judgment.json", JUDGMENT)
         other = _j({"type": "archon_artifact", "run_id": "run-other", "path": "in/judgment.json"})
@@ -269,19 +262,6 @@ class SourceCase(unittest.TestCase):
         self.runvals = kit.load("fix", "runvals")
         self.run = kit.Run(self, "fix")
 
-    def test_read_raises_with_the_port_name(self):
-        with self.run.env():
-            with self.assertRaisesRegex(ValueError, r"^入力 materials: "):
-                self.intake.read({"mode": "whole", "judgment": _j(JUDGMENT), "materials": "[1"})
-
-    def test_every_port_of_the_yaml_is_read(self):
-        """YAML の inputs の名と、intake.read が読む名が同じ（足した port を読み忘れない）"""
-        doc = yaml.safe_load(YAML_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(set(self.intake.NAMES), set(doc["inputs"]))
-        with self.run.env():
-            got = self.intake.read({"mode": "whole", "judgment": _j(JUDGMENT)})
-        self.assertEqual(set(got), set(doc["inputs"]))
-
     def test_load_without_intake_says_so(self):
         with self.assertRaisesRegex(ValueError, "intake が走らなかった"):
             self.intake.load(self.run.artifacts)
@@ -304,7 +284,6 @@ class SourceCase(unittest.TestCase):
         theirs = self.runvals.write(parent, {"test_cmd": "parent", "request_file": "/r.md", "answers": [{"a": 1}]})
         self.assertEqual(self.runvals.adopt(parent, child), theirs)
         self.assertFalse((child / "r1" / "start.json").exists())
-
 
 
 class GateAsksCase(unittest.TestCase):

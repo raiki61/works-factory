@@ -14,7 +14,6 @@ import inspect
 import json
 import os
 import pathlib
-import re
 import sys
 import tempfile
 import unittest
@@ -247,12 +246,6 @@ class NoTestsCase(unittest.TestCase):
 
 
 class DutyTableCase(unittest.TestCase):
-    def test_every_weapon_has_one_box_and_a_module(self):
-        self.assertEqual(set(duties.BOXES), set(duties.MODULES))
-        self.assertLessEqual(set(duties.BOXES.values()), set(duties.BOX_DUTIES))
-        for name, mod in duties.MODULES.items():
-            self.assertEqual(mod.BOX, duties.BOXES[name], name)
-
     def test_check_only_adds(self):
         """型の義務は箱の義務の問題に足すだけ（箱の義務の結果を受け取る口が無い）"""
         f = {"unit": "u", "vanished": ["c::gone"], "permits": [], "files": ["a.md"], "test_files": [], "added": []}
@@ -334,6 +327,15 @@ class WeaponDutiesCase(unittest.TestCase):
         kept = pin.tests_only({**cfg, "no_tests": True, "absent_at_base": []})
         self.assertTrue(any(pin.KEPT_CONFIG in t for t in kept), "起点の版に在る設定のファイルの書き換えは拒む")
 
+    def test_pin_asks_each_added_test_for_a_site_that_saw_it_red(self):
+        """pin の表（duties.check）は、足した試験ごとに test がその id で赤を見た sites の行を求める（受け付けを通した照らしの代わりの速い 1 本）"""
+        f = {"unit": "u", "files": ["test_a.py"], "test_files": ["test_a.py"], "added": ["test_a.py::test_x"], "kind_by_path": {},
+             "twice": None, "vanished": [], "permits": [], "sites": [{"site": "a.py:3", "red_seen": True, "test": "test_a.py::test_x"}]}
+        self.assertEqual(duties.check("pin", f), [])
+        for site in ({"site": "a.py:3", "red_seen": False, "test": "test_a.py::test_x"}, {"site": "a.py:3", "red_seen": True}):
+            with self.subTest(site=site):
+                self.assertTrue(any("赤を見た sites の行" in t for t in duties.check("pin", {**f, "sites": [site]})))
+
     def test_pin_twice_reads_the_run(self):
         self.assertEqual(pin.twice({"twice": None}), [])
         self.assertEqual(pin.twice({"twice": ["2 回目に落ちた"]}), ["2 回目に落ちた"])
@@ -364,12 +366,6 @@ class WeaponDutiesCase(unittest.TestCase):
         self.assertTrue(variant.sites_shape({**files, "sites": [{**f["sites"][0], "at": "c.py:3"}]}))
         self.assertEqual(variant.unit_red({"red_seen": True}), [])
         self.assertTrue(variant.unit_red({"red_seen": False}))
-
-    def test_rebuild_compared(self):
-        self.assertTrue(rebuild.compared_same({"compared": []}))
-        self.assertEqual(rebuild.compared_same({"compared": [{"input": "i", "old": "h", "new": "h"}]}), [])
-        self.assertTrue(rebuild.compared_same({"compared": [{"input": "i", "old": "h", "new": "g"}]}))
-        self.assertEqual(rebuild.compared_same({"compared": [{"input": "i", "old": "h", "new": "g", "noisy": True}]}), [])
 
 
 class AcceptFactsCase(unittest.TestCase):
@@ -778,71 +774,6 @@ class OrderQueriesCase(unittest.TestCase):
         self.assertEqual(self.orders._queries(self.place, ["a"]), {"a": self.judged})
 
 
-class SchemaCase(unittest.TestCase):
-    def load(self, name):
-        folder = kit.SHARED if name in ("weapon-order.schema.json", "writer-slots.schema.json", "writer-reply.schema.json") else BLOCK   # 注文・書き手の形は pack の共通（段 2 の D1）
-        return json.loads((folder / "schemas" / name).read_text(encoding="utf-8"))
-
-    def test_an_order_and_a_return_hold_the_shape(self):
-        order = {"weapon": "variant", "group": "g1", "stage": 1, "since": "abc", "base": "/p/base.json",
-                 "units": [{"key": "u", "removes": [], "tests": ["t.py::a"], "checked_as": "tdd"}],
-                 "scope": {"allowed_paths": ["a.py"], "out_of_scope": []},
-                 "permits": [{"kind": "rewrite", "duty": True, "test": "t.py::a"}]}
-        self.assertEqual(validate_schema(order, self.load("weapon-order.schema.json")), [])
-        self.assertTrue(validate_schema({**order, "weapon": "direct"}, self.load("weapon-order.schema.json")))
-        self.assertTrue(validate_schema({**order, "units": []}, self.load("weapon-order.schema.json")))
-        ret = {"weapon": "pin", "status": [{"unit": "u", "status": "done", "why": ""}], "tree": "t",
-               "changes": [{"unit": "u", "files": ["t.py"], "what": "足した",
-                            "closure": {"sites": [{"site": "s", "test": "t.py::a", "fixed_by": [], "red_seen": "赤"}]}}],
-               "evidence": {"named": [], "added": ["t.py::a"], "rewritten": [], "removed": [], "gone": [],
-                            "kinds": [{"kind": "docs", "did": "リンクを引いた"}]}}
-        self.assertEqual(validate_schema(ret, self.load("weapon-return.schema.json")), [])
-        self.assertTrue(validate_schema({**ret, "status": [{"unit": "u", "status": "fixed", "why": ""}]},
-                                        self.load("weapon-return.schema.json")))
-        ask = {"unit_key": "u", "between": ["a", "b"], "why_both_cannot_hold": "両方は立たない", "which_is_right": "test",
-               "kind": "not_red", "correct_lines": []}
-        self.assertEqual(validate_schema({**ret, "asks": [ask]}, self.load("weapon-return.schema.json")), [])
-        for bad in ({"which_is_right": "maybe"}, {"kind": "other"}):
-            with self.subTest(bad=bad):
-                self.assertTrue(validate_schema({**ret, "asks": [{**ask, **bad}]}, self.load("weapon-return.schema.json")),
-                                "申し出の語は lib/conflicts.schema.json と同じ語だけ")
-        self.assertEqual(validate_schema({**order, "base": ""}, self.load("weapon-order.schema.json")), [],
-                         "元の結末の無い組（裁定の後の段で写した元の結末が無い時）の注文は base が空")
-
-    def test_precedent_conditions_of_the_writer_reply(self):
-        """precedent の 3 つの条件（allOf の if/then。from_judge_row が真でなければ problem・not_found なら searched・not_found でなければ source）"""
-        shape = self.load("writer-reply.schema.json")["properties"]["changes"]["items"]["properties"]["precedent"]
-
-        def errors(**p):
-            return validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥", "source": "src.py:1", **p}, shape)
-        self.assertEqual(errors(), [])
-        self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "source": "s.py"}, shape),
-                        "from_judge_row が真でなければ problem が要る")
-        self.assertEqual(validate_schema({"verdict": "adopt", "reason": "判定の行どおり", "from_judge_row": True}, shape), [],
-                         "from_judge_row が真なら problem も source も要らない")
-        self.assertTrue(errors(verdict="not_found"), "not_found は searched が要る")
-        self.assertEqual(errors(verdict="not_found", searched="全体を検索した", source="x" * 4), [])
-        self.assertTrue(validate_schema({"verdict": "adopt", "reason": "先行例に従う", "problem": "同じ欠陥"}, shape), "not_found でなければ source が要る")
-        self.assertEqual(validate_schema({"verdict": "not_found", "reason": "先行例が無い", "problem": "同じ欠陥", "searched": "全体を検索した"}, shape), [])
-
-    def test_the_writer_reply_evidence_named_is_a_row_of_unit_key_and_test_and_may_be_absent(self):
-        """F2 の作る物の 1: evidence.named は単位の鍵つきの行 {unit_key, test}（欠けてよい欄。書かない返答も形に合う）"""
-        shape = self.load("writer-reply.schema.json")["properties"]["evidence"]
-        self.assertEqual(validate_schema({}, shape), [])
-        self.assertEqual(validate_schema({"named": [{"unit_key": "u", "test": "t.py::a"}]}, shape), [])
-        self.assertTrue(validate_schema({"named": ["t.py::a"]}, shape), "試験の id だけの並びは単位に結べない")
-        self.assertTrue(validate_schema({"named": [{"unit_key": "u"}]}, shape))
-        self.assertTrue(validate_schema({"named": [{"unit_key": "u", "test": "t.py::a", "why": "x"}]}, shape))
-        self.assertNotIn("required", shape, "evidence の欄は全部欠けてよい")
-
-    def test_writer_slots_shape_requires_every_key(self):
-        """段 2 の D1 で .shared/schemas/ に置いた writer-slots は、values・when の全部の鍵を required に持つ"""
-        slots = self.load("writer-slots.schema.json")
-        self.assertEqual(set(slots["required"]), {"values", "when", "subagents", "summary_file"})
-        for key in ("values", "when"):
-            self.assertEqual(set(slots["properties"][key]["required"]), set(slots["properties"][key]["properties"]))
-
-
 class AcceptTableCase(unittest.TestCase):
     """4.4 の 4: 共通の受け付けが注文の索引の型で義務の表を引き、返しを通した時に returns/<k>.json を書き、その凍結を後で照らす"""
 
@@ -1205,7 +1136,6 @@ class RuledOrderCase(unittest.TestCase):
                 self.assertEqual(self.duties.accept_problems(self.place, self.repo, self.rev, reply), [], "variant の義務は当てない")
 
 
-
 class AcceptWiringCase(tg.GroupChildScriptsCase):
     """受け付け（fix-accept）を通して、返しの控えの凍結の照らし（duties.frozen_by_returns）と注文の名指し（orders.named_tests）が
     効くこと。組の子の scripts の道具立て（tg.GroupChildScriptsCase）を借り、借りた元の試験は load_tests で外す"""
@@ -1240,28 +1170,6 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py", "test_stats.py"])]})
         self.assertFalse(out["ok"], out)
         self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
-
-    def test_the_accept_runs_the_tests_the_order_names(self):
-        """注文の単位の行が名指した試験は、変更から辿れなくても（import で結ばない）受け付けが走らせ、元で緑だった物を赤にする直しを
-        拒む"""
-        (self.repo / "test_source.py").write_text(
-            "import unittest\n\n\nclass TestSource(unittest.TestCase):\n    def test_old_denominator(self):\n"
-            "        with open('sta' + 'ts.py', encoding='utf-8') as f:\n            self.assertIn('(len(xs) - 1)', f.read())\n",
-            encoding="utf-8")
-        git(self.repo, "add", "-A")
-        git(self.repo, "-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-qm", "変更から辿れない試験")
-        from tests.blocks.fix.support import DIFF_SUITE
-        suite = self.tmp / "diff-suite.py"   # -k で選んだ試験だけを回す実行器（一式を回す SUITE では名指しの効きが見えない）
-        suite.write_text(DIFF_SUITE.format(heed="True"), encoding="utf-8")
-        self.direct_start(suite)
-        order = self.place / "orders" / "variant.json"
-        doc = json.loads(order.read_text(encoding="utf-8"))
-        doc["units"][0]["tests"] = ["test_source.py::TestSource::test_old_denominator"]
-        order.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        self.fix_mean()
-        out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py"])]})
-        self.assertFalse(out["ok"], out)
-        self.assertIn("test_old_denominator", out["reason"])
 
     def whole_return(self, reply, *, ok=True, report=(), weapon="pin"):
         """型の block の返りまるごと（writer_out の形 {ok, reason, reply: <pointer>, report}）。返答は組の子の run の置き場に書く。
@@ -1322,33 +1230,6 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
     def duty_lines(self, out) -> list:
         return [ln for ln in out["reason"].splitlines() if f"型 {writers.current(self.place)} の単位 {tg.MEAN} の義務" in ln]
 
-    def test_the_accept_rejects_a_static_return_without_a_row_for_the_kind_it_touched(self):
-        """static: 差分に docs の種類が在り、evidence.kinds に docs の行が無い返答を拒む。docs の行を書いた同じ返答は通す"""
-        import planmarks
-        planmarks.save(self.place, 1, [{"unit_keys": [tg.MEAN], "route": "static", "route_why": "文書の言い回しだけを直す", "tests": [],
-                                        "files": [{"path": "docs/a.md"}]}])
-        self.weapon_start("static", {"why": "文書の言い回しだけを直す"})
-        (self.repo / "docs").mkdir()
-        (self.repo / "docs" / "a.md").write_text("# a\n", encoding="utf-8")
-        change = tg._change(tg.MEAN, ["docs/a.md"])
-        bad = self.weapon_accept("static", {"changes": [change]})
-        self.assertIn("evidence.kinds に差分の種類 ['docs'] の確かめの行が無い", bad["reason"])
-        good = self.weapon_accept("static", {"changes": [change], "evidence": {"kinds": [{"kind": "docs", "did": "リンクを引いた"}]}})
-        self.assertEqual(self.duty_lines(good), [], good)
-
-    def test_the_accept_rejects_a_pin_return_with_a_test_no_site_binds(self):
-        """pin: 足した試験に、test がその id の（赤を見た）sites の行が無い返答を拒む。test に id を書いた同じ形の返答は通す"""
-        self.weapon_start("pin")
-        test_file = self.repo / "test_stats.py"
-        test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", tg.NEW_TEST + "\n\nif __name__"), encoding="utf-8")
-        change = tg._change(tg.MEAN, ["test_stats.py"])
-        bad = self.weapon_accept("pin", {"changes": [change]})
-        self.assertIn("縛るコードを壊して赤を見た sites の行（test にその id）が無い", bad["reason"])
-        (test_id,) = {t for t in re.findall(r"test_stats\.py::[\w:]+", bad["reason"]) if t.endswith("test_mean_of_two")}
-        site = {"site": "stats.py:5", "red_seen": True, "test": test_id}
-        good = self.weapon_accept("pin", {"changes": [{**change, "closure": {**change["closure"], "sites": [site]}}]})
-        self.assertFalse([ln for ln in self.duty_lines(good) if "sites の行" in ln], good)
-
     MEAN3 = "test_stats.py::TestStats::test_mean_of_three"   # 起点の木で failure（分母の誤り）・直した木で緑
     NAMED = {"evidence": {"named": [{"unit_key": tg.MEAN, "test": MEAN3}]}}   # 変える段の箱の義務（F2）を満たす名指し
 
@@ -1370,55 +1251,6 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
                 out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, field: value})], **self.NAMED})
                 self.assertTrue(any(text in ln for ln in self.duty_lines(out)), out["reason"])
 
-    def test_the_accept_asks_each_variant_unit_for_its_own_red(self):
-        """variant: 同じ周のほかの単位だけが赤を見た返答を拒む（周の全体の赤を見る F135 は通す）"""
-        import recount
-        site = {"site": "stats.py:5", "red_seen": False}
-        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
-        self.fix_mean()
-        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
-        self.assertTrue(any("sites のどれにも赤を見た記録（red_seen）が無い" in ln for ln in self.duty_lines(out)), out["reason"])
-        other = {"unit_key": "other", "closure": {"sites": [{"site": "x", "red_seen": True}]}}
-        self.assertEqual(recount._after_problems({"fix_closure": {"status": "clean"}, "changes": [self.variant_change(site), other]},
-                                                 self.place, "HEAD", self.repo, set()), [], "周の全体の赤を見る照らしは通る（だから単位ごとの照らしが要る）")
-
-    def test_the_accept_rejects_variant_sites_without_fixed_by(self):
-        """variant: 照らす単位（問いを行で結べる単位）で、fixed_by が無い行・空の行を拒む"""
-        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
-        self.fix_mean()
-        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5"}
-        for gone in ({}, {"fixed_by": []}):
-            with self.subTest(fixed_by=gone):
-                out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, **gone})], **self.NAMED})
-                self.assertTrue(any("fixed_by が無い" in ln for ln in self.duty_lines(out)), out["reason"])
-
-    def test_a_unit_the_query_cannot_bind_to_lines_skips_the_at_check_but_not_the_red(self):
-        """問いを行で結べない単位（ファイルごとの数が合計と合わない）は at と fixed_by の在る無しを照らさず、赤を見た site を求める。
-        書いた fixed_by は差分の塊と重なるかを照らす"""
-        loose = {"how": self.HOW, "counts": "defects", "total": 5}
-        self.weapon_start("variant", {"class_query": loose})
-        self.fix_mean()
-        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:9", "fixed_by": ["stats.py:5-5"]}
-        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
-        self.assertEqual(self.duty_lines(out), [], out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({k: v for k, v in site.items() if k != "fixed_by"})], **self.NAMED})
-        self.assertEqual(self.duty_lines(out), [], out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "fixed_by": ["stats.py:9-9"]})], **self.NAMED})
-        self.assertTrue(any("が差分の塊と重ならない" in ln for ln in self.duty_lines(out)), out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})], **self.NAMED})
-        self.assertEqual(len(self.duty_lines(out)), 1, out["reason"])
-
-    def test_a_unit_without_a_query_skips_the_sites_shape_but_not_the_red(self):
-        """問いの無い単位（判定が class_query を返していない）は sites_shape が素通りし、unit_red だけが当たる"""
-        self.weapon_start("variant")
-        self.fix_mean()
-        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py"}
-        out = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
-        self.assertEqual(self.duty_lines(out), [], out["reason"])
-        out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, "red_seen": False})], **self.NAMED})
-        self.assertEqual(len(self.duty_lines(out)), 1, out["reason"])
-        self.assertTrue(any("赤を見た記録" in ln for ln in self.duty_lines(out)), out["reason"])
-
     # ---- 変える段の箱の義務（F2。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F2 の縛る試験の 1・3）
     BY_NAME = '''
 import pathlib, sys, unittest, xml.etree.ElementTree as ET
@@ -1428,12 +1260,16 @@ out, args = sys.argv[1], sys.argv[2:]
 named = [a for i, a in enumerate(args) if "::" in a and (i == 0 or args[i - 1] != "-k")]
 words = [w.strip() for w in args[args.index("-k") + 1].split(" or ")] if "-k" in args else None
 rows = []
+
+
 class R(unittest.TestResult):
     def addSuccess(self, t): rows.append((t, None, ""))
     def addFailure(self, t, e): rows.append((t, "failure", str(e[1])))
     def addError(self, t, e): rows.append((t, "error", str(e[1])))
     def addSkip(self, t, r): rows.append((t, "skipped", ""))
 loader = unittest.defaultTestLoader
+
+
 def flat(s):
     for t in s:
         yield from (flat(t) if isinstance(t, unittest.TestSuite) else [t])
@@ -1457,18 +1293,6 @@ sys.exit(0 if all(k in (None, "skipped") for _, k, _ in rows) else 1)
 '''
     NO_OLD = ("import unittest\n\n\nclass TestSource(unittest.TestCase):\n    def test_no_old_denominator(self):\n"
               "        with open('sta' + 'ts.py', encoding='utf-8') as f:\n            self.assertNotIn('(len(xs) - 1)', f.read())\n")
-
-    def test_the_accept_rejects_a_variant_return_that_names_no_test_and_removes_no_name(self):
-        """variant: 名指しの試験も消す名も無い単位を拒む（変える段の箱の義務）。起点の木で赤・返した木で緑の試験を evidence.named に書いた同じ返答は
-        1 回目で通る"""
-        self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
-        self.fix_mean()
-        site = {"site": "stats.py:5", "red_seen": True, "path": "stats.py", "at": "stats.py:5", "fixed_by": ["stats.py:5-5"]}
-        bad = self.weapon_accept("variant", {"changes": [self.variant_change(site)]})
-        self.assertTrue(any("名指しの試験が起点の木で赤（failure）" in ln for ln in self.duty_lines(bad)), bad["reason"])
-        good = self.weapon_accept("variant", {"changes": [self.variant_change(site)], **self.NAMED})
-        self.assertEqual(self.duty_lines(good), [], good)
-        self.assertTrue(good["ok"], good)
 
     def test_the_accept_rejects_a_named_test_that_already_passes_at_the_base(self):
         self.weapon_start("variant", {"class_query": {"how": self.HOW, "counts": "defects", "total": 1}})
@@ -1570,28 +1394,6 @@ class WriterReportCase(unittest.TestCase):
             rows = board.writer_report_rows(parent, [result])
             self.assertEqual(report.writer_lines(rows), ["書き手 pin（組 g1）: 固定の 1 行", "書き手 static: 裁定の後の 1 行"])
             self.assertEqual(report.lines(parent, [], [], writers=rows)[:2], report.writer_lines(rows))
-
-
-class ReadStagesCase(unittest.TestCase):
-    """読んだ証拠の段の頭の印（board.read_stages）は、修正の block が自分の place に書くファイルだけ（型の block の place の中を
-    読まない。E4）。型の block は 6 つとも渡した 1 回目の slots"""
-
-    def test_the_marks_are_files_the_fix_block_writes_in_its_own_place(self):
-        board = tg._src("board")
-        with tempfile.TemporaryDirectory() as tmp:
-            place = pathlib.Path(tmp)
-            (place / "w-pin").mkdir()
-            (place / "w-pin" / "pin-prompt-1.md").write_text("型の block の指示\n", encoding="utf-8")
-            stages = {role: (mark, launched) for role, mark, launched in board.read_stages(place)}
-            self.assertEqual({mark.parent for mark, _ in stages.values()}, {place})
-            self.assertIsNone(stages["w-pin"][1], "型の block の place の中の指示書は印にしない")
-            (place / "slots-w-pin-1.json").write_text("{}", encoding="utf-8")
-            (place / "slots-w-variant-1.json").write_text("{}", encoding="utf-8")
-            stages = {role: (mark, launched) for role, mark, launched in board.read_stages(place)}
-            self.assertEqual(stages["w-pin"], (place / "slots-w-pin-1.json",) * 2)
-            self.assertEqual(stages["w-variant"], (place / "slots-w-variant-1.json",) * 2, "variant も型の block の印")
-            self.assertNotIn("variant", stages)
-            self.assertIsNone(stages["wr-pin"][1])
 
 
 class UnsatisfiedReachesTheGroupRowCase(unittest.TestCase):

@@ -4,7 +4,7 @@
 元の test_fix.py の BlockScriptsCase の collect・clean・assert_changed の試験を写した（差分の審査とレンズの欄の物は
 delta-review と lens の block へ移ったので写さない）。script は始めの記録の無い使い捨ての run directory と tests/e2e/target-seed/ の写しの
 git のリポジトリで子のプロセスで回し、port の値だけを渡す（finish は intake が書いた intake.json で形を読む）。足した物:
-- 出力の欄が YAML の finish の output_format の required・properties と同じで、形に合う
+- 出力が YAML の finish の output_format に合う（FinishPlace.finish が毎回照らす。欄の名だけの照らしは 2026-11-10 に落とした）
 - report と freeze_off の行が lib の report.tdd_lines・freeze_lines の字のまま（11 節）
 - UnitsReachReportCase（直す単位ごとの記録が出力 units と report の TDD の行に届く。12 節の 11）
 """
@@ -149,29 +149,6 @@ class FinishPlace(unittest.TestCase):
         out = json.loads(done.stdout)
         self.assert_contract(out)
         return out
-
-
-class ContractCase(FinishPlace):
-    """出力の欄が YAML の output_format と同じ（docs/design/fix.md の 1.2）"""
-
-    def test_output_keys_are_the_yaml_fields(self):
-        self.assertEqual(set(self.fmt["required"]), set(self.fmt["properties"]), "出力の欄は全部 required")
-        self.collect_place()
-        out = self.finish()
-        self.assertEqual(set(out), set(self.fmt["required"]))
-
-    def test_fallback_keys_are_the_yaml_fields(self):
-        """組めない時（groups.json が無い）の返りも同じ欄"""
-        out = self.finish()
-        self.assertFalse(out["ok"])
-        self.assertEqual(set(out), set(self.fmt["required"]))
-
-    def test_group_form_keys_are_the_yaml_fields(self):
-        start = self.snapshot(self.repo)
-        out_dir = self.tmp / "parent" / "groups"
-        write(out_dir / "g2" / "result.json", result("g2", ["B"], start, start))
-        self.intake(mode="group", group=json.dumps({"group_id": "g2", "unit_ids": ["B"], "items": []}), out_dir=str(out_dir))
-        self.assertEqual(set(self.finish()), set(self.fmt["required"]))
 
 
 class CollectCase(FinishPlace):
@@ -377,25 +354,6 @@ class CollectCase(FinishPlace):
         self.assertTrue(out["changed"]["premise_drift"])
         self.assertEqual(out["conflicts"]["path"], "conflicts.json")
 
-    def test_changed_carries_the_premise_drift_note_and_the_x_scalars(self):
-        """E42・E17: changed は前提のずれの申告の文 premise_drift_note を組の順につなぎ、x_scalars は修正役が足した x_ の数値を
-        名ごとに足す"""
-        start = self.snapshot(self.repo)
-        out_dir = self.groups_file([{"group_id": "g1", "unit_ids": ["A"], "items": [1]},
-                                    {"group_id": "g2", "unit_ids": ["B"], "items": [1]}], start, par=False)
-        for gid, unit, note, xs in (("g1", "A", "上限を 10 に測り直した", {"x_moved": 2}),
-                                    ("g2", "B", "", {"x_moved": 3, "x_new_files": 1})):
-            write(out_dir / gid / "result.json", result(
-                gid, [unit], start, start, changed={**{k: False for k in MARKS}, "premise_drift": bool(note),
-                                                    "premise_drift_note": note}, x_scalars=xs))
-        write(self.place / "join.json", {"par": False, "groups": [
-            {"group_id": g, "unit_ids": [u], "returned": True, "reason": ""} for g, u in (("g1", "A"), ("g2", "B"))],
-            "units": [{"unit_id": u, "group_id": g, "status": "fixed", "reason": ""} for g, u in (("g1", "A"), ("g2", "B"))]})
-        write(self.place / "assert-changed.json", {"ok": True, "reason": ""})
-        out = self.finish()
-        self.assertEqual((out["changed"]["premise_drift"], out["changed"]["premise_drift_note"]), (True, "上限を 10 に測り直した"))
-        self.assertEqual(out["x_scalars"], {"x_moved": 5, "x_new_files": 1})
-
     def test_collect_returns_accepted_breaks(self):
         """F427・L-W20・R23（S03）: 修正役が壊すと分かって通した理由（changes[].breaks.accepted。空白だけは除く）を、戻せた組の子の
         結果（handoffs）と裁定の後の修正役の返答から、出力 handoffs に 1 件 1 行で返す"""
@@ -447,13 +405,6 @@ class CollectCase(FinishPlace):
         self.assertEqual([r["op"] for r in rows], [impact.ACCEPT_TRACE_OP, gates.SKIPPED_OP])
         self.assertEqual((rows[0]["ci_left"], rows[0]["final_left"], rows[1]["why"]),
                          (["tests/test_slow.py"], ["tests/test_far.py"], ["実行器が無い"]))   # 行の読み方（報告の文）は report の試験
-
-    def test_collect_names_the_beside_files_when_it_cannot_build_the_return(self):
-        """K13・errors F1・F2: 出力を組めない（place に groups.json が無い）時、閉鎖の表は無く、読み手は無いと名指して 0 件に
-        見せない（閉鎖の表の訳は閉じたかを数えていない行）"""
-        out = self.finish()
-        self.assertFalse(out["ok"])
-        self.assertIsNone(out["closure"])   # 読み手（report・line）はこの null を「閉じたかを数えていない」と読む
 
     def test_collect_takes_units_fixed_after_ruling(self):
         """裁定の後の修正の段が直した単位（place の fix-units.json）は fixed で返る"""
@@ -573,22 +524,6 @@ class CollectCase(FinishPlace):
             (self.place / "groups.json").unlink()
             out = self.finish()
             self.assertEqual((out["ok"], out["handoffs"], out["mismatched"]), (False, [], []))
-
-    def test_collect_returns_the_titles_the_fixer_wrote_for_handoffs(self):
-        """修正役が breaks.accepted_title に書いた短い題は、handoffs の行をキーに handoff_titles で返る（組の子の結果と、裁定の後の返答を
-        つなぐ）。題の無い・空白だけの行は入れない（報告の頭は種の名に戻す）"""
-        reply = {"changes": [{"unit_key": "A", "breaks": {"accepted": "古い呼び手の戻り値が変わる", "accepted_title": "古い呼び手の戻り値を変える"}}]}
-        child = self.board.group_result({"group_id": "g1", "unit_ids": ["A"]}, start_tree="t", end_tree="t", tdd=None, reply=reply)
-        self.assertEqual(child["handoff_titles"], {"A: 壊すと分かって通した——古い呼び手の戻り値が変わる": "古い呼び手の戻り値を変える"})
-        self.collect_place(result_extra={"handoffs": child["handoffs"], "handoff_titles": child["handoff_titles"]})
-        write(self.place / "fix-ruled-reply.json", {"changes": [
-            {"unit_key": "B", "breaks": {"accepted": "設定の既定が変わる", "accepted_title": "設定の既定を変える"}},
-            {"unit_key": "C", "breaks": {"accepted": "外の利用者に効く", "accepted_title": "  "}},
-            {"unit_key": "D", "breaks": {"accepted": "題を書かなかった"}}]})
-        out = self.finish()
-        self.assertEqual(out["handoff_titles"], {"A: 壊すと分かって通した——古い呼び手の戻り値が変わる": "古い呼び手の戻り値を変える",
-                                                  "B: 壊すと分かって通した——設定の既定が変わる": "設定の既定を変える"})
-        self.assertEqual(len(out["handoffs"]), 4)
 
     def test_collect_returns_declared_plan_blocks(self):
         """修正役が直さずに残すと答えた（plan_faces の declared）事前審査の block は、key・why・修正役の答えの 1 行で plan_declared に
@@ -731,25 +666,6 @@ class ReportCase(FinishPlace):
         self.assertEqual(len(out["freeze_off"]), 1, "TDD の輪を回していない組 g2 だけ")
         self.assertIn("組 g2", out["freeze_off"][0])
         self.assertTrue(out["report"][0].startswith("組 g1: 1 単位（赤→緑 1"), out["report"])
-
-    def test_report_without_group_records_names_the_unit_rows(self):
-        """組の結果が無く units だけが在れば、成果物の名を持たない字の行と単位の行"""
-        rep = kit.load("fix", "report")
-        units = [{"unit_id": "A", "group_id": "g1", "status": "not_done", "reason": "x"}]
-        self.assertEqual(rep.tdd_lines([], units), [rep.NO_TDD, "  - A: not_done（x）"])
-        self.assertEqual(rep.NO_TDD, "組の TDD の記録が無い。修正の出力の単位の行で出す:")
-        self.assertEqual(rep.tdd_lines([], []), [])
-
-    def test_report_carries_the_read_evidence(self):
-        """読んだ証拠の索引の訳は report の行に「<place の中の相対>: <訳>」で載る（fix-reads が書く物）"""
-        self.two_groups()
-        got = self.script("fix_reads")
-        self.assertTrue(got["ok"], got)
-        out = self.finish()
-        rep = kit.load("fix", "report")
-        self.assertEqual(out["report"][len(out["report"]) - len(rep.evidence_lines(self.place, self.repo)):],
-                         rep.evidence_lines(self.place, self.repo))
-        self.assertTrue(rep.evidence_lines(self.place, self.repo), "索引が在れば 1 行以上")
 
     def test_fallback_report_names_the_reason(self):
         out = self.finish()

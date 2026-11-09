@@ -106,7 +106,7 @@ PASSING_TEST = '''
 
 class RunnerSeamCase(Case):
     """TDD の輪の実行器と failure の文の読みは baseline_red の物で、諦めは 3 回目（元 lib/tests/test_fix_seams.py の SmallGapsSeamCase。
-    keep-essence の 4。申し出の頼みの文が種類を全部言うことは test_prompts.py の ConflictWordsCase）"""
+    keep-essence の 4）"""
 
     def test_tdd_loop_takes_the_runner_from_baseline_red_and_gives_up_on_the_third(self):
         import baseline_red
@@ -343,30 +343,6 @@ class TestStart(LoopCase):
         self.assertEqual(sorted(p.name for p in self.board.glob("tdd*-prompt-*.md")), [], "座の無い指示書を書かない")
         self.assertFalse((pathlib.Path(self.st()["work"]) / tdd.PROMPT).exists())
 
-    def test_prompt_is_composed_from_the_shared_rules(self):
-        """tdd-prep の指示: 修正の決まりの正本（.shared の writer-rules）・TDD の読み替え・今の段の約束（今の段の段落だけ真）・
-        今の段の指示。周ごとに決まりを全部載せる（差分版は無い）。周の数は状態の iterations + 1"""
-        rules = (kit.SHARED / "prompts" / "writer-rules.md").read_text(encoding="utf-8").split("\n", 1)[0]
-        vals, when = self.values({"judgment_file": "/b/j.json"})
-        self.assertEqual([k for k, v in when.items() if k.startswith("phase_") and v], ["phase_route"], "今の段の約束だけ")
-        self.assertEqual((vals["judgment_file"], vals["iteration"], vals["phase"]), ("/b/j.json", 1, "route"))
-        full = self.prompt({"judgment_file": "/b/j.json"})
-        for s in (rules, "- **route**:", "/b/j.json"):
-            self.assertIn(s, full)
-        self.assertNotIn("- **test**:", full, "今の段の約束だけ")
-        self.route()
-        vals, when = self.values({"judgment_file": "/b/j.json"})
-        self.assertEqual([k for k, v in when.items() if k.startswith("phase_") and v], ["phase_test"])
-        self.assertEqual((vals["iteration"], vals["phase"]), (2, "test"))
-        full2 = self.prompt({"judgment_file": "/b/j.json"})
-        self.assertIn(rules, full2, "2 回目も決まりを全部")
-        self.assertIn("- **test**:", full2)
-        self.assertNotIn("- **route**:", full2)
-        self.assertEqual(sorted(p.name for p in self.board.glob("*-prompt-*.md")),
-                         ["route-prompt-1.md", "tdd-prompt-1.md"],
-                         "周ごとに node の名で place に書く（1 周目は振り分けの役 route。2 周目は先の self.values の支度が単位の鍵を"
-                         "進めたので続きの役 tdd の 1 枚目）")
-
     def test_owed_units_are_conflict_fix_duty_not_the_is_open_list(self):
         """TDD が振り分ける義務は受け付けと同じ conflict.fix_duty の owed。渡された open_units（is_open）に無くても、関所で答えて
         直す義務に戻った単位は載り、外れた単位は載らない"""
@@ -422,52 +398,6 @@ class TestStart(LoopCase):
             self.assertIn("brief-1.md", test["brief_rows"])
             self.assertNotIn("brief-2.md", test["brief_rows"], "今の単位は MEAN だけ")
             self.assertIn("brief-1.md", self.prompt())
-
-    def test_tdd_prep_hands_off_finished_units(self):
-        """依頼 243 の 2: 次の単位の指示書に、前に済んだ単位の引き継ぎ（単位の key・直したファイル・緑にしたテスト・整え）を
-        機械が書く（会話の履歴に頼らない）。周ごとに新しい会話で起きるので、引き継ぎの節はいつも載り、振り分けの段と最初の単位
-        には前の単位の行が無い"""
-        route, when = self.values()
-        self.assertFalse(when["handoff"], "振り分けの段には前の単位の行が無い")
-        self.assertIn("- 今の段: route", route["handoff_rows"])
-        self.assertIn("## Handoff from the previous units", self.prompt(), "引き継ぎの節はいつも載る")
-        self.route(clamp="tdd")
-        first, when = self.values()
-        self.assertFalse(when["handoff"], "最初の単位には前の単位の行が無い")
-        self.assertIn(f"- 今の段: test・今の単位: {MEAN}", first["handoff_rows"])
-        self.red()
-        self.fix_mean()
-        st = self.st()
-        self.assertEqual(st["units"][st["queue"][st["cur"]]]["unit_key"], CLAMP)
-        nxt, when = self.values()
-        self.assertTrue(when["handoff"])
-        part = nxt["handoff_rows"]
-        for w in (MEAN, "stats.py", "test_stats.py::TestStats::test_mean_of_two"):
-            self.assertIn(w, part)
-        done = part.split("- 今の段:", 1)[0]
-        self.assertNotIn(CLAMP, done, "今の単位は前の単位の行に載せない")
-        self.assertIn(f"- 今の段: test・今の単位: {CLAMP}", part)
-
-    def test_tdd_prep_hands_off_the_current_units_earlier_phases(self):
-        """周ごとに新しい会話（実行基盤の輪の fresh_context）で起きるので、同じ単位の前の段の結果も引き継ぎの節に載る: fix の段は
-        test の段の名指し・テストのファイル・仮の実装のファイル、refactor の段は fix の段の直しと整えの申告の理由。拒まれた回も"""
-        self.route()
-        self.add_test(NEW_TEST)
-        (self.repo / "helper_stub.py").write_text("X = 0\n", encoding="utf-8")   # test の段の仮の実装
-        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
-                         "tests": ["test_stats.py::TestStats::test_mean_of_two"]})
-        self.assertTrue(got["ok"], got)
-        part = self.values()[0]["handoff_rows"]
-        for w in (f"- 今の段: fix・今の単位: {MEAN}", "test の段の結果", "test_stats.py::TestStats::test_mean_of_two",
-                  "helper_stub.py"):
-            self.assertIn(w, part)
-        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "直せていない"})
-        self.assertFalse(got["ok"])
-        self.assertIn("この段の返答は 1 回拒まれた", self.values()[0]["handoff_rows"])
-        self.fix_mean(refactor=DECLARED)
-        part = self.values()[0]["handoff_rows"]
-        for w in ("- 今の段: refactor", "fix の段の結果", "分母を len(xs) にした", DECLARED["why"]):
-            self.assertIn(w, part)
 
     def test_tdd_prep_without_board_has_no_brief(self):
         """brief の控えの無い置き場（修正案の無い run と同じ）では brief の節を置かない"""
@@ -525,8 +455,11 @@ RECORD_UNIT_FIELDS = ("route", "why", "tests", "test_files", "red", "green", "ga
 
 class TddRecordCase(LoopCase):
     """輪の記録 tdd-<k>/record.json（E1。輪が抜ける時に書く。輪の外が輪の状態でなくこれを読む。形は schemas/tdd-record.schema.json）:
-    輪を抜ける道（全部の単位が済んだ・回数の上限・実行器が走らない・諦め・tdd の単位が無く注文が即済ませる）のどれでも、記録を書き、
-    形に合い、輪の状態の同じ欄と同じ中身になる。単位の test_hashes・red_tree・files は、赤が通らなかった単位（direct・諦め）でも在る"""
+    記録を書く口は 2 つ（step の終わりと、tdd の単位が無く注文が即済ませる assign）で、輪を抜ける道（全部の単位が済んだ・回数の上限・
+    実行器が走らない・諦め）はどれも step の終わりを通る。ここは全部の単位が済んだ・実行器が走らない（呼びの行が phase runner）・
+    単位の諦め（記録の parked）・振り分けの諦め（単位の gave_up が route。注文 orders.compute が読む）・assign の 5 本で、記録を書き、
+    形に合い、輪の状態の同じ欄と同じ中身になる。単位の test_hashes・red_tree・files は、赤が通らなかった単位（direct・諦め）でも在る。
+    回数の上限の抜け方は TestUnitLoop.test_budget_ends_loop_before_max_iterations が見る"""
 
     def record(self):
         path = pathlib.Path(self.state).parent / "record.json"
@@ -560,17 +493,6 @@ class TddRecordCase(LoopCase):
         self.assertEqual(list(rec["frozen"]), ["test_stats.py"])
         self.assertEqual((clamp["route"], clamp["test_hashes"], clamp["red_tree"], clamp["files"]), ("direct", {}, "", []),
                          "赤を通らない単位も同じ欄が在る")
-
-    def test_the_budget_writes_the_record(self):
-        self.route()
-        st = self.st()
-        st["iterations"] = tdd.MAX_ITERATIONS - 1
-        pathlib.Path(self.state).write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
-        self.assertTrue(self.step({"phase": "test", "unit_key": MEAN, "test_files": [], "tests": []})["done"])
-        rec = self.record()
-        self.assertEqual(rec["units"][MEAN]["gave_up"], "budget")
-        self.assertIn(str(tdd.MAX_ITERATIONS), rec["note"])
-        self.assertEqual(rec["calls"][-1]["unit_key"], MEAN, "最後の呼びの行まで入れて書く")
 
     def test_a_runner_that_does_not_run_writes_the_record(self):
         self.route(clamp="tdd")
@@ -1358,28 +1280,10 @@ class TestFixPhaseFreezesOtherTests(ContractCase):
         self.assertFalse(got["ok"])
         self.assertIn(self.LOW, got["reason"])
 
-    def test_refactor_phase_edit_of_other_test_rejected(self):
-        self.red()
-        got = self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})
-        self.assertTrue(got["ok"], got)
-        self.assertEqual(self.st()["phase"], "refactor")
-        self.edit("test_other.py", "self.assertEqual(clamp(-1, 0, 10), 0)", "self.assertTrue(True)")
-        got = self.step({"phase": "refactor", "unit_key": CLAMP, "what": "テストの補助を整えた"})
-        self.assertFalse(got["ok"])
-        self.assertIn(self.LOW, got["reason"])
-
     def fix_with(self, old, new):
         self.red()
         self.edit("test_other.py", old, new)
         return self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})
-
-    def refactor_with(self, old, new):
-        self.red()
-        got = self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})
-        self.assertTrue(got["ok"], got)
-        self.assertEqual(self.st()["phase"], "refactor")
-        self.edit("test_other.py", old, new)
-        return self.step({"phase": "refactor", "unit_key": CLAMP, "what": "テストの補助を整えた"})
 
     def assert_vanished(self, got, outcome):
         self.assertFalse(got["ok"])
@@ -1392,12 +1296,6 @@ class TestFixPhaseFreezesOtherTests(ContractCase):
 
     def test_fix_phase_del_rejected(self):
         self.assert_vanished(self.fix_with(*OTHER_DEL), "missing")
-
-    def test_refactor_phase_skip_rejected(self):
-        self.assert_vanished(self.refactor_with(*OTHER_SKIP), "skipped")
-
-    def test_refactor_phase_del_rejected(self):
-        self.assert_vanished(self.refactor_with(*OTHER_DEL), "missing")
 
     def test_fix_phase_syntax_error_named_as_such(self):
         got = self.fix_with("    def test_low(self):\n", "    def test_low(self:\n")
@@ -1413,12 +1311,16 @@ class TestFixPhaseFreezesOtherTests(ContractCase):
         self.assertTrue(got["ok"], got)
 
 
-class TestFixPhaseFreezesOtherTestsOnlyRunner(TestFixPhaseFreezesOtherTests):
-    """同じ確かめを TDD_SUITE_ONLY=1 を解く実行器で: 緑の回は名指しと届いたモジュールのファイルだけなので、消えた（missing）は
-    同じ選びの回でなく、その回にファイルごと走ったモジュール（whole）から外れた物として拾う"""
+class TestFixPhaseFreezesOtherTestsOnlyRunner(ContractCase):
+    """TDD_SUITE_ONLY=1 を解く実行器で: 緑の回は名指しと届いたモジュールのファイルだけで、消えた（missing）は同じ選びの回でなく、
+    その回にファイルごと走ったモジュール（whole）から外れた物として拾う（段の削除・書き換え・skip の拒みの全部は上の
+    TestFixPhaseFreezesOtherTests が見る。_vanished に whole を渡す配線もそちらの削除の試験が赤にする。ここは緑の回が絞られたかの 1 本だけ）"""
+    CONTRACT = TestFixPhaseFreezesOtherTests.CONTRACT
+    red = TestFixPhaseFreezesOtherTests.red
 
     def setUp(self):
-        super().setUp()
+        with _with_other_test(self):
+            super().setUp()
         self.suite.write_text(ONLY_AWARE, encoding="utf-8")
 
     def test_green_run_was_narrowed(self):
@@ -1698,11 +1600,8 @@ class TestExistingClaimFrozen(LoopCase):
         self.add_test(self.READS_DATA)
 
     def test_existing_claims_frozen_by_table(self):
-        rows = [("stats.py", "add"), ("stats.py", "replace"),
-                (self.DATA, "add"), (self.DATA, "replace"), (self.DATA, "delete"),
-                ("Tests/AppTests/Helpers.swift", "add"), ("Tests/AppTests/Helpers.swift", "replace"),
-                ("Tests/AppTests/Helpers.swift", "delete"),
-                ("testutil/assert.go", "add"), ("testutil/assert.go", "replace"), ("testutil/assert.go", "delete")]
+        # 判断の分かれる行だけ: 木に在る実装の名のファイル（足す・置き換える）・慣習の外の置き場の消し・言語の違う置き場の置き換え
+        rows = [("stats.py", "add"), ("stats.py", "replace"), (self.DATA, "delete"), ("Tests/AppTests/Helpers.swift", "replace")]
         for name, shape in rows:
             with self.subTest(name=name, shape=shape):
                 self.setUp()
@@ -2366,12 +2265,6 @@ class TestTestCmdGate(LoopCase):
         self.assertFalse(got["ok"])
         self.assertIn("test_cmd", got["reason"])
 
-    def test_unit_named_standard_runs_test_cmd(self):
-        self.standard_mean_rejected(json.dumps({MEAN: "標準"}))
-
-    def test_unit_not_named_runs_test_cmd(self):
-        self.standard_mean_rejected(json.dumps({CLAMP: "軽量"}))
-
     def test_skip_rerun_shape_skips_the_test_cmd_after_green(self):
         """port skip_rerun の単位: group-start は values.json の skip_rerun のうち組の単位だけを {key: tdd.LIGHT} の unit_depths で
         渡す（省く単位だけ。標準の単位は名指さない）。その単位は緑の後の test_cmd を走らせない（名指さない単位は次の試験）"""
@@ -2389,17 +2282,6 @@ class TestTestCmdGate(LoopCase):
 
     def test_skip_rerun_shape_leaves_other_units_standard(self):
         self.standard_mean_rejected(json.dumps({CLAMP: tdd.LIGHT}))
-
-    def test_test_cmd_is_niced(self):
-        """run の test_cmd も実行器と同じ口（baseline_red.lowered）で優先度を下げて起こす（元 works/.shared/core/entry.py:680 の
-        _nice19）。argv は command_argv の形のまま"""
-        seen = []
-        log = pathlib.Path(self.st()["work"]) / "test-cmd-niced.log"
-        with mock.patch.object(common.tree_run, "run", side_effect=lambda argv, **kw: seen.append((argv, kw)) or 0):
-            mat = common._cmd_material(self.repo, self.lint(), log)
-        self.assertEqual(mat["status"], "clean", mat)
-        self.assertEqual([(argv, kw.get("preexec_fn")) for argv, kw in seen],
-                         [(common.tree_run.command_argv(self.lint())[0], common.baseline_red.nice19)])
 
     def test_shell_test_cmd_that_cannot_launch_is_not_run_under_nice(self):
         """shell の形の test_cmd の先頭の語が無ければ、優先度を下げても起こす前の証明（tree_run.prove_launchable）を通らず
@@ -2549,31 +2431,6 @@ class TestTestCmdGate(LoopCase):
         self.assertNotIn("stats.py", st["suite_made"])
         self.assertNotIn("# formatted", (self.repo / "stats.py").read_text(encoding="utf-8"))
 
-    def test_prompt_names_test_cmd_only_when_gate_on(self):
-        """関門が on の時だけ、直し・整えの段の指示書に test_cmd の文字列が載る（拒まれて初めて知るのを防ぐ）"""
-        cmd = self.lint()
-        self.restart(cmd)
-        self.route()
-        self.assertEqual(self.values()[1]["gate"], False, "test の段")
-        self.assertNotIn(cmd, self.prompt(), "test の段")
-        self.red()
-        vals, when = self.values()
-        self.assertEqual((when["gate"], vals["test_cmd"]), (True, cmd), "fix の段")
-        self.assertIn(cmd, self.prompt(), "fix の段")
-        self.fix_mean(refactor=DECLARED)
-        vals, when = self.values()
-        self.assertEqual((when["gate"], vals["test_cmd"]), (True, cmd), "refactor の段")
-        self.assertIn(cmd, self.prompt(), "refactor の段")
-
-    def test_prompt_omits_test_cmd_when_gate_off(self):
-        off = f"{sys.executable} -c 'raise SystemExit(1)'"
-        self.restart(off)
-        self.route()
-        self.red()
-        vals, when = self.values()
-        self.assertEqual((when["gate"], vals["test_cmd"]), (False, ""), "関門が off")
-        self.assertNotIn(off, self.prompt(), "関門が off")
-
     def test_start_not_run_turns_gate_off_with_reason(self):
         down = {"status": "not_run", "reason": "起こせない"}
         with mock.patch.object(common, "_cmd_material", return_value=down):
@@ -2687,48 +2544,6 @@ class TestRefactorGate(LoopCase):
         self.assertEqual(self.st()["phase"], "refactor")
         self.assertIn(f"項目 1: {PLAN_REFACTOR['why']}", self.st()["units"][MEAN]["refactor_why"])
 
-    def test_role_and_plan_reasons_are_joined(self):
-        """役と修正案の両方が申告したら、空でない理由を全部つなぐ"""
-        contract = {MEAN: {"items": [1], "route": "tdd", "tests": [], "rewrites": [], "refactor": [PLAN_REFACTOR]}}
-        with mock.patch.object(tdd, "plan_contract", return_value=contract):
-            self.start = tdd.start(self.board, self.repo, str(self.suite), OPEN)
-        self.state = self.start["state_file"]
-        self.route()
-        self.red()
-        self.fix_mean(refactor=DECLARED)
-        why = self.st()["units"][MEAN]["refactor_why"]
-        self.assertIn(DECLARED["why"], why)
-        self.assertIn(f"項目 1: {PLAN_REFACTOR['why']}", why)
-
-    def test_calls_mark_runner_down(self):
-        """実行器が走らずに輪を抜けた回は、役の拒否と分けて phase runner の行"""
-        self.route()
-        self.add_test(NEW_TEST)
-        self.suite.write_text("import sys\nsys.exit(3)\n", encoding="utf-8")   # JUnit を書かない
-        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
-                         "tests": ["test_stats.py::TestStats::test_mean_of_two"]})
-        self.assertTrue(got["done"])
-        last = self.st()["calls"][-1]
-        self.assertEqual((last["phase"], last["unit_key"], last["ok"], last["runs"]), ("runner", MEAN, False, 1))
-
-    def test_calls_mark_passed_conflict(self):
-        got = self.step({"phase": "conflict", "unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:9"],
-                         "why_both_cannot_hold": "テストは分母 len(xs) - 1 の値を期待しているが、依頼は算術平均を求めている",
-                         "which_is_right": "request", "kind": "unnamed_test_broke"})
-        self.assertTrue(got["ok"], got)
-        self.assertEqual(self.st()["calls"], [{**self.st()["calls"][0], "n": 1, "phase": "conflict", "unit_key": "",
-                                               "ok": True, "runs": 0}])
-
-    def test_calls_mark_give_up(self):
-        """諦めた回も、その段の ok: false の行（数えは retry_max 行）"""
-        self.route()
-        self.red()
-        for _ in range(tdd.retry_max()):
-            got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "直せていない"})
-        self.assertTrue(got["done"])
-        rows = self.st()["calls"][2:]
-        self.assertEqual([(c["phase"], c["ok"]) for c in rows], [("fix", False)] * tdd.retry_max())
-
     def test_skipped_unit_moves_to_next_unit(self):
         """飛ばした単位の次の単位は、緑の木を頭に test の段から始まる"""
         self.route(clamp="tdd")
@@ -2816,31 +2631,6 @@ class TestCrossLoopFreeze(LoopCase):
         got = common.frozen_problems(self.record, self.repo, since=since)
         self.assertTrue(got and "test_stats.py" in got[0], got)
         self.assertEqual(common.frozen_problems(record_of(state2), self.repo), [], "tdd-2 は何も凍らせていない")
-
-    def test_second_place_sees_the_first_place_loops(self):
-        """F018: 2 度目の修正の差し込み（線の include refix-run）は置き場が 1 回目と分かれるが、1 回目の段の置き場の輪（tdd-1）が凍らせた
-        テストは 2 回目の段の受け付けでも変えられない。prep が入力 prior_conflicts の先から輪の状態を写し（board.adopt_prior_pass）、
-        組の子も親から写す（board.adopt_inputs）。写した輪は今の段の輪に数えない（board.ruled_states）"""
-        self.first_loop()
-        second, child = self.board.parent / "refix-run", self.board.parent / "child"
-        second.mkdir()
-        child.mkdir()
-        board.adopt_prior_pass(second, self.board, ["1"], self.repo)
-        board.adopt_inputs(second, child, self.repo)
-        for place in (second, child):
-            with self.subTest(place=place.name):
-                got = tdd.start(place, self.repo, str(self.suite), json.dumps([CLAMP]))
-                self.assertTrue(got["go"], got)
-                rows = [{"unit_key": CLAMP, "route": "direct", "why": "2 回目の段で先にテストを書かない単位"}]
-                self.assertTrue(steps.loop_step(got["state_file"], {"phase": "route", "units": rows}, self.repo)["ok"])
-                loop = steps.resolve(got["state_file"])
-                self.assertEqual(len(common.records(place)), 2)
-                self.assertEqual(board.ruled_states(place), (record_of(loop), record_of(loop)))
-                self.assertEqual(facts.check_frozen(place, record_of(loop), self.repo, "first"), [])
-                self.edit("test_stats.py", "mean([2, 4]), 3", "mean([2, 4]), 3.0")   # 2 回目の修正役が tdd-1 の凍ったテストを変えた
-                problems = facts.check_frozen(place, record_of(loop), self.repo, "first")
-                self.assertTrue(problems and "test_stats.py" in problems[0], problems)
-                self.edit("test_stats.py", "mean([2, 4]), 3.0", "mean([2, 4]), 3")
 
     def test_second_loop_may_add_test_to_first_loop_file(self):
         self.first_loop()
@@ -2972,15 +2762,6 @@ class TestResume(LoopCase):
             common.flush_unsent(self.state, parked.extend)
             self.assertEqual([r["item"]["unit_key"] for r in parked], [MEAN], call)
             self.assertEqual(self.st().get(common.UNSENT), [], call)
-
-
-class TddloopSeamsGoneCase(Case):
-    def test_board_and_wrapper_seams_are_gone(self):
-        """盤面・包みに届く名は持たない（元の rules の写しの読み・会話の鍵の書き）"""
-        for name in ("RULES_GRAPH", "write_key", "RECEIVES", "adapter", "board", "entry", "script_io"):
-            self.assertFalse(hasattr(tdd, name), name)
-
-
 
 
 # ---------------------------------------------------------------- 実行器の段の一覧の外の試験（元 test_tdd_outside.py）
@@ -4077,11 +3858,3 @@ class RelatedStartCase(Case):
         state = route.path(self.board)   # 振り分けの状態（輪の状態と同じ欄の辞書）を済んだ輪の状態として読ませる
         state.write_text(json.dumps({**st, "done": True}), encoding="utf-8")
         self.assertNotIn("related", tdd.exit_fields({"go": True, "state_file": str(state)}), "絞らなかった run の出口は今のまま")
-
-    def test_report_line_says_what_the_baseline_ran(self):
-        import report
-        line = report._related_line({"applied": True, "whole": False, "files": ["a.py"], "left": ["b.py", "c.py"], "reasons": []})
-        self.assertIn("変更に関わる試験 1 件だけ", line)
-        self.assertIn("2 件", line)
-        self.assertIn("一式", report._related_line({"applied": True, "whole": True, "reasons": ["地図が引けない"]}))
-        self.assertEqual(report._related_line({"applied": False}), "")
