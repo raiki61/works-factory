@@ -637,6 +637,30 @@ class GroupChildScriptsCase(unittest.TestCase):
         loop = json.loads(pathlib.Path(started["state_file"]).read_text(encoding="utf-8"))
         self.assertEqual(loop.get("earlier"), [earlier])
 
+    def returned_weapon(self, kind):
+        """親の凍結した修正案の項目 1（MEAN・route tdd）に、返した項目の種 kind を item_kinds で置いて子の頭を回し、注文の索引が MEAN に
+        引いた型と、輪の今の段（輪の状態が無ければ ""）を返す"""
+        import planmarks
+        base = {"tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""}, "allowed_paths": ["stats.py"], "out_of_scope": []}
+        planmarks.save(self.parent, 1, [{**base, "unit_keys": [MEAN], "route": "tdd"}])
+        self.parent_inputs(str(self.suite), item_kinds=[{"item": 1, "kind": kind}])
+        self.start()
+        if self.loop_phase() == "route":
+            self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})
+        index = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))
+        return index["weapons"].get(MEAN), self.loop_phase()
+
+    def test_a_returned_trim_item_owes_no_red(self):
+        """返した段で、元の案の route が tdd の項目でも、返した種が trim（削れる物）なら単位は整えの型 tidy に引かれ、TDD の輪の test の段
+        （直す前の赤）に入らない"""
+        weapon, phase = self.returned_weapon("trim")
+        self.assertEqual(weapon, "tidy")
+        self.assertNotEqual(phase, "test", "整えの項目に直す前の赤を求めない")
+
+    def test_a_returned_unfinished_item_still_owes_a_red(self):
+        """同じ項目でも、返した種が unfinished（作り残し）なら単位は tdd の型のままで、TDD の輪の test の段（直す前の赤）に入る"""
+        self.assertEqual(self.returned_weapon("unfinished"), ("tdd", "test"))
+
     def test_orders_hand_the_route_counts_to_the_loop_and_the_loop_writes_its_record(self):
         """E1: 振り分けの状態は place の route.json（輪の置き場 tdd-<k>/ を持たない）。振り分けが使った周・呼びの控え・渡した証拠の種類は
         orders が注文の型ごとの欄 tdd（weapon-order の形）に書き、輪の状態はそこから数え始める。輪が抜けたら tdd-<k>/record.json を

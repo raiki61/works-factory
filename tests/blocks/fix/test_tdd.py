@@ -976,8 +976,9 @@ class TestPlanContract(ContractCase):
         common._save(self.state, st)
 
     def test_earlier_green_tests_are_not_forced_in_a_returned_stage(self):
-        """前の段が赤→緑を確かめた約束の試験 A が earlier に在れば、test の段は A を名指さず、新しい試験 B だけを名指して今の木で
-        failure にすれば通る。earlier が空なら今どおり A の名指しを求めて拒む"""
+        """返した段の輪（輪に入るのは tdd の型に引いた単位で、返した種が trim の単位は入らない。test_group の
+        test_a_returned_trim_item_owes_no_red）で、前の段が赤→緑を確かめた約束の試験 A が earlier に在れば、test の段は A を名指さず、
+        新しい試験 B だけを名指して今の木で failure にすれば通る（直す前の赤の義務は残る）。earlier が空なら今どおり A の名指しを求めて拒む"""
         self.route()
         self.add_test(NEW_TEST.replace("test_mean_of_two", "test_mean_of_two_again"))
         again = "test_stats.py::TestStats::test_mean_of_two_again"
