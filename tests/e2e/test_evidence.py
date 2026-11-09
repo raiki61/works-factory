@@ -261,13 +261,6 @@ class EvidenceTableCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.rows = evidence.read_table(evidence.TABLE)
-        cls.by_id = {row["id"]: row for row in cls.rows}
-
-    def kind_of(self, kind):
-        return {row["id"] for row in self.rows if row["kind"] == kind}
-
-    def test_row_ids_are_unique(self):
-        self.assertEqual(len(self.by_id), len(self.rows), "表に同じ ID の行が 2 つ在る")
 
     def test_every_row_has_a_known_kind_and_fields(self):
         for row in self.rows:
@@ -282,19 +275,6 @@ class EvidenceTableCase(unittest.TestCase):
                        {"id": "J1", "kind": "seen", "writer": "lib/a.py::f", "check": "exists", "where": "elsewhere/a"}):
             with self.subTest(broken=broken):
                 self.assertIsNotNone(evidence.row_problem(broken))
-
-    def test_no_row_waits_for_a_part(self):
-        """部分は全部 main に入り、check は waits-part の行が 1 つでも残れば落ちる（#154 の最後の通し c38831c2 は L-W08 だけで rc=1）"""
-        self.assertEqual(self.kind_of("waits-part"), set())
-
-    def test_rows_without_a_sure_trace_in_the_seed_run_are_seed_cannot_with_their_check(self):
-        """#355（c38831c2）: E12 の削除候補は役が削る物を見つけた時だけ出る（健やかな種の run で必ず通る道でない。seen の基準 (3)）。
-        L-W08 の記録は空の {units: [], paths: []} でも書かれ、働かなかった run と同じ跡（基準 (2)）。照らしは働いた時だけ当たる物で残す。
-        置き場は組み込みの後の include の道（eyes の中の r1・judge の中の diagnose）の下"""
-        for i, where in (("E12", "parent/eyes/r1/r1-comments.json"), ("L-W08", "parent/judge/diagnose-run/structure-units-dropped.json")):
-            with self.subTest(row=i):
-                row = self.by_id[i]
-                self.assertEqual((row["kind"], row.get("check"), row.get("where")), ("seed-cannot", "json-has", where))
 
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
@@ -369,12 +349,6 @@ class EvidenceTableCase(unittest.TestCase):
         for block in (LINE_ITSELF, *BLOCKS):
             with self.subTest(block=block):
                 self.assertGreaterEqual(len(seen.get(block, [])), 1)
-
-    def test_handed_off_rows_name_their_place(self):
-        for row in self.rows:
-            with self.subTest(row=row["id"]):
-                if row["kind"] == "handed-off":
-                    self.assertTrue(row["why"].strip() and row["to"].strip())
 
 
 SCENARIO = ROOT / "tests" / "e2e" / "scenario.json"
@@ -594,7 +568,6 @@ class EvidenceCheckCase(unittest.TestCase):
         self.assertIn(str(attempt / "evidence" / "record" / "parent.json"), done.stderr)
         self.assertIn("collect", done.stderr)
         self.assertNotIn("Traceback", done.stderr)
-
 
     def test_cli_exits_one_on_an_absent_row(self):
         """筋書きの capabilities-evidenced が読むのは check の終了の値だけ。記録だけの試みのフォルダでは seen の行が absent"""

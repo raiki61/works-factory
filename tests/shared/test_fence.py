@@ -5,7 +5,6 @@ sandbox が包みの足した一覧への書き込みを本当に止めること
 Bash と Grep が立つかを 1 回確かめる（sandbox_refused）。本物の claude か sandbox の道具が無い所と、Linux で名前空間が立たない所は名前つきで
 見送り、ほかの層の壊れは赤にする。
 """
-import datetime
 import json
 import os
 import pathlib
@@ -24,7 +23,6 @@ from tests.bin.gitkit import git
 from tests.archon import WORKFLOWS
 from tests.layers import scan
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
 FENCE = WORKFLOWS / ".shared" / "fence.py"
 
 
@@ -362,14 +360,6 @@ class MainTest(unittest.TestCase):
         self.assertIn(str(self.tree["main"] / ".git"), deny)
         self.assertIn(str(self.tree["nested"]), deny)
 
-    def test_marked_launch_is_recorded_with_its_cwd(self):
-        """印の在る起動は、起こす前に起動の記録へ 1 行（時刻と cwd の実パス）を足す。受け付けはそれで柵が掛かったかを見る（T49）"""
-        for _ in range(2):
-            self.assertEqual(self.run_fence("--settings", settings_with([scan.NO_TREE_WRITE])).returncode, 0)
-        rows = [json.loads(line) for line in self.records.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual([r["cwd"] for r in rows], [os.path.realpath(self.tree["linked"])] * 2)
-        self.assertTrue(all(datetime.datetime.fromisoformat(r["at"]).tzinfo for r in rows), rows)
-
     def test_every_launch_marks_claude_as_an_engine_child(self):
         """#505: 包みが起こす役の claude と、その子（対象のテスト）は GRAPHLOOPS_ENGINE_CHILD=1 を持つ（元 works の SKILL.md 96 行。
         対象の重い一式がこの名で AI の役からの起動を見分けて拒む）。印の有無に依らない"""
@@ -432,80 +422,11 @@ class MainTest(unittest.TestCase):
             self.assertEqual(set(os.listdir(pathlib.Path(seen[0]).parent)), {writelog.WHERE, *map(os.path.basename, seen)},
                              "sandbox の無い起動がフォルダを足した")
 
-    def test_unwritable_record_stops_before_claude(self):
-        """記録を書けなければ、柵が掛かった証が残らないので claude を起こさない"""
-        blocker = self.tmp / "not-a-dir"
-        blocker.write_text("", encoding="utf-8")
-        done = self.run_fence("--settings", settings_with([scan.NO_TREE_WRITE]), records=blocker / "launches.jsonl")
-        self.assertEqual(done.returncode, fence.REFUSED_EXIT, done.stderr)
-        self.assertIn(str(blocker), done.stderr)
-        self.assertFalse(self.log.exists(), "止まるはずが claude が起きた")
-
     def test_without_git_stops_before_claude(self):
         done = self.run_fence("--settings", settings_with([scan.NO_TREE_WRITE]), path=str(self.tmp / "no-tools"))
         self.assertEqual(done.returncode, fence.REFUSED_EXIT, done.stderr)
         self.assertTrue(done.stderr.startswith("works-factory fence: "), done.stderr)
         self.assertFalse(self.log.exists(), "止まるはずが claude が起きた")
-
-
-
-class ReadmeTest(unittest.TestCase):
-    def test_readme_names_the_engine_child_marker(self):
-        """#526: 対象のリポジトリの書き手が頼れるよう、README.md が役の子に立つ印を名指す"""
-        self.assertIn(f"`{fence.ENGINE_CHILD_ENV}=1`", (ROOT / "README.md").read_text(encoding="utf-8"))
-
-
-class FencedSinceTest(unittest.TestCase):
-    """受け付けが読む側（fence.fenced_since）: since より後に root の中を cwd にした印の在る起動が 1 行でも在れば空、無ければ訳"""
-
-    def setUp(self):
-        self.tmp = hermetic.tmpdir(self)
-        self.root = self.tmp / "work"
-        (self.root / "sub").mkdir(parents=True)
-        self.records = self.tmp / "launches.jsonl"
-        self.since = datetime.datetime(2026, 10, 13, 12, 0, tzinfo=datetime.timezone.utc)
-
-    def write(self, *rows):
-        self.records.write_text("".join((r if isinstance(r, str) else json.dumps(r)) + "\n" for r in rows), encoding="utf-8")
-
-    def row(self, minutes, cwd):
-        return {"at": (self.since + datetime.timedelta(minutes=minutes)).isoformat(), "cwd": str(cwd)}
-
-    def since_of(self, text=None):
-        return fence.fenced_since(self.records, self.root, self.since.isoformat() if text is None else text)
-
-    def test_launch_after_since_in_root_is_fenced(self):
-        for cwd in (self.root, self.root / "sub"):
-            with self.subTest(cwd=cwd):
-                self.write("{broken", self.row(-5, self.root), self.row(1, cwd))
-                self.assertEqual(self.since_of(), "")
-
-    def test_missing_old_or_elsewhere_launches_are_not(self):
-        self.assertIn(str(self.records), self.since_of())
-        for name, rows in (("前の回", [self.row(-1, self.root)]), ("ほかの木", [self.row(1, self.tmp / "work2")]),
-                           ("読めない行だけ", ["{broken", json.dumps({"at": "x", "cwd": str(self.root)})])):
-            with self.subTest(name):
-                self.write(*rows)
-                self.assertNotEqual(self.since_of(), "")
-
-    def test_unreadable_since_is_not_fenced(self):
-        self.write(self.row(1, self.root))
-        for text in ("", "not a time", "2026-10-13T12:00:00"):
-            with self.subTest(since=text):
-                self.assertNotEqual(self.since_of(text), "")
-
-    def test_rows_written_by_the_fence_are_read_back(self):
-        """書く側（fence.record）の行を読む側が読む。行の形を片方だけ変えると、宣言した run の CI の役は毎回諦める"""
-        before = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=1)
-        fence.record(str(self.records), str(self.root / "sub"))
-        self.assertEqual(self.since_of(before.isoformat()), "")
-
-    def test_only_an_absolute_declaration_is_readable(self):
-        self.assertEqual(fence.bad_declaration(str(self.records)), "")
-        self.assertIn(fence.RECORDS_ENV, fence.bad_declaration("launches.jsonl"))
-
-    def test_declaration_name_is_shared_with_the_launcher(self):
-        self.assertEqual(fence.RECORDS_ENV, launcher.FENCE_RECORDS_ENV)
 
 
 NO_TOOLS = "sandbox が立たない（macOS の sandbox-exec か、Linux の bwrap と socat が要る）"

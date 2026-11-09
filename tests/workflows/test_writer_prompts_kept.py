@@ -1,38 +1,12 @@
-"""書き手の指示の段落の真偽・組み上がった字・付録 A の行の在る無し・値を、修正の block を型ごとの block に割る前と後で比べる
-（docs/plans/2026-10-24-fix-weapons.md の 11.6 の D1 の縛る試験の 8）。
+"""書き手の指示の段落の真偽を、場面ごとの代表で照らす（修正の block の writer_slots → 型の block の writer_prep.py）。
 
-縛る事: 書き手の 6 つの型（tdd・pin・tidy・static・variant・remove）× 4 つの場面（1 回目・却下の後・裁定の後の段・範囲の相談の答えの
-後の続きの周。裁定の後の段に tdd は無い）の 23 の組を組み、組ごとに次の (a)・(c)・(d) の 3 つが控え writer-prompts-before.json と等しいことを見る
-（(b) は D2 の最後の commit で比べを外した。下）。
-- (a) 段落の真偽: `prompt.emit` に渡った when の全部。`prompt.render` は名の欠けを拒むが真偽の誤りは拒まないので、割った組み立てが
-  rejected・resume・where_writer などを誤って偽にして観点の文が落ちても、ほかの試験は緑のまま。ここが赤にする
-- (b) 組み上がった指示の字（`emit` の返りの prompt）。置き字（下）に替えた後の字。D2 の最後の commit で比べを外し、控えの prompt の欄も
-  消した（--write も書かない。外す前の字は git の履歴の控えの版が持つ）
-- (c) 付録 A の行（下請けの行 G と機械の行を除く。tests/workflows/test_weapon_assets.py の ROWS）のうち、組み上がった字に在る行の id。値を差し込み口の
-  字（`{名}`）に替え（ただし unattended は本物の字）、`prompt.render` でもう 1 度組み、test_weapon_assets.py の flat と同じ照らし方（`in`）で見る。
-  md だけの直しで文が段落の間を動いて、ある場面から観点が消える道を赤にする
-- (d) 値（`emit` に渡った values に置き字を当てた物。字が md から来る unattended は鍵だけ残して字を `{MD}`）。writer_slots 相当の値の誤り
-  （却下の文や裁定の値が空になる）を赤にする
+`prompt.render` は値の名の欠けを拒むが段落の真偽の誤りは拒まないので、組み立ての直しで rejected・resume・rulings_first などを
+誤って偽にすると、観点の段落（前の答えが拒まれた訳・裁定の文・範囲の相談の答え）が黙って指示から落ち、ほかの試験は緑のまま。
+型 1 つ（pin）の 4 つの場面（1 回目・却下の後・裁定の後の段・範囲の相談の答えの後の続きの周）を組み、場面で真になるべき段落が真、
+偽になるべき段落が偽で、真の段落の字が組み上がった指示に在ることを見る。
 
-置き字（場で変わるパスだけ。この順）: first_prompt の値 → `{FIRST_PROMPT}`、指示を組んだ place（型の block の place。下請けのファイルの名指しが
-持つ。表の SPAWNS が真の型〔variant・pin・tidy・static・remove〕。控えは下請けのファイルが修正の block の place に在った時の字なので、場所の違いを `{PLACE}` に揃える）→ `{PLACE}`、試験を回す python の実行ファイル（事前の確かめのコマンド
-check_cmd が持つ。uv run --isolated の度に一時のパスが変わる）→ `{PYTHON}`、修正の block の place → `{PLACE}`、対象のリポジトリの根 →
-`{REPO}`、対象のリポジトリの種の commit（commit の時刻で hash が run ごとに変わる。下請けの差分を取るコマンドが持つ）→ `{BASE}`、工場のリポジトリの根 → `{ROOT}`。これで消えない違いが出たら置き字を足して通さず、指示が変わった印として調べる。
-
-組み立ての助けは `compose` の 1 つだけ。`prompt.emit` を包んで引数と返りを受ける。割る前は修正の block の `prompts.writer` を呼んだ。
-割った後は、6 つの型（tdd・pin・tidy・static・variant・remove）とも、修正の block の `prompts.writer_slots` を同じ引数で呼び、返りの slots と注文を
-`writers.hand_over` で pointer にして、その型の block の `scripts/writer_prep.py`（`writerblock.prep(render)`）を、`ports.caller_block()` がその block
-を返すように script のファイルのまま起こして組む（variant も D2 で型の block になり、割る前の `prompts.writer` の道は無い）。
-割る commit と variant を block にした commit は `compose` だけを替え、場面の作り（`scene`）と控えは替えていない。node の名は控えない（裁定の後の段の node は、割る前は `<型>-ruled`、割った後は型の block の中の `<型>` で、指示の中身ではない）。控えは最初の commit の後、書き直したのは 1 度だけ:
-D2 の段 2（設計 11.8 の決め〔案 B〕で pin・tidy・static・remove にも下請けを付けた commit）。狙った変化なので、pin・tidy・static・remove の 16 の組の
-(a) spawns・g1・ask_variant、(c) の増えた行（Q10・F39・F101〜F106・F116・F148a。減った行は無い）、(d) g1_items、(b) の足し（前の字の行は全部残り、
-足したのは下請けの段落と g1_items の行だけ）だけが変わり、variant と tdd の組（7 つ）は 1 字も変えていない。以後は (a)・(c)・(d) の欄を
-書き直さない（`git log --format=%h -- tests/workflows/writer-prompts-before.json` は、最初の commit・段 2 と、照らさない (b) の prompt の欄
-だけを消した commit〔残りの欄の字は変えていない〕の 3 つ）。
-
-(b) の字の比べは D2 の最後の commit で外し、(a)・(c)・(d) を残した（指示の文だけを変える依頼を md 1 本で閉じるため。設計 11.6 の D2）。
-
-控えを書く口: `uv run --isolated python3 -m tests.workflows.test_writer_prompts_kept --write`（通常の試験の走りでは書かない）。
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`）: 型を割る前と後の 23 の組を控え（段落の真偽・付録 A の行・値）と比べる
+移しの照らしから、この代表に縮めた。移しは済み、指示の字の照らしは書き込みも承認も守らない。真偽の代表だけを残した。
 """
 import contextlib
 import functools
@@ -44,13 +18,10 @@ import sys
 import unittest
 from unittest import mock
 
-from tests.bin.gitkit import git
 from tests.blocks import kit
 from tests.blocks.fix import support, test_prompts
-from tests.workflows import test_weapon_assets as test_assets
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BEFORE = pathlib.Path(__file__).resolve().parent / "writer-prompts-before.json"
 for p in (ROOT / "lib", kit.SHARED):
     if str(p) not in sys.path:
         sys.path.append(str(p))
@@ -60,11 +31,14 @@ import prompt  # noqa: E402
 import rolekit  # noqa: E402
 
 KEY = test_prompts.KEY
-WEAPONS = ("tdd", "pin", "tidy", "static", "variant", "remove")
-SCENES = ("first", "rejected", "ruled", "resumed")
-COMBOS = [(scene, weapon) for scene in SCENES for weapon in WEAPONS if not (scene == "ruled" and weapon == "tdd")]
-FROM_MD = ("unattended",)   # 値の字が md から来る物（seat.overlay_body が lib/borrow/unattended.md を読む）
-APPENDIX = [r for r in test_assets.ROWS if r["from"] in ("writer", "unattended")]   # 下請けの行 G（g1）と機械の行を除く
+WEAPON = "pin"   # 4 つの場面を全部持ち、下請けを起こす型（tdd は裁定の後の段を持たない）
+# 場面 → その場面で真・偽になる段落（代表）。値は prompt.emit に渡った when
+EXPECTED = {
+    "first": {"rules": True, "rejected": False, "rulings_first": False, "ruled_reply": False, "resume": False},
+    "rejected": {"rules": True, "rejected": True, "rulings_first": False, "resume": False},
+    "ruled": {"rules": True, "rejected": False, "rulings_first": True, "ruled_reply": True, "resume": False},
+    "resumed": {"rules": False, "rejected": False, "resume": True},
+}
 
 
 def scene(case, kind: str):
@@ -127,17 +101,15 @@ def block_prep(run, pass_: str, weapon: str, slots: dict, writers) -> None:
 
 
 def compose(kind: str, weapon: str, case) -> dict:
-    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, values, slotted, node}。修正の block の
-    writer_slots → 型の block の writer_prep.py（writerblock.prep）で組む。割る commit と variant を block にした commit はこの関数だけを替えた"""
+    """場面 kind・型 weapon の書き手の指示を組み、prompt.emit の引数と返りを受けて返す {when, values, prompt, node}。修正の block の
+    writer_slots → 型の block の writer_prep.py（writerblock.prep）で組む"""
     run, pass_ = scene(case, kind)
     seen = {}
     real = prompt.emit
 
     def wrapped(node, values, when, n):
         out = real(node, values, when, n)
-        slots = {k: v if k in FROM_MD else "{" + k + "}" for k, v in values.items()}
-        again = prompt.render(node, slots, when)["prompt"]
-        seen.update(node=node, values=dict(values), when=dict(when), slotted=again, emit_place=str(ports.place()))
+        seen.update(node=node, values=dict(values), when=dict(when), prompt=out["prompt"])
         return out
 
     with run.env(), mock.patch.object(prompt, "emit", wraps=wrapped):
@@ -164,91 +136,21 @@ def compose(kind: str, weapon: str, case) -> dict:
                     frozen=facts.frozen_tests(place, record, pass_), shared=ports.shared_cache(), **extra)
         slots, _ = prompts.writer_slots(place, repo, pass_, weapon, values, **call)
         block_prep(run, pass_, weapon, slots, writers)
-    seen["place"], seen["repo"], seen["first_prompt"] = str(place), str(repo), seen["values"].get("first_prompt", "")
-    seen["base"] = git(repo, "rev-parse", "HEAD")
     return seen
 
 
-def paths(text, got: dict):
-    """置き字を当てる（この順）。macOS の /var と /private/var の両方の姿を替える"""
-    def forms(path):
-        found = {str(path), str(pathlib.Path(path).resolve())}
-        return sorted(found, key=len, reverse=True)
-    for old, new in ((got["first_prompt"], "{FIRST_PROMPT}"), (got["emit_place"], "{PLACE}"), (sys.executable, "{PYTHON}"), (got["place"], "{PLACE}"), (got["repo"], "{REPO}"), (got["base"], "{BASE}"), (str(ROOT), "{ROOT}")):
-        if old:
-            for form in forms(old):
-                text = text.replace(form, new)
-    return text
-
-
-def record(kind: str, weapon: str, case) -> dict:
-    got = compose(kind, weapon, case)
-    values = {k: "{MD}" if k in FROM_MD else paths(v, got) for k, v in got["values"].items()}
-    text = test_assets.flat(got["slotted"])
-    return {"when": got["when"], "values": values,
-            "appendix": [r["id"] for r in APPENDIX if all(test_assets.flat(line) in text for line in r["text"])]}
-
-
-def all_records(case) -> dict:
-    return {f"{kind}/{weapon}": record(kind, weapon, case) for kind, weapon in COMBOS}
-
-
-# 控えの後に足した段落（F1・F2。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1・F2。控えは書き直さない）。控えの鍵の真偽は今までどおり
-# 全部照らし、ここの 4 つは足した時の決めをそのまま書いて照らす: 型の義務の表の関数が書かせる段落（variant の sites_shape・unit_red と
-# pin の sites_per_test と、変える段の型 tdd・variant・remove の change_named_or_gone）が、続きの周でない場面で、その型の指示に出る
-ADDED_WHEN = ("rules_sites_at", "rules_sites_test", "rules_red_unit", "rules_named")
-# 足した段落の文を付録 A に足した行（付録 A の A.9。test_weapon_assets.added_ids）→ その行の文が在る段落。控えの (c) から外し、段落が真の組に
-# だけ在ることを照らす
-ADDED_ROWS = {"S1": "rules_sites_at", "S2": "rules_sites_test", "S3": "rules_red_unit", "S4": "rules_named"}
-
-
-def added_truth(kind: str, weapon: str) -> dict:
-    live = kind != "resumed"
-    return {"rules_sites_at": live and weapon == "variant", "rules_sites_test": live and weapon == "pin",
-            "rules_red_unit": live and weapon == "variant", "rules_named": live and weapon in ("tdd", "variant", "remove")}
-
-
-class WriterPromptsKeptCase(unittest.TestCase):
-    maxDiff = None
-
-    @classmethod
-    def setUpClass(cls):
-        cls.before = json.loads(BEFORE.read_text(encoding="utf-8"))
-
-    def test_the_added_rows_are_the_added_section_of_appendix_a(self):
-        self.assertEqual(set(ADDED_ROWS), test_assets.added_ids())
-        self.assertEqual(set(ADDED_ROWS.values()), set(ADDED_WHEN))
-
-    def test_the_combos_are_the_23_of_the_scenes_and_the_weapons(self):
-        self.assertEqual(len(COMBOS), 23)
-        self.assertEqual(sorted(self.before), sorted(f"{k}/{w}" for k, w in COMBOS))
-
-    def test_every_combo_equals_the_record(self):
-        for kind, weapon in COMBOS:
-            with self.subTest(scene=kind, weapon=weapon):
-                got, want = record(kind, weapon, self), self.before[f"{kind}/{weapon}"]
-                added = {k: got["when"].pop(k) for k in ADDED_WHEN}
-                rows = [i for i in got["appendix"] if i in ADDED_ROWS]
-                got["appendix"] = [i for i in got["appendix"] if i not in ADDED_ROWS]
-                self.assertEqual(got["when"], want["when"], "(a) 段落の真偽が違う")
-                self.assertEqual(added, added_truth(kind, weapon), "(a) 後から足した段落の真偽が違う")
-                self.assertEqual(got["appendix"], want["appendix"], "(c) 付録 A の行の在る無しが違う")
-                self.assertEqual(rows, [i for i, k in ADDED_ROWS.items() if added[k]], "(c) 後から足した付録 A の行の在る無しが違う")
-                self.assertEqual(got["values"], want["values"], "(d) 値が違う")
-
-    def test_the_record_is_not_a_dummy(self):
-        """控えが空・全部同じでない（段落の真偽・付録 A の行・値が組ごとに違う）"""
-        for part in ("when", "appendix", "values"):
-            self.assertGreater(len({json.dumps(r[part], sort_keys=True) for r in self.before.values()}), 5, part)
+class WriterParagraphsCase(unittest.TestCase):
+    def test_each_scene_turns_on_its_paragraphs(self):
+        """場面で真になるべき段落が真、偽になるべき段落が偽。真の段落の値（却下の訳・裁定の文のファイル）が組み上がった指示に在る"""
+        for kind, want in EXPECTED.items():
+            with self.subTest(scene=kind):
+                got = compose(kind, WEAPON, self)
+                self.assertEqual({k: got["when"].get(k) for k in want}, want, "段落の真偽が場面と違う")
+                if kind == "rejected":
+                    self.assertIn("run the tests again", got["prompt"])
+                if kind == "ruled":
+                    self.assertIn(got["values"]["rulings_file"], got["prompt"])
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--write"]:
-        class _Case(unittest.TestCase):
-            def runTest(self):
-                pass
-        case = _Case()
-        BEFORE.write_text(json.dumps(all_records(case), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        print(f"wrote {BEFORE}")
-    else:
-        unittest.main()
+    unittest.main()

@@ -79,8 +79,8 @@ def writer_when(weapon: str) -> dict:
 
 
 def writer_paragraphs(weapon: str) -> dict:
-    """型 weapon が選ぶ書き手の md の段落の真偽のうち、義務の表から引く物（DUTY_WHEN。_slots が slots の when に入れ、
-    tests/workflows/test_weapon_assets.py が組んだ指示の照らしに使う）。前の 4 つは writer_when を段落の名に引いた物、後ろの TABLE_WHEN は
+    """型 weapon が選ぶ書き手の md の段落の真偽のうち、義務の表から引く物（DUTY_WHEN。_slots が slots の when に入れる）。
+    前の 4 つは writer_when を段落の名に引いた物、後ろの TABLE_WHEN は
     型の義務の表（duties.table_of）の関数の属性 paragraph が名指す段落（照らしを表に足せば指示も出る。書き手の返答の欄を読む義務の関数は
     paragraph を持つ。tests/blocks/fix/test_duty_paragraphs.py）。下請けの段落 spawns・g1・ask_variant は型の block の
     表 SPAWNS から本体 .shared/writerblock.paragraphs が引く（型の block は義務の表を知らず、修正の block は表 SPAWNS を知らない）"""

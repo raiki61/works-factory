@@ -20,7 +20,7 @@
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
 
-D1 の基の main（`da2a5a0e`）の版の fix の `parts/tidy.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。型ごとの頭の文の照らしは `tests/workflows/test_weapon_assets.py`（頭の文の表の字が、この main の commit の `parts/tidy.md` の字に在ることと、組み上がった指示に在ること）。
+D1 の基の main（`da2a5a0e`）の版の fix の `parts/tidy.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。型ごとの頭の文を移す前の字と組み上がった指示に照らしていた試験は、移しが済んだので 2026-11-10 に消した（指示の字だけを見る試験で、書き込みも承認も守らない。持ち主の決め `tests-guard-writes`）。
 
 ## この型の受け付けの義務の在処
 

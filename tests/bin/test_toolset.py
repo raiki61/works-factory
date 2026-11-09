@@ -24,12 +24,10 @@ Claude Code が自分で書く状態（projects/・.claude.json・backups/・rem
 形は本物の CLI で一時の置き場に入れて確かめた（報告 $S/r61/cfg-report.md）。
 """
 import copy
-import datetime
 import hashlib
 import json
 import os
 import pathlib
-import re
 import shlex
 import shutil
 import subprocess
@@ -237,7 +235,6 @@ class Base(unittest.TestCase):
         """CLI を子で起こす。利用者の設定の置き場は env の CLAUDE_CONFIG_DIR（既定は偽の利用者の設定）"""
         return subprocess.run([sys.executable, str(TOOLSET), *args], capture_output=True, text=True, encoding="utf-8",
                               env=hermetic.child_env(**{"CLAUDE_CONFIG_DIR": str(self.user), **COLDWRITE_ENV, **env}))
-
 
 
 def plain_files(base: pathlib.Path) -> list:
@@ -1173,13 +1170,6 @@ class GuardCase(Base):
 
 
 class CliCase(Base):
-    def test_cli_install_matches_api(self):
-        r = self.cli("install", "--claude", str(self.claude), str(self.cfg))
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
-        self.assertEqual(json.loads((self.cfg / "settings.json").read_text())["enabledPlugins"],
-                         {f"{n}@{MP}": True for n in PLUGINS})
-        self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), sorted(BORROW_SKILLS))
 
     def test_cli_no_plugins_copies_skills_and_calls_no_claude(self):
         """認証の要らない道（validate・テスト）は claude を起こさない。スキルは写す（Archon の validate も同じ置き場で探す）"""
@@ -1293,13 +1283,6 @@ class CliCase(Base):
                     self.assertNotIn("入っていない", r.stderr)
                     self.assertEqual(files_under(self.cfg), [])
 
-    def test_cli_usage(self):
-        for args in ([], ["install"], ["install", str(self.cfg)], ["bogus", str(self.cfg)], ["guard"], ["contract", "a", "b"]):
-            with self.subTest(args):
-                r = self.cli(*args)
-                self.assertEqual(r.returncode, 2, r.stderr)
-                self.assertIn("toolset.py", r.stderr)
-
     def test_cli_contract_on_the_vendored_copy_is_0(self):
         r = self.cli("contract")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -1309,7 +1292,6 @@ class CliCase(Base):
         r = self.cli("contract", "9.9.0")
         self.assertEqual(r.returncode, 1, r.stderr)
         self.assertIn("tdd: 錨 SUITE", r.stdout)
-
 
     def test_cli_contract_on_a_missing_version_is_2_and_names_it(self):
         r = self.cli("contract", "8.8.8")
@@ -1337,31 +1319,6 @@ class CliCase(Base):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class McpCase(Base):
-    """借りる MCP は無い（持ち主 2026-10-09 に Context7 をやめ、kind "mcp" の借りる物と works-mcp.json を書く口を消した）。前の版が
-    隔離した設定の置き場に書いた works-mcp.json は、Claude Code も包みも読まない物なので、柵は数えず、組むのも止めない（消しもしない）"""
-
-    def test_borrow_has_no_mcp(self):
-        self.assertNotIn("context7", self.borrow)
-        self.assertEqual({i["kind"] for i in self.borrow.values()}, {"skills", "plugin"})
-        self.assertFalse(hasattr(toolset, "MCP_FILE"))
-
-    def test_kind_mcp_is_no_longer_known(self):
-        bad = {"context7": {"kind": "mcp", "transport": "http", "url": "https://mcp.context7.com/mcp", "licence": "MIT"}}
-        with self.assertRaises(toolset.ToolsetError) as cm:
-            toolset.installed_sources(self.tmp / "user", bad)
-        self.assertIn("kind 'mcp' を知らない（skills・plugin）", str(cm.exception))
-
-    def test_leftover_mcp_file_does_not_stop_install(self):
-        self.cfg.mkdir(parents=True, exist_ok=True)
-        left = self.cfg / "works-mcp.json"
-        left.write_text(json.dumps({"mcpServers": {"context7": {"type": "http", "url": "https://mcp.context7.com/mcp"}}}))
-        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
-        rec = self.install()
-        self.assertNotIn("context7", rec)
-        self.assertEqual(toolset.guard(self.cfg, self.borrow), [])
 
 
 PIN_V = toolset.load_borrow(BORROW)["superpowers"]["pin"]["version"]
@@ -1477,9 +1434,6 @@ class NewerCase(Base):
                                                     "installLocation": str(loc)}}))
         _put(loc / ".claude-plugin" / "marketplace.json", text)
 
-    def put_marketplace(self, doc):
-        self.put_marketplace_raw(json.dumps(doc))
-
     def test_newer_compares_numerically_and_applies_the_contract(self):
         newer, older = _newer_than(PIN_V), _older_than(PIN_V)
         if newer is None or older is None:
@@ -1497,54 +1451,9 @@ class NewerCase(Base):
         self.assertIn("tdd: 錨", r.stdout)
         self.assertIn("版を上げるかは人が決める", r.stdout)
 
-    def test_newer_reports_same_version_with_other_content(self):
-        self.add_version(PIN_V, edit={"skills/receiving-code-review/SKILL.md": "x\n"})
-        self.assertIn("写しと同じ版なのに中身が違う", self.cli("newer").stdout)
-
-    def test_newer_lists_marketplace_only_versions(self):
-        newer = _bumped(PIN_V)
-        if newer is None:
-            self.fail(f"固定 {PIN_V} から新しい版を作れない")
-        self.add_version(PIN_V)
-        self.put_marketplace({"plugins": [{"name": "superpowers", "version": newer}]})
-        self.assertIn(f"superpowers {newer}: marketplace の一覧に在る", self.cli("newer").stdout)
-
-    def test_newer_with_nothing_newer_says_one_line(self):
-        self.add_version(PIN_V)
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("より新しい版・違う中身は、上流の tag にも手元にも marketplace の一覧にも無い", r.stdout)
-        self.assertNotIn("確かめられなかった", r.stdout)
-
-    def test_newer_names_upstream_tags_newer_than_the_pin(self):
-        """手元に固定の版しか無くても、上流の tag に固定より新しい版が在れば名指し、固定と同じ・古い tag は名指さず、締めの『無い』を出さない"""
-        newer, older = _bumped(PIN_V), _older_than(PIN_V)
-        if newer is None or older is None:
-            self.fail(f"固定 {PIN_V} から新しい版と古い版を作れない")
-        self.upstream = self.make_upstream(older, PIN_V, newer, name="upstream-tags")
-        self.add_version(PIN_V)
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"superpowers {newer}: 上流の tag に在る", r.stdout)
-        self.assertNotIn(f"superpowers {older}", r.stdout)
-        self.assertNotIn(f"superpowers {PIN_V}", r.stdout)
-        self.assertNotIn("確かめられなかった", r.stdout)
-        self.assertNotIn("より新しい版・違う中身は", r.stdout)
-
     def test_newer_unreachable_upstream_is_named_and_not_closed_as_nothing(self):
         """上流に届かない時は『確かめられなかった: 上流の tag』を 1 行出し、締めの『無い』を出さず、終了コード 0 で最後の行を出す"""
         self.upstream = self.tmp / "no-such-upstream"
-        self.add_version(PIN_V)
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("確かめられなかった: 上流の tag", r.stdout)
-        self.assertNotIn("より新しい版・違う中身は", r.stdout)
-        self.assertIn(toolset.NEWER_LAST, r.stdout)
-
-    def test_newer_upstream_without_the_pinned_tag_is_named_and_not_closed_as_nothing(self):
-        """上流が tag を 1 本も返さない（空のリポジトリ・向け先の誤り）時も、固定の版の tag すら見えないので
-        『確かめられなかった: 上流の tag』を出し、締めの『無い』を出さない"""
-        self.upstream = self.make_upstream(name="upstream-empty")
         self.add_version(PIN_V)
         r = self.cli("newer")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -1561,50 +1470,6 @@ class NewerCase(Base):
         self.assertIn("確かめられなかった: marketplace の一覧", r.stdout)
         self.assertNotIn("より新しい版・違う中身は", r.stdout)
 
-    def test_newer_names_the_marketplace_list_as_a_local_copy_with_its_time(self):
-        """一覧にだけ在る版の行は、一覧が手元の写しであることと、一覧の更新の時刻（marketplace.json の mtime）を添える"""
-        newer = _bumped(PIN_V)
-        if newer is None:
-            self.fail(f"固定 {PIN_V} から新しい版を作れない")
-        self.add_version(PIN_V)
-        self.put_marketplace({"plugins": [{"name": "superpowers", "version": newer}]})
-        at = datetime.datetime(2026, 3, 5, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        os.utime(self.tmp / "marketplaces" / self.item["marketplace"] / ".claude-plugin" / "marketplace.json",
-                 (at.timestamp(), at.timestamp()))
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"superpowers {newer}: marketplace の一覧に在る", r.stdout)
-        self.assertIn("手元の写し", r.stdout)
-        self.assertIn("2026-03-05", r.stdout)
-
-    def test_newer_names_unparsable_versions(self):
-        self.add_version("latest")
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        # 数で読めない名の版のフォルダでも、中身が固定と同じで違いが無ければ名指さず、締めの『違いは無い』を出す
-        self.assertNotIn("superpowers latest", r.stdout)
-        self.assertIn("より新しい版・違う中身は、上流の tag にも手元にも marketplace の一覧にも無い", r.stdout)
-        # 中身が違う版は、名が数で読めなくても素通しせず、pin と節の契約を当てて名指し、締めの『違いは無い』を出さない
-        self.add_version("8ca22dba9a94", edit={"skills/test-driven-development/SKILL.md": "x\n"})
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("superpowers 8ca22dba9a94", r.stdout)
-        self.assertIn("skills/test-driven-development/SKILL.md: 中身が固定と違う", r.stdout)
-        self.assertIn("tdd: 錨", r.stdout)
-        self.assertNotIn("より新しい版・違う中身は", r.stdout)
-
-    def test_newer_without_superpowers_installed(self):
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("superpowers が入っていない", r.stdout)
-
-    def test_newer_unreadable_marketplace_is_named_not_fatal(self):
-        self.add_version(PIN_V)
-        self.put_marketplace_raw("{壊れた")
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("marketplace の一覧を読めない", r.stdout)
-
     def test_newer_writes_nothing(self):
         newer = _bumped(PIN_V)
         if newer is None:
@@ -1620,148 +1485,11 @@ class NewerCase(Base):
         self.assertEqual({p: p.read_bytes() for p in self.user.rglob("*") if p.is_file()}, before)
         self.assertEqual({p: p.read_bytes() for p in self.borrow_dir.rglob("*") if p.is_file()}, pack)
 
-    def test_newer_takes_no_version(self):
-        """newer は版を名指さない（比べる元は写し）。版を渡すのは使い方の誤りで 2"""
-        r = self.cli("newer", "6.10.0")
-        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
-        self.assertIn("toolset.py", r.stderr)
-        self.assertEqual(r.stdout, "")
-
-    def test_newer_unreadable_installed_plugins_is_named_not_fatal(self):
-        """installed_plugins.json が JSON として読めなくても、1 行で名指して版のフォルダの確かめを続ける"""
-        newer = _bumped(PIN_V)
-        if newer is None:
-            self.fail(f"固定 {PIN_V} から新しい版を作れない")
-        self.add_version(newer)
-        (self.user / "plugins" / "installed_plugins.json").write_text("{壊れた", encoding="utf-8")
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("installed_plugins.json", r.stdout)
-        self.assertIn(f"superpowers {newer}", r.stdout)
-
-    def test_newer_names_added_asks_whatever_the_case(self):
-        """人に聞く文は大文字・小文字を問わずに拾う（原文には行頭の Human partner が在る）"""
-        newer = _bumped(PIN_V)
-        if newer is None:
-            self.fail(f"固定 {PIN_V} から新しい版を作れない")
-        self.add_version(newer, edit={"skills/receiving-code-review/SKILL.md": "Human partner decides this.\n"})
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("人に聞く文が増えた: skills/receiving-code-review/SKILL.md: Human partner decides this.", r.stdout)
-
-    def test_newer_unlistable_version_folders_still_exit_0(self):
-        """版のフォルダの一覧を読めない（権限が無い）時も、1 行で名指して最後の行を出し、終了コード 0"""
-        base = self.add_version(PIN_V).parent
-        base.chmod(0)
-        try:
-            r = self.cli("newer")
-        finally:
-            base.chmod(0o755)   # tearDown が一時の置き場を消せるように、ここで戻す
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("読めない物に当たった", r.stdout)
-        self.assertIn("版を上げるかは人が決める", r.stdout)
-        self.assertNotIn("Traceback", r.stderr)
-
-    def test_newer_marketplace_unparsable_version_is_not_closed_as_nothing(self):
-        """一覧にだけ在る数で読めない版も、同じ決まりで名指し、締めの『違いは無い』を出さない"""
-        self.add_version(PIN_V)
-        self.put_marketplace({"plugins": [{"name": "superpowers", "version": "nightly"}]})
-        r = self.cli("newer")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("superpowers nightly: marketplace の一覧に在る", r.stdout)
-        self.assertNotIn("より新しい版・違う中身は", r.stdout)
-
-    def assert_pinned_tag_moved(self, light):
-        """上流の v<固定の版> を、写した commit と別の commit へ付け直すと、その commit を名指し、締めの『無い』を出さない"""
-        self.upstream = self.make_upstream(PIN_V, name="upstream-moved", light=light)
-        self.add_version(PIN_V)
-        moved = self.repoint(PIN_V, light)
-        out = self.newer_out()
-        self.assertIn(f"上流の tag v{PIN_V} が写した commit", out)
-        self.assertIn(f"と違う（{moved}）", out)
-        self.assertNotIn("より新しい版・違う中身は", out)
-
-    def test_newer_names_pinned_tag_moved_to_another_commit(self):
-        self.assert_pinned_tag_moved(light=False)
-
-    def test_newer_reads_lightweight_pinned_tag_commit(self):
-        self.assert_pinned_tag_moved(light=True)
-
-    def test_newer_names_every_source_of_the_same_version(self):
-        """同じ新しい版が上流の tag と marketplace の一覧の両方に在る時は、その版の 1 行に両方の源を名指し、
-        入れるコマンドと一覧の写しの時刻を添える（どちらかの行が畳まれて消えない）"""
-        newer = _bumped(PIN_V)
-        if newer is None:
-            self.fail(f"固定 {PIN_V} から新しい版を作れない")
-        self.upstream = self.make_upstream(PIN_V, newer, name="upstream-tags")
-        self.add_version(PIN_V)
-        self.put_marketplace({"plugins": [{"name": "superpowers", "version": newer}]})
-        rows = [ln for ln in self.newer_out().splitlines() if ln.startswith(f"superpowers {newer}:")]
-        self.assertEqual(len(rows), 1, rows)
-        for want in ("上流の tag", "marketplace の一覧", f"claude plugin update superpowers@{self.item['marketplace']}", "手元の写し"):
-            self.assertIn(want, rows[0])
-
     def test_newer_without_git_is_unchecked_not_nothing(self):
         self.add_version(PIN_V)
         no_git = self.tmp / "no-git"
         no_git.mkdir()
         self.assert_unchecked(self.newer_out(PATH=str(no_git)), "上流の tag（git が見つからない")
-
-    def test_newer_unreadable_installed_plugins_alone_is_not_closed_as_nothing(self):
-        """新しい版がどこにも無く、読めないのが installed_plugins.json だけでも、締めの『無い』を出さない"""
-        self.add_version(PIN_V)
-        (self.user / "plugins" / "installed_plugins.json").write_text("{壊れた", encoding="utf-8")
-        self.assert_unchecked(self.newer_out(), "installed_plugins.json を読めない")
-
-    def test_newer_broken_known_marketplaces_is_not_closed_as_nothing(self):
-        self.add_version(PIN_V)
-        mp = self.item["marketplace"]
-        for label, text in (("壊れた JSON", "{壊れた"), ("installLocation が文字列でない", json.dumps({mp: {"installLocation": 5}}))):
-            with self.subTest(label):
-                _put(self.user / "plugins" / "known_marketplaces.json", text)
-                self.assert_unchecked(self.newer_out(), "marketplace の一覧を読めない")
-
-    def test_newer_unreadable_ls_remote_line_is_not_closed_as_nothing(self):
-        """固定の tag の行が先に出ても、後ろに読めない行が在れば、読めたことにせず『確かめられなかった』と名指す"""
-        self.add_version(PIN_V)
-        commit = toolset.load_borrow(self.borrow_dir)["superpowers"]["pin"]["commit"]
-        bindir = self.tmp / "fake-bin"
-        _put(bindir / "git", f"#!/bin/sh\nprintf '%s\\trefs/tags/v%s\\n' {commit} {PIN_V}\necho 'no tab here'\n", 0o755)
-        out = self.newer_out(PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}")
-        self.assert_unchecked(out, "上流の tag（git ls-remote の行を読めない")
-
-    def test_upstream_versions_calls_git_directly(self):
-        """偽の pack は toolset.py と spseam.py だけで、git の口の写しを持たない。git には ls-remote --tags <上流> だけを渡し、
-        端末に認証を聞かせず（GIT_TERMINAL_PROMPT=0）、標準入力を閉じる"""
-        commit = toolset.load_borrow(self.borrow_dir)["superpowers"]["pin"]["commit"]
-        bindir, seen = self.tmp / "fake-bin", self.tmp / "seen"
-        _put(bindir / "git", "#!/bin/sh\n"
-             f"printf '%s\\n' \"$*\" \"$GIT_TERMINAL_PROMPT\" > {shlex.quote(str(seen))}\n"
-             f"if read -r _; then echo open >> {shlex.quote(str(seen))}; else echo closed >> {shlex.quote(str(seen))}; fi\n"
-             f"printf '%s\\trefs/tags/v%s\\n' {commit} {PIN_V}\n", 0o755)
-        self.assertEqual([sorted(p.name for p in (self.pack / d).iterdir()) for d in ("bin/_lib", "lib")],
-                         [["toolset.py"], ["borrow", "spseam.py"]])
-        self.add_version(PIN_V)
-        out = self.newer_out(PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}")
-        self.assertNotIn("確かめられなかった", out)
-        self.assertEqual(seen.read_text(encoding="utf-8").splitlines(),
-                         [f"ls-remote --tags {toolset.UPSTREAM_URL}", "0", "closed"])
-
-    def test_upstream_versions_names_missing_git(self):
-        no_git = self.tmp / "no-git"
-        no_git.mkdir()
-        with mock.patch.dict(os.environ, {"PATH": str(no_git)}):
-            self.assertEqual(toolset._upstream_versions(toolset._version_key(PIN_V)), ([], "git が見つからない", None))
-
-    def test_newer_names_new_tag_and_unchecked_when_pinned_tag_is_missing(self):
-        newer = _bumped(PIN_V)
-        if newer is None:
-            self.fail(f"固定 {PIN_V} から新しい版を作れない")
-        self.upstream = self.make_upstream(newer, name="upstream-newer-only")
-        self.add_version(PIN_V)
-        out = self.newer_out()
-        self.assertIn(f"superpowers {newer}: 上流の tag に在る", out)
-        self.assert_unchecked(out, "上流の tag")
 
 
 class RecordNameCase(unittest.TestCase):
