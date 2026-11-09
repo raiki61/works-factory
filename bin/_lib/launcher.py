@@ -156,7 +156,8 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     if shim:
         child.update(hostgh.relay(user))
     # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
-    child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent) if shim else "", user.get("PATH")]))
+    child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent) if shim else "", forge_folder(loaded, source, cache, user),
+                                                  user.get("PATH")]))
     role_heads = [str(hostgh.NO_POST_BIN)] if shim else []
     if shim:
         child[userenv.READ_GH_ENV] = str(hostgh.NO_POST_BIN)
@@ -244,6 +245,19 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         why = (lambda: startpoint.unreachable(target, child, tries=1, configured=remote)) if start else None
         return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME, why)
     os.execve(command[0], command, child)
+
+
+def forge_folder(loaded: dict, source: Path, cache: Path, user: Mapping[str, str]) -> str | None:
+    """Archon の子の PATH に足す、止めた源から作った GitHub の forge のプラグインの置き場（place.forge_plugin）。利用者の PATH に同じ名の
+    プラグインが既に在れば足さない（Archon は同じプラグインが 2 つ見つかると探しを落とす）。作れなければ 1 行告げて足さない（落ちるのは
+    出口の語 pr の run の archon-pr の頭の forge-check だけで、既定の道は要らない）"""
+    if on_absolute_path(place.FORGE_PLUGIN, user.get("PATH", "")):
+        return None
+    try:
+        return str(place.forge_plugin(loaded, source, cache))
+    except RuntimeError as error:
+        print(f"{NAME}: {error}（出口の語 pr の run は PR を作る前に断られる）", file=sys.stderr)
+        return None
 
 
 def reads_only(argv: list[str]) -> bool:

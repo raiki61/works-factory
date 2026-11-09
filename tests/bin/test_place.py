@@ -4,6 +4,7 @@ import copy
 import json
 import pathlib
 import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -192,6 +193,41 @@ class ArchonSourceTest(unittest.TestCase):
                 self.assertNotIn("\n", str(caught.exception))
                 self.assertEqual(files(self.cache / "archon" / commit), before)
                 self.assertEqual(sorted(p.name for p in (self.cache / "archon").iterdir()), [commit])
+
+
+class ForgePluginTest(unittest.TestCase):
+    """forge のプラグインの取り置き。build（bun build --compile）は偽"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.cache = pathlib.Path(tmp.name) / "cache"
+        self.source = pathlib.Path(tmp.name) / "source"
+        self.pack = {"archon": {"commit": "a" * 40}}
+        self.built = []
+
+    def build(self, entry, out):
+        self.built.append(entry)
+        write(out, b"plugin")
+
+    def test_builds_once_from_the_pinned_source_into_its_own_folder(self):
+        folder = place.forge_plugin(self.pack, self.source, self.cache, self.build)
+        self.assertEqual(folder, self.cache / "forge-plugin" / self.pack["archon"]["commit"])
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), [place.FORGE_PLUGIN])
+        self.assertEqual(place.forge_plugin(self.pack, self.source, self.cache, self.build), folder)
+        self.assertEqual(self.built, [self.source / place.FORGE_ENTRY])
+
+    def test_failure_leaves_nothing_and_says_why_in_one_line(self):
+        def broken(entry, out):
+            write(out.parent / "half", b"half")
+            raise subprocess.CalledProcessError(1, ["bun"], stderr="error: Could not resolve\n  plugin.ts")
+
+        for name, build in (("落ちる", broken), ("作らない", lambda entry, out: None)):
+            with self.subTest(name):
+                with self.assertRaisesRegex(RuntimeError, place.FORGE_PLUGIN) as caught:
+                    place.forge_plugin(self.pack, self.source, self.cache, build)
+                self.assertNotIn("\n", str(caught.exception))
+                self.assertFalse((self.cache / "forge-plugin" / self.pack["archon"]["commit"]).exists())
 
 
 class WorkflowSourceTest(unittest.TestCase):
