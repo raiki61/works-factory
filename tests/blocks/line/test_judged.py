@@ -87,5 +87,35 @@ class JudgedCase(unittest.TestCase):
         self.assertEqual(fell["stop_reason"], "works:line-script", "欄の欠けた前の版の返りは空と読まない")
 
 
+class StoppedJudgmentWiringCase(unittest.TestCase):
+    """judged が止めの語を返した run（再審が止まった・返らなかった）は、最後の試験の関門の when で飛び、待ち方だけで封じ・当て・最後の
+    承認ノードまで飛ぶ（L-D48。止まった run で差分を書かない）。待ち方の模型は tests/blocks/line/test_wiring.py の would_run の 1 か所。
+    後ろの節の when: は読まず、走りうる節は走ったと見る（それでも封じと当てが飛ぶことを見る）"""
+
+    def test_a_stopped_judgment_reaches_neither_the_seal_nor_the_apply(self):
+        from tests.blocks.line.test_wiring import TOP, would_run
+        self.assertIn("$judged.output.stop_reason == ''", TOP["test-gate-final"]["when"])
+        below = {"test-gate-final"}
+        grew = True
+        while grew:
+            grew = False
+            for key, node in TOP.items():
+                if key not in below and below & set(node.get("depends_on") or []):
+                    below.add(key)
+                    grew = True
+        state = {"test-gate-final": "skipped"}
+        todo = sorted(below - set(state))
+        while todo:
+            ready = [k for k in todo if all(d in state or d not in below for d in TOP[k].get("depends_on") or [])]
+            self.assertTrue(ready, f"待つ先の結末が決まらない節: {todo}")
+            for key in ready:
+                todo.remove(key)
+                waits = {d: state.get(d, "completed") for d in TOP[key].get("depends_on") or []}
+                state[key] = "completed" if would_run({**TOP[key], "depends_on": list(waits)}, waits) else "skipped"
+        for key in ("merge-seal", "eyes-back-restore", "ask-final", "gate-final", "merge-apply"):
+            self.assertEqual(state[key], "skipped", key)
+        self.assertEqual(state["collect"], "completed", "報告は止まった run でも走る")
+
+
 if __name__ == "__main__":
     unittest.main()

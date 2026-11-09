@@ -1191,7 +1191,7 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 2. `tests/blocks/r2/test_r2_shape.py`: port の一覧に `means`・返す形の `request_conflicts` の行の形。
 3. `tests/blocks/eyes/test_eyes.py`: R2 の `questions` がまとめの `means_questions` に入り、`questions` には入らない（今は `means_questions` の欄が無いので落ちる）。
 4. line の最後の承認ノードの試験: 無人の run で、R2 の `request_conflicts` の行が在る（全部が通す推しでも） → `works:needs-human` で止まる（今どおり。推しで進まない。2026-11-05 に 6.4 の道を足して、開ける理由が問いだけで全部が通す推しなら推しで進む、に替えた。推しの無い行・止める推し・ほかの開ける理由・開き方 `always` では止まる）。開き方 `protected_only` で守りのパスに当たらず R2 の行だけが在る → 開く（must。今は開かずに当たるので落ちる）。最後の承認ノードの答えが continue → 差分が当たり、次の run の答えの下書きに R2 の行が載らず、人待ちに数えない（今は R2 の行はどこにも載らないので、この形だけでは落ちない。落ちるのは開く理由と節の形）。R2 が `redesign-needed` の run で continue → R2 の行は人待ちに数え、次の run の答えの下書きに載る。答えが stop → 止まる。最後の承認ノードの節と報告で、R2 の行が R4 の見出しの下に入らない。
-5. 筋書きの差し替えの返答に `request_conflicts: []` を足す: `workflows/r2/fixtures/standalone.stubs.yaml` と、`eyes__r2__r2-compare` を差し替える line の筋書き `workflows/line/fixtures/no-fix.stubs.yaml`・`workflows/line/fixtures/nothing-owed.stubs.yaml`（返す形の欄が必須なので、無いと照らしで落ちる）。eyes のまとめの出力に必須の欄 `means_questions` を足すので、eyes を差し替える `workflows/line/fixtures/` の 19 本（`eyes__verdict` を差し替える物）にも足す。
+5. 筋書きの差し替えの返答に `request_conflicts: []` を足す: `workflows/r2/fixtures/standalone.stubs.yaml` と、`eyes__r2__r2-compare` を差し替える line の筋書き `workflows/line/fixtures/no-fix.stubs.yaml`・`nothing-owed`（返す形の欄が必須なので、無いと照らしで落ちる。`nothing-owed` は後に結末が no-fix と同じなので消した）。eyes のまとめの出力に必須の欄 `means_questions` を足すので、eyes を差し替える `workflows/line/fixtures/` の 19 本（`eyes__verdict` を差し替える物）にも足す。
 
 #### 6.8 実装で下書きから変えた所
 

@@ -1,5 +1,5 @@
 # 筋書き spec-direction（docs/design/answer-direction.md・docs/design/spec-driven.md の 6.2）: 仕様駆動の道で、人が修正前の承認ノードに continue と
-# 計画と逆向きの一言を書いた run。spec-gate と同じ筋書きで承認ノードが開き（spec-rounds の asks の行）、一言の向きの判定（include の中の返す
+# 計画と逆向きの一言を書いた run。仕様の往復の決め手の無い狭めで承認ノードが開き（spec-rounds の asks の行）、一言の向きの判定（include の中の返す
 # node spec-direction__finish を redirected の返りで差す）が aligned 偽を返すと、spec-answer-before-fix（本物の script）が go 偽・止めの語
 # works:answer-redirected・止めた訳を返し、fix-in の go が偽で、修正の節 fix__finish は走らない（tests/blocks/line/test_scenarios.py の DirectionStopTest）
 fixture:

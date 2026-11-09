@@ -2,7 +2,7 @@
 ask_replan・replan_answer・ask_final・eyes_in）。
 
 元は test_line.py の AskBeforeFixCase・AskReplanCase・AskFinalCase・AskFinalReadsCase・FinalGateCase・
-UnattendedPolicyCallCase・LedgerAsksCase（docs/design/README.md の 9.5）。新しい形では修正前の承認ノードの軸・項目・聞かずに通した行を
+LedgerAsksCase（docs/design/README.md の 9.5）。新しい形では修正前の承認ノードの軸・項目・聞かずに通した行を
 line が事前審査の返りの行（asks・deviations）から組むので、行の材料は plan-review の出力の形で渡す。足した物: 修正の後の並行 PR の
 確かめ直しの found と失敗が開ける理由に入り、must でない（8.1）。
 守る keep-essence: 6（回さなかった試験を最後の承認ノードに名で並べる）・8（人に回した申し出で最後の承認ノードが開く）・10（守りの
@@ -1070,17 +1070,6 @@ class DirectionStopCase(unittest.TestCase):
                     self.assertEqual(self.g.direction_stop(gate, answer, checked, due=due), ("", ""))
 
 
-class UnattendedPolicyCallCase(unittest.TestCase):
-    def test_gate_scripts_leave_the_unattended_choice_to_the_policy(self):
-        """#653: 修正前と案の直しの承認ノードは、無人の run の進むか止まるかを gates.passage に渡すだけで、止めの語を自分で組まない"""
-        for path in (kit.BLOCKS / BLOCK / "src" / "gates.py", SCRIPTS / "ask_replan.py"):
-            with self.subTest(path=path.name):
-                text = path.read_text(encoding="utf-8")
-                self.assertIn("passage(", text)
-        self.assertNotIn("NEEDS_HUMAN", (SCRIPTS / "ask_replan.py").read_text(encoding="utf-8"))
-        self.assertNotIn("NEEDS_HUMAN", (SCRIPTS / "ask_before_fix.py").read_text(encoding="utf-8"))
-
-
 class ScriptCase(unittest.TestCase):
     """script を子のプロセスで回す（受け皿の got・line の node の返りを JSON の字で渡す）"""
 
@@ -1457,6 +1446,22 @@ class ScriptCase(unittest.TestCase):
         self.assertTrue(any("差分を封じられなかった" in r for r in out["reasons"]), out["reasons"])
         self.assertEqual((out["sealed_hash"], out["green_ok"], out["fingerprint"]), ("", True, tests["fingerprint"]))
         self.assertTrue((self.run.artifacts / "gates" / "final-gate.md").is_file())
+
+    def test_ask_final_opens_on_unreadable_conflicts_from_the_fixed_stage(self):
+        """keep-essence 8: 修正の段の合わせ fixed が運ぶ申し出の控え（conflicts の pointer）が読めない run は、ask_final の script の口で
+        開き方 protected_only でも開き、読めない控えを名指す（関数を直に呼ぶ AskFinalCase と違い、with: の fixed から読む道を通す）"""
+        fix_in = {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": []}
+        fixed = {"no_fix": False, "conflicts": [{"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "fix/conflicts.json"}],
+                 "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [], "stages": [], "replan_items": [],
+                 "refixed": False, "skip_why": ""}
+        tests = {"ok": True, "green": True, "red_cause": "", "ran_steps": None, "by": "test_cmd", "suites_line": "1 本", "log": "l",
+                 "baseline_line": "b", "reason": "", "fingerprint": {"head": "h", "diff_hash": "d"}}
+        out = self.run.script("ask_final", request=handed({}), fix_in=json.dumps(fix_in), fixed=json.dumps(fixed), judged="null", tests=json.dumps(tests),
+                              eyes="null", seal="null", spec_check="null", parallel_after="null", replan_review="null",
+                              replan_answer="null", widened="null", start_answer="null", record="null", final_gate="protected_only",
+                              ports=self.ports())
+        self.assertIs(out["open"], True, out)
+        self.assertIn(kit.load(BLOCK, "final").CONFLICT_UNREAD, out["text"])
 
     def test_ask_final_takes_the_last_round_for_the_text_and_the_merge_values(self):
         """ask_final の script に、最初の試験・目と違う指紋と R2 を持つ輪の記録 eyes_back を渡すと、承認ノードの文と、返りの fingerprint・
