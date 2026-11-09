@@ -1,6 +1,7 @@
 """診断の block の出口（docs/design/diagnose.md の 5.6）。どの段が落ちても落ちない: 出口は place のファイルだけを読み、
 {ok, status, mode, stop_reason, reason, ready, judgment, units, questions, inputs, brief, materials, out_of_purpose, answer_ties,
-rejudge_verdict, rejudge_exit, rejudge_diff, downgrades, report} を返す。judgment はいつも在る（受けた判定が無ければ空の形を書いて指す）。"""
+rejudge_verdict, rejudge_exit, rejudge_diff, downgrades, report} を返す。judgment はいつも在る（受けた判定が無ければ空の形を書いて指す）。
+出口が落ちた時の返りは src/fallback.py（標準ライブラリだけ）。"""
 from __future__ import annotations
 
 import json
@@ -8,15 +9,13 @@ import pathlib
 
 import gatemarks   # lib/
 import jsonfile    # lib/
-import oneline     # lib/
 import rolekit     # lib/
 
 import ports
 
 from src import files, judge, rejudge, report
+from src.fallback import EMPTY_JUDGMENT   # 落ちた時の返り（標準ライブラリだけ）は src.fallback.fallen
 
-EMPTY_JUDGMENT = {"units": [], "questions": [], "framing": "", "one_shot": "", "materials_missing": [], "carried_r1": [],
-                  "one_shot_closes": [], "precedents": []}
 NO_RECORD = "判定役の返答を受けた記録が無い（ループが落ちたか、走っていない）"
 NO_RECORD_REJUDGE = "再審の役の返答を受けた記録が無い（ループが落ちたか、走っていない）"
 
@@ -104,21 +103,3 @@ def finish(place, repo, objection: str) -> dict:
     out["report"] = report.lines(place, mode, status, reason, judgment)
     json.dumps(out, ensure_ascii=False, allow_nan=False)   # JSON に書けない値は出口の落ちとして fallback にする
     return out
-
-
-def fallback(place, why: str, objection: str) -> dict:
-    """出口が思わぬ例外で落ちた時の返り（出口は落ちない）。judgment は在る判定のファイルが形に合えばそれを指し、無い・形に合わない時は
-    空の形を書き直してから指す（形に合わない判定を指さない。fallback の中で形の誤りを投げない）"""
-    mode = files.REJUDGE if str(objection or "").strip() else files.JUDGE
-    reason = f"判定の出口が落ちた（{oneline.one_line(why)}）"
-    place = pathlib.Path(place)
-    try:
-        judgment = ports.pointer(place / files.JUDGMENT_FILE, "json(shared:judgment.schema.json)")
-    except ValueError:   # 無い・読めない・形に合わない（ShapeError も ValueError の子）
-        jsonfile.write(place / files.JUDGMENT_FILE, EMPTY_JUDGMENT, parents=True)
-        judgment = ports.pointer(place / files.JUDGMENT_FILE, "json(shared:judgment.schema.json)")
-    return {"ok": False, "status": "failed", "mode": mode, "stop_reason": _stop_word(mode), "reason": reason, "ready": False,
-            "judgment": judgment, "units": [], "questions": [], "inputs": None, "brief": None, "materials": None,
-            "out_of_purpose": None, "answer_ties": None, "rejudge_verdict": None, "rejudge_exit": None, "rejudge_diff": None,
-            "downgrades": [dict(row) for row in files.DOWNGRADES],
-            "report": [report.head(mode, reason)]}

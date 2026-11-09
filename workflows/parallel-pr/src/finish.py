@@ -70,11 +70,3 @@ def build(place) -> dict:
             "downgrades": files.DOWNGRADES,
             "report": report.lines(status, reason, material, drafts_file if isinstance(drafts_file, list) else [], missing,
                                   _proof_failure(place))}
-
-
-def fallback(why: str) -> dict:
-    """出口の中が落ちた時の返り（形は同じ。ok は真のまま——止めるかは line が決め、確かめられなかったと status が言う）"""
-    reason = f"並行 PR の出口が落ちた（{why}）"
-    return {"ok": True, "status": "failed", "stop_reason": "", "reason": reason, "material": {"status": "not_run", "reason": reason},
-            "excluded": None, "drafts": None, "reads": None, "downgrades": files.DOWNGRADES,
-            "report": [f"並行 PR: 確かめが終わらなかった（{reason}）"]}

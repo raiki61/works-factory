@@ -13,6 +13,8 @@ import ports         # .shared/。共通の形の置き場
 import rolekit   # lib/。拒否の控えの名
 import stopby    # lib/。止めの語
 
+from src import fallback   # 出口が落ちた時の返り（標準ライブラリだけ）と 1 か所にする字
+
 # ---------------------------------------------------------------- 役と節の名
 DIAGNOSE_ROLE = "diagnose"          # 拒否の控え rejects-diagnose.json の名・AI の node の id
 REJUDGE_ROLE = "rejudge"
@@ -22,12 +24,12 @@ REJUDGE_REQUIRED = ("verdict", "new_facts", "units")
 REJUDGE_NODE = "p2.rejudge"         # units-before.json と差の行の node に書く今の字
 GUARDED = True                      # 受け付けが作業ツリーの写しと比べる欄（accept.status_keys の引数。役は読むだけ）
 HYPOTHESIS = "仮説"                 # 前提の実測の kind の語（元の runreport の HYPOTHESIS と同じ字。作り直しの間はここに置く）
-JUDGE, REJUDGE = "judge", "rejudge"  # intake の mode の語
+JUDGE, REJUDGE = fallback.JUDGE, fallback.REJUDGE  # intake の mode の語
 
 # ---------------------------------------------------------------- 両方の道
 INTAKE_FILE = "intake.json"
 TREE_FILE = "tree.json"
-JUDGMENT_FILE = "judgment.json"
+JUDGMENT_FILE = fallback.JUDGMENT_FILE
 STRUCTURE_DROPPED_FILE = "structure-units-dropped.json"
 QUERY_EXAMPLES_FILE = "query-examples.json"
 PROMPT_ERROR_FILE = "prompt-error.json"
@@ -84,10 +86,12 @@ JUDGE_STOP = stopby.declare("judge", "受け付けを通った判定が無いま
 MATERIAL_STOP = stopby.declare("material", "素材集めの役の返答を 3 回とも受けられなかった")
 REQUEST_STOP = stopby.declare("request", "依頼の型が通らない・始めの記録が読めない")
 REJUDGE_STOP = stopby.REJUDGE
+if (JUDGE_STOP, REJUDGE_STOP) != (fallback.JUDGE_STOP, fallback.REJUDGE_STOP):   # 落ちた時の返り（lib を読まない）の字と同じ語
+    raise ValueError(f"src.fallback の止めの語 {fallback.JUDGE_STOP}・{fallback.REJUDGE_STOP} が stopby の語と違う")
 REJUDGE_SESSION_STOP = stopby.REJUDGE_SESSION
 
 UNDECIDED_MIN = 10   # 人へ回す問いの先行例の undecided_because の最小の長さ
 FACTS_MIN = 20       # 再審の new_facts の最小の長さ
 
-DOWNGRADES = [{"what": "再審は判定役の会話を継がず、保存した返答を読む新しい会話で回す",
-               "versus": "review-graph と今の works は判定役の会話を継ぐ"}]
+DOWNGRADES = fallback.DOWNGRADES
+
