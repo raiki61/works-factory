@@ -1,15 +1,28 @@
 """独立の目から修正の段へ返す輪の、周の頭の決めと周の記録の行の形と最後の周の状態の選び（src/eyesback.py。docs/design/line.md の 1.3・5.4）。
 
 周の頭の script は薄い口で、決めは turn に在る。ここは turn・last・current・lines を値で回し、返す条件・抜ける訳の順・案の選び・上限・記録の形を
-確かめる（周の節の並びは test_wiring.py、筋書きは test_scenarios.py）。
+確かめる（周の節の並びは test_wiring.py、筋書きは test_scenarios.py）。turn の引数 snap（返す時だけ呼んで新しい周の行 tree に置く木の控え）は
+数える関数で渡し、script が渡す tree_now は本物の git の写しで照らす。返した段が止まった・落ちた周の頭が、前の周の試験と目を通った状態を
+checkpoint 付きで持ち越すことと、script の既定の記録が RECORD・FIELDS の欄を全部持つことも、ここで値のまま確かめる。
+RestoreCase は、写しの repo（本物の git）で封じる前の戻しの門 restore_before_seal と節 eyes-back-restore の script を回し、作業ツリーが
+返す前の木へ戻ることと、返した段の書き換えが置き場の控えに残ることと、戻せない訳の語を確かめる。
 """
 import ast
+import contextlib
+import inspect
+import io
 import json
+import os
 import re
+import runpy
+import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
+from tests.bin import hermetic
+from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
 
 BLOCK = "line"
@@ -34,6 +47,34 @@ def gate_got(diff_hash="h1", **over) -> dict:
 def eyes(route="fix", items=ITEMS, **over) -> dict:
     return {"ok": route != "fix", "r1": {"status": "fix-needed", "reason": "写し"}, "r2": {"status": "pass", "reason": ""},
             "findings": items, "route": route, "route_why": "" if route == "fix" else "返す物が無い（どの目も通った）", **over}
+
+
+SEALED = ("diff", "diffed", "changed", "units", "groups", "item_claims")   # 封じる差分を語る合わせの欄
+SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
+
+
+class Snaps:
+    """turn に渡す木の控え。呼ばれた数を数え、呼ばれるたびに同じ木の字を返す"""
+
+    def __init__(self, tree="t1"):
+        self.tree, self.calls = tree, 0
+
+    def __call__(self) -> str:
+        self.calls += 1
+        return self.tree
+
+
+def before_fixed() -> dict:
+    """返す前（最後に試験と独立の目を通った周）の合わせ"""
+    return fixed(diff="diff-before", diffed=True, changed=["a.py"], units=[{"key": "u1"}], groups=[{"group": 1}],
+                 item_claims={"items": [1], "claims": ["claim-before"]})
+
+
+def back_fixed(**over) -> dict:
+    """返した段の合わせ。封じる差分を語る欄は返す前と違う値、異議・段の並び・more は返した段の物"""
+    stages = [*fixed()["stages"], {"stage": 2, "kind": "back", "fix": {"carry": {"loops": ["back"]}}, "lens": None, "delta": None}]
+    return fixed(diff="diff-after", diffed=False, changed=["a.py", "b.py"], units=[{"key": "u1"}, {"key": "u2"}], groups=[],
+                 item_claims={"items": [], "claims": []}, stages=stages, more=[{"ok": False, "stage": "back"}], **over)
 
 
 def script_const(name: str, const: str) -> str:
@@ -152,7 +193,10 @@ class TurnCase(_Case):
         self.assertEqual((carried["go"], carried["round"], carried["exit"], carried["rows"]), (False, 3, "返す物が無い（どの目も通った）", []))
         self.assertEqual((carried["fixed"], carried["tests"], carried["eyes"]), (fixed(), gate_got(), eyes("stay")), "前の周が返さなかった周は前の記録の状態をそのまま運ぶ")
         later = self.run_turn(k=2, prev=self.run_turn(), tests=None)
-        self.assertEqual((later["go"], later["exit"], later["sealable"]), (False, self.e.EXITS["fell"], False), "2 周目以降の欠けは封じない")
+        self.assertEqual((later["go"], later["exit"], later["sealable"]), (False, self.e.EXITS["fell"], True),
+                         "前の周の頭が返した後の欠けは、返す前に試験と目を通った状態を持ち越して封じる")
+        orphan = self.run_turn(k=2, prev=None, tests=None)
+        self.assertEqual((orphan["go"], orphan["exit"], orphan["sealable"]), (False, self.e.EXITS["fell"], False), "前の周の記録が読めなければ封じない")
         first = self.run_turn(eyes=None)
         self.assertEqual((first["go"], first["exit"], first["sealable"]), (False, self.e.NO_RETURN, False), "1 周目に目が返らなかっただけでは落ちたと言わない")
         self.assertFalse(self.e.fell({"exit": first["exit"]}))
@@ -247,6 +291,84 @@ class TurnCase(_Case):
         got = self.run_turn(fixed=fixed(no_fix=True))
         self.assertEqual((got["go"], got["exit"], got["rows"]), (False, "直す物が無い run は返さない", []))
 
+    def test_later_round_without_its_own_tests_or_eyes_seals_the_state_before_the_return(self):
+        """2 周目以降に、返した段が止まった・落ちたせいで試験か目の返りが無い周の頭は、返す前に試験と独立の目を通った状態（前の周の頭が運ぶ）を
+        封じる。封じる差分を語る合わせの欄は前の周の物、異議と段の並びは返した段の物。戻す先は前の周の頭が返す時に取った木。異議だけで止まり
+        試験と目が揃う周・差分が変わらない周・返す周・返さない周は今の周の状態のままで、戻す先は無い。合わせが読めない周は封じない"""
+        self.assertIn("snap", inspect.signature(self.e.turn).parameters, "turn が返す時の木の控え snap を受けない")
+        snaps = Snaps("t1")
+        prev = self.run_turn(fixed=before_fixed(), tests=gate_got("h1"), snap=snaps)
+        self.assertEqual((prev["go"], snaps.calls, [r.get("tree") for r in prev["rows"]]), (True, 1, ["t1"]), "返す時に 1 回だけ木を取って周の行に置く")
+        for name, over, exit_ in (("a 合わせが進めず試験も目も無い", {"fixed": back_fixed(go=False, objection="返した段の異議"), "tests": None, "eyes": None}, "stop"),
+                                  ("b 合わせは進んだが試験が無い", {"fixed": back_fixed(), "tests": None}, "fell")):
+            with self.subTest(name):
+                got = self.run_turn(k=2, prev=prev, **over)
+                self.assertEqual((got["go"], got["sealable"]), (False, True))
+                self.assertEqual((got["tests"], got["eyes"], got["fingerprint"], got["item_claims"]),
+                                 (prev["tests"], prev["eyes"], {"head": "abc", "diff_hash": "h1"}, {"items": [1], "claims": ["claim-before"]}))
+                self.assertEqual((got["green_ok"], got["eyes_ok"]), (prev["green_ok"], prev["eyes_ok"]))
+                self.assertEqual({key: got["fixed"][key] for key in SEALED}, {key: before_fixed()[key] for key in SEALED})
+                for key in ("objection", "stages", "more", "go", "plan"):
+                    self.assertEqual(got["fixed"][key], over["fixed"][key], f"{key} は返した段の物のまま")
+                if exit_ == "stop":
+                    self.assertTrue(got["exit"].startswith(self.e.EXITS["stop"]) and "返した段の異議" in got["exit"], got["exit"])
+                else:
+                    self.assertEqual(got["exit"], self.e.EXITS["fell"])
+                self.assertEqual(got["checkpoint"], {"round": 1, "tree": "t1"})
+                self.assertEqual(got["left"], ITEMS)
+                self.assertEqual(set(got), set(self.e.FIELDS))
+                self.assertEqual(json.loads(json.dumps(got)), got)
+        self.assertEqual(snaps.calls, 1, "返さない周は木を取らない")
+        for name, over, left in (("c 異議だけで止まり試験と目が揃う", {"fixed": back_fixed(objection="設計に異議"), "tests": gate_got("h2"), "eyes": eyes()}, ITEMS),
+                                 ("d 差分が変わらない", {"fixed": back_fixed(), "tests": gate_got("h1"), "eyes": eyes(items=ITEMS[:1])}, ITEMS[:1])):
+            with self.subTest(name):
+                got = self.run_turn(k=2, prev=prev, snap=snaps, **over)
+                self.assertEqual((got["go"], got["sealable"], got["checkpoint"]), (False, True, None))
+                self.assertEqual((got["fixed"], got["tests"], got["eyes"]), (over["fixed"], over["tests"], over["eyes"]), "今の周の状態のまま")
+                self.assertEqual(got["left"], left)
+        first = self.run_turn(snap=Snaps("t0"))
+        self.assertEqual((first["go"], first["checkpoint"], [r.get("tree") for r in first["rows"]]), (True, None, ["t0"]), "返す周の戻す先はまだ無く、新しい行が木を持つ")
+        quiet = Snaps("t9")
+        stay = self.run_turn(eyes=eyes("stay"), snap=quiet)
+        capped = self.run_turn(k=4, prev=self.run_turn(k=3, prev=self.run_turn(k=2, prev=prev, tests=gate_got("h2")), tests=gate_got("h3")), tests=gate_got("h4"), snap=quiet)
+        self.assertEqual((stay["checkpoint"], capped["checkpoint"], capped["exit"], quiet.calls), (None, None, self.e.CAP_WHY, 0), "返さない抜け方は木を取らない")
+        for name, over in (("f1 合わせが無い", {"prev": prev, "fixed": None}), ("f2 前の周が無い", {"prev": None})):
+            with self.subTest(name):
+                got = self.run_turn(k=2, tests=None, eyes=None, **over)
+                self.assertEqual((got["sealable"], got["fixed"], got["tests"], got["eyes"], got["checkpoint"]), (False, None, None, None, None))
+
+    def test_script_fallbacks_carry_every_record_field(self):
+        """周の頭の script の落ちた時の記録 fallen と集めの script の落ちた時の記録 fallback が、FIELDS・RECORD と同じ鍵の組を持ち、戻す先 checkpoint は
+        null になる"""
+        self.assertIn("checkpoint", self.e.FIELDS)
+        self.assertIn("checkpoint", self.e.RECORD)
+        run = {}
+        for name in ("eyes_back", "eyes_back_end"):
+            env = {"INPUTS_ROUND": "null", **{f"INPUTS_BACK_{n}": "null" for n in range(1, 5)}}
+            with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                run[name] = runpy.run_path(str(kit.BLOCKS / BLOCK / "scripts" / f"{name}.py"), run_name="__main__")
+        fallen, fallback = run["eyes_back"]["fallen"]("落ちた"), run["eyes_back_end"]["fallback"]("落ちた")
+        self.assertEqual(set(fallen), set(self.e.FIELDS))
+        self.assertEqual(set(fallback), set(self.e.RECORD))
+        self.assertEqual((fallen["checkpoint"], fallback["checkpoint"]), (None, None))
+        self.assertEqual(self.e.last([fallen])["checkpoint"], None)
+
+    def test_tree_now_reads_the_tree_or_nothing(self):
+        """tree_now は git の写しでは leftovers.snapshot と同じ木の sha を返し、作業ツリーと本物の index を変えない。git でないフォルダでは
+        誤りを上げずに空の字を返す"""
+        self.assertTrue(hasattr(self.e, "tree_now"), "木を読む口 tree_now が無い")
+        import leftovers
+        repo = hermetic.tmpdir(self) / "repo"
+        committed_copy(repo, SEED)
+        (repo / "added-by-the-fix.txt").write_text("new\n", encoding="utf-8")
+        before = (git(repo, "status", "--porcelain=v1", "-uall"), git(repo, "diff", "--cached", "--name-only"), git(repo, "ls-files", "-s"))
+        tree = self.e.tree_now(repo)
+        self.assertEqual(tree, leftovers.snapshot(repo))
+        self.assertRegex(tree, r"^[0-9a-f]{40,64}$")
+        self.assertEqual((git(repo, "status", "--porcelain=v1", "-uall"), git(repo, "diff", "--cached", "--name-only"), git(repo, "ls-files", "-s")), before)
+        with tempfile.TemporaryDirectory() as bare:
+            self.assertEqual(self.e.tree_now(bare), "")
+
     def test_items_left_unreturned_are_named_even_with_no_round(self):
         """1 周目に返さずに抜けた時（修正の段が止めた・直す物が無い run）も、目が返そうとした項目と抜けた訳を、承認ノードと報告が読む lines の
         1 行に出す。目が返す物を言わなかった run は今どおり空"""
@@ -281,14 +403,16 @@ class LastCase(_Case):
         self.assertIsNone(self.e.last([]))
 
     def test_current_prefers_the_loop_record_and_falls_back_to_the_first(self):
-        """current は、輪の記録が在り、その exit が『輪の節が落ちた』でなく、記録の fixed が null でない時だけ記録の fixed・tests・eyes を返す。
-        記録が無い・集めの fallback の記録・fixed の欠けた記録の時は、渡された最初の fixed・tests・eyes を返す"""
+        """current は、輪の記録が在り、記録の fixed が null でない時だけ記録の fixed・tests・eyes を返す（exit が『輪の節が落ちた』でも、
+        返す前の検証済みの状態を持ち越した記録は使う）。記録が無い・fixed の欠けた記録（集めの fallback の記録も）の時は、渡された最初の
+        fixed・tests・eyes を返す"""
         first = ("first-fixed", "first-tests", "first-eyes")
         done = {"rows": [], "exit": "返す物が無い", "left": [], "fixed": "last-fixed", "tests": "last-tests", "eyes": "last-eyes"}
         self.assertEqual(self.e.current(done, *first), ("last-fixed", "last-tests", "last-eyes"))
         self.assertEqual(self.e.current(None, *first), first)
         self.assertEqual(self.e.current({**done, "exit": self.e.EXITS["fell"], "fixed": None, "tests": None, "eyes": None}, *first), first)
-        self.assertEqual(self.e.current({**done, "exit": self.e.EXITS["fell"]}, *first), first, "落ちた記録は状態が在っても使わない")
+        self.assertEqual(self.e.current({**done, "exit": self.e.EXITS["fell"]}, *first), ("last-fixed", "last-tests", "last-eyes"),
+                         "輪の節が落ちた周でも、記録が持ち越した検証済みの状態は使う")
         self.assertEqual(self.e.current({**done, "fixed": None}, *first), first)
         self.assertEqual(self.e.current({**done, "eyes": None}, *first), ("last-fixed", "last-tests", None), "最後の周に目の got が無いのはそのまま")
 
@@ -312,6 +436,174 @@ class LinesCase(_Case):
         self.assertIn("R2: 入口が足りない", capped[-1])
         self.assertNotIn("工場の不具合", "".join(capped))
 
+    UNFIXED = "返したが直せなかった項目: "
+
+    def unfixed(self, out) -> list:
+        return [line for line in out if self.UNFIXED in line]
+
+    def test_lines_follow_each_exit_through_the_turn(self):
+        """k=2 で前の周の頭が返す前の状態を運ぶ時、周の頭の返り（rows・exit・left・checkpoint）を lines に渡すと、止まった・落ちた・差分が変わらない・
+        異議だけで止まった抜け方では返して直せなかった項目を名指し、止まった・落ちたでは封じたのが 1 周目に返す前の状態であることを言い、
+        差分が変わらない時は返す前と同じ状態だと言う。上限の抜け方は上限の訳の 1 行だけで、直せなかった項目の行を重ねない"""
+        self.assertIn("snap", inspect.signature(self.e.turn).parameters, "turn が返す時の木の控え snap を受けない")
+        prev = self.run_turn(fixed=before_fixed(), tests=gate_got("h1"), snap=Snaps("t1"))
+        stopped = self.run_turn(k=2, prev=prev, fixed=back_fixed(go=False, objection="返した段の異議"), tests=None, eyes=None)
+        fell = self.run_turn(k=2, prev=prev, fixed=back_fixed(), tests=None)
+        same = self.run_turn(k=2, prev=prev, fixed=back_fixed(), tests=gate_got("h1"), eyes=eyes(items=ITEMS[:1]))
+        objected = self.run_turn(k=2, prev=prev, fixed=back_fixed(objection="設計に異議"), tests=gate_got("h2"), eyes=eyes())
+        cases = (("止まった", stopped, ITEMS, True, False), ("落ちた", fell, ITEMS, True, False),
+                 ("差分が変わらない", same, ITEMS[:1], False, True), ("異議だけで止まった", objected, ITEMS, False, False))
+        for name, got, items, sealed_before, same_state in cases:
+            with self.subTest(name):
+                out = self.e.lines(got["rows"], got["exit"], got["left"])
+                found = self.unfixed(out)
+                self.assertEqual(len(found), 1, out)
+                self.assertTrue(found[0].startswith(self.UNFIXED), found[0])
+                self.assertIn(self.e.left_text(items), found[0])
+                self.assertIn("src/a.py:12: 写しが残っている", found[0])
+        self.assertIn("checkpoint", inspect.signature(self.e.lines).parameters, "lines が封じた周の checkpoint を受けない")
+        for name, got, items, sealed_before, same_state in cases:
+            with self.subTest(name, part="sealed state"):
+                out = self.e.lines(got["rows"], got["exit"], got["left"], checkpoint=got["checkpoint"])
+                self.assertEqual(any("1 周目に返す前の状態" in line for line in out), sealed_before, out)
+                self.assertEqual(any("返す前と同じ状態" in line for line in out), same_state, out)
+        cap = self.run_turn(k=4, prev=self.run_turn(k=3, prev=self.run_turn(k=2, prev=prev, tests=gate_got("h2")), tests=gate_got("h3")), tests=gate_got("h4"))
+        out = self.e.lines(cap["rows"], cap["exit"], cap["left"], checkpoint=cap["checkpoint"])
+        self.assertEqual(self.unfixed(out), [], "上限の抜け方は上限の訳の行が残った作り残しを名指す。直せなかった項目の行を重ねない")
+        self.assertEqual([line for line in out if self.e.cap_text(ITEMS) in line], [f"輪を抜けた訳: {self.e.cap_text(ITEMS)}"])
+        self.assertFalse(any("返す前と同じ状態" in line or "1 周目に返す前の状態" in line for line in out), out)
+
+    def test_lines_name_the_restore_outcome_without_foretelling_the_seal(self):
+        """封じた周の checkpoint が在る時、lines は戻しの結末を言う。戻して控えを書いた時は控えのパスと git apply を、作業ツリーを変えていなかった時は
+        変えていなかったと、戻せなかった時は訳を（封じが拒むとは先取りせず）、結末の記録が無い（null）時は記録が無いと言う。空の dict と null は別"""
+        params = inspect.signature(self.e.lines).parameters
+        self.assertTrue({"checkpoint", "back_restore"} <= set(params), f"lines の引数 {sorted(params)} に checkpoint・back_restore が無い")
+        rows = [self.e.row(1, eyes(), ITEMS)]
+        exit_ = f"{self.e.EXITS['stop']}（修正の段の合わせが進めなかった）"
+
+        def say(back_restore) -> list:
+            return self.e.lines(rows, exit_, ITEMS, checkpoint={"round": 1, "tree": "t1"}, back_restore=back_restore)
+
+        kept = say({"restored": True, "kept": "/place/eyes-back-kept.patch", "reason": ""})
+        self.assertTrue(any("1 周目に返す前の状態" in line for line in kept), kept)
+        self.assertTrue(any("/place/eyes-back-kept.patch" in line and "git apply" in line for line in kept), kept)
+        untouched = say({"restored": False, "kept": "", "reason": ""})
+        self.assertTrue(any("変えていなかった" in line for line in untouched), untouched)
+        self.assertFalse(any("git apply" in line for line in untouched), untouched)
+        failed = say({"restored": False, "kept": "/place/eyes-back-kept.patch", "reason": self.e.RESTORE_DIFFERS})
+        self.assertTrue(any(self.e.RESTORE_DIFFERS in line and "戻せなかった" in line for line in failed), failed)
+        self.assertFalse(any("変えていなかった" in line for line in failed), failed)
+        self.assertNotIn("拒まれる", "".join(failed), "封じの結末は merge の返りに任せ、ここで先取りしない")
+        missing = say(None)
+        self.assertTrue(any("戻しの結末の記録が無い" in line for line in missing), missing)
+        self.assertFalse(any("変えていなかった" in line for line in missing), "null は空の dict と別（変えていなかったとは読まない）")
+        self.assertNotEqual(missing, untouched)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RestoreCase(_Case):
+    """封じる前の戻し（restore_before_seal と節 eyes-back-restore の script）。写しの repo は本物の git で、返した段の書き換えは追跡のファイルの
+    書き換えと新しいファイルで作る"""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = hermetic.tmpdir(self) / "repo"
+        committed_copy(self.repo, SEED)
+        import green_cert
+        import leftovers
+        self.green_cert, self.leftovers = green_cert, leftovers
+        self.fingerprint = green_cert.fingerprint(self.repo)
+        self.tree = self.e.tree_now(self.repo) if hasattr(self.e, "tree_now") else ""
+        self.checkpoint = {"round": 1, "tree": self.tree}
+        self.kept = hermetic.tmpdir(self) / self.KEPT
+
+    KEPT = "eyes-back-kept.patch"
+
+    def rewrite(self):
+        """返した段の書き換え: 追跡のファイルを書き換え、新しいファイルを足す"""
+        with (self.repo / "stats.py").open("a", encoding="utf-8") as f:
+            f.write("\n# 返した段の書き換え\n")
+        (self.repo / "added-by-the-back-round.txt").write_text("new\n", encoding="utf-8")
+
+    def needs_gate(self):
+        self.assertTrue(hasattr(self.e, "restore_before_seal"), "封じる前の戻しの門 restore_before_seal が無い")
+
+    def test_restore_returns_the_tree_and_keeps_the_rewrite(self):
+        """追跡のファイルの書き換えと新しいファイルを足した作業ツリーで restore_before_seal を呼ぶと、restored が真になり、作業ツリーの指紋が
+        取った指紋と合い、kept のファイルを git apply すると書き換えが戻る"""
+        self.needs_gate()
+        self.rewrite()
+        rewritten = (self.repo / "stats.py").read_text(encoding="utf-8")
+        self.assertFalse(self.green_cert.matches(self.fingerprint, self.repo))
+        got = self.e.restore_before_seal(self.repo, self.checkpoint, self.fingerprint, self.kept)
+        self.assertEqual((got["restored"], got["reason"]), (True, ""))
+        self.assertEqual(got["kept"], str(self.kept))
+        self.assertTrue(self.green_cert.matches(self.fingerprint, self.repo))
+        self.assertEqual(self.e.tree_now(self.repo), self.tree)
+        self.assertFalse((self.repo / "added-by-the-back-round.txt").exists())
+        git(self.repo, "apply", str(self.kept))
+        self.assertEqual((self.repo / "stats.py").read_text(encoding="utf-8"), rewritten)
+        self.assertEqual((self.repo / "added-by-the-back-round.txt").read_text(encoding="utf-8"), "new\n")
+
+    def test_restore_leaves_a_matching_tree_or_a_missing_checkpoint_alone(self):
+        """指紋が今の木と合う時と、checkpoint が dict でない時は、作業ツリーにも kept にも触らず、restored 偽・kept 空・reason 空を返す"""
+        self.needs_gate()
+        nothing = {"restored": False, "kept": "", "reason": ""}
+        self.assertEqual(self.e.restore_before_seal(self.repo, self.checkpoint, self.fingerprint, self.kept), nothing)
+        self.assertEqual(self.e.tree_now(self.repo), self.tree)
+        self.assertFalse(self.kept.exists())
+        self.rewrite()
+        rewritten = self.e.tree_now(self.repo)
+        for checkpoint in (None, "x", []):
+            with self.subTest(checkpoint=checkpoint):
+                self.assertEqual(self.e.restore_before_seal(self.repo, checkpoint, self.fingerprint, self.kept), nothing)
+                self.assertEqual(self.e.tree_now(self.repo), rewritten)
+                self.assertFalse(self.kept.exists())
+
+    def test_restore_names_why_it_could_not_return(self):
+        """戻す先の木が空なら木を変えずに RESTORE_NO_TREE、HEAD が動いて戻した後も指紋が合わなければ RESTORE_DIFFERS、戻しが OSError で
+        落ちれば RESTORE_ERROR で、どの時も restored は偽。戻しを試みた時は kept の控えが先に書かれている"""
+        self.needs_gate()
+        for word in ("RESTORE_NO_TREE", "RESTORE_DIFFERS", "RESTORE_ERROR"):
+            self.assertTrue(isinstance(getattr(self.e, word, None), str) and getattr(self.e, word), f"{word} が無い")
+        self.assertEqual(len({self.e.RESTORE_NO_TREE, self.e.RESTORE_DIFFERS, self.e.RESTORE_ERROR}), 3)
+        self.rewrite()
+        rewritten = self.e.tree_now(self.repo)
+        got = self.e.restore_before_seal(self.repo, {"round": 1, "tree": ""}, self.fingerprint, self.kept)
+        self.assertEqual((got["restored"], got["reason"]), (False, self.e.RESTORE_NO_TREE))
+        self.assertEqual(self.e.tree_now(self.repo), rewritten)
+        self.assertFalse(self.kept.exists(), "木を触らない時は控えも書かない")
+        with mock.patch.object(self.leftovers, "restore_paths", side_effect=OSError("書けない")):
+            got = self.e.restore_before_seal(self.repo, self.checkpoint, self.fingerprint, self.kept)
+        self.assertEqual((got["restored"], got["reason"]), (False, self.e.RESTORE_ERROR))
+        self.assertEqual(got["kept"], str(self.kept))
+        self.assertIn("added-by-the-back-round.txt", self.kept.read_text(encoding="utf-8"), "控えは戻しの前に書かれる")
+        self.assertEqual(self.e.tree_now(self.repo), rewritten)
+        self.kept.unlink()
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "返した段が commit した")
+        got = self.e.restore_before_seal(self.repo, self.checkpoint, self.fingerprint, self.kept)
+        self.assertEqual((got["restored"], got["reason"]), (False, self.e.RESTORE_DIFFERS))
+        self.assertEqual(got["kept"], str(self.kept))
+        self.assertTrue(self.kept.is_file())
+
+    def test_restore_script_reads_both_inputs_and_keeps_the_patch_in_the_place(self):
+        """節 eyes-back-restore の script は、写しの repo を cwd にして checkpoint と指紋を読み、restored が真で、置き場に eyes-back-kept.patch が
+        在り、指紋が合う。checkpoint が null の時も指紋を読み、木に触らない"""
+        script = kit.BLOCKS / BLOCK / "scripts" / "eyes_back_restore.py"
+        self.assertTrue(script.is_file(), "節 eyes-back-restore の script eyes_back_restore.py が無い")
+        run = kit.Run(self, BLOCK)
+        run.repo = self.repo
+        self.rewrite()
+        rewritten = self.e.tree_now(self.repo)
+        got = run.script("eyes_back_restore", checkpoint="null", fingerprint=json.dumps(self.fingerprint))
+        self.assertEqual(got, {"restored": False, "kept": "", "reason": ""})
+        self.assertEqual(self.e.tree_now(self.repo), rewritten)
+        got = run.script("eyes_back_restore", checkpoint=json.dumps(self.checkpoint), fingerprint=json.dumps(self.fingerprint))
+        self.assertEqual((got["restored"], got["reason"]), (True, ""))
+        self.assertEqual(got["kept"], str(run.artifacts / self.KEPT))
+        self.assertTrue((run.artifacts / self.KEPT).is_file())
+        self.assertTrue(self.green_cert.matches(self.fingerprint, self.repo))

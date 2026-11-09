@@ -24,6 +24,8 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 - THEME_NEXT_DIR: 計画の承認ノードで設計へ戻した時の、続きの run の材料の置き場（theme-return が書く。中のファイルは THEME_NEXT_*）
 - REPLAN_PRIOR: 案の直しの plan の port prior の先（after-fix が書く）
 - FINAL_GATE_MD: 開いた最後の承認ノードの文の控え
+- BACK_KEPT: 返した段の書き換え（返す前の作業ツリーから、返した段が書いた作業ツリーへの差分）の控え（節 eyes-back-restore が、作業ツリーを返す前の姿へ戻す前に書く。
+  git apply で作業ツリーへ戻せる。最後の承認ノードと報告がこの在りかを名指す）
 - SECTIONS・FACTS: report に pointer で渡す 2 つの形（collect が書く。docs/design/line.md の 7 節）
 """
 START = "r1/start.json"
@@ -53,3 +55,4 @@ REPLAN_PRIOR = "replan-prior.json"
 FINAL_GATE_MD = "gates/final-gate.md"
 SECTIONS = "report-in/sections.json"
 FACTS = "report-in/facts.json"
+BACK_KEPT = "eyes-back-kept.patch"

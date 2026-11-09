@@ -51,6 +51,24 @@ def refs(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def would_run(node: dict, states: dict) -> bool:
+    """node が待つ節（depends_on）の状態 states から、trigger_rule の決まりで走るか。状態は completed・failed・skipped（when などで飛んだ）・
+    skipped_after_failure（前が落ちたので飛んだ）。決まりは Archon の待ち方（all_success・one_success・none_failed_min_one_success・all_done）と同じ"""
+    upstream = [states[dep] for dep in node["depends_on"]]
+    failed = [s for s in upstream if s in ("failed", "skipped_after_failure")]
+    done = [s for s in upstream if s == "completed"]
+    rule = node.get("trigger_rule") or "all_success"
+    if rule == "all_success":
+        return len(done) == len(upstream)
+    if rule == "one_success":
+        return bool(done)
+    if rule == "none_failed_min_one_success":
+        return not failed and bool(done)
+    if rule == "all_done":
+        return True
+    raise AssertionError(f"知らない待ち方 {rule}")
+
+
 class ReceiverCase(unittest.TestCase):
     """受け皿（埋め P8）と返し（埋め P2）"""
 
@@ -116,7 +134,7 @@ class ReceiverCase(unittest.TestCase):
     def test_merge_seal_waits_for_the_eyes_receiver(self):
         """封じは最後の周の目と試験を読むので、返す輪の集めを待つ（eyes の graph の返す node が落ちても merge-seal の with: が落ちた node を
         読まない。docs/design/line.md の 1.3）"""
-        self.assertEqual(TOP["merge-seal"]["depends_on"], ["eyes-back"])
+        self.assertEqual(TOP["merge-seal"]["depends_on"], ["eyes-back", "eyes-back-restore"])
 
     def test_merge_apply_reads_the_seal_through_ask_final(self):
         """受け皿の got の中の欄は with: で読めない（Archon は output_format の宣言の外の道を誤りにする）ので、封じの値は最後の承認ノードが
@@ -148,8 +166,9 @@ class EyesBackCase(unittest.TestCase):
         for k in range(1, LIMIT + 2):
             head = TOP[f"back-{k}"]
             with self.subTest(head=k):
-                # 1 周目は最初の目の受け皿だけを待つ（飛べば頭も飛ぶ。止まった run で最後の承認ノードを走らせない）。2 周目以降は前の周の飛びうる節を読む
-                self.assertEqual((head["script"], head.get("trigger_rule")), ("eyes_back", None if k == 1 else "none_failed_min_one_success"))
+                # 1 周目は最初の目の受け皿だけを待つ（飛べば頭も飛ぶ。止まった run で最後の承認ノードを走らせない）。2 周目以降は前の周の頭が走れば
+                # 走る（one_success。前の周の修正の段の中の節が落ちて周の節が飛んでも走る）
+                self.assertEqual((head["script"], head.get("trigger_rule")), ("eyes_back", None if k == 1 else "one_success"))
                 self.assertEqual(head["depends_on"], ["eyes-out"] if k == 1 else [f"back-{k - 1}", *(f"back-{k - 1}-{x}" for x in ("fixed", "fix-out", "gate-out", "eyes-out"))])
                 self.assertEqual(head["with"]["round"], str(k))
                 self.assertEqual(sorted(head["with"]), sorted(TOP["back-1"]["with"]))
@@ -179,9 +198,10 @@ class EyesBackCase(unittest.TestCase):
 
     def test_seal_and_final_read_the_last_round(self):
         """merge-seal が eyes-back を待ち、when に sealable を持ち、指紋・緑・目の値を eyes-back から読む。ask-final は eyes-back を
-        if_skipped: null で読み、merge-apply の items と result の eyes は eyes-back から読み、eyes-back は when を持たず、周の頭が 1 つも走らない run では飛ぶ（all_done にすると、計画や修正で止まった run でも集めが済み、最後の承認ノードが走る）"""
+        if_skipped: null で読み、merge-apply の items と result の eyes は eyes-back から読み、eyes-back は when を持たず、周の頭が 1 つも走らない run では飛ぶ（all_done にすると、計画や修正で止まった run でも集めが済み、最後の承認ノードが走る）。
+        返した周の中の節が落ちた run では、次の周の頭が one_success で走るので、eyes-back・merge-seal・ask-final まで届く"""
         seal = TOP["merge-seal"]
-        self.assertEqual(seal["depends_on"], ["eyes-back"])
+        self.assertEqual(seal["depends_on"], ["eyes-back", "eyes-back-restore"])
         self.assertIn("$eyes-back.output.sealable == true", seal["when"])
         self.assertEqual({k: seal["with"][k] for k in ("fingerprint", "green_ok", "eyes_ok")},
                          {"fingerprint": "$eyes-back.output.fingerprint", "green_ok": "$eyes-back.output.green_ok", "eyes_ok": "$eyes-back.output.eyes_ok"})
@@ -195,6 +215,77 @@ class EyesBackCase(unittest.TestCase):
         self.assertEqual(TOP["collect"]["with"]["eyes_back"], {"from": "$eyes-back.output", "if_skipped": None})
         self.assertEqual((TOP["eyes-back"]["trigger_rule"], TOP["eyes-back"].get("when")), ("none_failed_min_one_success", None))
         self.assertIn("eyes-back", TOP["result"].get("depends_on", []) + TOP["collect"]["depends_on"])
+
+    def test_round_waits_reach_the_next_head_after_an_internal_error(self):
+        """周 k の修正の段の中の節が誤りで落ちると、Archon はその後ろの周の節（受け皿・試験・目）を「前が落ちたので飛んだ」節にする。それでも次の周の
+        頭と集めが走るように、周の合わせの節 back-k-fixed と 2 周目以降の頭は one_success で待つ（周 k の頭が走れば走る。合わせの節は落ちた段を null で
+        受けて『進めなかった』を返し、頭はその周の試験と目を null で受けて返す前の状態を持ち越す）。周の頭が 1 つも走らない run では、1 周目の頭が
+        eyes-out を既定の待ち方で待って飛び、後ろの頭も合わせの節も飛ぶので、集めも封じも最後の承認ノードも飛ぶまま。落ちた段を読む受け皿・試験・目の節は
+        既定の待ち方のままで、落ちた節の出力を直に読まない"""
+        for k in range(1, LIMIT + 1):
+            with self.subTest(round=k):
+                fixed = TOP[f"back-{k}-fixed"]
+                self.assertEqual((fixed.get("trigger_rule"), fixed.get("depends_on")), ("one_success", [f"back-{k}", f"back-{k}-fix-out"]))
+                self.assertEqual(fixed["with"]["add"], {"from": f"$back-{k}-fix-out.output.got", "if_skipped": None})
+                for suffix in ("-fix", "-fix-out", "-gate", "-gate-out", "-eyes-out"):
+                    self.assertIsNone(TOP[f"back-{k}{suffix}"].get("trigger_rule"), f"back-{k}{suffix} は落ちた節の後ろで飛ぶ既定の待ち方のまま")
+        for k in range(2, LIMIT + 2):
+            with self.subTest(head=k):
+                self.assertEqual(TOP[f"back-{k}"].get("trigger_rule"), "one_success")
+                self.assertIn(f"back-{k - 1}", TOP[f"back-{k}"]["depends_on"])
+                for name in ("fixed", "tests", "eyes"):
+                    self.assertEqual(TOP[f"back-{k}"]["with"][name]["if_skipped"], None, f"{name} は飛んだ節を null で受ける")
+        first = TOP["back-1"]
+        self.assertEqual((first["depends_on"], first.get("trigger_rule")), (["eyes-out"], None))
+        self.assertEqual((TOP["eyes-back"].get("depends_on"), TOP["eyes-back"].get("trigger_rule")),
+                         ([f"back-{k}" for k in range(1, LIMIT + 2)], "none_failed_min_one_success"))
+
+    def test_restore_sits_between_the_collect_and_the_seal(self):
+        """作業ツリーを返す前の木へ戻す節 eyes-back-restore が、集め eyes-back の後・封じ merge-seal の前に在り、script は eyes_back_restore、
+        mutates_checkout の鍵を持たず、封じと同じ when を持ち、指紋と戻す先 checkpoint を eyes-back から読む"""
+        self.assertIn("eyes-back-restore", TOP)
+        node = TOP["eyes-back-restore"]
+        self.assertEqual(node["script"], "eyes_back_restore")
+        self.assertNotIn("mutates_checkout", node)
+        self.assertEqual(node["depends_on"], ["eyes-back"])
+        self.assertEqual(node["when"], TOP["merge-seal"]["when"])
+        self.assertEqual(node["with"], {"fingerprint": "$eyes-back.output.fingerprint", "checkpoint": "$eyes-back.output.checkpoint"})
+        self.assertEqual(set(node["output_format"]["properties"]), {"restored", "kept", "reason"})
+        self.assertEqual(TOP["merge-seal"]["depends_on"], ["eyes-back", "eyes-back-restore"])
+
+    def test_final_and_collect_read_the_restore_outcome(self):
+        """最後の承認ノード ask-final と報告の集め collect が、戻す節 eyes-back-restore の出力を back_restore として（飛んだ run では null で）読み、
+        どちらも eyes-back-restore を待つ"""
+        for key in ("ask-final", "collect"):
+            with self.subTest(key):
+                self.assertEqual(TOP[key]["with"].get("back_restore"), {"from": "$eyes-back-restore.output", "if_skipped": None})
+                self.assertIn("eyes-back-restore", TOP[key]["depends_on"])
+
+    def test_later_heads_still_run_when_a_node_inside_the_returned_round_falls(self):
+        """返した周の中の節（修正・最後の試験・独立の目）が落ちると、その後ろの受け皿・合わせは「前が落ちたので飛んだ節」になる。次の周の頭は
+        前の周の頭が成功していればそれでも走り（受け皿の got が欠けた周として記録を運ぶ）、集め eyes-back まで届く"""
+        after_fix = {"fix-out": "skipped_after_failure", "fixed": "skipped_after_failure", "gate-out": "skipped_after_failure", "eyes-out": "skipped_after_failure"}
+        after_gate = {"fix-out": "completed", "fixed": "completed", "gate-out": "skipped_after_failure", "eyes-out": "skipped_after_failure"}
+        after_eyes = {"fix-out": "completed", "fixed": "completed", "gate-out": "completed", "eyes-out": "skipped_after_failure"}
+        for fell, inside in (("fix", after_fix), ("gate", after_gate), ("eyes", after_eyes)):
+            for k in range(2, LIMIT + 2):
+                with self.subTest(fell=fell, head=k):
+                    states = {f"back-{k - 1}": "completed", **{f"back-{k - 1}-{x}": s for x, s in inside.items()}}
+                    self.assertTrue(would_run(TOP[f"back-{k}"], states), f"back-{k} が前の周の中の節の落ちで飛ぶ")
+        heads = {f"back-{k}": "completed" for k in range(1, LIMIT + 2)}
+        self.assertTrue(would_run(TOP["eyes-back"], heads))
+
+    def test_heads_stay_skipped_when_the_first_head_did_not_run(self):
+        """計画や修正で止まった run は 1 周目の頭が飛び、後ろの周の頭・集め eyes-back も飛んだまま（最後の承認ノードと封じが走らない）。
+        前の周の頭が落ちて飛んだ時も同じ"""
+        self.assertFalse(would_run(TOP["back-1"], {"eyes-out": "skipped"}))
+        self.assertFalse(would_run(TOP["back-1"], {"eyes-out": "skipped_after_failure"}))
+        for previous in ("skipped", "skipped_after_failure"):
+            for k in range(2, LIMIT + 2):
+                with self.subTest(previous=previous, head=k):
+                    states = {f"back-{k - 1}": previous, **{f"back-{k - 1}-{x}": previous for x in ("fixed", "fix-out", "gate-out", "eyes-out")}}
+                    self.assertFalse(would_run(TOP[f"back-{k}"], states))
+            self.assertFalse(would_run(TOP["eyes-back"], {f"back-{k}": previous for k in range(1, LIMIT + 2)}))
 
 
 class IncludeInputsCase(unittest.TestCase):

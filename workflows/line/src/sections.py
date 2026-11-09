@@ -340,7 +340,7 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
                             _files(("計画", rounds.get("plan"), "json(shared:plan-fields.schema.json)"),
                                    ("波及", rounds.get("ripple"), "json(shared:ripple.schema.json)"),
                                    ("事前審査", rounds.get("review"), "json(shared:plan-review-reply.schema.json)"))))
-    back = [eyesback.BROKE] if eyesback.broken(values.get("eyes_back"), values.get("back_1")) else back_lines(v.get("eyes_back"))
+    back = [eyesback.BROKE] if eyesback.broken(values.get("eyes_back"), values.get("back_1")) else back_lines(v.get("eyes_back"), values.get("back_restore"))
     if back:
         out.append(_section(BACK, back))
     ask = v.get("ask_before_fix")
@@ -372,9 +372,11 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
     return out
 
 
-def back_lines(record) -> list:
-    """返した周の節の行（最後の承認ノードと同じ eyesback.lines。返す輪の集めの記録 eyes_back から。返した周が 0 で返さなかった項目も無ければ空）"""
-    return eyesback.lines(_d(record).get("rows"), _d(record).get("exit") or "", _d(record).get("left"))
+def back_lines(record, back_restore=None) -> list:
+    """返した周の節の行（最後の承認ノードと同じ eyesback.lines。返す輪の集めの記録 eyes_back と、その checkpoint の封じる前の戻しの結末
+    back_restore から。結末は null と空の dict を分けて渡す〔null は記録が無いと言い、空の dict は作業ツリーを変えていなかったと言う〕。
+    返した周が 0 で返さなかった項目も無ければ空）"""
+    return eyesback.lines(_d(record).get("rows"), _d(record).get("exit") or "", _d(record).get("left"), _d(record).get("checkpoint"), back_restore)
 
 
 def _review_section(title: str, lens, delta, fix, raise_) -> list:

@@ -15,7 +15,7 @@ got）は要る欄を全部名指して読む（欄の欠けた前の版の返�
 入力（with:）: notices（testcmd の注意の字）・start・answer_start・tiers・owed・structure_in・design_in・ask_before_fix・answer_before_fix・
 fix_in・after_fix・raise・lens_in・ask_replan・answer_replan・lens_2_in・fixed・judged・eyes_in・ask_final・answer_final（line の script の
 出力）・test_gate_base・judge・structure・independent_design・rounds・fix・lens・delta・replan・replan_review・refix・lens_2・delta_2・
-parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・merge_apply（受け皿の got）・eyes_back（返す輪の集めの出力）・back_1（返す輪の 1 周目の頭の出力。集めが飛んだのに頭が走ったかを見る）・optional（line 自身の受け止める段の宣言）・
+parallel_after・rejudge・spec_check・test_gate_final・eyes・merge_seal・merge_apply（受け皿の got）・eyes_back（返す輪の集めの出力）・back_restore（封じる前の戻しの結末。戻す節が飛んだ run は null）・back_1（返す輪の 1 周目の頭の出力。集めが飛んだのに頭が走ったかを見る）・optional（line 自身の受け止める段の宣言）・
 テーマの run の theme_world_in・theme_blind（受け皿の got）・theme_design_in・theme_rounds（受け皿の got）・theme_descend・request_in・theme_return・
 直す前で止まった写しの run の fixture_ask_before_fix・fixture_answer_before_fix（src.fixture.collect_values が今の欄の名に重ねる）
 """
@@ -82,7 +82,7 @@ def raw_inputs() -> dict:
         "parallel_after": os.environ.get("INPUTS_PARALLEL_AFTER"), "rejudge": os.environ.get("INPUTS_REJUDGE"),
         "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "judged": os.environ.get("INPUTS_JUDGED"),
         "test_gate_final": os.environ.get("INPUTS_TEST_GATE_FINAL"), "eyes_in": os.environ.get("INPUTS_EYES_IN"),
-        "eyes": os.environ.get("INPUTS_EYES"), "eyes_back": os.environ.get("INPUTS_EYES_BACK"), "back_1": os.environ.get("INPUTS_BACK_1"), "merge_seal": os.environ.get("INPUTS_MERGE_SEAL"),
+        "eyes": os.environ.get("INPUTS_EYES"), "eyes_back": os.environ.get("INPUTS_EYES_BACK"), "back_restore": os.environ.get("INPUTS_BACK_RESTORE"), "back_1": os.environ.get("INPUTS_BACK_1"), "merge_seal": os.environ.get("INPUTS_MERGE_SEAL"),
         "ask_final": os.environ.get("INPUTS_ASK_FINAL"), "answer_final": os.environ.get("INPUTS_ANSWER_FINAL"),
         "merge_apply": os.environ.get("INPUTS_MERGE_APPLY"), "optional": os.environ.get("INPUTS_OPTIONAL"),
         "spec_entry": os.environ.get("INPUTS_SPEC_ENTRY"), "spec_diagnose": os.environ.get("INPUTS_SPEC_DIAGNOSE"),

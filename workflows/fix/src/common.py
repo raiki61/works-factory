@@ -3,7 +3,7 @@
 TDD の輪（src/tdd.py）の中に在り、修正役の受け付け（board・facts・gates）・合わせ役（clash）・確かめ直しが借りていた部品を
 ここに集めた。型のモジュール（tdd・variant・remove・static・tidy・pin）と型を問わない部品（basecase・route・duties）はここを
 import し、型のモジュールどうしは import しない（tests/layers/test_weapon_imports.py）。中身は移す前のまま:
-- 版を木に固める・戻す（snapshot・touched・restore・restore_paths・restore_tests・hashes）と版・作業ツリーの読み口（rev_source・
+- 版を木に固める・戻す（snapshot・touched・restore・restore_paths は正本が lib/leftovers で、ここは同じ名で引く。restore_tests・hashes はここ）と版・作業ツリーの読み口（rev_source・
   _tree_text・_now_text・frozen_source）
 - test_cmd を走らせる口（_cmd_run・_cmd_material）
 - 輪の状態の読み書きと状態の欄の小さな読み口（load_state・_load・_save・_owed・_unit・_contract・_plan_tdd・states・suite_made）と、
@@ -21,7 +21,6 @@ import posixpath
 import re
 import subprocess
 import sys
-import tempfile
 import shlex
 import unittest
 
@@ -40,6 +39,7 @@ import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
 import oneline  # noqa: E402
 from leftovers import Unreadable, git, git_names  # noqa: E402
+from leftovers import restore, restore_paths, touched  # noqa: E402,F401  （戻しの手続きの正本は leftovers。fix の呼び手が common の名で引く）
 
 
 PROMPT, RECORD = "next.md", fixnames.RECORD_FILE
@@ -84,35 +84,6 @@ def rules():
 
 # ---------------------------------------------------------------- 版を木に固める・戻す
 snapshot = leftovers.snapshot   # 作業ツリーの今の姿の木の sha（正本は leftovers。輪の中の名は変えない）
-
-
-def touched(repo, a: str, b: str) -> list:
-    """木 a から木 b で変わったパス（足した・消したを含む）"""
-    return sorted(set(git_names(repo, "diff-tree", "-r", "--name-only", "--no-renames", a, b)))
-
-
-def restore(repo, tree: str) -> list:
-    """作業ツリーを木 tree の姿に戻す（その後に変わった・足した・消したファイルだけ）。戻したパスを返す"""
-    return restore_paths(repo, tree, touched(repo, tree, snapshot(repo)))
-
-
-def restore_paths(repo, tree: str, paths) -> list:
-    """作業ツリーの paths だけを木 tree の姿に戻す（tree に無いパスは消す）。戻したパスを返す"""
-    paths = sorted(set(paths))
-    if not paths:
-        return []
-    keep = set(paths) & set(git_names(repo, "ls-tree", "-r", "--name-only", tree))
-    for p in paths:
-        if p not in keep:
-            f = pathlib.Path(repo) / p
-            if f.is_file() or f.is_symlink():
-                f.unlink()
-    if keep:
-        with tempfile.TemporaryDirectory(prefix="works-tdd-index-") as td:
-            env = {**os.environ, "GIT_INDEX_FILE": str(pathlib.Path(td) / "index")}
-            git(repo, "read-tree", tree, env=env)
-            git(repo, "checkout-index", "-f", "--", *sorted(keep), env=env)
-    return paths
 
 
 def _chain_at(src, line: int):

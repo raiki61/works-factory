@@ -6,9 +6,11 @@
 読めなかった控え（直した後の実測・封じた差分・問いの台帳の控えなど。got の unread。読めた控えについての注記 lost_ties は数えない）・
 R2 の頼みどおりの違いの問い（eyes の means_questions。docs/design/plan-review.md の 20 章の 6.3。continue / stop がそのまま答え）
 は開き方に依らず開く（must。通すのは人の答え。R2 の問いだけは無人の run の推しも通す）。独立の目から修正の段へ返す輪が上限の周まで返して
-直り切らなかった（残った作り残しを名指して人の判断に回す）・返す輪の記録が無いか輪の節が落ちた記録（BACK_FELL）も開き方に依らず開く。ただし周の節が
-中の誤りで落ちた run では、Archon の none_failed_min_one_success が落ちて飛んだ節を落ちた節と数えるので、集めもこの承認ノードも飛び（封じない）、
-BACK_FELL は届かない（報告の返した周の節が eyesback.BROKE の 1 行で言う）。ほかは開き方 final_gate で開く（src.gates.opens）。
+直り切らなかった（残った作り残しを名指して人の判断に回す）・返す輪の記録が無いか輪の節が落ちた記録（BACK_FELL）・返す前の状態へ戻せなかった
+（封じる前の戻しの結末 back_restore が訳を持つ。作業ツリーが半ば戻ったかもしれないので人が確かめる）も開き方に依らず開く。周の節が
+中の誤りで落ちた run でも、次の周の頭と集めが走って返す前の状態を持ち越すので、この承認ノードは開き、BACK_FELL が立つ。周の頭そのものが落ちて
+集めが飛んだ run だけは、この承認ノードも飛び（封じない）、報告の返した周の節が eyesback.BROKE の 1 行で言う。ほかは開き方 final_gate で開く
+（src.gates.opens）。
 無人の run で開くはずの時は開かずに works:needs-human で止め、merge の apply を飛ばす（L-G39・L-W25）。ただし開ける理由が R2 の頼みどおりの
 違いの問いだけで、どの問いも通す推しを持てば推しで進む（unattended_pass。plan-review の設計書の 20 章の 6.4・決め means-ask の 2）。試験を求めなかった直し（untested）は節に分けて並べ、種類 code の
 ファイルを触った時だけ開き方で開く理由にする。計画の依存で前に直すはずの単位が型の順で後に回った対（fixed の groups の unsatisfied）は「守れなかった依存」の節に名で並べ、止めず開ける理由にも数えない。判定の役が保留にしたままの問いは冒頭と本文に見せるが
@@ -19,8 +21,9 @@ got は ask_final の script が受け皿の got と line の値から組む dic
 並行 PR（修正の後）。どれも受け皿の got を名指して読む（ports.picked。欄の欠けた前の版の返りを空と読まない）。
 
 - needs(got)・final_needs(got)・ask(got, *, mode, unattended, run_id)・final_text(got, why, run_id)・keep(out, place)
-- gather(...) -> got: 受け皿の got と line の値から、文と理由の材料を組む。tests・eyes・fixed は最後の周の物（ask_final の script が
-  eyesback.current で選んで渡す）。eyes_back は返す輪の集めの記録（材料の欄 eyes_back としてそのまま運び、返した周の節と開ける理由が読む）
+- gather(...) -> got: 受け皿の got と line の値から、文と理由の材料を組む。tests・eyes・fixed は最後に試験と独立の目を通った周の物（ask_final の script が
+  eyesback.current で選んで渡す）。eyes_back は返す輪の集めの記録（材料の欄 eyes_back としてそのまま運び、返した周の節と開ける理由が読む）。
+  back_restore は封じる前の戻しの結末（材料の欄 back_restore としてそのまま運び、返した周の節と開ける理由が読む）
 """
 from __future__ import annotations
 
@@ -67,7 +70,8 @@ MISMATCH_REASON = "直したという申告と機械の数え直しが合わな�
 NO_AFTER = "直した後の構造の実測: 無い（独立の目の after が無い——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"
 SEAL_FELL = "封じの段が返らなかった（merge の seal の受け皿が飛んだ）"
 RETURNED_NOT_RUN = "回していない（独立の目から返した段では回さない）"
-BACK_FELL = ("独立の目から修正の段へ返す輪の記録が無い（輪の集めが飛んだか、輪の節が落ちた。進めても封じが無ければ差分は当たらない）")
+BACK_FELL = "返す輪の記録が無いか、輪の節が落ちた（落ちた周の前に試験と独立の目を通った状態があれば、それを封じに出す）"
+RESTORE_CHECK = "作業ツリーが半ば戻ったかもしれないので人が確かめる"   # 返す前の状態へ戻せなかった時に開ける理由へ足す句
 EYES = ("r1", "r2", "r3", "r4")   # 元の eyeverdict の EYES
 ESCALATE = "escalate"            # 前提の検算が人に上げる語（元 eyeverdict.VERDICTS[1]。r2 の premise_check の verdict）
 ADOPTED = "採る"                 # 再審が異議を採った答え（元 judge_accept.ADOPTED。diagnose の出力 rejudge_verdict の enum の頭）
@@ -207,6 +211,9 @@ def needs(got: dict) -> list:
         why.append((BACK_FELL, True))
     if eyesback.capped(got["eyes_back"]):
         why.append((eyesback.cap_text(got["eyes_back"].get("left")), True))
+    restore = got.get("back_restore")
+    if isinstance(restore, dict) and restore.get("reason"):
+        why.append((f"{eyesback.RESTORE_FAILED.format(reason=restore['reason'])}。{RESTORE_CHECK}", True))
     if got["handoffs"]:
         why.append((f"{HANDOFF_REASON}（{len(got['handoffs'])} 件）", False))
     parallel = parallel_reason(got)
@@ -256,9 +263,11 @@ def final_head(got: dict, why: list) -> list:
 
 
 def returned_section(got: dict) -> list:
-    """返した周の節（見出しは eyesback.HEAD、行は eyesback.lines。報告の節と同じ口。行が無ければ出さない）"""
+    """返した周の節（見出しは eyesback.HEAD、行は eyesback.lines。報告の節と同じ口。記録の checkpoint と戻しの結末 back_restore も渡す。
+    行が無ければ出さない）"""
     record = got["eyes_back"] or {}
-    rows = [f"- {x}" for x in eyesback.lines(record.get("rows"), record.get("exit") or "", record.get("left"))]
+    rows = [f"- {x}" for x in eyesback.lines(record.get("rows"), record.get("exit") or "", record.get("left"),
+                                             record.get("checkpoint"), got.get("back_restore"))]
     return [f"## {eyesback.HEAD}（{eyesback.count(record.get('rows'))} 回）", "", *rows, ""] if rows else []
 
 
@@ -665,9 +674,9 @@ def eye_rows(items) -> list:
 
 def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None, eyes: dict | None, seal_got: dict | None,
            spec_check: dict | None, parallel_after: dict | None, replan_answer, widened, record: dict, given: dict, rounds_lines: list,
-           unread: list, eyes_back: dict | None, missing=()) -> dict:
+           unread: list, eyes_back: dict | None, back_restore: dict | None = None, missing=()) -> dict:
     """受け皿の got と line の値から、文と理由の材料 got を組む（docs/design/line.md の 2 節の 4 の「読む物」）。missing は指す先が
-    無いか読めない控えの訳（src.gates.located。開き方に依らず開ける理由にする）"""
+    無いか読めない控えの訳（src.gates.located。開き方に依らず開ける理由にする）。back_restore は封じる前の戻しの結末（戻す節が飛んだ run は None）"""
     missing = list(missing)
     tests_ = tests or {}
     eye = eyes or {}
@@ -713,6 +722,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "fenced": after_fenced, "after": after, "passes": passes,
         "r2_inputs": [x for x in eye.get("notes") or [] if isinstance(x, str)],
         "converge": rounds_lines, "parallel_after": parallel_after, "eyes_back": eyes_back,
+        "back_restore": back_restore,
         **rows,
         "missing": list(dict.fromkeys(missing)),
         "unread": [*unread, *ledger_unread, *([after_unread] if after_unread else []), *([deleted_unread] if deleted_unread else [])],
