@@ -63,7 +63,7 @@ def fallback(reason: str) -> dict:
             "skip_why": "", "rejudge": False, "refixed": False, "stages": [], "carry": [], "tdd": [], "units": [], "groups": [],
             "conflicts": [], "replan_items": [], "objection": "", "diff": None, "item_claims": None, "allowed_test_changes": [],
             "changed": None, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
-            "more": [], "left": [], "stop_reason": guard.LINE_SCRIPT}
+            "more": [], "left": [], "stop_reason": guard.LINE_SCRIPT, "stop_why": ""}
 
 
 ports.run(compute, fallback)

@@ -396,12 +396,14 @@ def stop_returns(values: dict) -> list:
 
 
 def stop_rows(values: dict, returns: dict) -> list:
-    """止めの語 [{at, word}]: line の script の止めの語と、block の返りの stop_reason（judge・fix と refix・spec check の人待ちの語）"""
+    """止めの語 [{at, word}]: line の script の止めの語と、block の返りの stop_reason（judge・修正の各段・spec check の人待ちの語）。修正の段の at は
+    段の種類で引く node の名（stages.nodes。fix・refix-run・返した段の back-<k>-fix）"""
     out = [{"at": node, "word": word} for node, word, _ in stop_returns(values)]
-    for n, s in enumerate(_list(as_dict(returns.get("fix")).get("stages")), 1):
-        word = as_dict(as_dict(s).get("fix")).get("stop_reason")
+    stages = [as_dict(s) for s in _list(as_dict(returns.get("fix")).get("stages"))]
+    for at, s in zip(stageslib.nodes(stages), stages):
+        word = as_dict(s.get("fix")).get("stop_reason")
         if isinstance(word, str) and word:
-            out.append({"at": "fix" if n == 1 else "refix-run", "word": word})
+            out.append({"at": at, "word": word})
     spec = as_dict(values.get("spec_check"))
     if spec and [q for q in _list(spec.get("questions")) if isinstance(q, str) and q.strip()]:
         out.append({"at": "spec-check-run", "word": stopby.SPEC_CHANGED})

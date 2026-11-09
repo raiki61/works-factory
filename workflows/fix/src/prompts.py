@@ -251,9 +251,9 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
     owed = common._owed(st)
     vals = {k: "" for k in ("iteration phase brief_rows rejection policy_path request_file judgment_file open_units plan_file "
                             "notes_file skill seat_applies seat_not_applies unattended overlay_file test_cmd owed_units current_unit "
-                            "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang").split()}
+                            "together_rows named_rows handoff_rows later_rows tests_how runner_cmd lang earlier_tests").split()}
     when = {k: False for k in ("briefs rejected rules conflict docs prompts_kind config code phase_route phase_test phase_fix "
-                               "phase_refactor gate current together named handoff later tests_how evidence where_writer where_tdd where_rework spawns "
+                               "phase_refactor gate current together named handoff later earlier tests_how evidence where_writer where_tdd where_rework spawns "
                                "rules_change conflict_change").split()}
     when.update(rules=True, conflict=True, rules_change=True, conflict_change=True, **{f"phase_{phase}": True})
     start_vals, start_when = _starts(values)
@@ -288,6 +288,9 @@ def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]
         if left:
             vals["later_rows"] = " / ".join(left)
             when["later"] = True
+    if phase == "test" and tdd._earlier(st):   # 返した段: 前の段が確かめ済みのテストの id だけを渡す（名指さない決まりの文は md）
+        vals["earlier_tests"] = ", ".join(st["earlier"])
+        when["earlier"] = True
     had, rows = tdd.handoff_rows(st)
     vals["handoff_rows"] = "\n".join(rows)
     when["handoff"] = had

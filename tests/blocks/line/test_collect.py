@@ -200,6 +200,23 @@ class FactsCase(unittest.TestCase):
         for node, _ in (*self.f.LINE_STOPS, *self.f.BLOCK_STOPS, *self.f.GATES):
             self.assertTrue(names.get(node), node)
 
+    def test_stop_rows_name_a_returned_stage_apart_from_the_refix(self):
+        """修正の段の止めの語の at は段の種類で引く: 独立の目から返した段は back-<k>-fix（k は返した段の中の何回目か）、案の直しの後の段は
+        refix-run のまま。報告の頭の止めの行は、返した段を人の言葉の名で出す"""
+        def stage(n, kind, word=""):
+            return {"stage": n, "kind": kind, "fix": {"stop_reason": word}, "lens": None, "delta": None}
+        v = passing()
+        word = "works:no-suite"
+        refix = self.f.stop_rows(v, {"fix": {"stages": [stage(1, "first"), stage(2, "refix", word)]}})
+        self.assertIn({"at": "refix-run", "word": word}, refix)
+        returned = self.f.stop_rows(v, {"fix": {"stages": [stage(1, "first"), stage(2, "returned", word)]}})
+        self.assertIn({"at": "back-1-fix", "word": word}, returned, "案の直しが走らない run の返した段は並びの 2 番目でも返した段")
+        self.assertNotIn({"at": "refix-run", "word": word}, returned)
+        second = self.f.stop_rows(v, {"fix": {"stages": [stage(1, "first"), stage(2, "refix"), stage(3, "returned"), stage(4, "returned", word)]}})
+        self.assertIn({"at": "back-2-fix", "word": word}, second)
+        self.assertTrue(self.f.stop_words([{"at": "back-1-fix", "word": word}])[0].startswith("独立の目から返した修正の段が止めた"),
+                        self.f.stop_words([{"at": "back-1-fix", "word": word}]))
+
     def test_line_and_block_stops(self):
         v = passing()
         v["owed"] = {"owed": False, "why": "", "recorded": [], "stop_reason": "works:line-script"}

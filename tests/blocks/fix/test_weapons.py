@@ -75,6 +75,55 @@ class WeaponTableCase(unittest.TestCase):
         self.assertEqual(route.route_keys(keys, {"b": "tdd"}, {"b": ["x"], "c": ["x"]}), ["a", "b", "d"],
                          "語が tdd の単位は消す名が在っても振る（表で tdd に引く単位を振る単位から外さない）")
 
+    def _frozen_place(self, kinds):
+        """4 つの項目を凍らせた置き場（1: tdd・2: pin・3: direct で名を消す・4: direct）に、返した項目の種 kinds を values.json で置いた物"""
+        import planmarks
+        runvals = kit.load("fix", "runvals")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        place = pathlib.Path(tmp.name)
+        base = {"tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""}, "allowed_paths": [], "out_of_scope": []}
+        gone = [{"path": "a.py", "op": "modify", "symbols": [{"name": "old_name", "change": "remove"}]}]
+        planmarks.save(place, 1, [{**base, "unit_keys": ["U1"], "route": "tdd"}, {**base, "unit_keys": ["U2"], "route": "pin"},
+                                  {**base, "unit_keys": ["U3"], "route": "direct", "files": gone}, {**base, "unit_keys": ["U4"], "route": "direct"}])
+        runvals.write(place, {"item_kinds": kinds})
+        return place
+
+    def _weapons(self, place):
+        keys = ["U1", "U2", "U3", "U4"]
+        words, removes = route.plan_words(place, keys), route.plan_removes(place, keys)
+        return words, {k: route.weapon_of(words.get(k, ""), "", removes.get(k)) for k in keys}
+
+    def test_returned_kinds_override_the_plan_word(self):
+        """返した項目の種で、結ばれた単位の計画の語を表から引き直す: trim は tdd・direct を tidy にし、unfinished は direct を tdd にする。
+        pin はどちらの種でも pin のまま・名を消す direct の単位はどちらの種でも remove のまま・種が空なら今の語のまま"""
+        words, weapons = self._weapons(self._frozen_place([]))
+        self.assertEqual((words["U1"], words["U4"]), ("tdd", "direct"), "種が空なら元の案の語のまま")
+        words, weapons = self._weapons(self._frozen_place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "trim"},
+                                                           {"item": 3, "kind": "trim"}, {"item": 4, "kind": "trim"}]))
+        self.assertEqual((weapons["U1"], weapons["U2"], weapons["U3"], weapons["U4"]), ("tidy", "pin", "remove", "tidy"))
+        words, weapons = self._weapons(self._frozen_place([{"item": 1, "kind": "unfinished"}, {"item": 2, "kind": "unfinished"},
+                                                           {"item": 3, "kind": "unfinished"}, {"item": 4, "kind": "unfinished"}]))
+        self.assertEqual((weapons["U1"], weapons["U2"], weapons["U3"], weapons["U4"]), ("tdd", "pin", "remove", "tdd"))
+        words, weapons = self._weapons(self._frozen_place([{"item": 4, "kind": "trim"}, {"item": 4, "kind": "unfinished"}]))
+        self.assertEqual((words["U1"], weapons["U4"]), ("tdd", "tdd"), "種に unfinished が 1 つでも在れば unfinished。結ばれていない単位は動かない")
+
+    def test_kind_word_table_covers_every_kind_and_plan_word(self):
+        """KIND_WORDS の鍵は、schema の kind の列挙と計画の語（planmarks.ROUTES と語無し）の組の全部を覆う。static・tidy・pin は同じ語を返す。
+        表に無い種は Broken で止まる"""
+        import planmarks
+        path = BLOCK / "schemas" / "item-kinds.schema.json"
+        self.assertTrue(path.is_file(), "返した項目の種の schema が無い")
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        kinds = schema["items"]["properties"]["kind"]["enum"]
+        table = getattr(route, "KIND_WORDS", {})
+        self.assertEqual(set(table), {(k, w) for k in kinds for w in (*planmarks.ROUTES, "")})
+        for kind in kinds:
+            for word in ("static", "tidy", "pin"):
+                self.assertEqual(table.get((kind, word)), word)
+        with self.assertRaises(route.common.Broken):
+            self._weapons(self._frozen_place([{"item": 1, "kind": "nonsense"}]))
+
 
 def _repo(tmp: pathlib.Path, files: dict) -> pathlib.Path:
     repo = tmp / "repo"
@@ -1031,6 +1080,17 @@ class RuledOrderCase(unittest.TestCase):
         (self.place / "prior").mkdir()
         self.orders.write_ruled(self.place, ["T"], since=self.rev)
         self.assertEqual(json.loads((self.place / "orders.json").read_text(encoding="utf-8"))["stage"], 4, "2 回目の block の裁定の後は 4")
+
+    def test_earlier_tests_come_from_returns_only_in_a_returned_stage(self):
+        """返した段（values.json の item_kinds が空でない）では、返しの控えが前の段で足した試験 added と書き換えた試験 rewritten を
+        earlier_tests が返す。最初の段・案の直しの後の修正（item_kinds が空）では空"""
+        runvals = kit.load("fix", "runvals")
+        added, rewritten = "test_stats.py::StatsCase::test_mean", "test_stats.py::StatsCase::test_clamp"
+        self.returned(1, "tdd", ["T"], added=[added], rewritten=[rewritten])
+        runvals.write(self.place, {"item_kinds": [{"item": 1, "kind": "unfinished"}]})
+        self.assertEqual(sorted(getattr(self.orders, "earlier_tests", lambda place: None)(self.place) or []), sorted([added, rewritten]))
+        runvals.write(self.place, {"item_kinds": []})
+        self.assertEqual(getattr(self.orders, "earlier_tests", lambda place: None)(self.place), [])
 
     def test_a_ruling_records_the_stage_it_saw(self):
         """裁定の控えの欄 stage は 1 回目の段の番（2n−1）で、機械が書く"""

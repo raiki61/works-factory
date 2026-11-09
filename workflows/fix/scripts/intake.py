@@ -27,6 +27,7 @@ RAW = {
     "plan_review": os.environ.get("INPUTS_PLAN_REVIEW"),
     "prior": os.environ.get("INPUTS_PRIOR"),
     "only_items": os.environ.get("INPUTS_ONLY_ITEMS"),
+    "item_kinds": os.environ.get("INPUTS_ITEM_KINDS"),
     "group": os.environ.get("INPUTS_GROUP"),
     "ripple": os.environ.get("INPUTS_RIPPLE"),
     "baseline": os.environ.get("INPUTS_BASELINE"),

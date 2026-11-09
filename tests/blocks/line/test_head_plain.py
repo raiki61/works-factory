@@ -93,7 +93,8 @@ class HeadPlainCase(unittest.TestCase):
         names = self.f.node_names()
         for node, _ in (*self.f.LINE_STOPS, *self.f.BLOCK_STOPS, *self.f.GATES):
             self.assertTrue(names.get(node), node)
-        for node in ("fix", "refix-run", "spec-check-run"):
+        returned = [f"back-{k}-fix" for k in range(1, kit.load(BLOCK, "eyesback").LIMIT + 1)]
+        for node in ("fix", "refix-run", "spec-check-run", *returned):
             self.assertTrue(names.get(node), node)
 
 

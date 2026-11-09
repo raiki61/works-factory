@@ -13,15 +13,16 @@ import ports
 from src import files
 
 JSONS = ("judgment", "plan", "fix_plan", "answer_ties", "materials", "skip_rerun", "answers", "request_answers", "plan_review",
-         "prior", "only_items", "group", "excluded")
+         "prior", "only_items", "item_kinds", "group", "excluded")
 FILES = ("ripple", "baseline", "policy", "request")
 FLAGS = {"unattended": False, "parallel": True, "suite_made": False}
 TEXTS = ("notes", "test_cmd", "tdd_suite", "reuse_dir", "reuse_key", "user_env_dir", "from_tree", "out_dir", "lang")
 DEFAULTS = {"judgment": None, "plan": None, "fix_plan": None, "answer_ties": None, "materials": None, "skip_rerun": [],
-            "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "group": None,
-            "excluded": None}
+            "answers": None, "request_answers": [], "plan_review": None, "prior": None, "only_items": [], "item_kinds": [],
+            "group": None, "excluded": None}
 NAMES = ("mode", "routes", *JSONS, *FILES, *FLAGS, *TEXTS)
 NEEDED = "入力 {name}: {mode} の形には要る"
+NO_PRIOR_FOR_KINDS = "入力 item_kinds: 前の段の申し送り prior の無い段には渡せない"
 
 
 def _blank(raw) -> bool:
@@ -54,6 +55,7 @@ def read(raw: dict) -> dict:
              "plan_review": lambda r: ports.json(r, "shared:plan-review-reply.schema.json"),
              "prior": lambda r: ports.json(r, "shared:carry.schema.json"),
              "only_items": lambda r: ports.json(r, "only-items.schema.json"),
+             "item_kinds": lambda r: ports.json(r, "item-kinds.schema.json"),
              "group": lambda r: ports.json(r, "group.schema.json"),
              "excluded": lambda r: ports.json(r, "shared:excluded.schema.json")}
     for name in JSONS:
@@ -71,6 +73,8 @@ def read(raw: dict) -> dict:
         text = ports.text(raw.get(name))
         out[name] = text if name in ("notes", "test_cmd") else text.strip()
     out["excluded"] = _port("excluded", out["excluded"], excluded_rows)
+    if out["item_kinds"] and out["prior"] is None:
+        raise ValueError(NO_PRIOR_FOR_KINDS)
     if mode == "whole" and out["judgment"] is None:
         raise ValueError(NEEDED.format(name="judgment", mode=mode))
     if mode == "group":
@@ -104,7 +108,7 @@ def run_values(doc: dict, run_id: str) -> dict:
     return {"tdd_suite": doc["tdd_suite"], "test_cmd": doc["test_cmd"], "reuse_key": doc["reuse_key"] or run_id,
             "reuse_dir": doc["reuse_dir"], "user_env_dir": doc["user_env_dir"], "lang": doc["lang"], "policy": doc["policy"],
             "request_file": doc["request"], "answers": doc["request_answers"], "unattended": doc["unattended"],
-            "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"], "excluded": excluded_rows(doc.get("excluded")),
+            "parallel": doc["parallel"], "skip_rerun": doc["skip_rerun"], "excluded": excluded_rows(doc.get("excluded")), "item_kinds": doc["item_kinds"],
             "routes": doc.get("routes") or "auto", "suite_made": doc.get("suite_made") is True}
 
 

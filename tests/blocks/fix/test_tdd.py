@@ -969,6 +969,46 @@ class ContractCase(LoopCase):
 
 
 class TestPlanContract(ContractCase):
+    def set_earlier(self, ids):
+        """返した段の輪の状態: 前の段が赤→緑を確かめた試験の id を状態の欄 earlier に置く（open_state(..., earlier=ids) が作る形と同じ）"""
+        st = self.st()
+        st["earlier"] = list(ids)
+        common._save(self.state, st)
+
+    def test_earlier_green_tests_are_not_forced_in_a_returned_stage(self):
+        """返した段の輪（輪に入るのは tdd の型に引いた単位で、返した種が trim の単位は入らない。test_group の
+        test_a_returned_trim_item_owes_no_red）で、前の段が赤→緑を確かめた約束の試験 A が earlier に在れば、test の段は A を名指さず、
+        新しい試験 B だけを名指して今の木で failure にすれば通る（直す前の赤の義務は残る）。earlier が空なら今どおり A の名指しを求めて拒む"""
+        self.route()
+        self.add_test(NEW_TEST.replace("test_mean_of_two", "test_mean_of_two_again"))
+        again = "test_stats.py::TestStats::test_mean_of_two_again"
+        reply = {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [again]}
+        refused = self.step(reply)
+        self.assertFalse(refused["ok"], "earlier が空なら約束の試験の名指しを求める")
+        self.assertIn(MEAN_ID, refused["reason"])
+        self.set_earlier([MEAN_ID])
+        got = self.step(reply)
+        self.assertTrue(got["ok"], got)
+        self.assertNotIn("受け入れのテストを名指していない", got["reason"])
+        self.assertEqual(self.st()["units"][MEAN]["red"], "ok")
+
+    def test_earlier_tests_reach_the_prompt_as_a_value(self):
+        """earlier が [A] の時、test の段の指示の値 earlier_tests が A の id で段落 earlier が真になり、組んだ指示に A の id が載る。名指さない
+        決まりの文は md の 1 か所だけが持ち、Python は id を値で渡すだけ（憲法の 2）なので、引き継ぎの行には A を載せず、前の単位の行の
+        有無（段落 handoff の真偽）も earlier で変わらない。earlier が空なら段落 earlier は偽で値は空"""
+        self.route()
+        plain, plain_when = self.values()
+        self.assertEqual((plain["earlier_tests"], plain_when["earlier"]), ("", False))
+        self.assertNotIn(MEAN_ID, self.prompt())
+        self.set_earlier([MEAN_ID])
+        vals, when = self.values()
+        self.assertEqual((vals["earlier_tests"], when["earlier"]), (MEAN_ID, True))
+        self.assertNotIn(MEAN_ID, vals["handoff_rows"])
+        self.assertEqual(when["handoff"], plain_when["handoff"])
+        self.assertIn(MEAN_ID, self.prompt())
+        md = (kit.BLOCKS / "fix" / "prompts" / "parts" / "tdd.md").read_text(encoding="utf-8")
+        self.assertEqual(md.count("{earlier_tests}"), 1, "名指さない決まりの文は md の 1 か所")
+
     def test_contract_lands_in_state(self):
         self.assertEqual(self.st()["contract"], self.CONTRACT)
 
@@ -2018,6 +2058,26 @@ class TestOneItemTwoUnits(ContractCase):
         text = "\n".join(common.frozen_problems(self.record, self.repo))
         self.assertIn(MEAN, text)
         self.assertNotIn(CLAMP, text, "一緒に閉じた単位は赤の段で申告していない")
+
+    def test_later_unit_is_closed_when_its_tests_were_verified_earlier(self):
+        """同じ項目の約束の受け入れの試験が全部 earlier に在れば、MEAN の段で新しい試験 B だけを名指して緑にした時、CLAMP は
+        covered_by が MEAN・赤も緑も ok で閉じ、輪は CLAMP の test の段に入らない"""
+        self.route_both()
+        st = self.st()
+        st["earlier"] = [t["id"] for t in SAME_ITEM_TESTS]
+        common._save(self.state, st)
+        self.add_test(NEW_TEST.replace("test_mean_of_two", "test_mean_of_two_again"))
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                         "tests": ["test_stats.py::TestStats::test_mean_of_two_again"]})
+        self.assertTrue(got["ok"], got)
+        self.edit("stats.py", "return sum(xs) / (len(xs) - 1)", "return sum(xs) / len(xs)")
+        self.edit("stats.py", "    if x > hi:\n        return lo", "    if x > hi:\n        return hi")
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母と上限の枝を項目どおりに直した"})
+        self.assertTrue(got["ok"], got)
+        st = self.st()
+        c = st["units"][CLAMP]
+        self.assertEqual((c.get("covered_by"), c.get("red"), c.get("green")), ([MEAN], "ok", "ok"))
+        self.assertEqual([x["unit_key"] for x in st["calls"] if x["phase"] != "route"], [MEAN, MEAN], "CLAMP の段は回らない")
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):
         """前の単位が申し出で止まれば（受け入れのテストを確かめていない）、後の単位は今どおり自分の段を回す"""

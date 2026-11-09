@@ -49,6 +49,9 @@ inputs:
   only_items:
     default: '[]'
     description: 'json(only-items.schema.json): 2 回目の修正の段で直す修正案の項目の番号の配列。空の配列は直す義務の単位の全部'
+  item_kinds:
+    default: '[]'
+    description: 'json(item-kinds.schema.json): 返した項目の種を修正案の項目の番号ごとに並べた配列 [{item, kind}]。独立の目から返した段だけが渡す。空の配列は元の案の route のまま'
   baseline:
     default: ''
     description: 'json(lib:baseline.schema.json): 直す前の結末（試験の関門が書いた baseline.json）。空は実行器の無い run'

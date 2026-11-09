@@ -1514,6 +1514,7 @@ nodes:
       answers: "$answer-replan.output.fix_answers"
       notes: "$answer-replan.output.fix_notes"
       only_items: "$fix.output.replan_items"
+      item_kinds: "[]"   # 返した項目の種は独立の目から返した段 back-k-fix だけが渡す（空は元の案の route のまま）
       prior: "$fix.output.carry"
       request_answers: "$request-in.output.request_answers"
       unattended: "$start.output.ports.unattended"
@@ -1615,7 +1616,7 @@ nodes:
       additionalProperties: false
       required: [go, done, held, no_fix, diffed, checks, eyes_due, skip_why, rejudge, refixed, stages, carry, tdd, units, groups, conflicts,
                  replan_items, objection, diff, item_claims, allowed_test_changes, changed, x_scalars, handoffs, handoff_titles, mismatched, plan_declared,
-                 plan, ripple, more, left, stop_reason]
+                 plan, ripple, more, left, stop_reason, stop_why]
       properties:
         go: {type: boolean}
         done: {type: boolean}
@@ -1649,6 +1650,7 @@ nodes:
         more: {type: array, description: '独立の目から修正の段へ返した段の修正の got の並び（返した順。落ちた段は null）。stages の 3 段目以降になる', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力（受け皿の got）'}}
         left: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
         stop_reason: {type: string}
+        stop_why: {type: string, description: '止めの語と組の止めた訳（1 行。訳が無ければ空）'}
   # 18 修正の後の読むだけの 3 つ（互いを待たない。作業ツリーを変える手直しの後に置く）。parallel-pr-after は飛びうる request-in より前に fixed を読む
   - id: parallel-pr-after
     include: works-factory-parallel-pr
@@ -1864,11 +1866,12 @@ nodes:
       type: object
       additionalProperties: false
       required: [go, round, only_items, notes, prior, plan, fix_plan, ripple, plan_review, answers, skip_rerun, more, rows, exit, left, fixed, tests,
-                 eyes, fingerprint, green_ok, eyes_ok, sealable, item_claims]
+                 eyes, fingerprint, green_ok, eyes_ok, sealable, item_claims, item_kinds]
       properties:
         go: {type: boolean, description: '修正の段へ返すか（偽は返す周のループを抜ける。抜けた訳は exit）'}
         round: {type: integer}
         only_items: {type: array, description: '返す項目を結んだ修正案の項目の番号。空は全部', items: {type: integer}}
+        item_kinds: {type: array, description: '返した項目の種を修正案の項目の番号ごとに並べた行。空は元の案の route のまま', items: {type: object, additionalProperties: false, required: [item, kind], properties: {item: {type: integer}, kind: {type: string}}}}
         notes: {type: string, description: '修正役に渡す独立の目の指摘（1 行ずつ）'}
         prior: {type: [object, 'null'], description: 'json(shared:carry.schema.json): 前の修正の段の申し送り'}
         plan: {<<: *pointer_or_null, description: 'json(shared:plan-fields.schema.json): 返しの修正が使う修正案の欄の控え'}
@@ -1878,7 +1881,7 @@ nodes:
         answers: *answer
         skip_rerun: {type: array, items: {type: string}}
         more: {type: array, description: 'この周より前に返した段の修正の got の並び', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力（受け皿の got）'}}
-        rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, where: {type: string}, text: {type: string}}}}}}}
+        rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, kind: {type: string}, where: {type: string}, text: {type: string}}}}}}}
         exit: {type: string, description: '返す周のループを抜けた訳（返す周は空）'}
         left: {type: array, description: '上限で抜けた時に残った作り残し（最後の周の目の findings）', items: *eye_item}
         fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後の合わせの出力'}
@@ -1902,6 +1905,7 @@ nodes:
       answers: "$back-1.output.answers"
       notes: "$back-1.output.notes"
       only_items: "$back-1.output.only_items"
+      item_kinds: "$back-1.output.item_kinds"
       prior: "$back-1.output.prior"
       skip_rerun: "$back-1.output.skip_rerun"
   - id: back-1-fix-out
@@ -1991,6 +1995,7 @@ nodes:
       answers: "$back-2.output.answers"
       notes: "$back-2.output.notes"
       only_items: "$back-2.output.only_items"
+      item_kinds: "$back-2.output.item_kinds"
       prior: "$back-2.output.prior"
       skip_rerun: "$back-2.output.skip_rerun"
   - id: back-2-fix-out
@@ -2080,6 +2085,7 @@ nodes:
       answers: "$back-3.output.answers"
       notes: "$back-3.output.notes"
       only_items: "$back-3.output.only_items"
+      item_kinds: "$back-3.output.item_kinds"
       prior: "$back-3.output.prior"
       skip_rerun: "$back-3.output.skip_rerun"
   - id: back-3-fix-out

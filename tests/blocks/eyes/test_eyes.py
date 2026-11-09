@@ -71,12 +71,12 @@ class VerdictCase(unittest.TestCase):
             return got
 
         out = self.build(fixing(r1=("fix-needed", [one]), r2=("fix-needed", [two])))
-        self.assertEqual(out["findings"], [{"eye": "r1", **one}, {"eye": "r2", **two}])
+        self.assertEqual(out["findings"], [{"eye": "r1", "kind": "trim", **one}, {"eye": "r2", "kind": "unfinished", **two}])
         self.assertEqual(out["route"], "fix")
         self.assertFalse(out["ok"])
         pass_with = fixing(r1=("pass", [one]), r2=("fix-needed", [two]))
         out = self.build(pass_with)
-        self.assertEqual(out["findings"], [{"eye": "r2", **two}], "通った目の指摘は返す項目に入れない")
+        self.assertEqual(out["findings"], [{"eye": "r2", "kind": "unfinished", **two}], "通った目の指摘は返す項目に入れない")
         for why, got in (("設計違い", fixing(r1=("fix-needed", [one]), r3=("redesign-needed", None))),
                          ("確かめられない", fixing(r1=("pass", []), r3=("unverifiable", None))),
                          ("返す物が無い", fixing(r1=("fix-needed", []), r2=("pass", [])))):
@@ -94,6 +94,22 @@ class VerdictCase(unittest.TestCase):
         self.assertEqual((skipped["findings"], skipped["route"]), ([], "stay"))
         self.assertIn("単位が全部軽量", skipped["route_why"])
         self.assertEqual(self.v.fallback.fallen("x")["route"], "stay")
+
+    def test_back_items_carry_the_kind_of_each_eye(self):
+        """返す項目は目の判定から引いた種を持つ（R1 は trim・R2 は unfinished）。出力の型は kind を required で持ち、まとめの種の集まりは
+        修正の側の schema の kind の列挙と同じ語の集まりになる"""
+        got = passing()
+        got["r1"] = eye("r1", "fix-needed", findings=[{"where": "a.py:3", "text": "写しを消す"}])
+        got["r2"] = eye("r2", "fix-needed", premise_check=None, notes=["控え"], findings=[{"where": "", "text": "入口が足りない"}])
+        out = self.build(got)
+        self.assertEqual([(i["eye"], i.get("kind")) for i in out["findings"]], [("r1", "trim"), ("r2", "unfinished")])
+        spec = yaml.safe_load((kit.ROOT / "workflows" / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
+        node = next(n for n in spec["nodes"] if isinstance(n.get("output_format"), dict) and "findings" in n["output_format"].get("properties", {}))
+        item = node["output_format"]["properties"]["findings"]["items"]
+        self.assertIn("kind", item["required"])
+        self.assertEqual(set(item["properties"]["kind"]["enum"]), set(self.v.KINDS.values()))
+        schema = json.loads((kit.ROOT / "workflows" / "fix" / "schemas" / "item-kinds.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(schema["items"]["properties"]["kind"]["enum"]), set(self.v.KINDS.values()))
 
     def test_r2_questions_go_to_means_questions(self):
         """R2 の問い（頼みどおりの違い。docs/design/plan-review.md の 20 章の 6.3 の 2）はまとめの means_questions に入り、R4 の問いの

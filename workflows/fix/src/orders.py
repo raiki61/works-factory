@@ -12,6 +12,7 @@ orders/<weapon>.json（.shared/schemas/weapon-order.schema.json の形）に書�
 - weapons(place) -> {単位: 型の名}: 書いた注文の索引から引く（受け付けが型の義務を引く口）
 - unsatisfied_of(place) -> [{before, after}]: 書いた注文の索引の守れない依存の対（組の結果 group_result の欄 unsatisfied の元）
 - later_agreed(place) -> 段の頭の後に取れた範囲の相談の合意の許しの範囲（凍結の照らし duties.frozen_by_returns が足す）
+- earlier_tests(place) -> 返した段で前の段が赤→緑を確かめたテストの id（compute が輪の状態の欄 earlier に渡す。最初の段では空）
 - stage_of(place) -> 段の番（1 回目の段 2n−1。n は修正の block を入れた回で、前の段の申し送りが在れば 2）
 """
 from __future__ import annotations
@@ -168,6 +169,14 @@ def returns_of(place) -> list:
     return out
 
 
+def earlier_tests(place) -> list:
+    """返した段（values.json の item_kinds が空でない）で、前の段が赤→緑を確かめたテストの id: 返しの控えが足した試験 added と書き換えた
+    試験 rewritten（現れた順・重なりは 1 つ）。最初の段・案の直しの後の修正（item_kinds が空）では []"""
+    if not runvals.read(place)["item_kinds"]:
+        return []
+    return list(dict.fromkeys(t for doc in returns_of(place) for field in ("added", "rewritten") for t in doc.get(field) or []))
+
+
 def write_return(place, doc: dict) -> pathlib.Path:
     """共通の受け付けが通した返しを returns/<k>.json に書く（<k> は置き場で使われていない一番小さい番号）"""
     d = pathlib.Path(place) / files.RETURNS_DIR
@@ -258,7 +267,7 @@ def compute(place, repo) -> dict:
         if not state:   # 輪の状態はここで初めて作る（振り分けの結果と数えを渡す。輪の置き場 tdd-<k>/ もここで置く）
             light = [k for k in values.get("skip_rerun") or [] if k in keys]
             state = tdd.open_state(place, repo, str(basecase.path(place)), keys, owed=set(keys), light=light,
-                                   routed=routed or None, counted=counted)
+                                   routed=routed or None, counted=counted, earlier=earlier_tests(place))
         mark = {k: "tdd" if weapons.get(k) == "tdd" else "direct" for k in owed}
         tdd.assign(state, repo, mark, {k: whys.get(k) or answered_why(st, k) for k in owed})
         started.update(go=True, state_file=state, summary_file=str(pathlib.Path(state).parent / tdd.SUMMARY))
