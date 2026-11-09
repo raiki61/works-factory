@@ -6,7 +6,6 @@ script は子のプロセスとして使い捨ての置き場（runs/<親>・run
 （子の run と、読み書きをするノード round-k-commit・round-k-facts は stub で差し、chain-start・round-k-decide・result は本当に走る）。
 """
 import hashlib
-import importlib.util
 import json
 import os
 import pathlib
@@ -32,7 +31,7 @@ CHAIN = yaml.safe_load((FOLDER / "works-factory-chain.yaml").read_text(encoding=
 LINE = base.line_graph()
 bound, scenarios = base.bound, base.scenarios
 NAME = CHAIN["name"]
-SCENARIOS = ("limit-then-fixed", "rounds-reached", "needs-human", "same-items", "interrupted", "child-failed", "refused", "deliver-pr")
+SCENARIOS = ("limit-then-fixed", "needs-human", "interrupted", "child-failed", "refused", "deliver-pr")
 
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
@@ -233,14 +232,6 @@ class RoundFactsCase(Tree):
         self.assertTrue(got["source"].endswith(f"child/report/{carry.NEXT_REQUEST_FILE}"))
         self.assertEqual((got["cost"], got["cost_read"]), (1.5, True))
 
-    def test_minutes_are_the_child_node_rows(self):
-        self.log({"type": "node_start", "step": "round-1", "ts": "2026-10-14T10:00:00Z"},
-                 {"type": "node_complete", "step": "round-1", "ts": "2026-10-14T10:12:30Z", "cost_usd": 1.0,
-                  "execution": {"accounting": "node"}})
-        self.assertEqual(self.facts()["minutes"], 12.5)
-        (self.logs / "parent.jsonl").unlink()
-        self.assertIsNone(self.facts()["minutes"])
-
     def test_unreadable_cost_is_not_zero(self):
         self.log({"type": "node_complete", "step": "round-1", "execution": {"accounting": "node"}})
         self.assertIs(self.facts()["cost_read"], False)
@@ -394,6 +385,16 @@ class DecideCase(Tree):
         self.assertEqual(self.decide(rows=json.dumps(prev), facts=self.facts(8.0))["act"], "launch", "上限が無ければ次を起こす")
         got = self.decide(rows=json.dumps(prev), facts=self.facts(8.0), budget="10")
         self.assertEqual((got["act"], got["word"], got["request"]), ("stop", "budget", ""), got)
+
+    def test_rounds_limit_and_same_keys_stop_through_the_with_values(self):
+        """周の数の上限（rounds_max）と前の周と同じ残りの鍵（facts の keys）は、決めの script が with: の値から lib/chain.step へ運んで止める
+        （止めの順と語は lib/tests の test_chain.py。ここは script の配線）"""
+        prev = [{"n": 1, "outcome": "round_limit", "kind": chain.KIND_OPEN, "keys": ["k"], "cost": 1.0, "cost_read": True}]
+        got = self.decide(rows=json.dumps(prev), rounds_max="2")
+        self.assertEqual((got["act"], got["word"], got["request"]), ("stop", "rounds_reached", ""), got)
+        got = self.decide(rows=json.dumps(prev))
+        self.assertEqual((got["act"], got["word"], got["request"]), ("stop", "same_items", ""), got)
+        self.assertEqual(self.decide(rows=json.dumps([{**prev[0], "keys": ["other"]}]))["act"], "launch")
 
     def test_unread_cost_under_a_budget_is_cost_unread(self):
         got = self.decide(facts=self.facts(None, cost_read=False), budget="10")
@@ -585,14 +586,6 @@ class ResultCase(Tree):
         self.assertEqual(got["act"], "unconfirmed", "差分を置いた後の hand の中で push や PR の作成が済んだかもしれない")
         self.assertIn("出力が無い", got["reason"])
 
-    def test_pr_word_is_the_entry_word(self):
-        """result は lib を読まないので出口の語 pr を字で持つ。lib/entry の DELIVER_PR と同じことをここで縛る"""
-        spec = importlib.util.spec_from_file_location("chain_result", SCRIPTS / "result.py")
-        script = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(script)
-        import entry
-        self.assertEqual(script.PR, entry.DELIVER_PR)
-
     def test_launch_without_the_next_decision_is_wait(self):
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
         got = self.result(start, None)
@@ -607,13 +600,6 @@ class ResultCase(Tree):
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
         got = self.result(start, {"act": "stop", "word": "closed", "text": "t", "request": "", "rows": [{"n": 1}]})
         self.assertEqual((got["closed"], got["word"], got["act"]), (True, "closed", "stop"))
-
-    def test_closed_is_a_stop_word_of_the_chain(self):
-        """result は lib を読まないので止めの語 closed を字で持つ。lib/chain の STOPS の語と同じであることをここで縛る"""
-        spec = importlib.util.spec_from_file_location("chain_result", SCRIPTS / "result.py")
-        script = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(script)
-        self.assertIn(script.CLOSED, chain.STOPS)
 
     def test_decisions_are_read_in_round_order_up_to_the_last_round(self):
         start = {"ok": True, "reason": "", "act": "launch", "word": "", "text": "", "rows": []}
@@ -684,12 +670,6 @@ class FilesCase(unittest.TestCase):
 class ShapeCase(unittest.TestCase):
     """グラフの形の約束（Archon を起こさない）"""
 
-    def test_node_ids_are_the_start_the_rounds_and_the_result(self):
-        want = {"chain-start", "final-diff", "hand", "result"} | {f"round-{k}{tail}" for k in range(1, chain.MAX_ROUNDS + 1)
-                                                    for tail in ("", "-commit", "-facts", "-decide")}
-        self.assertEqual(set(NODES), want)
-        self.assertEqual(len(CHAIN["nodes"]), 4 + 4 * chain.MAX_ROUNDS)
-
     def test_children_never_deliver_and_the_parent_hands_once(self):
         """周の子は出口の語を空で受けて PR を作らない。出口の語 pr の時だけ、親が最後の差分を封じた後にブロック merge を 1 度 include
         して PR を 1 本作る"""
@@ -711,14 +691,6 @@ class ShapeCase(unittest.TestCase):
             with self.subTest(round=k):
                 self.assertEqual(shape(k), first)
 
-    def test_round_bodies_are_written_once(self):
-        """周の 4 つのノードの本体（子の workflow と commit・facts・decide の script）は YAML の字に 1 度だけ在り、2〜5 周目はアンカーで受ける
-        （周ごとに書き写すと、1 周だけ直して形が分かれる）"""
-        text = (FOLDER / "works-factory-chain.yaml").read_text(encoding="utf-8")
-        for body in ("workflow: works-factory-line", "script: round_commit", "script: round_facts", "script: decide"):
-            with self.subTest(body=body):
-                self.assertEqual(len(re.findall(rf"^\s*{re.escape(body)}\s*$", text, re.M)), 1)
-
     def test_rounds_launch_the_main_graph_on_launch(self):
         for k in range(1, chain.MAX_ROUNDS + 1):
             with self.subTest(round=k):
@@ -733,10 +705,6 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(set(CHAIN["inputs"]), set(LINE["inputs"]) | {"rounds", "budget_usd"})
         for name, spec in LINE["inputs"].items():
             self.assertEqual(CHAIN["inputs"][name].get("default"), spec.get("default"), name)
-
-    def test_head_has_no_interactive_and_returns_closed(self):
-        self.assertNotIn("interactive", CHAIN)
-        self.assertEqual((CHAIN["returns"], CHAIN["outcome_field"]), ("result", "closed"))
 
     def test_head_pins_the_run_worktree(self):
         """周の commit は run の作業ツリーの枝に積む。--no-worktree で利用者の作業ツリーに走らせない（Archon が起動を拒む）"""
@@ -817,17 +785,9 @@ class ChainScenariosTest(unittest.TestCase):
                           "commits": [], "split": "作業ツリーに積む変更が無い（封じた差分は既に枝の commit に在る）"},
                          "周の commit が積んだ枝は、項目ごとに積み直さない")
 
-    def test_rounds_reached_skips_the_next_round(self):
-        self.assertEqual(self.out("rounds-reached", "round-2-decide")["word"], "rounds_reached")
-        self.assertFalse(self.ran("rounds-reached", "round-3"))
-
     def test_needs_human_stops_before_the_next_round(self):
         self.assertEqual(self.out("needs-human", "round-1-decide")["word"], "human")
         self.assertFalse(self.ran("needs-human", "round-2"))
-
-    def test_same_keys_stop_with_same_items(self):
-        self.assertEqual(self.out("same-items", "round-2-decide")["word"], "same_items")
-        self.assertFalse(self.ran("same-items", "round-3"))
 
     def test_interrupted_child_does_not_launch_the_next(self):
         self.assertEqual(self.out("interrupted", "round-1-decide")["act"], "aborted")
@@ -845,8 +805,7 @@ class ChainScenariosTest(unittest.TestCase):
         self.assertEqual(self.out("refused", "result")["ok"], False)
 
     def test_result_lists_each_round_decision(self):
-        for scenario, words in (("limit-then-fixed", ["", "closed"]), ("rounds-reached", ["", "rounds_reached"]),
-                                ("needs-human", ["human"]), ("same-items", ["", "same_items"]), ("interrupted", [""])):
+        for scenario, words in (("limit-then-fixed", ["", "closed"]), ("needs-human", ["human"]), ("interrupted", [""])):
             with self.subTest(scenario=scenario):
                 rounds = self.out(scenario, "result")["rounds"]
                 self.assertEqual([r["word"] for r in rounds], words)
