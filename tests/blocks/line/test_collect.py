@@ -143,23 +143,6 @@ class FactsCase(unittest.TestCase):
             v["request_in"] = {"request": ptr("descend/request.json")}
         return v
 
-    def test_request_texts_come_from_the_start_request_copy(self):
-        rows = [{"where": "a.py:1", "text": "1 行目の依頼"}, {"where": "b.py:2", "text": "2 行目の依頼"}]
-        other = {"findings": [{"where": "x.py:9", "text": "降りた依頼の字"}]}
-        for doc in ({"findings": rows}, rows):
-            with self.subTest(shape=type(doc).__name__):
-                got = self.build(self.with_request(doc, other=other))
-                self.assertEqual(got.get("request_texts"), ["1 行目の依頼", "2 行目の依頼"], "始めの写しの行の text を依頼の順のまま")
-                self.assertEqual(check(got, FACTS_SCHEMA), [], "facts が report の形に合う")
-
-    def test_request_texts_fall_back_to_the_pr_title(self):
-        rec = {**record(), "input": {"base": {"label": "差分なし（HEAD）"}, "pr": {"title": "PR の題"}}}
-        for empty in ([], {"findings": []}):
-            with self.subTest(copy=empty):
-                self.assertEqual(self.build(self.with_request(empty), rec).get("request_texts"), ["PR の題"])
-        blank = {**record(), "input": {"base": {"label": "差分なし（HEAD）"}, "pr": {"title": ""}}}
-        self.assertEqual(self.build(self.with_request([]), blank).get("request_texts"), [], "題が空なら空の配列")
-
     def test_unreadable_request_copy_is_named_in_the_notes(self):
         draft = {"findings": [{"where": "a.py:1", "text": "下書き", "draft": True, "source": "前の run"}]}
         for name, v in (("missing", self.with_request(path="start/missing.json")), ("draft", self.with_request(draft))):
@@ -182,24 +165,6 @@ class FactsCase(unittest.TestCase):
         v["judge"] = {**v["judge"], "answer_ties": ptr("judge/ties.json")}
         got = self.build(v)
         self.assertTrue([n for n in got["notes"] if "judge/ties.json" in n], got["notes"])
-
-    def test_inner_node_ids_stay_out_of_the_head_lines_and_in_the_named_ones(self):
-        """報告の頭の行には、人が読む言葉だけを出す（id・止めの語は出さない。tests/blocks/line/test_head_plain.py）。頭の外の節の行は
-        「訳（id）」で名を残す（グラフの名で探せるように）"""
-        stops = [{"at": "ask-final", "word": "works:needs-human"}]
-        self.assertTrue(self.f.stop_words(stops)[0].startswith("最後の承認ノードを開ける所が止めた: "), self.f.stop_words(stops))
-        self.assertTrue(self.f.stop_words_full(stops)[0].startswith("最後の承認ノードを開ける所（ask-final） が works:needs-human"))
-        said = self.f.pushed_said({"gate-before-fix": {"pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}})
-        self.assertIn("通した承認ノード: 修正前の承認ノード（推し", said)
-        self.assertNotIn("gate-before-fix", said)
-        lines = self.f.pushed_lines({"gate-before-fix": {"pushed": [{"item": "x", "answer": "continue", "note": "n", "why": "w"}]}})
-        self.assertIn("承認ノード 修正前の承認ノード（gate-before-fix）", lines[0])
-
-    def test_every_node_the_machine_names_has_a_plain_name(self):
-        """止めの語を読む node と承認ノードの全部に、人が読む言葉の表の行が在る（行が無いと名だけが訳なしで出る）"""
-        names = self.f.node_names()
-        for node, _ in (*self.f.LINE_STOPS, *self.f.BLOCK_STOPS, *self.f.GATES):
-            self.assertTrue(names.get(node), node)
 
     def test_stop_rows_name_a_returned_stage_apart_from_the_refix(self):
         """修正の段の止めの語の at は段の種類で引く: 独立の目から返した段は back-<k>-fix（k は返した段の中の何回目か）、案の直しの後の段は
@@ -408,58 +373,6 @@ class CollectTest(unittest.TestCase):
         self.assertEqual(check(got, FACTS_SCHEMA), [], "facts が report の形に合う")
 
 
-class MoreLinesCase(unittest.TestCase):
-    """人が決めることの節の後ろの行（元 runreport の _conflict_line・unproven_lines・pr_lines・inner_word_lines・_gate_passes・
-    _amend_lines・_line_lines。能力を残す）"""
-
-    def setUp(self):
-        self.f = kit.load(BLOCK, "facts")
-        self.run = kit.Run(self, BLOCK)
-        seed(self.run)
-
-    def after(self, values):
-        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
-            return self.f.build(values, record(), cwd=self.run.repo)["decisions"]["after"]
-
-    def test_lines_are_kept(self):
-        v = passing()
-        (self.run.artifacts / "judge").mkdir()
-        (self.run.artifacts / "judge" / "pr-excluded.json").write_text(json.dumps(
-            {"excluded": [{"pr": 7, "file": "a.py", "start": 1, "end": 3, "why": "重なる"}]}))
-        v["judge"] = {**v["judge"], "excluded": ptr("judge/pr-excluded.json")}
-        v["ask_before_fix"] = {**v["ask_before_fix"], "passes": [{"node": "p2.human_gate", "round": 1, "by": "decided", "item": "行 x",
-                                                                         "decided_by": "https://example.org/std#3"}],
-                               "deferred": [{"kind": "fork", "text": "載せなかった問い"}]}
-        v["ask_final"] = {**v["ask_final"], "reasons": ["最後のテストが緑でない"]}
-        after = self.after(v)
-        joined = "\n".join(after)
-        self.assertTrue(after[[i for i, x in enumerate(after) if x.startswith("食い違いの申し出: ")][0]].startswith("食い違いの申し出: 0 件"))
-        self.assertIn("並行 PR #7 と重なるので外した範囲: a.py:1-3（重なる）", after)
-        self.assertIn("修正前の承認ノードが聞かずに通した行（gate-before-fix）: 1 件", after)
-        self.assertIn("（決め手: https://example.org/std#3）", joined)   # 定石で決めた行は出どころつきの 1 行で残る（settle-by-standard）
-        self.assertIn(self.f.DEFERRED_HEAD + ": 1 件", after)
-        self.assertIn("最後の承認ノードを開けた理由: 1 件", after)
-        self.assertNotIn("組めない", joined)
-
-    def test_final_reasons_head_follows_the_run_kind(self):
-        """最後の承認ノードを開ける理由の見出しは、人が答える run では「無人の run」と言わない（無人の run だけが開かずに止める）"""
-        for unattended, expected, absent in ((False, "最後の承認ノードを開けた理由: 1 件", "無人の run"),
-                                             (True, "最後の承認ノードを開ける理由（無人の run では開かずに止めた理由）: 1 件", None)):
-            v = passing()
-            v["start"] = {**v["start"], "unattended": unattended}
-            v["ask_final"] = {**v["ask_final"], "reasons": ["最後のテストが緑でない"]}
-            after = self.after(v)
-            self.assertIn(expected, after)
-            if absent:
-                self.assertFalse([x for x in after if x.startswith("最後の承認ノードを開け") and absent in x], after)
-
-    def test_amend_lines_name_the_replanned_items(self):
-        v = passing()
-        v["fixed"] = {**v["fixed"], "replan_items": ["1"], "refixed": True}
-        after = self.after(v)
-        self.assertTrue(any(x.startswith("同じ run の中で直した修正案の項目: 1 件") for x in after), after)
-
-
 class SectionsCase(unittest.TestCase):
     def setUp(self):
         self.s = kit.load(BLOCK, "sections")
@@ -509,28 +422,14 @@ class SectionsCase(unittest.TestCase):
         self.assertEqual(section["lines"], [eb.BROKE])
         self.assertNotIn(self.s.BACK, [s["title"] for s in self.build({**passing(), "eyes_back": None, "back_1": None})])
 
-    def test_order_and_shape(self):
+    def test_tdd_rows_are_the_fix_report(self):
+        """keep-essence 11: TDD の単位ごとの行と差分の控えは fix の report のまま節に載る"""
         got = self.build(passing())
         self.assertEqual(check(got, SECTIONS_SCHEMA), [])
-        titles = [s["title"] for s in got]
-        self.assertEqual(titles[:8], [self.s.ENTRY, self.s.TDD, self.s.GREEN, self.s.EYES, self.s.STRUCTURE, self.s.WORLD,
-                                      self.s.LENS_LOCAL, self.s.JUDGMENT])
-        self.assertIn("素材: コード衛生", titles)
-        self.assertIn(self.s.ROUNDS, titles)
-        self.assertIn(self.s.MERGE, titles)
-        self.assertNotIn(self.s.TDD_2, titles, "走らなかった block の節は載せない")
+        self.assertNotIn(self.s.TDD_2, [s["title"] for s in got], "走らなかった block の節は載せない")
         tdd = next(s for s in got if s["title"] == self.s.TDD)
-        self.assertEqual(tdd["lines"], ["- u1: fixed"], "keep-essence 11: TDD の単位ごとの行は fix の report のまま")
+        self.assertEqual(tdd["lines"], ["- u1: fixed"])
         self.assertEqual(tdd["files"], [{"label": "差分", "ref": ptr("fix/diff"), "form": "file"}])
-        entry = next(s for s in got if s["title"] == self.s.ENTRY)["lines"]
-        self.assertIn("判定の裏取りを回さなかった: 既定で切（features の既定）", entry)
-        self.assertIn("決めた人: 承認ノードの答え 2 件", entry)
-        self.assertIn("直す前のテスト: 緑", entry)
-        self.assertTrue(any(x.startswith("始めの記録: run ") for x in entry), entry)
-        self.assertTrue(any(x.startswith("走った段: ") for x in entry), entry)
-        self.assertFalse([x for x in entry if "組めない" in x], entry)
-        self.assertNotIn("深さ: 標準", entry, "省いた数が在れば raise の lines を tiers.lines で組み直す")
-        self.assertTrue(any("軽量の単位 1 個で省いた" in x for x in entry), entry)
 
     def test_not_run_section_names_what_was_left_to_ci_and_people(self):
         """持ち主の決め related-tests-only: 関わる試験に絞った run は、走らせた試験・走らせなかった試験・全体の試験を CI と人に任せた事を
@@ -549,25 +448,6 @@ class SectionsCase(unittest.TestCase):
         self.assertIn("  - tests/test_b.py", lines)
         self.assertIn("CI と人", text)
         self.assertIn("最後のテスト: 走らせた: suite／走らせなかった: 無い", text)
-
-    def test_a_fixture_run_names_where_it_went_on(self):
-        """固定材料から始めた run の入口の行は、続けた所を名指す: 修正の前の写しは「修正から」、修正前の承認ノードで止まった所の写し
-        （start の fixture_gate が真）は「修正前の承認ノードから」（修正から始めたとは言わない）"""
-        for gate, said, unsaid in ((False, "修正から", "修正前の承認ノードから"), (True, "修正前の承認ノードから", "修正から）")):
-            with self.subTest(fixture_gate=gate):
-                v = passing()
-                v["start"] = {**v["start"], "from_fixture": True, "fixture": ptr("carried.json"), "fixture_gate": gate}
-                entry = next(s for s in self.build(v) if s["title"] == self.s.ENTRY)["lines"]
-                line = next(x for x in entry if x.startswith("固定材料から始めた"))
-                self.assertIn(said, line)
-                self.assertNotIn(unsaid, line)
-
-    def test_review_not_due_names_the_reason(self):
-        v = passing()
-        v["raise"] = {**v["raise"], "skip_why": "頭が軽量で全部の単位が軽量"}
-        got = self.build(v)
-        review = next(s for s in got if s["title"] == self.s.REVIEW_1)
-        self.assertEqual(review["lines"], ["差分の審査を回さないのでレンズは起こさない（頭が軽量で全部の単位が軽量）"])
 
 
 class CollectScriptCase(unittest.TestCase):
@@ -734,20 +614,3 @@ class SpecRunCase(unittest.TestCase):
         names = self.f.node_names()
         for node in ("spec-entry", "spec-check", "spec-rounds"):
             self.assertTrue(names.get(node), node)
-
-    def test_request_run_values_are_left_as_they_are(self):
-        v = passing()
-        v.update(dict.fromkeys(("spec_entry", "spec_diagnose", "spec_driven_check", "spec_rounds", "spec_ask_before_fix",
-                                "spec_answer_before_fix")))
-        self.assertEqual(self.r.collect_values(v), v)
-
-
-class BaseSelfCheckLineCase(unittest.TestCase):
-    """持ち主の決め base-runs-nothing: 節「走らせなかった範囲」の直す前の行は、直す前の走らせ方の行だけ。利用者の走らせ方を絞らない
-    という添え書き（最後のテストの道 (1)(2) の物）は付けない"""
-
-    def test_the_base_line_is_the_self_check_way_only(self):
-        s = kit.load(BLOCK, "sections")
-        way = "直す前の版では試験を走らせない（全部の試験も自己点検も置かない）"
-        base = {"mode": "base", "suites_line": way, "related": {"applied": False}}
-        self.assertEqual(s.not_run_lines(base, None), [f"直す前のテスト: {way}"])

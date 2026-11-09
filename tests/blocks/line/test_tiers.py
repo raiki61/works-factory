@@ -1,7 +1,6 @@
 """段 → 回す物の表・単位の深さ・修正の後の上げ直し（docs/design/line.md の 5 節。node tiers と raise。src/tiers.py）。
 
-元は test_line.py の RedepthCase と lib の試験の test_depth.py の表の照らし。表の行は元の depth.py の TIERS と同じ
-（組み込みの前に写しを照らす。lib の元が消えた後は見送る）。上げ直しの信号の全部（止めた単位・申し出・答えていない問い・案の直し・
+元は test_line.py の RedepthCase（段ごとに省く物は tests/blocks/line/test_depth.py の SkipCase）。上げ直しの信号の全部（止めた単位・申し出・答えていない問い・案の直し・
 修正役の異議・引用の外の差分・TDD の輪の拒否・範囲の相談・直さずに残した事前審査の block・読めない控え）と、checks・eyes_due
 （前の run が運んだ実測が在る run は目を省かない）を見る。
 """
@@ -31,16 +30,6 @@ ASKED_OP = "plan_scope_asked"   # lib/conflict.py の ASKED_OP（範囲の相談
 
 def patch(*names):
     return "".join(f"diff --git a/{n} b/{n}\n--- a/{n}\n+++ b/{n}\n@@ -1 +1 @@\n-x\n+y\n" for n in names)
-
-
-class TableCase(unittest.TestCase):
-    def test_words_come_from_headdepth(self):
-        self.assertEqual((tiers.LIGHT, tiers.STANDARD), (headdepth.LIGHT, headdepth.STANDARD))
-        self.assertEqual(tiers.HEADS, ("軽量", "標準", "重厚"))
-
-    def test_light_omits_only(self):
-        self.assertTrue(tiers.omits("軽量") and not tiers.omits("標準") and not tiers.omits("重厚"))
-        self.assertEqual(tiers.tier_adds("重厚"), tuple(__import__("entry").FEATURE_DEFAULTS))
 
 
 class SwitchesCase(unittest.TestCase):

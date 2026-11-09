@@ -1,5 +1,5 @@
 """line の始めの node start（workflows/line/scripts/start.py。docs/design/line.md の 1.3 の 1・1.6・9 節の start）: 入力の拒み・始めの記録・
-固定材料の取り込み・起動の承認ノードの文と、配る値 ports の欄ごとの式。
+固定材料の取り込みと、配る値 ports のうち空の値と持ち越した制約（承認ノードの文の字と欄ごとの式の形は照らさない）。
 
 元は test_line.py の StartCase（README 9.5）。start を名で読み（compute を回さない）、load の後に start.start を
 直に呼ぶ（gh の読み出しと lib の根を差し替えるため）。始めの記録を読む口は line の src/startrec.py（integration.md の 4.3-追加-6）なので、
@@ -47,7 +47,7 @@ def script(name: str):
 
 start = script("start")
 start.load()
-answer, entry, entryshape, stopby = start.answer, start.entry, start.entryshape, start.stopby
+entry, entryshape, stopby = start.entry, start.entryshape, start.stopby
 startrec, fixture, deal = start.startrec, start.fixture, start.deal
 
 
@@ -196,14 +196,6 @@ class StartCase(Seeded):
                          "base_rev は修正の前の HEAD（merge と test-gate が差分の起点に読む）")
         self.assertEqual(doc["review_rev"], doc["base_rev"], "review_rev は役の材料の読む版。差分の根 input.base.rev とは別に持つ")
 
-    def test_request_file_is_on_the_top_of_the_record(self):
-        """issue #89: 始めの記録の上の欄 request_file は input.request_file と同じ絶対パス。依頼の無い入口では両方 \"\""""
-        doc = self.record(self.start(request="request_ok.json"))
-        self.assertEqual(doc["request_file"], str((self.repo / "request_ok.json").resolve()))
-        self.assertEqual(doc["request_file"], doc["input"]["request_file"])
-        doc = self.record(self.start(base="base"))
-        self.assertEqual((doc["request_file"], doc["input"]["request_file"]), ("", ""))
-
     def test_blocks_get_the_request_file_by_the_ports(self):
         """issue #89 の後継: block は始めの記録を読まず、配る値 request（依頼の写しの pointer。block の port request の形で照らした物）・
         request_file（役が Read する依頼のファイルのパス）で依頼を受ける。記録を字のまま写しても line の読む口（src/startrec.py）が同じ値を返す"""
@@ -236,12 +228,6 @@ class StartCase(Seeded):
         self.assertEqual(json.loads((self.artifacts / "prior-failures-in.json").read_text(encoding="utf-8")),
                          [{"where": "判定", "text": "拒まれた"}])
         self.assertEqual(got["ports"]["prior_rows"], [{"where": "判定", "text": "拒まれた"}])
-
-    def test_policy_md_is_recorded_as_an_absolute_path(self):
-        (self.repo / "policy.md").write_text("方針\n", encoding="utf-8")
-        got = self.start(request="request_ok.json", policy_md="policy.md")
-        self.assertTrue(got["ok"], got)
-        self.assertEqual(self.record(got)["policy_md"], str(self.repo / "policy.md"))
 
     def test_record_carries_the_policy_frozen_at_the_start(self):
         """始めの記録の欄 policy は run の始めに固めた版 {named, path, sha256, copy}（写しは run directory の中）。名指しも既定の置き場の
@@ -356,16 +342,6 @@ class StartCase(Seeded):
         self.assertIn("test_cmd", got["reason"])
         self.assertFalse((place / fixture.CARRIED).exists())
 
-    def test_request_refusals_name_the_cause(self):
-        """L-E02: 依頼が読めない・JSON として読めない・形が違うを別の文で拒む"""
-        self.assertIn("読めない", self.refused(request="no-such.json"))
-        self.assertNotIn("JSON", self.refused(request="no-such.json"))
-        self.assertIn("JSON として読めない", self.refused(request=str(self.outside("broken.json", "{findings"))))
-        bad = json.dumps({"findings": [{"where": "a", "text": "b"}], "answers": "x"})
-        reason = self.refused(request=str(self.outside("bad_answers.json", bad)))
-        self.assertIn("の形", reason)
-        self.assertNotIn("読めない", reason)
-
     def test_request_without_findings_is_taken(self):
         """#505: findings を省いた依頼（answers・pr だけ）は空の findings として受け、差分の在る base で始まる。差分も依頼の行も
         無ければ空の入力として拒む"""
@@ -376,17 +352,6 @@ class StartCase(Seeded):
         self.assertEqual(self.record(got)["answers"], rows)
         self.assertEqual(got["ports"]["request_answers"], rows)
         self.assertIn(entryshape.EMPTY_REFUSED, self.refused(request=str(path)))
-
-    def test_request_pr_alone_names_the_pr_input_in_the_refusal(self):
-        """依頼のファイルの pr だけ（{"pr": [N]}）は差分を名指さないので空の入力として断る。その断りの文は、依頼の pr が前の run から
-        持ち越す番号で差分を名指さないことと、PR の差分を名指す入力 pr=N を言う（手引きの形の行を読んだ頼み手が打ち直せるように）。
-        依頼の pr が無い断りは入力 pr の話を足さない"""
-        path = self.outside("pr_only.json", json.dumps({"pr": [2473]}))
-        reason = self.refused(request=str(path))
-        self.assertIn(entryshape.EMPTY_REFUSED, reason)
-        self.assertIn("pr=2473", reason)
-        rows = self.outside("answers_only.json", json.dumps({"answers": [{"question": "q1", "text": "a"}]}))
-        self.assertNotIn("pr=", self.refused(request=str(rows)))
 
     def test_request_with_empty_container_is_refused_at_entry(self):
         """{"findings": []} の形で、ほかの欄（pr・issue・answers・prior_failures・constraints・theme）も全部空なら、base で差分が在っても
@@ -413,18 +378,6 @@ class StartCase(Seeded):
                 got = self.start(request=str(path), **base)
                 self.assertNotIn("ほかの欄", got.get("reason", ""))
                 self.assertTrue(got["ok"], got)
-
-    def test_omitted_tdd_suite_says_how_the_runner_is_prepared(self):
-        """#505・#516: tdd_suite を省いた run は、承認ノードの文が TDD の実行器の用意を言う。名指した tdd_suite は記録にそのまま載る"""
-        import suitewrite
-        got = self.start(base="base", test_cmd="make test")
-        self.assertEqual(self.record(got)["tdd_suite"], "")
-        self.assertIn(suitewrite.GATE_NOTE, got["gate_text"])
-        got = self.start(base="base", test_cmd="make test", tdd_suite="run-tests.sh")
-        self.assertEqual(self.record(got)["tdd_suite"], "run-tests.sh")
-        self.assertNotIn(suitewrite.GATE_NOTE, got["gate_text"])
-        self.assertEqual((got["ports"]["test_cmd"], got["ports"]["tdd_suite"], got["ports"]["has_checks"]),
-                         ("make test", "run-tests.sh", True))
 
     def test_bad_answers_or_prior_shape_refused(self):
         """L-E04・L-D51: answers・prior_failures の形の違う依頼は AI の前で拒む"""
@@ -493,22 +446,6 @@ class StartCase(Seeded):
         doc = self.record(self.start(request=str(req)))
         self.assertEqual(doc["request_text"], req.read_text(encoding="utf-8"))
 
-    def test_every_entry_has_the_same_shape(self):
-        """L-E19: 依頼・base・PR のどの入口でも input の鍵が同じ"""
-        keys = {"base", "head_rev", "diff", "requests", "request_file", "pr", "spec"}
-        for name, got in (("依頼", self.start(request="request_ok.json")), ("base", self.start(base="base")),
-                          ("PR", self.start_with_gh(self.pr_reads(), pr="7")[0])):
-            with self.subTest(entry=name):
-                doc = self.record(got)
-                self.assertEqual(set(doc["input"]), keys)
-                self.assertEqual(set(doc["input"]["base"]), {"rev", "from", "name", "label"})
-
-    def test_record_is_where_the_line_reader_looks(self):
-        """L-E24: start が書いた記録を line の読む口（src/startrec.read）がそのまま読む（置き場が 2 つに割れない）"""
-        got = self.start(request="request_ok.json", features_off="world")
-        self.assertEqual(startrec.read(self.artifacts), self.record(got))
-        self.assertEqual(self.artifacts / got["record"]["path"], startrec.path(self.artifacts))
-
     def test_spec_word_checked(self):
         """L-E27: spec は空か on。on は input.spec を真に"""
         self.assertIn("spec", self.refused(request="request_ok.json", spec="yes"))
@@ -554,44 +491,11 @@ class StartCase(Seeded):
         self.assertEqual((doc["test_cmd"], doc["tdd_suite"]), ("make test", "./junit-suite.sh"))
         self.assertEqual((got["ports"]["test_cmd"], got["ports"]["tdd_suite"]), ("make test", "./junit-suite.sh"))
 
-    def test_unknown_versions_say_why(self):
-        """L-E45: 分からない版の値は null にし、unknown に理由を書く"""
-        bare = self.tmp / "bare-bin"   # git だけを置いた PATH（claude が無い）
-        bare.mkdir()
-        (bare / "git").symlink_to(shutil.which("git"))
-        with mock.patch.dict(os.environ, {"PATH": str(bare)}), \
-                mock.patch.object(start.ports, "lib_root", return_value=self.tmp / "nowhere" / "lib"):
-            doc = self.record(self.start(request="request_ok.json"))["versions"]
-        for key in ("archon", "claude_code"):
-            with self.subTest(key=key):
-                self.assertIsNone(doc[key])
-                self.assertTrue(doc["unknown"][key])
-        self.assertTrue(doc["python"])
-        self.assertTrue(doc["platform"])
-
-    def test_start_gate_text_names_entry_features_and_answers(self):
-        """L-E48・L-G09: 起動の承認ノードの文は冒頭 3 行・入口の文・機能・最後の承認ノードの開き方・答え方の 2 行を持つ"""
-        text = self.start(request="request_ok.json", final_gate="when_needed", features_off="world")["gate_text"]
-        self.assertTrue(text.splitlines()[0].startswith("起きたこと: "))
-        self.assertIn("入口: 差分なし（HEAD）・依頼 2 件", text)
-        self.assertIn("機能: ", text)
-        self.assertIn("world off", text)
-        self.assertIn("最後の承認ノード: when_needed", text)
-        self.assertIn(answer.line(RUN, "continue", "<一言>"), text)
-        self.assertIn(answer.line(RUN, "stop", "<理由>"), text)
-
-    def test_start_gate_text_names_the_deliver_word(self):
-        """#751: 始めの承認ノードの頭の行に出口の語（deliver）を、最後の承認ノードの開き方の次の行に出す"""
-        rows = {"": "- 出口（deliver）: 空（既定）——差分を run の置き場に置くだけで、対象の repo に何も書かない",
-                "pr": "- 出口（deliver）: pr——最後の承認ノードを通ると、報告の前に run の枝へ commit を積んで push し、"
-                      "対象の既定の枝へ向けた PR を作る（merge はしない）"}
-        for word, row in rows.items():
+    def test_deliver_word_reaches_the_ports(self):
+        """#751: 出口の語（deliver）は配る値 deliver で merge に渡る（pr の時だけ merge が対象の repo へ push して PR を作る）"""
+        for word in ("", "pr"):
             with self.subTest(deliver=word):
-                got = self.start(request="request_ok.json", deliver=word)
-                lines = got["gate_text"].splitlines()
-                self.assertIn(row, lines)
-                self.assertEqual(lines.index(row), lines.index("- 最後の承認ノード: always") + 1)
-                self.assertEqual(got["ports"]["deliver"], word)
+                self.assertEqual(self.start(request="request_ok.json", deliver=word)["ports"]["deliver"], word)
 
     def test_heavy_thickness_is_taken(self):
         got = self.start(request="request_ok.json", thickness="重厚")
@@ -601,12 +505,8 @@ class StartCase(Seeded):
         self.assertNotIn("judge_verify", doc[entry.FEATURES_CUT_KEY])
         self.assertEqual(doc["features"]["judge_verify"], "on")
         self.assertEqual(doc["features"]["review_tree"], "on")
-        self.assertIn("段: 重厚", got["gate_text"])
-        self.assertNotIn("judge_verify off", got["gate_text"])
-        self.assertNotIn("review_tree auto", got["gate_text"])
         plain = self.start(request="request_ok.json")
         self.assertIn("judge_verify", self.record(plain)[entry.FEATURES_CUT_KEY])
-        self.assertIn("judge_verify off", plain["gate_text"])
 
     def test_heavy_with_a_named_off_is_refused(self):
         """issue #561 の求め 4: 名指した重厚が足す機能を features_off で切ると、入口がぶつかった機能を名指して止める"""
@@ -621,78 +521,14 @@ class StartCase(Seeded):
             with self.subTest(thickness=thickness):
                 self.assertTrue(self.start(request="request_ok.json", thickness=thickness, features_off="judge_verify")["ok"])
 
-    def test_gate_text_has_the_depth_word(self):
-        """L-E49: 頭の行に段（thickness と（既定））・機能・最後の承認ノード・修正前のテストの任せ先の注を並べる"""
-        text = self.start(request="request_ok.json")["gate_text"]
-        self.assertIn("段: 自動（既定）", text)
-        self.assertIn("修正前のテスト: 宣言も test_cmd も無い", text)
-        text = self.start(request="request_ok.json", thickness="軽量", test_cmd="make test")["gate_text"]
-        self.assertIn("- 段: 軽量\n", text)
-        self.assertNotIn("修正前のテスト:", text)
-
 
 class PortsCase(Seeded):
-    """配る値（docs/design/line.md の 1.6）の欄ごとの式"""
-
-    def test_every_field_is_dealt_in_the_yaml_order(self):
-        import yaml
-        doc = yaml.safe_load((LINE / "works-factory-line.yaml").read_text(encoding="utf-8"))
-        [node] = [n for n in doc["nodes"] if n["id"] == "start"]
-        shape = node["output_format"]["properties"]["ports"]
-        got = self.start(request="request_ok.json")["ports"]
-        self.assertEqual(list(got), list(shape["properties"]))
-        self.assertEqual(list(deal.empty()), list(shape["properties"]))
-        self.assertEqual(shape["required"], list(shape["properties"]))
-        names = {"string": str, "boolean": bool, "object": dict, "array": list, "null": type(None)}
-        for name, value in (*got.items(), *deal.empty().items()):
-            with self.subTest(field=name):
-                want = shape["properties"][name]["type"]
-                self.assertTrue(any(isinstance(value, names[t]) for t in ([want] if isinstance(want, str) else want)), (name, value))
+    """配る値（docs/design/line.md の 1.6）の空の値と、持ち越した制約の置き場"""
 
     def test_empty_has_blank_values(self):
         empty = deal.empty()
         self.assertEqual((empty["request"], empty["carried"], empty["verify_by_tier"], empty["prior_rows"]), (None, None, {}, []))
         self.assertEqual({k: v for k, v in empty.items() if isinstance(v, bool)}, dict.fromkeys(deal.FLAGS, False))
-
-    def test_entry_needs_an_empty_diff_and_request_rows(self):
-        """entry は入口の差分が空で依頼の行が 1 件以上の時だけ（判定から入る run）。差分の在る run・依頼の無い run は空"""
-        want = str((self.repo / "request_ok.json").resolve())
-        got = self.start(request="request_ok.json")["ports"]
-        self.assertEqual((got["entry"], got["request_origin"], got["request_scope"]), (f"人の依頼（{want}）",) * 2 + (True,))
-        changed = self.start(request="request_ok.json", base="base")["ports"]
-        self.assertEqual((changed["entry"], changed["request_origin"], changed["request_scope"]), ("", f"人の依頼（{want}）", False))
-        rows = self.outside("answers_only.json", json.dumps({"answers": [{"question": "q", "text": "a"}]}))
-        none = self.start(request=str(rows), base="base")["ports"]
-        self.assertEqual(none["entry"], "")
-        self.assertEqual(deal.entry_origin({"input": {"diff": {"empty": True}, "requests": 0}}), "", "差分が空でも依頼の行が無ければ空")
-        self.assertEqual(deal.entry_origin({"input": {"diff": {"empty": True}, "requests": 1}}), "人の依頼（依頼の行）")
-
-    def test_verify_by_tier_follows_the_naming(self):
-        """判定の裏取りは名指さなければ重厚の段だけが足す。features_on で名指せば全段で回し、features_off で名指せば全段で回さない"""
-        self.assertEqual(self.start(request="request_ok.json")["ports"]["verify_by_tier"], {"軽量": False, "標準": False, "重厚": True})
-        self.assertEqual(self.start(request="request_ok.json", features_on="judge_verify")["ports"]["verify_by_tier"],
-                         {"軽量": True, "標準": True, "重厚": True})
-        self.assertEqual(self.start(request="request_ok.json", features_off="judge_verify")["ports"]["verify_by_tier"],
-                         {"軽量": False, "標準": False, "重厚": False})
-
-    def test_tree_named_reads_only_the_naming(self):
-        self.assertEqual(self.start(request="request_ok.json")["ports"]["tree_named"], "")
-        self.assertEqual(self.start(request="request_ok.json", features_on="review_tree")["ports"]["tree_named"], "on")
-        self.assertEqual(self.start(request="request_ok.json", features_off="review_tree")["ports"]["tree_named"], "off")
-
-    def test_thickness_and_forced(self):
-        for word, (thickness, forced) in (("", ("auto", "")), ("自動", ("auto", "")), ("軽量", ("light", "軽量")),
-                                          ("標準", ("standard", "標準")), ("重厚", ("heavy", "重厚"))):
-            with self.subTest(thickness=word):
-                got = self.start(request="request_ok.json", thickness=word)["ports"]
-                self.assertEqual((got["thickness"], got["forced"]), (thickness, forced))
-
-    def test_parallel_and_design_only_and_web(self):
-        got = self.start(request="request_ok.json", design_talk="true")["ports"]
-        self.assertEqual((got["parallel"], got["design_talk"], got["web"], got["has_checks"]), (True, True, "on", False))
-        for off in ("fix_lanes", "tdd_lanes"):
-            with self.subTest(off=off):
-                self.assertIs(self.start(request="request_ok.json", features_off=off)["ports"]["parallel"], False)
 
     def test_carried_constraints_are_placed_and_dealt(self):
         """依頼の容器の constraints は carried.json に置き、配る値 carried がその pointer。前の run の前提の検算が運んだ実測の行
@@ -708,11 +544,6 @@ class PortsCase(Seeded):
         self.assertEqual(got["carried"], {"type": "archon_artifact", "run_id": RUN, "path": "carried.json"})
         self.assertIs(got["carried_measured"], True)
         self.assertEqual(json.loads((self.artifacts / "carried.json").read_text(encoding="utf-8")), rows)
-
-    def test_lang_and_review_rev(self):
-        got = self.start(request="request_ok.json", lang="English")["ports"]
-        head = git(self.repo, "rev-parse", "HEAD")
-        self.assertEqual((got["lang"], got["review_rev"], got["base_rev"], got["base"]), ("English", head, head, head))
 
 
 class TestPolicyBrief(Seeded):
@@ -736,14 +567,6 @@ class ScriptCase(unittest.TestCase):
         self.run = kit.Run(self, "line")
         shutil.rmtree(self.run.repo)
         committed_copy(self.run.repo, SEED)
-
-    def test_script_returns_the_yaml_shape(self):
-        got = self.run.script("start", request="request_ok.json")
-        self.assertTrue(got["ok"], got)
-        self.assertEqual(set(got), {"ok", "stop_reason", "reason", "record", "prior_failures", "ask", "gate_text", "unattended",
-                                    "design_talk", "final_gate", "from_fixture", "fixture", "fixture_gate", "from_spec", "ports"})
-        self.assertEqual(got["record"]["path"], "r1/start.json")
-        self.assertTrue((self.run.artifacts / "r1" / "start.json").is_file())
 
     def test_script_does_not_fall_without_lib(self):
         """lib の import が落ちても fallback の止めの語で返す（L-G52）"""

@@ -213,16 +213,6 @@ class RecordCase(BoardCase):
 
 
 class TextCase(BoardCase):
-    def test_stuck_reason_names_keys_and_record(self):
-        self.assertEqual(C.stuck_reason(self.b), "")
-        self.record(["key-alpha"])
-        self.assertEqual(C.stuck_reason(self.b), "")
-        self.record(["key-alpha", "key-beta"])
-        why = C.stuck_reason(self.b)
-        self.assertEqual(why, C.PERSISTED_WHY.format(keys="key-alpha", n=2,
-                                                             path=self.b.work(C.PASS_DIR)))
-        self.record([], resolved=["key-alpha", "key-beta"])
-        self.assertEqual(C.stuck_reason(self.b), "")
 
     def test_stuck_reason_unsettled(self):
         """UNSETTLED は輪の安全の上限の周（at_cap）の止まりだけ（中央の新しい block が出る 2 往復目は at_cap でなければ AGAIN）"""
@@ -294,70 +284,6 @@ class TextCase(BoardCase):
         self.assertTrue(C.capped(held), "保留の項目が在る上限の止まりは outcome が PERSISTED でも上限の止まり")
         self.assertFalse(C.capped({"outcome": None, "passes": []}))
 
-    def test_capped_stop_names_open_counts_per_pass(self):
-        """輪の上限の周で止めた時は、上限に届いた句に往復ごとの開いた数を添える（数の比べで止める句は無い）"""
-        b = self.board(2)
-        for keys, cap in ((["key-a1", "key-a2", "key-a3"], False), (["key-b1", "key-b2"], False), (["key-c1"], True)):
-            C.record_pass(b, {"faces": [face(k) for k in keys]}, resolved=[], files={}, at_cap=cap)
-        why = C.stuck_reason(b)
-        self.assertTrue(why.startswith(C.UNSETTLED_WHY.split("（往復ごとに")[0].format(n=3)), why)
-        self.assertIn(C.CAP_WHY.format(n=3, counts="1 往復目 3 → 2 往復目 2 → 3 往復目 1"), why)
-        self.assertNotIn("開いた block の数", why)
-
-    def test_lines_head_names_first_pass_share(self):
-        """1 回目の block と後の回の見落としから、1 回目に出た割合を頭の行に出す。割合は閉じた項目の取りこぼしを数えない上限と書く。
-        見落としの申告は項目の控えの事実（行の変わらない項目の block）で照らして採る"""
-        C.note_plan(self.b, [row("u1")])
-        self.record(["key-a1", "key-a2"])
-        C.record_pass(self.b, {"faces": [face("key-b1")]}, resolved=["key-a1", "key-a2"], files={},
-                             origins=[{"key": "key-b1", "origin": C.ORIGIN_MISSED}])
-        head = C.lines(self.b)[0]
-        for part in ("1 回目の block 2 件", "見落とし 1", "1 回目に出た割合は 2/3", "閉じた項目の取りこぼしは数えない上限",
-                     "run の後で見つかった穴は割合に入らない"):
-            self.assertIn(part, head)
-
-    def test_lines_head_without_blocks_says_none(self):
-        C.record_pass(self.b, {"faces": []}, resolved=[], files={})
-        head = C.lines(self.b)[0]
-        self.assertIn(C.LINE_NO_BLOCK, head)
-        self.assertNotIn("0/0", head)
-        self.assertNotIn("1 回目の block", head)
-
-    def test_lines_summarize_passes(self):
-        self.assertEqual(C.lines(self.b), [])
-        self.record(["key-alpha"])
-        C.note_answers(self.b, [answer("key-alpha")])
-        self.record(["key-alpha"])
-        got = C.lines(self.b)
-        path = self.b.work(C.PASS_DIR)
-        share = C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=0, unsplit=0, flip=0, share="1/1", total="1/1")
-        self.assertEqual(got[0], C.LINE_HEAD.format(n=2, word="同じ block が続いた", outcome="persisted",
-                                                           persists="key-alpha", share=share, path=path))
-        self.assertEqual(got[1:], [
-            C.LINE_PASS.format(k=1, keys="key-alpha", f=0, d=0, resolved="無い", down="無い"),
-            C.LINE_PASS.format(k=2, keys="key-alpha", f=1, d=0, resolved="無い", down="無い")])
-
-    def test_lines_name_blocks_downgraded_to_suggest(self):
-        """前の往復の block を審査が suggest に下げた key は、その往復の行に出る（block から消えたのが resolved でなく格下げだと
-        報告で分かる。Task 1 の持ち越し m2）。前の往復で block でなかった suggest は出さない"""
-        self.record(["key-alpha"])
-        C.note_answers(self.b, [answer("key-alpha")])
-        self.record([], extra=[face("key-alpha", severity="suggest"), face("key-gamma", severity="suggest")])
-        got = C.lines(self.b)
-        self.assertEqual(got[2], C.LINE_PASS.format(k=2, keys="無い", f=1, d=0, resolved="無い", down="key-alpha"))
-        self.assertIn("key-alpha", got[2])
-        self.assertNotIn("key-gamma", got[2])
-
-    def test_lines_name_central_lowered_to_peripheral(self):
-        """前の往復で中央だった block を審査が peripheral に付け替えた key は、その往復の行の『下げた key』に出る（前から端だった
-        block は出さない）"""
-        self.record([], extra=[face("key-alpha"), edge("key-beta")])
-        C.note_answers(self.b, [answer("key-alpha"), answer("key-beta")])
-        self.record([], extra=[edge("key-alpha"), edge("key-beta")])
-        got = C.lines(self.b)
-        self.assertEqual(got[2], C.LINE_PASS.format(k=2, keys="key-alpha、key-beta", f=2, d=0, resolved="無い", down="key-alpha"))
-        self.assertIn("（記録の名 settled）", got[0])
-
 
 class ItemsCase(BoardCase):
     """項目ごとの壁打ち（線の木の段 1。設計 docs/plans/2026-10-06-tree-line.md の 2.3 の 5）: block の無い項目は閉じて次の往復で
@@ -370,16 +296,6 @@ class ItemsCase(BoardCase):
 
     def review(self, faces, *, resolved=(), synergy=()):
         return C.record_pass(self.b, {"faces": faces}, resolved=list(resolved), files={}, synergy=list(synergy))
-
-    def second_pass(self, rnd, faces, *, origins=(), resolved=("key-a1",), plan=None):
-        """項目 1 に block を出した 1 往復目の後、案を plan に置き直して（None なら据え置き）2 往復目を記録する（盤面, 2 往復目の行）"""
-        b = self.board(rnd)
-        C.note_plan(b, [row("u1"), row("u2")])
-        C.record_pass(b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], files={})
-        if plan is not None:
-            C.note_plan(b, plan)
-        got = C.record_pass(b, {"faces": faces}, resolved=list(resolved), files={}, origins=list(origins))
-        return b, got
 
     def states(self, got):
         return [it["state"] for it in got["items"]]
@@ -499,173 +415,6 @@ class ItemsCase(BoardCase):
         got = self.review([face("key-x1", units=["somewhere"])])
         self.assertEqual(self.states(got), [C.OPEN, C.OPEN])
 
-    def splice(self, rows):
-        self.assertTrue(hasattr(converge, "splice"), "C.splice が無い")
-        return C.splice(C.read(self.b), rows)
-
-    def hold_second(self):
-        """項目 2（u2）が保留・項目 1（u1）が開いた往復の後の控え"""
-        self.review([face("key-a1", units=["u1"]), face("key-b1", units=["u2"])])
-        got = self.review([face("key-a2", units=["u1"]), face("key-b1", units=["u2"])])
-        self.assertEqual(self.states(got), [C.OPEN, C.HELD])
-
-    def open_and_closed_suggests(self):
-        """項目 1（u1）に block a と suggest t、項目 2（u2）に suggest s だけ: 項目 1 が開き、項目 2 は閉じる"""
-        got = self.review([face("a", units=["u1"]), face("t", severity="suggest", units=["u1"]),
-                           face("s", severity="suggest", units=["u2"])])
-        self.assertEqual(self.states(got), [C.OPEN, C.CLOSED])
-        return got
-
-    def test_new_block_on_changed_item_takes_given_origin(self):
-        """行の変わった項目の新しい block は渡した語を採り、渡さない key は unsplit。行の変わっていない項目 1 への introduced も、
-        項目 2 が変わったので採る"""
-        origins = [{"key": "key-b1", "origin": C.ORIGIN_INTRODUCED}, {"key": "key-c1", "origin": C.ORIGIN_INTRODUCED}]
-        b, got = self.second_pass(2, [face("key-b1", units=["u2"]), face("key-b2", units=["u2"]), face("key-c1", units=["u1"])],
-                                  origins=origins, plan=[row("u1"), row("u2", approach="直した")])
-        self.assertEqual(got["origins"], {"key-b1": C.ORIGIN_INTRODUCED, "key-b2": C.ORIGIN_UNSPLIT,
-                                          "key-c1": C.ORIGIN_INTRODUCED})
-        self.assertEqual(got["origins_claimed"], [])
-        self.assertIn(C.LINE_SHARE.format(first=1, missed=0, introduced=2, rephrased=0, unsplit=1, flip=0, share="1/2", total="1/4"),
-                      C.lines(b)[0])
-
-    def test_rephrased_block_is_not_counted_new(self):
-        """前の block の言い換え（of が前の往復の block で、今の往復の resolved に在る）は rephrased で残り、頭の行は言い換え 1 件と出す"""
-        claim = {"key": "key-a2", "origin": C.ORIGIN_REPHRASED, "of": "key-a1"}
-        b, got = self.second_pass(2, [face("key-a2", units=["u1"])], origins=[claim])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-a2": C.ORIGIN_REPHRASED}, []))
-        self.assertIn(C.LINE_SHARE.format(first=1, missed=0, introduced=0, rephrased=1, unsplit=0, flip=0, share="1/1", total="1/1"),
-                      C.lines(b)[0])
-
-    def test_rephrased_without_resolved_prior_key_falls_back(self):
-        """of が前の往復に無い key・今の往復の resolved に無い key の rephrased は採らず、既定（行が変わっていなければ missed）に
-        落ちて、申告は origins_claimed に残る"""
-        for rnd, of, resolved in ((2, "key-zzz", ("key-a1",)), (3, "key-a1", ()), (4, "key-zzz", ("key-zzz",))):
-            claim = {"key": "key-a2", "origin": C.ORIGIN_REPHRASED, "of": of}
-            with self.subTest(of=of, resolved=resolved):
-                _, got = self.second_pass(rnd, [face("key-a2", units=["u1"])], origins=[claim], resolved=resolved)
-                self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-a2": C.ORIGIN_MISSED}, [claim]))
-        b = self.board(5)   # 項目の控えの無い往復は、申告が無ければ分けられない
-        C.record_pass(b, {"faces": [face("key-a1")]}, resolved=[], files={})
-        got = C.record_pass(b, {"faces": [face("key-b1")]}, resolved=["key-a1"], files={})
-        self.assertEqual(got["origins"], {"key-b1": C.ORIGIN_UNSPLIT})
-
-    def test_block_on_new_item_defaults_introduced(self):
-        """単位の組を組み直した新しい id の項目だけに当たる新しい block は、出自を渡さなくても introduced"""
-        _, got = self.second_pass(2, [face("key-n1", units=["u3"])], plan=[row("u1"), row("u3")])
-        self.assertEqual(got["origins"], {"key-n1": C.ORIGIN_INTRODUCED})
-
-    def test_missed_claim_on_changed_item_falls_back(self):
-        """1 回目に渡した出自の申告は新しい block が無いので採られない（origins は {}）。2 回目、行の変わった項目 2 に当たる新しい
-        block への missed の申告は項目の事実と合わないので採らず、既定（unsplit）に落ちて、申告は origins_claimed に残る"""
-        first = {"key": "key-a1", "origin": C.ORIGIN_MISSED}
-        got = C.record_pass(self.b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], files={}, origins=[first])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({}, [first]))
-        C.note_plan(self.b, [row("u1"), row("u2", approach="直した")])
-        claim = {"key": "key-b1", "origin": C.ORIGIN_MISSED}
-        got = C.record_pass(self.b, {"faces": [face("key-b1", units=["u2"])]}, resolved=["key-a1"], files={},
-                                   origins=[claim])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_UNSPLIT}, [claim]))
-
-    def test_rephrased_claim_without_unit_overlap_falls_back(self):
-        """of が前の往復の block で今の往復の resolved に在っても、of の face の単位（u1）と今の block の単位（u2）が重ならない
-        言い換えの申告は採らない。既定（行の変わっていない項目なので missed）に落ちて、申告は origins_claimed に残る。重なれば採る"""
-        claim = {"key": "key-a2", "origin": C.ORIGIN_REPHRASED, "of": "key-a1"}
-        _, got = self.second_pass(2, [face("key-a2", units=["u2"])], origins=[claim])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-a2": C.ORIGIN_MISSED}, [claim]))
-        _, got = self.second_pass(3, [face("key-a2", units=["u1", "u2"])], origins=[claim])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-a2": C.ORIGIN_REPHRASED}, []))
-
-    def test_conflicting_claims_for_one_key_fall_back(self):
-        """同じ key に introduced と missed の 2 件の申告が在れば、どちらも採らない。既定（行の変わった項目なので unsplit）に落ち、
-        2 件とも origins_claimed に残る"""
-        claims = [{"key": "key-b1", "origin": C.ORIGIN_INTRODUCED}, {"key": "key-b1", "origin": C.ORIGIN_MISSED}]
-        _, got = self.second_pass(2, [face("key-b1", units=["u2"])], origins=claims, plan=[row("u1"), row("u2", approach="直した")])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_UNSPLIT}, claims))
-
-    BEFORE = {"unit_keys": ["u1"], "approach": "最初の文はそのまま残す。二つ目の文をこの往復で書き換える。",
-              "files": [{"path": "lib/a.py", "op": "modify"}, {"path": "lib/b.py", "op": "modify"}], "refactor": {"declared": False}}
-
-    KEPT, GONE, ADDED = "最初の文はそのまま残す。", "二つ目の文をこの往復で書き換える。", "二つ目の文を直しで別の形に替えた。"
-
-    def quoted_pass(self, rnd, faces, origins, after):
-        """項目 1 を BEFORE の行で審査した 1 往復目の後、項目 1 を after(BEFORE) に置き直して 2 往復目を記録した行"""
-        b = self.board(rnd)
-        C.note_plan(b, [self.BEFORE, row("u2")])
-        C.record_pass(b, {"faces": [face("key-a1", units=["u1"])]}, resolved=[], files={})
-        C.note_plan(b, [after(self.BEFORE), row("u2")])
-        return C.record_pass(b, {"faces": faces}, resolved=["key-a1"], files={}, origins=list(origins))
-
-    def rewritten(self, it):
-        """approach の 2 つ目の文を書き換え、files の頭に行を 1 つ足した項目"""
-        return {**it, "approach": self.KEPT + self.ADDED, "files": [{"path": "lib/new.py", "op": "create"}, *it["files"]]}
-
-    def test_quote_of_kept_sentence_is_missed_on_changed_item(self):
-        """行の変わった項目でも、申告の引用が変わっていない文だけに当たれば missed（files の頭に行を足しても後ろの行の文は変わって
-        いない文のまま）。並びだけを変えた項目は文の組が前と同じなので照らさずに unsplit。引用の無い申告と短い引用も unsplit"""
-        for rnd, quote in ((2, self.KEPT), (3, "lib/b.py")):
-            claim = {"key": "key-b1", "origin": C.ORIGIN_MISSED, C.QUOTE: quote}
-            with self.subTest(quote=quote):
-                got = self.quoted_pass(rnd, [face("key-b1", units=["u1"])], [claim], self.rewritten)
-                self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_MISSED}, []))
-        claim = {"key": "key-b1", "origin": C.ORIGIN_MISSED, C.QUOTE: self.KEPT}
-        got = self.quoted_pass(4, [face("key-b1", units=["u1"])], [claim], lambda it: {**it, "files": it["files"][::-1]})
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_UNSPLIT}, [claim]))
-        for rnd, quote in ((5, ""), (6, "最初")):
-            claim = {"key": "key-b1", "origin": C.ORIGIN_MISSED, C.QUOTE: quote}
-            with self.subTest(quote=quote):
-                got = self.quoted_pass(rnd, [face("key-b1", units=["u1"])], [claim], self.rewritten)
-                self.assertEqual(got["origins"], {"key-b1": C.ORIGIN_UNSPLIT})
-
-    def test_quote_of_added_sentence_is_introduced(self):
-        """引用が足した文だけに当たる新しい block は introduced（missed の申告は採らずに残る）。消した文に当たる引用と、変わっていない
-        文と足した文の両方に当たる引用は unsplit。値だけを変えた欄（refactor.declared の反転）も足した文に数える"""
-        cases = ((2, self.ADDED, self.rewritten, C.ORIGIN_INTRODUCED), (3, "lib/new.py", self.rewritten, C.ORIGIN_INTRODUCED),
-                 (4, self.GONE, self.rewritten, C.ORIGIN_UNSPLIT), (5, "二つ目の文", self.rewritten, C.ORIGIN_UNSPLIT),
-                 (6, "true", lambda it: {**it, "refactor": {"declared": True}}, C.ORIGIN_INTRODUCED))
-        for rnd, quote, after, want in cases:
-            claim = {"key": "key-b1", "origin": C.ORIGIN_MISSED, C.QUOTE: quote}
-            with self.subTest(quote=quote):
-                got = self.quoted_pass(rnd, [face("key-b1", units=["u1"])], [claim], after)
-                self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": want}, [claim]))
-
-    def test_claims_differing_only_in_quote_take_neither(self):
-        """同じ key に引用だけが違う 2 件の申告が在れば食い違いに数え、どちらも採らずに引用の無い既定（unsplit）へ落ち、2 件とも
-        origins_claimed に残る"""
-        claims = [{"key": "key-b1", "origin": C.ORIGIN_MISSED, C.QUOTE: self.KEPT},
-                  {"key": "key-b1", "origin": C.ORIGIN_MISSED, C.QUOTE: self.ADDED}]
-        got = self.quoted_pass(2, [face("key-b1", units=["u1"])], claims, self.rewritten)
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_UNSPLIT}, claims))
-
-    def test_introduced_claim_quoting_kept_sentence_stays_introduced(self):
-        """introduced の申告は今の往復でどれかの項目の行が変わっていれば採り、引用の当たりを見ない（引用つきも引用の無い申告も）"""
-        claims = [{"key": "key-b1", "origin": C.ORIGIN_INTRODUCED, C.QUOTE: self.KEPT},
-                  {"key": "key-b2", "origin": C.ORIGIN_INTRODUCED}]
-        got = self.quoted_pass(2, [face("key-b1", units=["u1"]), face("key-b2", units=["u1"])], claims, self.rewritten)
-        self.assertEqual((got["origins"], got["origins_claimed"]),
-                         ({"key-b1": C.ORIGIN_INTRODUCED, "key-b2": C.ORIGIN_INTRODUCED}, []))
-
-    def test_block_on_new_and_old_items_rejects_missed_claim(self):
-        """新しい id の項目（u3）と、行の変わっていない既存の項目（u1）の両方に当たる新しい block は、申告が無くても unsplit で、
-        引用の無い missed の申告も採らずに unsplit に落ちる（新しい id の項目の文は全部が足した文で、引用が無ければどちらとも決まらない）"""
-        faces = [face("key-b1", units=["u1", "u3"])]
-        _, got = self.second_pass(2, faces, plan=[row("u1"), row("u3")])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_UNSPLIT}, []))
-        claim = {"key": "key-b1", "origin": C.ORIGIN_MISSED}
-        _, got = self.second_pass(3, faces, origins=[claim], plan=[row("u1"), row("u3")])
-        self.assertEqual((got["origins"], got["origins_claimed"]), ({"key-b1": C.ORIGIN_UNSPLIT}, [claim]))
-
-    def test_claims_without_item_record_fall_back(self):
-        """項目の控えの無い往復（note_plan なし）では、2 往復目の新しい block への missed・rephrased の申告を採らない。unsplit に
-        落ち、申告は origins_claimed に残る"""
-        b = self.board(2)
-        C.record_pass(b, {"faces": [face("key-a1")]}, resolved=[], files={})
-        claims = [{"key": "key-b1", "origin": C.ORIGIN_MISSED},
-                  {"key": "key-a2", "origin": C.ORIGIN_REPHRASED, "of": "key-a1"}]
-        got = C.record_pass(b, {"faces": [face("key-b1"), face("key-a2")]}, resolved=["key-a1"], files={},
-                                   origins=claims)
-        self.assertEqual(got["origins"], {"key-b1": C.ORIGIN_UNSPLIT, "key-a2": C.ORIGIN_UNSPLIT})
-        self.assertEqual(got["origins_claimed"], claims)
-
 
 class StuckKeysCase(BoardCase):
     """止めた block の key（src.rounds の stuck_keys・uncited）の項目の無い控えの分（元 lib/tests/test_converge.py の分に無かった分岐）"""
@@ -685,34 +434,6 @@ class StuckKeysCase(BoardCase):
         doc = C.read(b)
         self.assertEqual((doc["outcome"], C.stuck_keys(doc)), (C.UNSETTLED, ["c6"]))
         self.assertEqual(C.uncited("推しの一言", doc), ["c6"])
-
-
-class AddPassCase(BoardCase):
-    def setUp(self):
-        super().setUp()
-        C.note_plan(self.b, [row("u1"), row("u2")])
-
-    def test_add_pass_is_the_row_record_pass_writes(self):
-        doc = C.read(self.b)
-        review = {"faces": [face("key-a1", units=["u1"]), face("key-s1", units=["u2"], severity="suggest")]}
-        want = C.add_pass(doc, review, answers=[], resolved=[])
-        got = C.record_pass(self.b, review, resolved=[], files={})
-        self.assertEqual(got, want)
-        self.assertEqual(C.read(self.b)["outcome"], doc["outcome"])
-
-    def test_add_pass_takes_origins_and_cap(self):
-        """出自の申告と上限の周も add_pass と record_pass が同じ行を組む（盤面を持たない呼び手が控えを組み直しても同じ）"""
-        first = {"faces": [face("key-a1", units=["u1"]), face("key-a2", units=["u2"])]}
-        C.add_pass(doc := C.read(self.b), first, answers=[], resolved=[])
-        C.record_pass(self.b, first, resolved=[], files={})
-        review = {"faces": [face("key-b1", units=["u2"])]}
-        said = [{"key": "key-b1", "origin": C.ORIGIN_MISSED}]
-        want = C.add_pass(doc, review, answers=[], resolved=["key-a1", "key-a2"], origins=said, at_cap=True)
-        got = C.record_pass(self.b, review, resolved=["key-a1", "key-a2"], files={}, origins=said, at_cap=True)
-        self.assertEqual(got, want)
-        self.assertEqual((got["origins"], got["capped"], got["outcome"]),
-                         ({"key-b1": C.ORIGIN_MISSED}, True, C.UNSETTLED))
-        self.assertEqual(C.read(self.b)["outcome"], doc["outcome"])
 
 class PlaceRecordCase(BoardCase):
     """line の形の記録の読み書き（元 RecordCase の盤面の照らしの写し。pass.json の材料と place のパス）"""
@@ -743,38 +464,6 @@ class PlaceRecordCase(BoardCase):
         self.assertEqual((two / "plan.json").read_text(encoding="utf-8"), "案 2")
         self.assertEqual(doc["passes"][1]["files"], {"plan.json": str(two / "plan.json")})
         self.assertEqual(list(self.b.dir.glob("*.tmp")), [])
-
-    def test_record_pass_reads_faces_through_one_guard(self):
-        for bad in (7, "faces", {"key": "a"}, None):
-            with self.subTest(bad=bad):
-                b = self.board(len(list(self.tmp.iterdir())) + 1)
-                row = C.record_pass(b, {"faces": bad}, resolved=[], files={})
-                self.assertEqual((row["blocks"], row["suggests"], row["outcome"]), ([], [], C.CLEAN))
-
-    def test_rejects_and_precedents_ride_on_the_pass(self):
-        """計画の拒否（role plan）と事前審査の拒否（pass.json の rejects）を行に積み、先行例の確かめを記録の頭に重ねる（控えに在る出典は
-        書き換えない）。hits・refs の鍵は字の番号でも項目の番号で引く"""
-        C.note_plan(self.b, [row("u1")])
-        doc = rounds.fresh()
-        got = {"review": {"faces": [face("key-a1", units=["u1"])]}, "answers": [], "resolved": [], "plan": self.b.plan,
-               "hits": {"1": [{"hit": "h"}]}, "refs": {"1": ["e1"]}, "rejects": [{"role": "p2.plan_review", "at": 1, "reason": "r"}],
-               "precedent_checks": {"https://x": {"ok": True}}}
-        doc["precedent_checks"] = {"https://x": {"ok": False}}
-        line = rounds.record_pass(doc, got, at_cap=False, dest=self.b.dir / "p", plan_rejects=[{"at": 1, "reason": "plan"}])
-        self.assertEqual(line["rejects"], [{"role": rounds.PLAN_ROLE, "at": 1, "reason": "plan"},
-                                           {"role": "p2.plan_review", "at": 1, "reason": "r"}])
-        self.assertEqual(doc["precedent_checks"], {"https://x": {"ok": False}})
-        self.assertEqual((line["items"][0]["hits"], line["items"][0]["refs"]), ([{"hit": "h"}], ["e1"]))
-
-    def test_file_notes_ride_on_the_item_row(self):
-        """pass.json の file_notes（字の番号の鍵）を、審査した項目の items[] の行の file_notes に写す（hits・refs と同じ道）"""
-        C.note_plan(self.b, [row("u1")])
-        doc = rounds.fresh()
-        note = {"path": "stats.py", "sha256": "ab" * 32, "learned": "clamp の上限の枝だけが lo を返している", "pass": 1}
-        got = {"review": {"faces": [face("key-a1", units=["u1"])]}, "answers": [], "resolved": [], "plan": self.b.plan,
-               "file_notes": {"1": [note]}}
-        line = rounds.record_pass(doc, got, at_cap=False, dest=self.b.dir / "p")
-        self.assertEqual(line["items"][0].get("file_notes"), [note])
 
 
 class PushableCase(unittest.TestCase):

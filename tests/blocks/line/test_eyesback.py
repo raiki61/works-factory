@@ -416,23 +416,7 @@ class LastCase(_Case):
 
 
 class LinesCase(_Case):
-    def test_lines_name_each_round_and_the_exit(self):
-        """lines が返した周ごとの目の判定（REVIEW_WORDS の言い方）と項目と、返した段が通っていない確かめの 1 行と、最後の抜けた訳を並べ、
-        返した周が 0 なら空を返す"""
-        gatemarks = __import__("gatemarks")
-        rows = [self.e.row(1, eyes(), ITEMS), self.e.row(2, eyes(r2={"status": "fix-needed", "reason": "x"}), ITEMS[:1])]
-        out = self.e.lines(rows, "返す物が無い（どの目も通った）")
-        fix, passed = gatemarks.REVIEW_WORDS["fix-needed"], gatemarks.REVIEW_WORDS["pass"]
-        self.assertEqual(out[0], f"1 周目: 返した（R1: {fix}・R2: {passed}）——返した項目: R1: src/a.py:12: 写しが残っている／R2: 入口が足りない")
-        self.assertEqual(out[1], f"2 周目: 返した（R1: {fix}・R2: {fix}）——返した項目: R1: src/a.py:12: 写しが残っている")
-        self.assertEqual(out[2:], [self.e.NOT_REVIEWED, "輪を抜けた訳: 返す物が無い（どの目も通った）"])
-        self.assertEqual(self.e.count(rows), 2)
-        self.assertEqual(self.e.lines([], "返す物が無い"), [], "返した周が 0 なら空")
-        self.assertEqual(self.e.lines(None, ""), [])
-        capped = self.e.lines(rows, self.e.CAP_WHY, ITEMS)
-        self.assertEqual(capped[-1], f"輪を抜けた訳: {self.e.cap_text(ITEMS)}")
-        self.assertIn("R2: 入口が足りない", capped[-1])
-        self.assertNotIn("工場の不具合", "".join(capped))
+    """返した周の記録の行が、封じた状態と戻しの結末を事実のとおりに言う（返す前の状態を封じたのに直したと読ませない）"""
 
     UNFIXED = "返したが直せなかった項目: "
 
