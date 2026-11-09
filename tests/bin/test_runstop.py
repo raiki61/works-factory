@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from bin._lib import runstop
 from tests import archon
@@ -187,25 +188,6 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertEqual(self.get(run_id)["status"], "failed")
 
-    def test_cancel_of_a_foreground_run_leaves_no_child_run_running(self):
-        """前で起こした run の持ち主を止めると、Archon は子の run を running のまま残す。殻は持ち主が抜けた後、子の run を abandon で
-        cancelled にする。同じ機械で並べて走る別の run（と、その子の run）は running のまま"""
-        other = self.detach()
-        untouched = self.tree(other)
-        owner, run_id = self.foreground()
-        self.tree(run_id)
-        kids = [r["id"] for r in self.runs() if r.get("parent_run_id") == run_id]
-        self.assertEqual(len(kids), 1)
-        code, err = self.cancel(run_id)
-        self.assertEqual(code, 0, err)
-        owner.wait()
-        self.assertEqual([self.get(kid)["status"] for kid in kids], ["cancelled"], err)
-        self.assertEqual(self.get(other)["status"], "running")
-        self.assertEqual([kid["status"] for kid in self.runs() if kid.get("parent_run_id") == other], ["running"])
-        self.assertEqual({k: [pid for pid in pids if not alive(pid)] for k, pids in untouched.items()}, {k: [] for k in untouched}, err)
-        code, err = self.cancel(other)
-        self.assertEqual(code, 0, err)
-
     def test_ai_processes_left_by_an_interrupted_foreground_run_are_stopped(self):
         """前の命令を Ctrl-C で止めた run（failed）は持ち主の木を数えない訳を出し、残った AI のノードのプロセスを WORKFLOW_ID で
         見つけて止める"""
@@ -224,17 +206,10 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertNotIn("残ったプロセス", err)
 
     def test_cancel_of_a_child_run_stops_only_the_child_run_processes(self):
-        self.cancel_child_run(lambda kid: kid)
-
-    def test_a_child_run_is_cancelled_by_the_short_id_that_workflow_runs_shows(self):
-        """Archon の cancel は workflow runs が出す 8 字の id を完全な id に直して受ける。殻も完全な id で残りを探す"""
-        self.cancel_child_run(lambda kid: kid[:8])
-
-    def cancel_child_run(self, typed):
         run_id = self.detach()
         found = self.tree(run_id)
         kid = next(r["id"] for r in self.runs() if r.get("parent_run_id") == run_id)
-        code, err = self.cancel(typed(kid))
+        code, err = self.cancel(kid)
         self.assertEqual(code, 0, err)
         self.assertIn(f"run {kid} の持ち主のプロセスの木は数えない（子の run", err)
         self.assertEqual([pid for pid in [found["hosts"][1], found["claude"][1], *found["kids"][2:]] if alive(pid)], [])
@@ -255,6 +230,42 @@ class CancelStopsTheRunTreeTest(unittest.TestCase):
         self.assertEqual(code, 1, err)   # Archon は持ち主が答えないので拒む（abandon を勧める）
         self.assertGone(found, "hosts", "claude", "kids", "shell")
         self.assertIn(f"run {run_id} のプロセス", err)
+
+
+class CancelWiringTest(unittest.TestCase):
+    """cancel の配線を、Archon と ps を差し替えて速く照らす（止めた Archon で回す 2 本の代わり。2026-11-10 の削り）:
+    - workflow runs が出す 8 字の短い id で打たれても、workflow get が返した完全な id で子の run と残りのプロセスを探す
+    - Archon が拒んだ前の run の持ち主を殻が止めたら、子の run を abandon_running に渡して片付け、0 で抜ける"""
+
+    def cancel(self, typed, *, refused, alive_after):
+        archon_get = {"id": "abcd1234-0000-full", "status": "running"}
+        calls = {}
+        seen = iter([({}, None), (alive_after, None)])
+        with mock.patch.object(runstop.Archon, "get", lambda self, t: (calls.setdefault("get", t), archon_get)[1]), \
+             mock.patch.object(runstop.Archon, "family", lambda self, rid: (calls.setdefault("family", rid), {rid, "kid-run"})[1]), \
+             mock.patch.object(runstop.Archon, "owner_tree", lambda self, rid, run: (111, {111: 1.0})), \
+             mock.patch.object(runstop.Archon, "abandon_running", lambda self, rid, ids: calls.setdefault("abandon", (rid, ids))), \
+             mock.patch.object(runstop, "members", lambda ids, known: (calls.setdefault("members", set(ids)), next(seen))[1]), \
+             mock.patch.object(runstop, "stop", lambda ids, known, owner=None: ({}, None)), \
+             mock.patch.object(runstop, "commands", lambda found: {pid: "bun" for pid in found}), \
+             mock.patch.object(runstop.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 1 if refused else 0)), \
+             contextlib.redirect_stderr(io.StringIO()):
+            code = runstop.cancel(["archon"], ["workflow", "cancel", typed, "--cwd", "/target"], {}, "/target")
+        return code, calls
+
+    def test_a_short_id_is_resolved_before_the_family_and_the_processes_are_looked_up(self):
+        _, calls = self.cancel("abcd1234", refused=False, alive_after={})
+        self.assertEqual((calls["get"], calls["family"]), ("abcd1234", "abcd1234-0000-full"))
+        self.assertIn("abcd1234-0000-full", calls["members"])
+
+    def test_stopping_the_owner_of_a_refused_run_abandons_its_child_runs(self):
+        proc = mock.Mock(started=1.0)
+        code, calls = self.cancel("abcd1234-0000-full", refused=True, alive_after={111: proc})
+        self.assertEqual(code, 0)
+        self.assertEqual(calls["abandon"], ("abcd1234-0000-full", {"abcd1234-0000-full", "kid-run"}))
+        with self.subTest("持ち主を止めていなければ子の run に触らない"):
+            _, calls = self.cancel("abcd1234-0000-full", refused=True, alive_after={222: proc})
+            self.assertNotIn("abandon", calls)
 
 
 class AbandonRunningTest(unittest.TestCase):

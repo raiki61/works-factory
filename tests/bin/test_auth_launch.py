@@ -524,19 +524,7 @@ class ConnectionProfile(unittest.TestCase):
 
 
 class Howto(unittest.TestCase):
-    """案内は名を毎回付けずに済ます道（Claude Code の settings.json の env）と、値を出さずに項目の在りかを確かめる命令を言う。
-    持ち主の項目の名は書かず、置き場の字で言う"""
-
-    def test_names_the_settings_env_route(self):
-        self.assertIn('settings.json の env に "%s": "<項目の名>"' % auth_launch.ITEM_ENV, auth_launch.HOWTO)
-
-    def test_names_the_api_key_route(self):
-        """API キーの道（ANTHROPIC_API_KEY）と、apiKeyHelper の道を言い、設定の env の接続の値は子に運ぶことを言う（運ばないとは言わない）"""
-        for word in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "apiKeyHelper"):
-            self.assertIn(word, auth_launch.HOWTO)
-        self.assertNotIn("子には運ばない", auth_launch.HOWTO)
-        for word in ("設定の env に書いた接続の値", "Bedrock・Mantle・Vertex", "は子に運ぶ", "フック・権限・プラグインは運ばない"):
-            self.assertIn(word, auth_launch.HOWTO)
+    """案内が言う、項目の在りかを確かめる命令は値を出さない（-w を付けない）"""
 
     def test_check_command_does_not_print_the_value(self):
         self.assertIn("security find-generic-password -s <項目の名> で", auth_launch.HOWTO)

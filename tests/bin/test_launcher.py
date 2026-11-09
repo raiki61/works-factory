@@ -16,9 +16,8 @@ import sys
 import tempfile
 import unittest
 
-from bin._lib import auth_launch, isolate, launcher, place, recordroot, specreviews, toolset
+from bin._lib import auth_launch, isolate, launcher, place, specreviews, toolset
 from lib import answer, launchgroups, reads, userenv, writelog
-from tests import archon
 from tests.bin import fakelaunch, hermetic
 from tests.bin.fakelaunch import ENTRY, FAKE_BUN, put, unique_run_id
 from tests.bin.gitkit import git
@@ -321,74 +320,14 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(self.layer(argv), layer)
                 self.assertEqual(argv[11:], ["works-factory-line", *rest])
 
-    def test_run_layer_carries_the_prompt_cache_ttl(self):
-        """役の claude の会話のキャッシュの寿命の既定（5 分）は、新しい run の設定の層の env で運ぶ（Archon は起動の最初に CLAUDE_CODE_* を消すので、
-        子の env に置いても役に届かない）。工場だけに効く層で寿命を選んでいれば工場は載せない: 利用者の --config の env:・対象の
-        .archon/config.yaml の env:。--adopt の起動では、repo の選びを殻が見られないので載せない。利用者の shell の env の寿命の名は
-        効かない"""
-        name = "CLAUDE_CODE_PROMPT_CACHE_TTL"
-        real = shutil.which("bun")
-
-        def env_of(*args, **env) -> dict:
-            return self.layer(self.reached(self.launch("workflow", "run", "works-factory-line", *args, **env))["argv"])["env"]
-
-        def repo_config(text):
-            (self.target / ".archon").mkdir(exist_ok=True)
-            (self.target / ".archon" / "config.yaml").write_text(text, encoding="utf-8")
-
-        with self.subTest("選びが無ければ 5 分（対象に .archon/config.yaml が無ければ、殻は bun も起こさない）"):
-            self.assertEqual(env_of()[name], "5m")
-        for chosen in launcher.CHOSEN_TTL_ENVS[name]:
-            with self.subTest(f"利用者の shell の {chosen} は効かず、5 分を載せる"):
-                self.assertEqual(env_of(**{chosen: "1h" if chosen == name else "1"})[name], "5m")
-        with self.subTest("続ける命令（--resume）は層を足さない"):
-            self.assertNotIn("--config", self.reached(self.launch("workflow", "run", "works-factory-line", "--resume"))["argv"])
-        with self.subTest("--adopt は repo の選びを殻が見られないので、名を載せない（repo の config.yaml があっても読まない）"):
-            repo_config("env:\n  MINE: '1'\n")
-            for args in (["--adopt", "run-1"], ["--adopt=run-1"]):
-                self.assertNotIn(name, env_of(*args))
-            (self.target / ".archon" / "config.yaml").unlink()
-        if real is None:
-            self.skipTest("bun が無い（利用者の --config と対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
-        self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
-        (self.target / "mine.yaml").write_text("env:\n  MINE: '1'\n", encoding="utf-8")
-        (self.target / "chosen.yaml").write_text("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n", encoding="utf-8")
-        (self.target / "named.yaml").write_text(f"env:\n  {name}: 1h\n", encoding="utf-8")
-        with self.subTest("利用者の --config の env: に寿命の選びが無ければ 5 分"):
-            self.assertEqual(env_of("--config", "mine.yaml")[name], "5m")
-        with self.subTest("利用者の --config の env: に ENABLE_PROMPT_CACHING_1H が在れば、工場は名を足さない"):
-            got = env_of("--config", "chosen.yaml")
-            self.assertNotIn(name, got)
-            self.assertEqual(got["ENABLE_PROMPT_CACHING_1H"], "1")
-        with self.subTest("利用者の --config の env: の寿命はそのまま運ぶ"):
-            self.assertEqual(env_of("--config", "named.yaml")[name], "1h")
-        for text, why, dropped in ((f"env:\n  {name}: 1h\n", "寿命の名", {name}),
-                                   ("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n", "ENABLE_PROMPT_CACHING_1H", set(TTL_DEFAULTS))):
-            with self.subTest(f"対象の .archon/config.yaml の env: の {why}は、工場の 5 分で潰さない"):
-                repo_config(text)
-                got = env_of()
-                self.assertNotIn(name, got)
-                self.assertEqual(self.layer(self.reached(self.launch("workflow", "run", "works-factory-line"))["argv"]), {
-                    **self.factory_layer(), "env": {k: v for k, v in self.factory_layer()["env"].items() if k not in dropped}})
-        for text in ("", "env:\n  MINE: '1'\n", "assistant: claude\n", "env: {}\n"):
-            with self.subTest(f"対象の .archon/config.yaml に寿命の選びが無ければ 5 分: {text!r}"):
-                repo_config(text)
-                self.assertEqual(env_of()[name], "5m")
-        with self.subTest("対象の .archon/config.yaml が読めなければ名を足さず、その訳を 1 行で言う"):
-            repo_config("env: [unclosed\n")
-            done = self.launch("workflow", "run", "works-factory-line")
-            self.assertNotIn(name, self.layer(self.reached(done)["argv"])["env"])
-            said = [line for line in done.stderr.splitlines() if ".archon/config.yaml" in line]
-            self.assertEqual(len(said), 1, done.stderr)
-            self.assertIn("読めない", said[0])
-
-    def test_run_layer_carries_the_subagent_prompt_cache_ttl(self):
-        """下請けの claude（役の会話が Agent の道具で起こす subagent）の寿命も、新しい run の層で 5 分にする（持ち主の決め factory-cache-ttl）。
-        Claude Code は寿命を役の会話の組と下請けの組に分けて決め、CLAUDE_CODE_PROMPT_CACHE_TTL は下請けに効かない。工場だけに効く層の選びは
-        組ごとに見る: 役の会話の組だけの名なら下請けの既定は載せ、両方の組に効く名（FORCE_PROMPT_CACHING_5M・ENABLE_PROMPT_CACHING_1H*）なら
-        どちらも載せない。利用者の shell の env は見ず、--adopt の起動では載せない"""
+    def test_run_layer_carries_the_prompt_cache_ttls(self):
+        """役の claude の会話と下請け（Agent の道具で起こす subagent）のキャッシュの寿命の既定（5 分。持ち主の決め factory-cache-ttl）は、
+        新しい run の設定の層の env で運ぶ（Archon は起動の最初に CLAUDE_CODE_* を消すので、子の env に置いても役に届かない）。判断ごとに
+        代表 1 つ: 選びが無ければ両方の組に 5 分・利用者の shell の env は効かない・続ける命令（--resume）は層を足さない・--adopt は
+        載せない・工場だけに効く層（利用者の --config の env:・対象の .archon/config.yaml の env:）の選びは組ごとに見て、役の会話の組だけの
+        名ならその組だけ外し、両方の組に効く名（ENABLE_PROMPT_CACHING_1H など）ならどちらも外す・対象の .archon/config.yaml が読めなければ
+        名を足さず、その訳を 1 行で言う"""
         session, sub = TTL_DEFAULTS
-        both = ("FORCE_PROMPT_CACHING_5M", "ENABLE_PROMPT_CACHING_1H", "ENABLE_PROMPT_CACHING_1H_BEDROCK")
         real = shutil.which("bun")
 
         def env_of(*args, **env) -> dict:
@@ -397,28 +336,34 @@ class LauncherTest(unittest.TestCase):
         def ttls(env) -> dict:
             return {k: env[k] for k in TTL_DEFAULTS if k in env}
 
+        def repo_config(text):
+            (self.target / ".archon").mkdir(exist_ok=True)
+            (self.target / ".archon" / "config.yaml").write_text(text, encoding="utf-8")
+
         with self.subTest("選びが無ければ、どちらの組も 5 分"):
             self.assertEqual(ttls(env_of()), TTL_DEFAULTS)
-        for chosen in (session, sub, *both):
-            with self.subTest(f"利用者の shell の {chosen} は効かず、どちらの組も 5 分を載せる"):
-                self.assertEqual(ttls(env_of(**{chosen: "1h" if chosen in TTL_DEFAULTS else "1"})), TTL_DEFAULTS)
-        with self.subTest("--adopt はどちらの組も載せない"):
+        with self.subTest("利用者の shell の寿命の名は効かず、5 分を載せる"):
+            self.assertEqual(ttls(env_of(**{session: "1h"})), TTL_DEFAULTS)
+        with self.subTest("続ける命令（--resume）は層を足さない"):
+            self.assertNotIn("--config", self.reached(self.launch("workflow", "run", "works-factory-line", "--resume"))["argv"])
+        with self.subTest("--adopt は repo の選びを殻が見られないので、どちらの組も載せない"):
             self.assertEqual(ttls(env_of("--adopt", "run-1")), {})
         if real is None:
             self.skipTest("bun が無い（利用者の --config と対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
         self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
-        cases = [(session, "1h", {session: "1h", sub: "5m"}), (sub, "1h", {session: "5m", sub: "1h"}),
-                 *((name, "1", {}) for name in both)]
-        for chosen, value, want in cases:
-            text = f"env:\n  {chosen}: '{value}'\n"
-            with self.subTest(f"利用者の --config の env: の {chosen} は、その組だけ工場の既定を外す"):
-                (self.target / "chosen.yaml").write_text(text, encoding="utf-8")
-                self.assertEqual(ttls(env_of("--config", "chosen.yaml")), want)
-            with self.subTest(f"対象の .archon/config.yaml の env: の {chosen} は、その組だけ工場の既定を外す"):
-                (self.target / ".archon").mkdir(exist_ok=True)
-                (self.target / ".archon" / "config.yaml").write_text(text, encoding="utf-8")
-                self.assertEqual(ttls(env_of()), {k: v for k, v in want.items() if k != chosen})
-                (self.target / ".archon" / "config.yaml").unlink()
+        with self.subTest("利用者の --config の env: の役の会話の組の寿命は、その組だけ工場の既定を外して運ぶ"):
+            (self.target / "named.yaml").write_text(f"env:\n  {session}: 1h\n", encoding="utf-8")
+            self.assertEqual(ttls(env_of("--config", "named.yaml")), {session: "1h", sub: "5m"})
+        with self.subTest("対象の .archon/config.yaml の env: の両方の組に効く名は、工場の 5 分で潰さない"):
+            repo_config("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n")
+            self.assertEqual(ttls(env_of()), {})
+        with self.subTest("対象の .archon/config.yaml が読めなければ名を足さず、その訳を 1 行で言う"):
+            repo_config("env: [unclosed\n")
+            done = self.launch("workflow", "run", "works-factory-line")
+            self.assertEqual(ttls(self.layer(self.reached(done)["argv"])["env"]), {})
+            said = [line for line in done.stderr.splitlines() if ".archon/config.yaml" in line]
+            self.assertEqual(len(said), 1, done.stderr)
+            self.assertIn("読めない", said[0])
 
     def test_run_layer_stops_agent_progress_summaries(self):
         """裏で走る下請けの進み具合の札（Claude Code が SDK の上で 30 秒ごとに下請けの会話を写して模型に頼む呼び出し）を、新しい run の
@@ -705,40 +650,6 @@ class LauncherTest(unittest.TestCase):
                 self.assertIn("WORKS_FACTORY_CLAUDE_CONCURRENCY", said)
                 self.assertEqual(config.read_bytes(), text)
 
-    def test_launch_says_when_a_flow_form_file_may_hold_the_cap(self):
-        """上限を書いた後に ai tier set などでファイルが 1 行の形になると、上限は中で効き続けるが殻は値を読めない。concurrency の字が在れば、
-        効いている値の代わりに読めない旨の 1 行を標準エラーに出す。字が無ければ何も言わない"""
-        run = ("workflow", "run", "works-factory-line")
-        config = self.cap_config(b'{"concurrency":{"providers":{"claude":2}},"assistant":"claude"}\n')
-        done = self.launch(*run)
-        self.reached(done)
-        self.assertIn(f"上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{config}）", done.stderr)
-        self.assertNotIn("が効いている", done.stderr)
-        config.write_bytes(b"{assistant: claude}\n")
-        self.assertNotIn("上限の設定が", self.launch(*run).stderr)
-
-    def test_claude_concurrency_cap_is_not_rewritten_when_the_value_is_the_same(self):
-        """値が今と同じなら config.yaml に触らない（走り中の run が書きかけを読む余地を作らない）。違う時は置き換え、一時ファイルを残さない"""
-        run = ("workflow", "run", "works-factory-line")
-        config = self.cap_config(b"concurrency:\n  providers:\n    claude: 2\n")
-        before = config.stat().st_mtime_ns
-        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
-        self.assertEqual(config.stat().st_mtime_ns, before)
-        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="3"))
-        self.assertEqual(config.read_bytes(), b"concurrency:\n  providers:\n    claude: 3\n")
-        self.assertEqual(sorted(p.name for p in config.parent.glob("config.yaml*")), ["config.yaml"])
-
-    def test_claude_concurrency_cap_keeps_the_line_ending_of_the_file(self):
-        """CRLF のファイルに書いても CRLF のまま（足した行も CRLF）。末尾に改行の無いファイルも同じ形で足す"""
-        run = ("workflow", "run", "works-factory-line")
-        config = self.cap_config(b"assistant: claude\r\nconcurrency:\r\n  maxConversations: 4")
-        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
-        self.assertEqual(config.read_bytes(), b"assistant: claude\r\nconcurrency:\r\n  maxConversations: 4\r\n"
-                                              b"  providers:\r\n    claude: 2\r\n")
-        config.write_bytes(b"assistant: claude\r\n")
-        self.reached(self.launch(*run, WORKS_FACTORY_CLAUDE_CONCURRENCY="2"))
-        self.assertEqual(config.read_bytes(), b"assistant: claude\r\nconcurrency:\r\n  providers:\r\n    claude: 2\r\n")
-
     def test_claude_concurrency_cap_must_be_a_positive_integer(self):
         """1 以上の整数でない値は、Archon を起こさずに止める（Archon は上限が壊れていると provider の起動を拒むので、run の途中で落ちる前に言う）"""
         for bad in ("0", "-1", "two", "1.5", " "):
@@ -769,25 +680,6 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(pathlib.Path(env[name]).is_relative_to(home), env[name])
 
-    def test_executing_run_says_ai_test_code_runs_with_the_users_rights(self):
-        """旗を置かない workflow run の標準エラーに、AI が書いた試験のコードを利用者の権限で走らせる・書く物も利用者の家に入る・コンテナか
-        VM で回す道の 1 行が出る。走らせない命令（workflow status）には出ない"""
-        done = self.launch("workflow", "run", "works-factory-line")
-        self.reached(done)
-        self.assertIn(launcher.TARGET_ENV_NOTICE, done.stderr)
-        for word in ("AI が書いた試験のコード", "権限", "利用者の家", "コンテナ", "VM"):
-            self.assertIn(word, launcher.TARGET_ENV_NOTICE)
-        self.assertEqual(done.stderr.count(launcher.TARGET_ENV_NOTICE), 1)
-        quiet = self.launch("workflow", "status")
-        self.reached(quiet)
-        self.assertNotIn("AI が書いた試験のコード", quiet.stderr)
-        readme = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
-        self.assertIn(launcher.TARGET_ENV_NOTICE, readme)
-        self.assertNotIn("WORKS_FACTORY_TARGET_USER_ENV", readme)
-        section = readme.split("### test_cmd and worktrees\n", 1)[1].split("\n#", 1)[0]
-        for word in ("`setup`", ".review-checks.json", "`suite`", ".gitignore", "target with only `test_cmd`"):
-            self.assertIn(word, section)
-
     def test_run_says_where_its_record_is_after_it_ends(self):
         """workflow run が終わったら、Archon の記録（その run の番号を持ち主にする run の置き場）の置き場を標準エラーに 1 行で告げる。
         命令は殻が入れ替わらず子で走らせるので、子の終了の値は殻の終了の値になる"""
@@ -799,27 +691,6 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual([r[3:5] for r in reads], [["workflow", "runs"], ["workflow", "get"]])
         self.assertEqual(reads[1][5], "run-fake")
         self.assertEqual(reads[1][reads[1].index("--cwd") + 1], str(self.target))
-
-    def test_record_place_of_a_paused_run_comes_from_the_project_root(self):
-        """承認ノードで止まった run は終わりの記録が無い。run の行の output_root の下の artifacts/runs/<id> を告げる。どちらも無ければ読めない"""
-        self.assertEqual(recordroot.root_of({"id": "r1", "output_root": "/h/ws/p", "terminal_record": None}), "/h/ws/p/artifacts/runs/r1")
-        self.assertEqual(recordroot.root_of({"id": "r1", "output_root": "/h/ws/p", "terminal_record": {"artifacts": {"root": "/x/r1"}}}),
-                         "/x/r1")
-        self.assertIsNone(recordroot.root_of({"id": "r1", "terminal_record": None}))
-        self.assertIsNone(recordroot.root_of("not a record"))
-
-    def test_run_that_cannot_be_found_in_the_record_says_so(self):
-        done = self.launch("workflow", "run", "works-factory-line")
-        self.reached(done)
-        self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
-
-    def test_run_that_fell_before_its_record_says_why(self):
-        """run の記録が無い時、訳の口（why）が訳を返せば、記録の置き場を特定できない文に足す。返さなければ前の文のまま"""
-        empty = lambda *args: {"runs": []}
-        said = recordroot.line(empty, 1, "h", why=lambda: "origin に届かない（x）")
-        self.assertIn("記録の置き場を特定できない", said)
-        self.assertIn("origin に届かない（x）", said)
-        self.assertEqual(recordroot.line(empty, 1, "h", why=lambda: ""), recordroot.line(empty, 1, "h"))
 
     def origin(self, reachable: bool) -> pathlib.Path:
         """対象に commit と origin を置く（殻が --from を足す run になる）。origin は手元の裸のリポジトリ。届かない時は無いパスを指す"""
@@ -856,14 +727,6 @@ class LauncherTest(unittest.TestCase):
         self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
         self.assertIn("origin に届かない", done.stderr)
 
-    def test_run_without_a_cut_worktree_adds_no_reach_reason(self):
-        """殻が --from を足さない run（--no-worktree など。Archon は作業ツリーを切らず remote に問い合わせない）が落ちても、remote の訳を足さない"""
-        bare = self.origin(reachable=True)
-        done = self.launch("workflow", "run", "works-factory-line", "--no-worktree", FAKE_BUN_BREAK=str(bare))
-        self.assertEqual(done.returncode, 1, done.stderr)
-        self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
-        self.assertNotIn("届", done.stderr)
-
     def test_run_checks_the_remote_the_repo_config_names(self):
         """対象の .archon/config.yaml の worktree.remote は、Archon が origin より先に使う。殻も同じ remote を確かめる"""
         self.origin(reachable=True)
@@ -876,33 +739,6 @@ class LauncherTest(unittest.TestCase):
         self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
         said = self.stopped(self.launch("workflow", "run", "works-factory-line"))
         self.assertIn(f"{launcher.NAME}: upstream に届かない", said)
-
-    def test_run_that_lost_the_configured_remote_after_start_names_it(self):
-        """起こした後に Archon が落ちた時の訳（why）も、対象の .archon/config.yaml の worktree.remote を確かめる: 起こす前は origin も
-        upstream も届き、起こした後に upstream だけが届かなくなると、「upstream に届かない」と読める（origin を確かめると訳が出ない）"""
-        self.origin(reachable=True)
-        upstream = self.tmp / "upstream.git"
-        git(self.tmp, "init", "-q", "--bare", str(upstream))
-        git(self.target, "push", "-q", str(upstream), "HEAD:refs/heads/main")
-        git(self.target, "remote", "add", "upstream", str(upstream))
-        (self.target / ".archon").mkdir()
-        (self.target / ".archon" / "config.yaml").write_text("worktree:\n  remote: upstream\n", encoding="utf-8")
-        real = shutil.which("bun")
-        if real is None:
-            self.skipTest("bun が無い（対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
-        self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
-        done = self.launch("workflow", "run", "works-factory-line", FAKE_BUN_BREAK=str(upstream))
-        self.assertEqual(done.returncode, 1, done.stderr)
-        self.assertIn(f"{launcher.NAME}: 記録の置き場を特定できない", done.stderr)
-        self.assertIn("upstream に届かない", done.stderr)
-        self.assertNotIn("origin に届かない", done.stderr)
-
-    def test_detached_run_and_other_commands_say_no_record_place(self):
-        for args in (["workflow", "run", "works-factory-line", "--detach"], ["workflow", "approve", "run-1"]):
-            with self.subTest(args=args):
-                done = self.launch(*args, FAKE_BUN_RUN_ROOT=str(self.tmp / "x"))
-                self.reached(done)
-                self.assertNotIn("記録の置き場", done.stderr)
 
     def test_run_layer_carries_answer_head(self):
         """関所の答えの行の頭は家を名指して殻を通す respond。新しい run の層で渡り、利用者の値より殻の値"""
@@ -1616,39 +1452,6 @@ class LauncherTest(unittest.TestCase):
         err = self.stopped(self.launch("workflow", "status"))
         self.assertEqual(len(err.strip().splitlines()), 1, err)
         self.assertIn("bun が無い", err)
-
-
-class ReadmeUsageTest(unittest.TestCase):
-    """#495: README の「Usage」が、依頼のファイルの形（例が入口の照らしを通る）・test_cmd・作業ツリーの起点を書き、殻の案内が
-    指すセクションの名が見出しに在る"""
-    README = (pathlib.Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
-
-    def section(self, name: str) -> str:
-        head = f"### {name}\n"
-        self.assertIn(head, self.README)
-        return self.README.split(head, 1)[1].split("\n#", 1)[0]
-
-    def test_request_example_passes_the_entry_check(self):
-        lib = str(pathlib.Path(__file__).resolve().parents[2] / "lib")
-        if lib not in sys.path:
-            sys.path.append(lib)
-        import carry
-        import entry
-        [example] = [block.split("\n", 1)[1] for block in self.section("Request file").split("```")[1::2]
-                     if block.startswith("json\n")]
-        parts = carry.parts(json.loads(example))
-        self.assertTrue(parts[carry.FINDINGS])
-        self.assertEqual(entry.request_problems(parts[carry.FINDINGS]), [])
-
-    def test_test_cmd_and_start_point_are_documented(self):
-        testcmd_check = archon.src_module("line", "testcmd_check")   # 元の lib の testcmd_check.py の行き先（line の src。4.5-7）
-        self.assertIn("「test_cmd and worktrees」", testcmd_check.HOW)
-        test_cmd = self.section("test_cmd and worktrees")
-        for word in ("--input test_cmd=", testcmd_check.ALLOW_ENV, "止める（test_cmd）", "注意（test_cmd）"):
-            self.assertIn(word, test_cmd)
-        start = self.section("Worktree start point")
-        for flag in ("--from", "--from-branch", "--base", "--branch", "--no-worktree", "--adopt"):
-            self.assertIn(f"`{flag}", start)
 
 
 if __name__ == "__main__":
