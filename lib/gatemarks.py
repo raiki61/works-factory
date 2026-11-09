@@ -131,7 +131,7 @@ ANSWER_TIES_FILE = "answer-ties.json"   # 判定の結びの控え {rounds: {周
 # 返答の中の決め手の欄を持つ行の道（鍵は行の札。修正案の narrows の行と事前審査の faces の行。graph の node の id ではない）
 STEPS = {"p2.fix_plan": ("plan", jsonfile.EACH, "narrows", jsonfile.EACH), "p2.plan_review": ("faces", jsonfile.EACH)}
 NODES = tuple(STEPS)
-RECOMMEND = "recommend"   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
+RECOMMEND = plainask.RECOMMEND   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
 RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
 RECOMMEND_ANSWERS = ("continue", "stop")
@@ -282,10 +282,10 @@ HAPPENED, DECIDE, PUSH = "起きたこと: ", "決めてほしいこと: ", "推
 NO_PUSH = "判定の役が書いていない"
 # 構造の目の行に chosen（採った案）が無い時、設計の行の文が CHOSEN_HEAD の後ろに置く字（line の gates.design_items が書く。推しでない）
 NO_CHOSEN = "構造の目が書いていない"
-CHOSEN = "構造の目が採った案: "   # 設計の行の採った案の頭（文の CHOSEN_HEAD と、冒頭の推しの行に出す表示だけの欄 reason_push の頭）
+CHOSEN = "構造の目が採った案: "
 CHOSEN_HEAD = "／" + CHOSEN
-MACHINE_PUSH = "  - 機械が検めた推し: "   # item_lines が欄 recommend の推しを出す子の行の頭
-PUSH_IN = re.compile(r"推し\s*[:：]\s*([^／\n]+)")   # 台帳の問いの理由から推しを読む reason_push だけが使う
+MACHINE_PUSH = "  - 機械が検めた推し: "
+PUSH_IN = re.compile(r"推し\s*[:：]\s*([^／\n]+)")
 PUSH_AT = re.compile(r"(?=推し\s*[:：])")   # 推しの頭の前（reason_push が最後の推しから読む）
 # 関所の項目の種類（写しの RL の human_gate と gatemarks の問いの kinds）→ 平易な言い方
 KIND_WORDS = {"regression": "今ある能力を減らす・狭める変更", policy.POLICY_KIND: "人の方針とぶつかる変更",
@@ -358,7 +358,7 @@ def _text_pushes(t) -> list:
 def _shown_push(x) -> str:
     """項目の要素が冒頭の推しの行に出す推し: 欄 recommend を recommend_of で検めた値の句（_words）か、表示だけの欄 reason_push の字。項目の文は読まない
     （字の要素と欄の無い行は空）"""
-    rec = recommend_of(x) if isinstance(x, dict) else None
+    rec = recommend_of(x)
     return _words(rec) if rec is not None else plainask.item_reason_push(x) or ""
 
 
@@ -380,18 +380,14 @@ def push_of(items) -> str:
     return got + ("（ほかの項目の推しは判定の役が書いていない）" if got != NO_PUSH and lacking else "")
 
 
-def _item_text(x) -> str:
-    return x if isinstance(x, str) else plainask.item_text(x) if isinstance(x, dict) else str(x)
-
-
 def item_lines(items) -> list:
     """項目の並びの行: 各要素の本文の行「- 本文」と、recommend_of が値を返す行にだけ子の行「機械が検めた推し: …」（MACHINE_PUSH）。
     要素は字でも行 {text, recommend?, reason_push?} でもよい（字と、欄の無い行・形の崩れた欄の行は本文だけ）"""
     out = []
     for x in items:
-        out.append(f"- {_item_text(x)}")
-        if isinstance(x, dict) and recommend_of(x) is not None:
-            out.append(_push(x, MACHINE_PUSH))
+        out.append(f"- {plainask.item_text(x)}")
+        if push := _push(x, MACHINE_PUSH):
+            out.append(push)
     return out
 
 
@@ -569,8 +565,8 @@ def _no_narrow(mark: dict) -> str:
 
 
 # _world・_no_narrow が付けた尾の読み戻し（尾の並びは世界の解・狭めない案・人に聞く訳。値の終わりは次の尾の頭か文の終わり）
-_WORLD_TAIL = re.compile(r"（世界の解: (.*?)）(?=（狭めない案: |（人に聞く訳: |／" + re.escape(PUSH) + r"|$)", re.S)
-_NO_NARROW_TAIL = re.compile(r"（狭めない案: (.*?)）(?=（人に聞く訳: |／" + re.escape(PUSH) + r"|$)", re.S)
+_WORLD_TAIL = re.compile(r"（世界の解: (.*?)）(?=（狭めない案: |（人に聞く訳: |$)", re.S)
+_NO_NARROW_TAIL = re.compile(r"（狭めない案: (.*?)）(?=（人に聞く訳: |$)", re.S)
 _WORLD_UNSAID = "役が書いていない"   # _world が欄の無い行に置く字（値として読まない）
 
 
@@ -581,13 +577,13 @@ def _tail_values(text) -> list:
     return [(name, got[-1].strip()) for name, got in found if got and got[-1].strip() and got[-1].strip() != _WORLD_UNSAID]
 
 
-def recommend_of(mark: dict):
+def recommend_of(mark):
     """行の推し（形の整った recommend だけ。無い・崩れた物は None。古い盤面の控えは欄を持たない）"""
     got = mark.get(RECOMMEND) if isinstance(mark, dict) else None
     return got if got is not None and not _recommend_gap(got) else None
 
 
-REASON_HEAD = "（理由: "  # 推しの句で note と why を分ける区切り
+REASON_HEAD = "（理由: "
 REASON_SAFE = "（理由："
 
 

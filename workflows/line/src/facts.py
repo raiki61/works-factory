@@ -453,8 +453,7 @@ def _question_rows(items, *, push: bool = False) -> list:
     """独立の目の問いの要素（字でも {text, title} の行でも。plainask の読み口）を {text, title} の行にする。本文が空の物は落とす。
     題は読み口が 1 行に畳み、無ければ None。push が真（R2 の問い）なら行の欄 recommend も持ち回る（R4 の問いは欄を持たない）"""
     import plainask
-    return [{"text": plainask.item_text(q), "title": plainask.item_title(q),
-             **({"recommend": plainask.item_recommend(q)} if push and plainask.item_recommend(q) is not None else {})}
+    return [{**plainask.item_row(plainask.item_text(q), None, plainask.item_recommend(q) if push else None), "title": plainask.item_title(q)}
             for q in _list(items) if plainask.item_text(q).strip()]
 
 
@@ -1025,11 +1024,6 @@ def _rows(items, *, push: bool = False, titles=None, recommends=None, reason_pus
                    (reason_pushes[i] if reason_pushes else None)) for i, x in enumerate(items)]
 
 
-def _vetted(x) -> dict | None:
-    """行の欄 recommend を gatemarks.recommend_of で検めた値（字の要素・欄の無い行・崩れた欄は None）"""
-    return gatemarks.recommend_of(x) if isinstance(x, dict) else None
-
-
 def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, unreturned: list, closed: bool) -> dict:
     """人が決める物の種ごとの行 {種: [AskRow]}（空の種も鍵に持つ。種を表 ASK_SOURCES の順に並べるのは decisions）。book（問いの台帳の見え方 ledger）・
     hits（守ると決めたファイルに当たった差分）・unreturned（直しの対象に戻せなかった単位）は decisions が 1 度だけ求めた物を受ける。仕様を確かめる役の問いの
@@ -1062,10 +1056,10 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, un
         BACKED_OUT_HEAD: unrest(BACKED_OUT_HEAD, backed_out_lines(returns)),
         spec_head: _rows(spec_qs, push=True),
         PLAN_KIND: _rows([plainask.item_text(q) for q in deferred], push=True, titles=[plainask.item_title(q) for q in deferred],
-                         recommends=[_vetted(q) for q in deferred], reason_pushes=[plainask.item_reason_push(q) for q in deferred]),
+                         recommends=[gatemarks.recommend_of(q) for q in deferred], reason_pushes=[plainask.item_reason_push(q) for q in deferred]),
         EYE_ASK_HEAD: _rows([q["text"] for q in eyes_], push=True, titles=[q["title"] for q in eyes_]),
         MEANS_ASK_HEAD: _rows([q["text"] for q in means], push=True, titles=[q["title"] for q in means],
-                              recommends=[_vetted(q) for q in means]),
+                              recommends=[gatemarks.recommend_of(q) for q in means]),
         HELD_KIND: _rows([line for _, line in held], push=True, titles=[plainask.item_title(q) if q else None for q, _ in held],
                          reason_pushes=[(gatemarks.reason_push(q) or None) if q else None for q, _ in held]),
         CONFLICT_ASK_HEAD: _rows(asked_conflicts(returns, closed)),
@@ -1186,16 +1180,16 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     out += redirect_drafts(values)
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
-    asked = [plainask.item_row(q["text"]) for q in eye_questions(returns)]   # R4 の問いは欄 recommend を持たない
+    asked = [plainask.item_row(q["text"]) for q in eye_questions(returns)]
     if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in answer.GO_WORDS:
         # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
         ledger_texts = {gatemarks.ask_text(q) for q in held}
         deferred = [q for q in _list(as_dict(values.get("ask_before_fix")).get("deferred")) if plainask.item_text(q) not in ledger_texts]
-        asked = [plainask.item_row(plainask.item_text(q), None, _vetted(q)) for q in deferred] + asked
-    asked += [plainask.item_row(q["text"], None, _vetted(q)) for q in means_questions(returns, gates)]
+        asked = [plainask.item_row(plainask.item_text(q), None, gatemarks.recommend_of(q)) for q in deferred] + asked
+    asked += [plainask.item_row(q["text"], None, gatemarks.recommend_of(q)) for q in means_questions(returns, gates)]
     # asked は行の並び: 下書きの答えは行の欄 recommend だけから決める（final.unattended_pass と gates.before_fix の抜け方 gates.passage が同じ欄を
     # 同じ gatemarks.recommend_of で読むので、抜け方と下書きは食い違わない）。欄の無い行（R4 の問い・設計の行・R2 の照らせない行）は text が空
-    out += [gatemarks.item_draft(plainask.item_text(q), gatemarks.GATE_NODE, recommend=q.get("recommend")) for q in asked
+    out += [gatemarks.item_draft(plainask.item_text(q), gatemarks.GATE_NODE, recommend=plainask.item_recommend(q)) for q in asked
             if plainask.item_text(q).strip()]
     for q in held:
         key = gatemarks.answer_key(b, q)

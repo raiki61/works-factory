@@ -112,7 +112,7 @@ def passage(rows: list) -> Passage:
     項目の全部が通す推し（RECOMMEND_ANSWERS[0]）を持つ時だけ推しで進む（一言は推しの note を「；」で繋いだ物）。項目が無い・欄の無い行・字の
     要素・止める推しの行が 1 つでも在れば止める（機械は推しを作らない。項目の文の字は読まない）。asked は本文の字の並び、pushed の各行は
     {item（本文）, answer, note, why}（note・why は 1 行に畳んだ字）"""
-    recs = [gatemarks.recommend_of(row) if isinstance(row, dict) else None for row in rows]
+    recs = [gatemarks.recommend_of(row) for row in rows]
     if not recs or not all(rec is not None and rec[gatemarks.RECOMMEND_KEYS[0]] == gatemarks.RECOMMEND_ANSWERS[0] for rec in recs):
         return Passage(False, stopby.NEEDS_HUMAN, [], None)
     keys = gatemarks.RECOMMEND_KEYS
@@ -459,7 +459,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
         tail, push = stuck_push(record_doc, unattended_run=unattended_run, design=design) if stalled and record_doc else ("", None)
         row = design_item(design=design, reason=stuck_reason if stalled else "", tail=tail)
         if row and not _continued(answered, row):
-            items.append(_gate_row(gatemarks.DESIGN_ONLY_KIND, row, push if stuck_reason and not design else None))
+            items.append(_gate_row(gatemarks.DESIGN_ONLY_KIND, row, push))
     if not items:   # 軸の訳は項目の尾に在るので、軸の行は項目が無い時だけ足す
         for key, axis in gather(kept_asks, kept_devs, ups).items():
             if not axis["ok"]:
@@ -476,8 +476,9 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
     if unattended_run:
         got = passage(rows)
         # 推しで抜けられずに止めた項目は誰にも見せていないので、載せなかった項目として報告と次の依頼の下書きへ（元 runreport が
-        # 無人の run で関所が通さなかった事前審査の問いを下書きにしたのと同じ）。行は欄 recommend・reason_push を持ち回り、題は種類の言い方
-        held = deferred if got.go else [*deferred, *({**row, "title": gatemarks.KIND_WORDS[kind]} if kind in gatemarks.KIND_WORDS else row
+        # 無人の run で関所が通さなかった事前審査の問いを下書きにしたのと同じ）
+        held = deferred if got.go else [*deferred, *(plainask.item_row(plainask.item_text(row), gatemarks.KIND_WORDS.get(kind),
+                                                                       plainask.item_recommend(row), plainask.item_reason_push(row))
                                                      for kind, row in items)]
         return {**closed, "go": got.go, "stop_reason": got.stop_reason, "items": items, "deferred": held, "asked": got.asked,
                 "pushed": got.pushed, "passes": passes, "policy_changed": changed}

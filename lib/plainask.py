@@ -33,6 +33,7 @@ URL = re.compile(r"https?://\S+")
 CODE = re.compile(r"`[^`\n]*`")
 LINE_REF = re.compile(r"(?<![A-Za-z0-9_./-])[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.([A-Za-z][A-Za-z0-9]*):\d+(?:-\d+)?")
 INDEX_REF = re.compile(r"(?<![A-Za-z0-9_])[a-z_][a-z0-9_]*\[\d+\]")
+RECOMMEND = "recommend"   # 項目の行の推しの欄の名（lib/gatemarks.py が import して同じ名で使う。gatemarks は plainask を import するので逆向きは輪になる）
 WHY = ("初見の読み手が解けない run の中を指す参照（{refs}）が在る——人に聞く文には <パス>:<行> も <欄>[<番号>] も書かず、"
        "指す物が何かを平易な言葉で書け（出どころの名指しは決め手・根拠の欄に）")
 
@@ -73,7 +74,7 @@ def item_title(x) -> str | None:
 
 def item_recommend(x) -> dict | None:
     """人に聞く項目の行の欄 recommend（検める前の値のまま。字の要素・欄が無い行は None。形の検めは gatemarks.recommend_of）"""
-    return x.get("recommend") if isinstance(x, dict) and x.get("recommend") is not None else None
+    return x.get(RECOMMEND) if isinstance(x, dict) and x.get(RECOMMEND) is not None else None
 
 
 def item_reason_push(x) -> str | None:
@@ -84,5 +85,5 @@ def item_reason_push(x) -> str | None:
 
 def item_row(text: str, title: str | None = None, recommend: dict | None = None, reason_push: str | None = None) -> dict:
     """人に聞く項目の行 {text, title?, recommend?, reason_push?}（題が空か None・推しが無ければ、その欄を持たない）"""
-    return {"text": text, **({"title": title} if title else {}), **({"recommend": recommend} if recommend is not None else {}),
+    return {"text": text, **({"title": title} if title else {}), **({RECOMMEND: recommend} if recommend is not None else {}),
             **({"reason_push": reason_push} if reason_push else {})}

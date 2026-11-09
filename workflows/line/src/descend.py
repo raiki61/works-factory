@@ -113,7 +113,7 @@ def descend(got, *, given: dict, place: Path) -> dict:
                             word or stopby.HUMAN + talk.THEME.gate, said, notes=notes)
     else:
         rows = [t for _, t in themetalk.items(got)]
-        if rows or not got.get("ok"):   # 設計の段の項目は推しの欄を持たないので、項目が在れば必ず止める
+        if rows or not got.get("ok"):
             why = "無人の run で、設計の段の承認ノードの項目に通す推しが無い（" + ("・".join(oneline.one_line(r) for r in rows) or "設計の往復が収まらなかった") + "）"
             return _stopped(why, stopby.NEEDS_HUMAN)
         pushed = {"decision": answer.VERBS[0], "text": answer.PUSHED_NOTE + " 持ち主に聞く問いが残らず、設計の往復が収まった", answer.PUSHED: []}

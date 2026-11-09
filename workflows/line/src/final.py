@@ -407,7 +407,7 @@ def question_lines(got: dict) -> list:
         lines.append(f"- {MEANS_HEAD}（R2。{len(got['means_questions'])} 件）:")
         for q in got["means_questions"]:
             lines += [f"  {x}" for x in gatemarks.quote(plainask.item_text(q))]
-            lines += [f"  {x}" for x in gatemarks.item_lines([q])[1:]]   # 欄 recommend の推しを機械が検めた推しとして子の行に
+            lines += [f"  {x}" for x in gatemarks.item_lines([q])[1:]]
         lines.append(f"  - {R2_KEEPS_OUT}" if r2_redesign(got) else f"  - {MEANS_ANSWERS}")
     if got["held"]:
         lines.append(f"- 判定の役が人に聞くと保留にしたままの問い（問いの台帳・{len(got['held'])} 件。この承認ノードの答えは問いに答えない。"
@@ -549,7 +549,7 @@ def ledger_rows(judged: dict | None, given: dict, before_fix, *, unattended: boo
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return empty, [f"判定の問いの控えを読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
     units = [u.get("key") for u in b.record["units"]]
-    lines = gatemarks.held_lines(b)   # 保留の行は台帳の問いの理由に判定の役が書いた推しを表示の欄 reason_push に持つ（報告の頭の推しの行が読む）
+    lines = gatemarks.held_lines(b)
     pushes = [gatemarks.reason_push(q) or None for q in gatemarks.held_questions(b)]
     held = [plainask.item_row(line, None, None, pushes[i] if i < len(pushes) else None) for i, line in enumerate(lines)]
     return ({"held": held, "answered": gatemarks.answered_lines(b),
