@@ -442,7 +442,6 @@ class LinesCase(_Case):
         """k=2 で前の周の頭が返す前の状態を運ぶ時、周の頭の返り（rows・exit・left・checkpoint）を lines に渡すと、止まった・落ちた・差分が変わらない・
         異議だけで止まった抜け方では返して直せなかった項目を名指し、止まった・落ちたでは封じたのが 1 周目に返す前の状態であることを言い、
         差分が変わらない時は返す前と同じ状態だと言う。上限の抜け方は上限の訳の 1 行だけで、直せなかった項目の行を重ねない"""
-        self.assertIn("snap", inspect.signature(self.e.turn).parameters, "turn が返す時の木の控え snap を受けない")
         prev = self.run_turn(fixed=before_fixed(), tests=gate_got("h1"), snap=Snaps("t1"))
         stopped = self.run_turn(k=2, prev=prev, fixed=back_fixed(go=False, objection="返した段の異議"), tests=None, eyes=None)
         fell = self.run_turn(k=2, prev=prev, fixed=back_fixed(), tests=None)

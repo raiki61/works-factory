@@ -198,8 +198,7 @@ class EyesBackCase(unittest.TestCase):
 
     def test_seal_and_final_read_the_last_round(self):
         """merge-seal が eyes-back を待ち、when に sealable を持ち、指紋・緑・目の値を eyes-back から読む。ask-final は eyes-back を
-        if_skipped: null で読み、merge-apply の items と result の eyes は eyes-back から読み、eyes-back は when を持たず、周の頭が 1 つも走らない run では飛ぶ（all_done にすると、計画や修正で止まった run でも集めが済み、最後の承認ノードが走る）。
-        返した周の中の節が落ちた run では、次の周の頭が one_success で走るので、eyes-back・merge-seal・ask-final まで届く"""
+        if_skipped: null で読み、merge-apply の items と result の eyes は eyes-back から読み、eyes-back は when を持たず、周の頭が 1 つも走らない run では飛ぶ（all_done にすると、計画や修正で止まった run でも集めが済み、最後の承認ノードが走る）"""
         seal = TOP["merge-seal"]
         self.assertEqual(seal["depends_on"], ["eyes-back", "eyes-back-restore"])
         self.assertIn("$eyes-back.output.sealable == true", seal["when"])
