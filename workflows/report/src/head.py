@@ -1,4 +1,5 @@
 """報告の頭の機械の行の文面表（docs/design/report.md の 1.8）。頭の行の文は、このモジュールの表 TABLE と NOTICES の 1 か所だけが持つ。
+ただし題の 3 行の字だけは title.py に在り（lib を読めない落ち先も同じ字を引く）、表の題の 3 行はそこから引く。
 
 頭は初見の読み手が頭だけを読んで止まる所なので、機械は自由な字を頭に連結しない。行は「行の種 Line（知らせは Notice）の文」に、種ごとの
 型の決まった差し込み口 SLOTS の値だけを入れて描く。差し込み口に入れてよいのは読み手の世界の値（件数・run の id・URL・PR の番号・ログのパス・
@@ -23,6 +24,8 @@ import oneline    # lib/
 import report     # lib/
 import suitewrite  # lib/
 import userenv    # lib/
+
+from src import title
 
 
 # ---------------------------------------------------------------- 差し込み口の型
@@ -170,9 +173,9 @@ class BrokenSlot(typing.NamedTuple):
 
 # ---------------------------------------------------------------- 行の種
 class Line(str, enum.Enum):
-    RUN_TITLE = "title"
-    REQUEST_TITLE = "title_request"
-    REQUEST_TITLE_MORE = "title_request_more"
+    RUN_TITLE = title.RUN
+    REQUEST_TITLE = title.REQUEST
+    REQUEST_TITLE_MORE = title.REQUEST_MORE
     WHAT_HAPPENED = "happened"
     HAPPENED_WITH_ASKS = "happened_with_asks"
     APPLY_NO_DIFF = "apply_no_diff"
@@ -234,9 +237,9 @@ PR_SAID = {"stopped": "PR を作らずに止めた。対象の既定の枝には
 _FELL = "AI が書く報告の本文は無い。書き手の段が"
 
 TABLE = {
-    Line.RUN_TITLE: "# 報告（run {run}）",
-    Line.REQUEST_TITLE: "# 報告（run {run}）: {request}",
-    Line.REQUEST_TITLE_MORE: "# 報告（run {run}）: {request}（ほかの依頼の行 {more} 件）",
+    Line.RUN_TITLE: title.TEXT[title.RUN],
+    Line.REQUEST_TITLE: title.TEXT[title.REQUEST],
+    Line.REQUEST_TITLE_MORE: title.TEXT[title.REQUEST_MORE],
     Line.WHAT_HAPPENED: "起きたこと: {outcome}",
     Line.HAPPENED_WITH_ASKS: "起きたこと: {outcome}。人が決めること {n} 件が残っている",
     Line.APPLY_NO_DIFF: _APPLY + "当てる差分が無い（この run は差分を確定していない）",

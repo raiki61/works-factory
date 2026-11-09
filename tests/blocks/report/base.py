@@ -10,7 +10,7 @@ from tests.blocks import kit
 
 BLOCK = kit.BLOCKS / "report"
 # head は頭の文面表（workflows/report/src/head.py）。ほかの部品と同じ 1 組で読む
-NAMES = ("files", "head", "facts_in", "outcome", "transcript", "machine", "writer", "steps")
+NAMES = ("files", "head", "title", "facts_in", "outcome", "transcript", "machine", "writer", "steps")
 
 
 def src() -> types.SimpleNamespace:

@@ -4,7 +4,10 @@
   前の失敗を書く。読めない入力は落とさず、その訳を problems に足す（結末は record_invalid）
 - write_prompt(place, *, run_id) / cold_prompt(place, raw): 書き手の指示と初見の読み手の指示を md から組む
 - finish(place, *, run_id): 書き手のループが落ちたことを機械の報告（頭は表の行、誤りの文は注意の節）に置き、人に向けた報告と詳細のファイルを書き、出力を返す
-- unwritten(place, name, why): 訳だけの 1 ファイルを書く（機械の報告の組み立てには頼らない。題の行だけ頭の表 head.py から描く）
+- unwritten(place, name, why, run_id="", requests=()): 訳だけの 1 ファイルを書く（機械の報告の組み立てには頼らない。題の行だけ title.render で描く。字は
+  machine.title_row と同じ）
+- facts_fallback(place, why, run_id="", facts_raw=None)・finish_fallback(place, why, run_id=""): 落ちない口の返り。依頼の字は facts の入力
+  （facts_raw）か facts.json から title.requests_in で読む
 """
 import json
 import pathlib
@@ -16,16 +19,16 @@ import carry      # lib/
 
 import ports
 import prompt
-from src import facts_in, files, head, machine, outcome as outcomelib, transcript, writer
+from src import facts_in, files, machine, outcome as outcomelib, title, transcript, writer
 
 
-def unwritten(place, name: str, why: str, run_id: str = "") -> pathlib.Path:
-    """ライブラリに頼らず訳だけの 1 ファイルを書く（書けなくてもパスは返す。先の無い pointer は実行基盤が終わりに拒む）"""
+def unwritten(place, name: str, why: str, run_id: str = "", requests=()) -> pathlib.Path:
+    """ライブラリに頼らず訳だけの 1 ファイルを書く（書けなくてもパスは返す。先の無い pointer は実行基盤が終わりに拒む）。
+    題は run の id と依頼の字から、普通の報告の題 machine.title_row と同じ字を title.render で描く"""
     path = pathlib.Path(place) / name
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        title = head.render(head.Line.RUN_TITLE, head.RunSlot(head.RunId(run_id or "—")))   # 題の字は頭の表の 1 か所
-        path.write_text(f"{title}\n\n報告を組めなかった: {why}\n", encoding="utf-8")
+        path.write_text(f"{title.render(run_id or '—', requests)}\n\n報告を組めなかった: {why}\n", encoding="utf-8")
     except OSError:
         pass
     return path
@@ -56,7 +59,8 @@ def facts(place, *, sections, facts, lang, run_id: str, workflow_file, repo) -> 
     stamp = writer.stamp(run_id, workflow_file, got["round"], got["line_rev"], got["start_ok"])
     ok = word in outcomelib.OK_OUTCOMES
     jsonfile.write(place / files.FACTS_FILE, {"outcome": word, "stop_reason": stop, "ok": ok, "ai_go": built["ai_go"], "stamp": stamp,
-                                              "lang": ports.text(lang).strip(), "run_id": run_id, "decisions": built["decisions"]})
+                                              "lang": ports.text(lang).strip(), "run_id": run_id, "decisions": built["decisions"],
+                                              "request_texts": got["request_texts"]})
     nxt, prior = built["next_request"], built["prior_failures"]
     return {"outcome": word, "ok": ok, "stop_reason": stop, "machine": ports.pointer(built["report"], "file"),
             "next_request": None if nxt is None else ports.pointer(nxt, "json(lib:next-request.schema.json)"),
@@ -64,18 +68,20 @@ def facts(place, *, sections, facts, lang, run_id: str, workflow_file, repo) -> 
             "ai_go": built["ai_go"], "stamp": stamp}
 
 
-def facts_fallback(place, why: str, run_id: str = "") -> dict:
+def facts_fallback(place, why: str, run_id: str = "", facts_raw=None) -> dict:
     """facts が思わぬ誤りで落ちた時の返り: 訳を載せた機械の報告（ライブラリを読めない・書けない時は訳だけのファイル）を指す record_invalid。
-    facts.json も書く（出口が読む）"""
+    題の依頼の字は facts の入力（facts_raw）から緩く読む。facts.json も書く（出口が読む）"""
     place = pathlib.Path(place)
+    requests = title.requests_in(facts_raw)
     try:
-        path = machine.fallback_report(place, why)
+        path = machine.fallback_report(place, why, run_id, requests)
     except Exception:  # noqa: BLE001 — ライブラリを読めなくても、置き場に書けなくても返る
-        path = unwritten(place, files.FACTS_UNWRITTEN_FILE, why, run_id)
+        path = unwritten(place, files.FACTS_UNWRITTEN_FILE, why, run_id, requests)
     stop = f"report:{why}"
     try:
         (place / files.FACTS_FILE).write_text(json.dumps({"outcome": "record_invalid", "stop_reason": stop, "ok": False, "ai_go": False,
-                                                          "stamp": "", "lang": "", "run_id": run_id, "decisions": 0},
+                                                          "stamp": "", "lang": "", "run_id": run_id, "decisions": 0,
+                                                          "request_texts": list(requests)},
                                                          ensure_ascii=False) + "\n", encoding="utf-8")
     except OSError:
         pass
@@ -176,7 +182,7 @@ def finish_fallback(place, why: str, run_id: str = "") -> dict:
     """出口が思わぬ誤りで落ちた時の返り: facts の機械の報告が在ればそれを指す record_invalid。無ければ訳だけのファイルを指す"""
     place = pathlib.Path(place)
     stop = f"report:{why}"
-    path = _machine_file(place) or unwritten(place, files.FINISH_UNWRITTEN_FILE, why, run_id)
+    path = _machine_file(place) or unwritten(place, files.FINISH_UNWRITTEN_FILE, why, run_id, title.requests_in(str(place / files.FACTS_FILE)))
     pointer = ports.pointer(path, "file")
     try:
         carried = _carried(place)
