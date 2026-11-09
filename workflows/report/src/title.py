@@ -6,7 +6,6 @@ head.py の題の 3 行も、機械の報告の題 machine.title_row も、同�
 - RUN・REQUEST・REQUEST_MORE: 題の型の鍵（頭の表 head.Line の値と同じ字）。TEXT: 鍵 → 題の型の字（`{run}`・`{request}`・`{more}` が差し込み口）
 - fold(text) -> str: 字の空白（改行・タブを含む）の並びを 1 つの空白に詰め、両端を落とした字（lib の oneline.one_line と同じ振る舞い）
 - choose(requests) -> (鍵, 1 つ目の畳んだ字, ほかの件数): 畳んで空になる物を除いた依頼の字が 0 件なら RUN、1 件なら REQUEST、2 件以上なら REQUEST_MORE
-- render(run_id, requests) -> str: 題の行の字
 - requests_in(raw) -> tuple: facts の入力の字（値そのもの・ファイルのパス・pointer）か facts.json から依頼の字 request_texts を緩く読む。
   読めない時は誤りを上げずに空のタプルを返す。緩い読みは落ちない口の予備の道だけが使う（主の道は facts_in で形を照らして読む）
 

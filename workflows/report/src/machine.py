@@ -6,7 +6,6 @@ _bullets・fallback_report と lib/gatemarks.py の draft_line を、graph が�
   ai_go, decisions}: 機械の報告・次の依頼・前の失敗を place に書く。次の依頼と前の失敗は約束の Schema に合うことを照らしてから書く。
   頭の行は事実から head.Line と差し込み口の値を決めて head.render で描くだけ（文は head.py の表の 1 か所）。知らせの本文 text は notice_lines が
   節「2. 止めたか」の頭に並べる
-- title_row(run_id, requests) -> 題の行: 選び方は title.choose、字は頭の表の行（題の 3 行の字は title.py）
 - fallback_report(place, why, run_id="", requests=()) -> パス: 思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行。題は run の id と
   依頼の字から描く）を UNWRITTEN_FILE に書く
 """

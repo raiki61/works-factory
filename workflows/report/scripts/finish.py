@@ -26,12 +26,11 @@ def fallback(why: str) -> dict:
     except Exception:  # noqa: BLE001 — ライブラリを読めない時は標準ライブラリだけで訳だけのファイルを書いて指す
         path = ports.place() / "report-finish-unwritten.md"
         try:
-            from src import title   # 題の型の字は標準ライブラリと ports だけの 1 か所。依頼の字は facts の facts.json から読む
-            first = title.render(os.environ.get("WORKFLOW_ID") or "—", title.requests_in(str(ports.place() / "facts.json")))
-            body = f"{first}\n\n報告を組めなかった: {why}\n"
+            from src import files, title   # 題の型の字は標準ライブラリと ports だけの 1 か所。依頼の字は facts の facts.json から読む
+            top = title.render(os.environ.get("WORKFLOW_ID") or "—", title.requests_in(str(ports.place() / files.FACTS_FILE))) + "\n\n"
         except Exception:  # noqa: BLE001 — 題の部品そのものを読めない時だけ、題の行を付けずに訳を書く
-            body = f"報告を組めなかった: {why}\n"
-        path.write_text(body, encoding="utf-8")
+            top = ""
+        path.write_text(f"{top}報告を組めなかった: {why}\n", encoding="utf-8")
         ptr = ports.pointer(path, "file")
         return {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "machine": ptr, "human": None, "detail": None, "next_request": None, "prior_failures": None, "report": [f"機械の報告: {ptr['path']}"]}
 

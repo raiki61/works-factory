@@ -30,11 +30,10 @@ def fallback(why: str) -> dict:
         path = ports.place() / "report-facts-unwritten.md"
         try:
             from src import title   # 題の型の字は標準ライブラリと ports だけの 1 か所
-            first = title.render(os.environ.get("WORKFLOW_ID") or "—", title.requests_in(os.environ.get("INPUTS_FACTS")))
-            body = f"{first}\n\n報告を組めなかった: {why}\n"
+            top = title.render(os.environ.get("WORKFLOW_ID") or "—", title.requests_in(os.environ.get("INPUTS_FACTS"))) + "\n\n"
         except Exception:  # noqa: BLE001 — 題の部品そのものを読めない時だけ、題の行を付けずに訳を書く
-            body = f"報告を組めなかった: {why}\n"
-        path.write_text(body, encoding="utf-8")
+            top = ""
+        path.write_text(f"{top}報告を組めなかった: {why}\n", encoding="utf-8")
         ptr = ports.pointer(path, "file")
         return {"outcome": "record_invalid", "ok": False, "stop_reason": f"report:{why}", "machine": ptr, "next_request": None, "prior_failures": None, "ai_go": False, "stamp": ""}
 
