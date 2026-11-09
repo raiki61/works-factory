@@ -328,7 +328,7 @@ class GateTextCase(unittest.TestCase):
 
 
 class MeansRowsCase(unittest.TestCase):
-    """頼みの解き方の外れの行（計画 means-answers の 3.2 の 8・3.3 の 2）: 文の頭・推しの尾・鍵の読み戻し。推しは渡した行の物だけ"""
+    """頼みの解き方の外れの行（計画 means-answers の 3.2 の 8・3.3 の 2）: 文の頭・推しの欄・鍵の読み戻し。推しは渡した行の物だけ"""
     SAID = {"M1": "分母を len(xs) にする"}
     REC = {"answer": "continue", "note": "計画のまま進める", "why": "リポジトリの決まりに合う"}
     FIELDS = [{"structure": [{"means": "M1", "follows": True}]},
@@ -345,7 +345,7 @@ class MeansRowsCase(unittest.TestCase):
         text = gatemarks.depart_item(r)
         self.assertNotIn("世界の解:", text)
         self.assertEqual(gatemarks.recommend_of(r["mark"])["answer"], "continue", "推しは行の mark の欄 recommend が運ぶ")
-        self.assertNotIn(gatemarks.PUSH, text, "文には推しの尾を書かない")
+        self.assertNotIn(gatemarks.PUSH, text, "文には推しを書かない（推しは行の欄が運ぶ）")
         self.assertEqual(gatemarks.means_key(text), (2, "M1", "departs"))
 
     def test_plan_row_without_departs_has_no_push(self):
@@ -388,7 +388,7 @@ class PrescriptionRowsCase(unittest.TestCase):
         text = gatemarks.depart_item(r)
         self.assertNotIn("世界の解:", text)
         self.assertEqual(gatemarks.recommend_of(r["mark"])["answer"], "continue")
-        self.assertNotIn(gatemarks.PUSH, text, "文には推しの尾を書かない")
+        self.assertNotIn(gatemarks.PUSH, text, "文には推しを書かない（推しは行の欄が運ぶ）")
         bare = gatemarks.prescription_depart_rows(self.FIELDS, self.RX)[0]
         self.assertNotIn("recommend", bare["mark"])
         self.assertIsNone(gatemarks.recommend_of(bare["mark"]), "推しの行を渡さなければ推しの欄は無い")

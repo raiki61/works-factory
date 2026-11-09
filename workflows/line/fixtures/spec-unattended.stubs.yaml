@@ -1,4 +1,4 @@
-# 仕様駆動の道の無人の run（unattended=true）で、推しの尾を持たない決め手の無い narrows が在る筋書き（docs/design/spec-driven.md の
+# 仕様駆動の道の無人の run（unattended=true）で、推しの欄 recommend を持たない決め手の無い narrows が在る筋書き（docs/design/spec-driven.md の
 # 6.5 の 8）。今の本線の無人の run と同じく、修正前の承認ノードを開かずに works:needs-human で止まり、修正へ進まない
 fixture:
   expect: completed

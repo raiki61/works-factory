@@ -184,7 +184,7 @@ class AnswerDraftsCase(unittest.TestCase):
 
     def test_r4_question_push_tail_is_not_the_draft_answer(self):
         """R4 の問いの行は役が書いた文なので、末尾が推しの尾（_push の形）でも答えにしない（text は空で、question は尾を含む文の全体）。
-        同じ run の、載せなかった修正前の項目の推しの尾は今どおり答えになる"""
+        同じ run の、載せなかった修正前の項目の欄 recommend の推しは今どおり答えになる"""
         rec = {"answer": "continue", "note": "空の列は 0 を返す形で通す", "why": "呼び手が 0 を前提に書かれている"}
         means = {"source": self.gm.MEANS_KIND, "item": 1, "why": [self.gm.MEANS_WHY],
                  "mark": {"decided_by": "リポジトリの決まりが別の層に置く", "recommend": rec},
