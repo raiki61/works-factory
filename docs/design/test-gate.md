@@ -58,7 +58,7 @@ port でない環境（起動の殻が渡す。今と同じ）: 取り置きの�
 
 `ok` の意味は今のまま: base は直す前の結末を控えて鎖を進めてよいか、final は緑を認証したか。`baseline`・`evidence` の pointer の `path` は place の中の相対のパス（`<include の道>/baseline.json` など）。
 
-`test_outcomes` は final だけ（base は `null`）で、テストごとの修正前と今の結末 `{rows, unmeasured}`（形は `shared:outcomes.schema.json`）を place の `outcomes.json` に書いて指す pointer。値で返さない訳: 行は対象のテストの数だけ伸びる。Archon は script のノードの入力を環境変数 `INPUTS_<名>` で渡すので、この欄を値で返すと、返りを丸ごと受ける受け皿（`test-gate-final-out`）とその `got` を受ける line の `collect` の起動が、OS の引数と環境の上限を越えて `E2BIG` で落ちる（テストが 5 千件ほどの対象で、返りが 900KB を越えて起きた）。読み手の r2 は `ports.json` で pointer を開く。
+`test_outcomes` は final だけ（base は `null`）で、テストごとの修正前と今の結末 `{rows, unmeasured}`（形は `shared:outcomes.schema.json`）を place の `outcomes.json` に書いて指す pointer。値で返さない訳: 行は対象のテストの数だけ伸びる。Archon は script のノードの入力を環境変数 `INPUTS_<名>` で渡すので、この欄を値で返すと、返りを丸ごと受ける line の読み手（`collect` など）の起動が、OS の引数と環境の上限を越えて `E2BIG` で落ちる（テストが 5 千件ほどの対象で、返りが 900KB を越えて起きた）。読み手の r2 は `ports.json` で pointer を開く。
 
 今との違い: 今は入力を `start`（始めの記録の pointer。`test_cmd`・`tdd_suite`・`base_rev`・`run_id`・入口の差分が空か・依頼のファイルを読む）・`mode`・`baseline`・`reuse_dir`・`user_env_dir` で受け、TDD の実行器を始めの記録の `tdd_suite` に書き込んで後ろの段に渡していた（`lib/suitewrite.py` の `settle`）。block は始めの記録を読まず書かない（README 4.2・4.3）。実行器は出力の `suite` で返し、line が fix と final の test-gate の `tdd_suite` に配る。
 

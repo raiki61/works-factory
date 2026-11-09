@@ -564,7 +564,7 @@ For `plan`, the rule above does not apply. Return in `plan` only the items the r
 - 単位ごとの深さ `depth`（`depth.decide_doc`。始めの記録の `thickness` と機械の確かめの有無）→ 外して line へ。この block は直す義務の単位の並び `owed` を返し、line が案の欄と段の表から決める（README の 1.2 の D・8.7）。
 - 形 replan で諦めた時の項目ごとの諦めの行 → 同じ（`gave_up` と `replan-gave-up.json`）。
 - `nothing_owed`・`ready` → `status`（1.2）。
-- `require_ports`（この版より前に走った計画の返りを resume で受けたかを line が照らす）→ 外す。line の受け皿の照らしで、line の設計書が決める。
+- `require_ports`（この版より前に走った計画の返りを resume で受けたかを line が照らす）→ 外す。line の読み手の照らし（`ports.picked` で欄の全部を名指す）で、line の設計書が決める。
 
 ### 6.6 読んだ証拠（今の `plan-reads`）
 

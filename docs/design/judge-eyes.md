@@ -5,7 +5,7 @@
 - 決めたこと: 2 つの graph は、block をいつ回すか（`when:`）・並べ方・飛ばされうる値の受け直し（埋め P2・P8）・まとめの判定（judge の `ready` と、止める訳が重なった時にどの止めの語〔`works:premises` など、run を止めた訳を表す語〕を返すかの順〔1.4〕、eyes の `ok`）だけを持つ。AI の node と観点の計算は持たない。判定の裏取り（verify の block。判定を別の役が確かめ直す）を回すかは、line が段（run の頭の深さ: 軽量・標準・重厚）ごとに引いた真偽の表 `verify_by_tier` を port で受け、head-depth の block が返した段でその表を引くだけにする（深さの表は line に 1 つ。node と `when:` はこの文書の 1.5）。再審は judge の graph を通らない（line が diagnose を直に include する）。守りのパスの当たり（差分が、人の確かめなしに変えてはならないパスに触れた件。README の語「守りのファイルと当たり」）を数えるのは eyes から merge へ移った（README 13 節）ので、eyes の `ok` は目の判定だけで決まる。
 - 持ち主（リポジトリの owner）に求めること: なし。README・各 block の設計書・今のコードで決まった（3 節）。2 波目の設計書（README 11.1 の作る順の 2 つ目の組。diagnose・verify・r1〜r4）は書き終える前に置かれたので、配線はそれぞれの設計書の 1.2（port）と 1.6 に合わせた。残る確かめは 4 節（未確認の一覧。どれも持ち主の答えを待つ物ではない）。
 
-語は README の頭の物と line.md の頭の物（始めの記録・配る値・受け皿・返し・段）を使う。ほかに:
+語は README の頭の物と line.md の頭の物（始めの記録・配る値・返し・段）を使う。受け皿は include の返りを受け直す script の node `<include の id>-out`（埋め P8。line は 2026-11-10 に受け皿を消して返りを直に結ぶ形にした〔line.md の 13.1〕が、この 2 つの graph の中には残る）。ほかに:
 
 - pointer: Archon がファイルを指す値 `{type: archon_artifact, run_id, path}`（README 4.1）。大きい中身はファイルに書き、出力ではこれを渡す。
 - 境の口: pack の共通の口 `workflows/.shared/ports.py`（入力の読み・place・出力の書き）。
@@ -19,7 +19,7 @@
 - 置き場: `workflows/judge/works-factory-judge.yaml`・`workflows/eyes/works-factory-eyes.yaml`。`scripts/`・`src/`（package `src`）・`fixtures/standalone.stubs.yaml`・`tests/blocks/judge/`・`tests/blocks/eyes/`。手本は `workflows/policy-check/`（README 13 章・`workflows/AGENTS.md`）。
 - AI の node を持たない（README 7.1 の 6）。だから README 6 節の node ごとの 9 項は当たらない。
 - 返す node は `verdict`（script。`trigger_rule: all_done`）。`outcome_field: ok`。返りに欄 `report`（日本語の行の配列）と `sections`（`[{title, lines, files?}]`。report の port `sections` と同じ形。include した block の `report` の欄を block ごとに 1 節にした物）を置く（README 4.1・7.1 の 8）。返す node は落ちない（境の口を読めない時も標準ライブラリだけで `ok: false` と訳を返す。今の judge の `verdict.py` と eyes の `verdict.py` の `fallen` の形）。
-- include ごとに受け皿 `<id>-out`（script `returned`。今の line が YAML の錨〔anchor〕で 1 か所に書いて使い回す受け皿と同じ作り）を置く。`all_done` で集める node（`verdict` と、judge の `diagnose-in`）は受け皿の got だけを読む。流れの node（既定の `all_success`）は include の出力を直に読む（作り手が落ちれば、依る node は飛ぶ）。訳: Archon は落ちた node への `with:` を誤りにする（今の `returned.py` の docstring。止めた Archon の `dag-executor.ts` の `resolveBindingDirective`）。1 つの block の返す node が落ちても、ほかの block の結果が報告に届く。
+- include ごとに受け皿 `<id>-out`（script `returned`。YAML の錨〔anchor〕で 1 か所に書いて使い回す。line も同じ作りの受け皿を持っていたが、2026-11-10 に消した）を置く。`all_done` で集める node（`verdict` と、judge の `diagnose-in`）は受け皿の got だけを読む。流れの node（既定の `all_success`）は include の出力を直に読む（作り手が落ちれば、依る node は飛ぶ）。訳: Archon は落ちた node への `with:` を誤りにする（今の `returned.py` の docstring。止めた Archon の `dag-executor.ts` の `resolveBindingDirective`）。1 つの block の返す node が落ちても、ほかの block の結果が報告に届く。
 - include の `with:` は graph の入力を `$INPUTS.<名>` で直に渡す（今の line の `merge-apply` の `deliver: "$INPUTS.deliver"` と同じ）。`when:` が graph の入力を読む所は、頭の返し `ins`（script）が入力を出力に写した物を読む（今の policy-check の `policy-in` と同じ形。`when:` の式が `$INPUTS` を読むかは確かめていないので頼らない）。
 - script は `ports` の口だけで入力を読む。`returned`・`ins` の本体は `ports.picked` と `ports.flag` を呼ぶ数行（graph ごとに `scripts/` に置く。Archon は名の script を workflow のフォルダから探す）。
 - 返りの欄 `optional`（README 4.1）: 落ちても line が先へ進めてよい中の node の宣言 `[{node, bare}]`。line の `collect` が include の頭を付けて読む。

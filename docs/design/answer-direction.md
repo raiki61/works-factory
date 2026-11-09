@@ -51,7 +51,7 @@
 line が include する（[line.md](line.md) の 1.3 の 9・2 節の 2。仕様駆動の道は [spec-driven.md](spec-driven.md) の 6.2 の 12・13）:
 
 - `spec-direction`・`fixture-direction`: `with: {answer: <同じ道の gate の出力>, asked: <同じ道の ask の asked>, plan: {from: <同じ道の ask の plan>, if_skipped: null}, lang}`。`when:` は仕様駆動の道が `from_spec == true` と `spec-ask-before-fix` の `open`、写しの道が `fixture_gate == true` と `fixture-ask-before-fix` の `open`。
-- 受け皿 `spec-direction-out`・`fixture-direction-out`。答えの node `spec-answer-before-fix`・`fixture-answer-before-fix` が `direction`（受け皿の `got`）と `direction_due`（`true`）で返りを受け、`gates.direction_stop` に渡して止めるかを決める。本線の `answer-before-fix` は入力を足さない。
+- 返りは `spec-answer-before-fix`・`fixture-answer-before-fix` が `$spec-direction.output`・`$fixture-direction.output` で直に結ぶ（line の受け皿 `spec-direction-out`・`fixture-direction-out` は 2026-11-10 に消した。`docs/design/line.md` の 13.1）。答えの node `spec-answer-before-fix`・`fixture-answer-before-fix` が `direction`（受け皿の `got`）と `direction_due`（`true`）で返りを受け、`gates.direction_stop` に渡して止めるかを決める。本線の `answer-before-fix` は入力を足さない。
 - 単独でも回る: `answer`・`asked`・`plan`（計画の行の JSON の配列）を渡せば最後まで届く。
 
 ## 3 判定が落ちた時の止め（fail-closed）
