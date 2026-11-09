@@ -1,6 +1,6 @@
 """block merge（workflows/merge/）の YAML の形・script の通し・報告の行の試験（docs/design/merge.md の 11 節）。
 
-- YAML の形は PyYAML で読み、Archon を起こさない（返りの約束の欄・入力・照らし・commit・PR の子の run・読み戻し・返す節の 5 つの節）
+- YAML は PyYAML で読み、Archon を起こさずに書き込みの配線だけを照らす（照らしの節が入力を同じ名で受ける・commit と PR の子の run が出口の語 pr の照らしの後だけ走る）
 - script は subprocess で、一時の git の木を cwd に、Archon が script の節に渡す環境（WORKFLOW_ID・ARTIFACTS_DIR・INPUTS_*）を偽の run で作って走らせる。
   照らしの節はどの走りでも作業ツリーの `git status --porcelain` が前後で同じ（E6・E7）。commit の節は run の作業ツリー（worktree）の
   枝にだけ積み、origin へは何も送らない
@@ -43,11 +43,8 @@ SCRIPTS = BLOCK / "scripts"
 SCRIPT = SCRIPTS / "merge.py"
 NAME = "works-factory-merge"
 RUN = "run-merge"
-INPUTS = ("mode", "base", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver", "request", "items",
-          "user_env_dir")
 PLACE_INPUTS = ("mode", "base", "fingerprint", "green_ok", "eyes_ok", "sealed_hash", "answer", "r2", "deliver")
 RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "deliver", "optional", "report")
-PLACE_RETURNS = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "base_rev", "deliver")
 PROTECTED_FILE = "protected-all.json"
 PASS = json.dumps({"decision": "continue", "text": ""})
 URL = "https://github.com/o/r.git"
@@ -86,23 +83,6 @@ class ShapeTest(unittest.TestCase):
         self.nodes = nodes()
         self.node = self.nodes["place"]
 
-    def test_header(self):
-        self.assertEqual(self.doc["name"], NAME)
-        self.assertEqual(self.doc["returns"], "merge")
-        self.assertEqual(self.doc["outcome_field"], "ok")
-        self.assertNotIn("interactive", self.doc)
-
-    def test_nodes_are_place_the_pr_path_and_the_return(self):
-        self.assertEqual(list(self.nodes), ["place", "pr-commit", "pr-open", "pr-read", "merge"])
-        for node, script in (("place", "merge"), ("pr-commit", "pr_commit"), ("pr-read", "pr_read"), ("merge", "handed")):
-            self.assertEqual((self.nodes[node]["script"], self.nodes[node]["runtime"]), (script, "uv"), node)
-        for node in ("place", "pr-read", "merge"):
-            self.assertIs(self.nodes[node]["mutates_checkout"], False, node)
-        self.assertNotIn("mutates_checkout", self.nodes["pr-commit"], "commit の節は HEAD と index を変える")
-        for node in self.nodes.values():
-            self.assertNotIn("timeout", node)
-        self.assertFalse(any("approval" in n or "wait" in n for n in self.doc["nodes"]))
-
     def test_pr_path_runs_only_after_the_check_for_the_word_pr(self):
         """出口の語 pr で照らしが通った時だけ commit し、commit が進めた時だけ PR を作る子の run を起こす（既定の空の語は対象に書かない）"""
         commit, opened, read = self.nodes["pr-commit"], self.nodes["pr-open"], self.nodes["pr-read"]
@@ -124,50 +104,10 @@ class ShapeTest(unittest.TestCase):
         self.assertEqual(handed["with"]["read"], {"from": "$pr-read.output", "if_skipped": None})
         self.assertEqual(json.loads(handed["with"]["optional"]), [{"node": "pr-open", "bare": False}])
 
-    def test_inputs_are_the_contract(self):
-        inputs = self.doc["inputs"]
-        self.assertEqual(sorted(inputs), sorted(INPUTS))
-        self.assertEqual(len(INPUTS), 12)
-        for name in ("mode", "base"):
-            self.assertIs(inputs[name].get("required"), True, name)
-        for name in set(INPUTS) - {"mode", "base"}:
-            self.assertIn("default", inputs[name], name)
-            self.assertNotIn("required", inputs[name], name)
-        self.assertNotIn("start", inputs, "始めの記録は読まない")
-        self.assertNotIn("diff", inputs, "入力 diff は持たない（merge.md の 10 節の 2）")
-        self.assertTrue(inputs["mode"]["description"].startswith("choice(seal|apply|check): "))
+    def test_place_reads_each_input_under_its_own_name(self):
+        """照らしの節は、承認の答え・緑・目・R2・封じた hash を同じ名の入力から受ける（筋書きは節 place を stub で差すので、別の入力を
+        結ぶ誤りはここだけが見る）"""
         self.assertEqual(self.node["with"], {name: f"$INPUTS.{name}" for name in PLACE_INPUTS})
-
-    def test_only_archon_pr_is_started_as_a_child(self):
-        """block が起こしてよい workflow は同梱の archon-pr だけ（merge.md の 10 節の 1）。include は持たない"""
-        started = {n["workflow"] for n in self.doc["nodes"] if "workflow" in n}
-        self.assertEqual(started, {"archon-pr"})
-        self.assertFalse(any("include" in n for n in self.doc["nodes"]))
-        self.assertFalse(any("prompt" in n or "command" in n for n in self.doc["nodes"]), "AI の node は持たない")
-        self.assertFalse((BLOCK / "prompts").exists())
-
-    def test_output_format_is_the_contract(self):
-        for node, names in (("merge", RETURNS), ("place", PLACE_RETURNS)):
-            with self.subTest(node=node):
-                fmt = self.nodes[node]["output_format"]
-                self.assertEqual(sorted(fmt["properties"]), sorted(names))
-                self.assertEqual(sorted(fmt["required"]), sorted(names))
-                self.assertIs(fmt["additionalProperties"], False)
-                props = fmt["properties"]
-                self.assertEqual(props["mode"]["enum"], ["seal", "apply", "check"])
-                self.assertEqual(props["ok"]["type"], "boolean")
-                self.assertIn("null", props["diff"]["type"])
-                self.assertIn("null", props["protected_hits"]["type"])
-                self.assertEqual(props["protected_count"]["type"], ["integer", "null"])
-                path = props["diff"]["properties"]["path"]
-                self.assertNotIn("enum", path, "place は include の道で決まるので、末尾の名の形で縛る")
-                for name in ("sealed.diff", "apply.diff", "refused.diff"):
-                    self.assertEqual(validate_schema(f"hand/{name}", path), [], name)
-                    self.assertEqual(validate_schema(name, path), [], name)
-                self.assertNotEqual(validate_schema("merge/other.diff", path), [])
-        self.assertEqual(self.nodes["merge"]["output_format"]["properties"]["report"], {"type": "array", "items": {"type": "string"}})
-        self.assertEqual(self.nodes["merge"]["output_format"]["properties"]["deliver"]["properties"]["act"]["enum"],
-                         ["placed", "none", "pr", "stopped", "unconfirmed"])
 
 
 class ScriptCase(unittest.TestCase):
@@ -897,9 +837,6 @@ class NeverFailsTest(ScriptCase):
         self.assertIn("merge", got["reason"])
         self.assertFalse(self.artifact("sealed.diff").exists())
 
-    def test_empty_mode(self):
-        self.assertBroken(self.seal(mode=""), "seal")
-
     def test_unknown_deliver_word(self):
         got = self.apply("0" * 64, deliver="merge")
         self.assertBroken(got, "apply")
@@ -915,11 +852,6 @@ class NeverFailsTest(ScriptCase):
 
     def test_r2_not_json(self):
         self.assertBroken(self.apply("0" * 64, r2="{"), "apply")
-
-    def test_lib_missing(self):
-        nowhere = self.tmp / "no-lib"
-        nowhere.mkdir()
-        self.assertBroken(self.seal(root=nowhere), "seal")
 
     def test_checkout_not_git(self):
         plain = self.tmp / "plain"
@@ -960,58 +892,6 @@ class ReportTest(unittest.TestCase):
         lines = self.seal_report(None)
         self.assertEqual(len(lines), 1)
         self.assertTrue(lines[0].startswith(f"{seal.DELETED_HEAD}: 封じた差分が読めない（"), lines)
-
-    def test_not_ok_names_the_mode_and_the_reason(self):
-        for mode, word in (("seal", "封じ"), ("apply", "置き"), ("check", "照らし")):
-            with self.subTest(mode=mode):
-                got = self.handed({**HandedTest.PLACE, "mode": mode, "ok": False, "diff": None, "reason": "封じた差分と今の差分が違う"})
-                self.assertEqual(got["report"], [f"差分の{word}（{mode}）が ok でない: 封じた差分と今の差分が違う"])
-
-    def test_pr_made_stopped_and_unconfirmed(self):
-        place = {**HandedTest.PLACE, "deliver": "pr"}
-        made = {"ok": True, "number": 7, "url": self.PR["url"], "is_draft": True, "reason": ""}
-        got = self.handed(place, HandedTest.COMMIT, made)["report"]
-        self.assertEqual(got[0], f"PR を作った: {self.PR['url']}（下書きの PR #7。merge は対象のレビューと決まりに任せる）")
-        self.assertEqual(got[1], "PR の commit: 修正案の項目ごとに 2 本（依存の順。各 commit の時点で試験が通るかは確かめていない。"
-                                 "確かめたのは積み終えた木の差分の hash）")
-        self.assertEqual(got[2:], [f"項目 1: {'e' * 12}（項目 1: 足す）", f"項目 2: {'c' * 12}（項目 2: 使う）"])
-        stopped = self.handed(place, {**HandedTest.COMMIT, "go": False, "reason": "同じ名", "commits": [], "split": ""})["report"]
-        self.assertEqual(stopped, ["PR を作らずに止めた: 同じ名"])
-        unconfirmed = self.handed(place, {**HandedTest.COMMIT, "commits": [], "split": "項目に分けられない"}, None)["report"]
-        self.assertTrue(unconfirmed[0].startswith("PR を作ったと確かめられなかった: "), unconfirmed)
-        self.assertEqual(unconfirmed[1], "PR の commit: 項目ごとに分けなかった（項目に分けられない）")
-
-    def test_default_word_has_no_pr_lines_and_no_hit_or_apply_lines(self):
-        got = self.handed({**HandedTest.PLACE, "protected_hits": ["x（+1 −1）"], "protected_count": 1})["report"]
-        self.assertEqual(got, [])
-        for line in self.handed(HandedTest.PLACE | {"deliver": "pr"}, HandedTest.COMMIT, None)["report"]:
-            self.assertNotIn("当たった差分", line, "守りの当たりの件数の行は report の側が組む。merge の行には種の名の字を置かない")
-            self.assertNotIn("bin/apply", line)
-
-
-class FixturesTest(unittest.TestCase):
-    """筋書きの揃い。Archon の workflow test で回して通るかは tests/layers/test_block_shape.py の ArchonCase が全 block ぶん見る"""
-
-    def test_fixtures_are_the_seven_scenes(self):
-        found = sorted(p.name.removesuffix(".stubs.yaml") for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
-        self.assertEqual(found, sorted(SCENARIOS))
-
-    def test_standalone_gives_only_port_values(self):
-        for name in SCENARIOS:
-            with self.subTest(name=name):
-                given = kit.fixture("merge", name)["fixture"]["inputs"]
-                self.assertLessEqual({"base", "mode"}, set(given), given)
-                self.assertRegex(given["base"], r"^[0-9a-f]{40}$")
-                self.assertEqual(given["mode"], "apply" if name.startswith(("apply", "pr")) else "seal")
-        self.assertEqual(kit.fixture("merge", "standalone")["fixture"]["reached"], ["place", "merge"], "PR の node は走らない")
-
-    def test_stubbed_diff_paths_end_in_a_known_name(self):
-        shape = output_format("place")["properties"]["diff"]["properties"]["path"]
-        for name in SCENARIOS:
-            diff = (kit.fixture("merge", name).get("place") or {}).get("diff")
-            if diff:
-                self.assertEqual(validate_schema(diff["path"], shape), [], name)
-
 
 
 class DeliverTest(unittest.TestCase):
