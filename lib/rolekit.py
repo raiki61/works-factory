@@ -65,7 +65,7 @@ class BoardGap(Exception):
     """内部の誤り（表の欠け・配線の誤り・保存できない盤面への保存・効かない差し替え）。役に返しても直らない"""
 
 
-GIVE_UP_AFTER = 3                       # 輪の max_iterations と同じ数（ブロックの試験が YAML と突き合わせる）
+GIVE_UP_AFTER = 3                       # 受け付けの輪の max_iterations はこの数以上（tests/layers/test_loop_bounds.py が YAML を照らす）
 # 計画と事前審査の受け付けの網（方針 net）。回数の上限で諦めない受け付けの輪に置く、届かない大きさの数（輪の max_iterations と
 # 同じ数。線の計画の往復の網と同じ 20。ブロックの試験が YAML と突き合わせる）
 NET_AFTER = 20

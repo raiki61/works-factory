@@ -35,7 +35,8 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 - YAML に指示の文を書かない: `loop:` の node・`agents:`・`on_reject` と `decisions` の `rework` の `prompt` は使わない（`loop_group` と prep で書く）。
 - 試験は `tests/blocks/<block の名の - を _ にした物>/`。助けは `tests/blocks/kit.py`。筋書きで届かない AI の node（`workflow:` の `fan_out:` の先・loop の 2 周目だけに回る node）の指示は、block の試験 `test_prompts.py` の表 `RENDERED` に行を置いて照らす。
 - 単独で回す: `bin/works-factory workflow run works-factory-<block> --cwd <対象> --input <名>=<値>`。
-- 機械: `tests/layers/test_block_shape.py`（`docs/design/README.md` の 7.1 の yes/no）。
+- 受け付けの輪（`until_bash` が受け付けの `done` を読む `loop_group`）の `max_iterations` は `lib/rolekit.py` の `GIVE_UP_AFTER` 以上にする（諦める前に輪が尽きない。keep-essence の 4）。
+- 機械: `tests/layers/test_block_shape.py`（`docs/design/README.md` の 7.1 の yes/no）・`tests/layers/test_loop_bounds.py`（受け付けの輪の上限）。
 
 ## E1 YAML は変換せずに Archon に渡す
 
