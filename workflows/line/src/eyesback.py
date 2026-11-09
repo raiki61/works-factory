@@ -54,6 +54,7 @@ UNRETURNED = "独立の目が返す項目を挙げたが、修正の段へ返さ
 UNFIXED = "返したが直せなかった項目: {items}"
 SEALED_BEFORE = "封じに出したのは {round} 周目に返す前の状態（最後の試験と独立の目を通った物）"
 KEPT_AWAY = "返した段の書き換えは作業ツリーから戻し、{kept} に差分として控えた（git apply で戻せる）"
+KEPT_AT = "返した段の書き換えは {kept} に差分として控えた（git apply で戻せる）"
 UNTOUCHED = "返した段は作業ツリーを変えていなかった"
 RESTORE_FAILED = "返す前の状態へ戻せなかった（{reason}）"
 NO_RESTORE_RECORD = "戻しの結末の記録が無い"
@@ -329,7 +330,7 @@ def current(eyes_back, fixed, tests, eyes) -> tuple:
 
 # ---------------------------------------------------------------- 返した周の行
 def _sealed_lines(exit_: str, checkpoint, back_restore) -> list:
-    """封じに出した状態の出どころの行: checkpoint（返す前の状態を封じた周の記録）が在れば封じたのが返す前の状態であることと戻しの結末を、
+    """封じに出した状態の出どころの行: checkpoint（返す前の状態を封じた周の記録）が在れば封じたのが返す前の状態であることと戻しの結末（戻せなくても控えが在ればその在りか）を、
     抜けた訳が差分の変わらなかった時は返す前と同じ状態であることを言う"""
     out = []
     if isinstance(checkpoint, dict):
@@ -338,6 +339,8 @@ def _sealed_lines(exit_: str, checkpoint, back_restore) -> list:
             out.append(NO_RESTORE_RECORD)
         elif back_restore.get("reason"):
             out.append(RESTORE_FAILED.format(reason=back_restore["reason"]))
+            if back_restore.get("kept"):
+                out.append(KEPT_AT.format(kept=back_restore["kept"]))
         elif back_restore.get("restored"):
             out.append(KEPT_AWAY.format(kept=back_restore.get("kept") or ""))
         else:

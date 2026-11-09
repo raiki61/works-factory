@@ -2195,7 +2195,7 @@ nodes:
         item_claims: *item_claims
         checkpoint: *back_checkpoint
   # 21.9 封じる前に作業ツリーを返す前の木へ戻す（作業ツリーを書く節。mutates_checkout の鍵は書かず、tests/layers/scan.py の CHANGE_CHECKOUT に訳を書く）。
-  # 返した段が止まった・落ちた・変えなかった抜け方は、返す前の状態（checkpoint が在る）を封じるが、返した段の試験を通っていない書き換えが作業ツリーに
+  # 返した段が止まった・落ちた抜け方は、返す前の状態（checkpoint が在る）を封じるが、返した段の試験を通っていない書き換えが作業ツリーに
   # 残る。封じと当ては今の作業ツリーを読むので、封じる前に返す前の木へ戻し、書き換えは置き場の eyes-back-kept.patch に控える。checkpoint が null の run と、
   # 指紋がもう作業ツリーと合う run は触らない。戻せない・合わない時は封じ自身の指紋の照らしが拒む。when は封じと同じ式
   - id: eyes-back-restore

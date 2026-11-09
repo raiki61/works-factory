@@ -712,6 +712,7 @@ class AskFinalCase(unittest.TestCase):
         for mode in ("when_needed", "protected_only"):
             self.assertTrue(self.ask(failed, mode=mode)["open"], mode)
         self.assertIn(eb.RESTORE_DIFFERS, self.ask(failed, mode="protected_only")["text"])
+        self.assertIn("k.patch", self.ask(failed, mode="protected_only")["text"], "戻せなくても控えの在りかを言う")
 
     def test_internal_error_round_opens_and_says_the_seal_is_the_state_before_the_return(self):
         """返した周の節が中の誤りで落ちて、次の周の頭が返す前の状態を持ち越した記録（exit が輪の節が落ちた・checkpoint が在る）では、最後の承認ノードは
