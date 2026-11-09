@@ -353,9 +353,27 @@ class NotesCase(TalkBase):
         self.put("plan-converge.json", doc)
         return {**po, "round": over.get("round", len(blocks))}
 
+    # 判断が分かれる行だけの表（周の種類, 受け箱の中身, 前の周の審査役の中央の block と受け箱の行の前後, 関所への答え, 関所の間に指摘を足すか）。
+    # 前半は関所を開くか・承認で飛ぶかが分かれる行（相談の結果の周か・承認の前後に中央の物が在るか・端か・上限か）、後半は関所の答えの結末が
+    # 分かれる行（合意で修正へ進むか報告で終わるか・修正要望で設計し直すか上限で止めるか・空の修正要望で聞き直すか・保留の句が出る周）
+    PROMISE_ROWS = (
+        ("収まった", "承認", "無し", None, False), ("計画ができなかった", "承認", "無し", None, False),
+        ("収まった", "承認", "承認より前", None, False), ("収まった", "承認", "承認より後", "直す", True),
+        ("収まった", "承認", "審査の前", "合意", False), ("収まった", "中央と承認", "無し", None, False),
+        ("収まった", "端と承認", "承認より前", None, False), ("収まった", "中央と承認", "承認より前", None, False),
+        ("上限で止まった", "承認", "無し", None, False),
+        ("収まった", "無し", "無し", "合意", False), ("直す義務が無い", "無し", "無し", "合意", False),
+        ("収まった", "無し", "無し", "直す", False), ("上限", "無し", "無し", "直す", False),
+        ("収まった", "無し", "無し", "空の直す", False), ("収まった", "無し", "無し", "空の直す", True),
+        ("上限", "無し", "無し", "空の直す", True), ("止まった", "無し", "無し", "止める", True),
+        ("収まった", "端", "承認より前", "合意", True), ("上限", "中央", "無し", "空の直す", True),
+        ("計画ができなかった", "端", "無し", "合意", False), ("審査が諦めた", "中央と承認", "無し", "合意", True),
+        ("上限で計画ができなかった", "承認", "承認より前", "直す", False),
+    )
+
     def test_rounds_inboxes_and_answers_keep_three_promises(self):
-        """周の種類 × 受け箱の中身 × 前の周の審査役の中央の block × 関所への答え × 関所の間の指摘の組で、3 つの約束を照らす
-        （docs/design/line.md の 3.1 節。見直しの A・B・C・1 もこの表で照らす）。
+        """周の種類 × 受け箱の中身 × 前の周の審査役の中央の block × 関所への答え × 関所の間の指摘の組のうち、判断が分かれる行（PROMISE_ROWS）
+        で 3 つの約束を照らす（docs/design/line.md の 3.1 節。見直しの A・B・C・1 もこの表で照らす）。
         1 黙って落とさない: 受け箱の指摘は、計画の役（依頼の答えの行）・関所の文・答えの一言・承認の一言のどれかに必ず届く
         2 承認: 関所を飛んで合意で進むのは、承認の後に中央の物（人の中央の行・revise の一言・審査役が初めて出した中央の block）が無く、
           相談の結果を見せる周でなく、回していない中央の指摘が無い時だけ。承認より前の周に出た審査役の block は承認を取り消さない
@@ -369,12 +387,11 @@ class NotesCase(TalkBase):
         consults = {"計画ができなかった", "上限で計画ができなかった", "直す義務が無い"}
         inboxes = {"無し": (), "中央": ("b.py も直す",), "端": ("端: 名前を揃える",), "承認": ("承認: 進めて",),
                    "中央と承認": ("b.py も直す", "承認: 進めて"), "端と承認": ("端: 名前を揃える", "承認: 進めて")}
-        # 前の周の審査役の中央の block と、受け箱の行の前後。審査の前: 2 周目の頭が読んだ後・2 周目の審査の前に行が入り、2 周目の審査が新しい
-        # 中央の block b2 を出す（行はその周の審査を見ずに書かれた物なので、b2 より前に並ぶ）
-        befores = ("無し", "承認より前", "承認より後", "審査の前")
-        answers = (None, {"decision": "approve", "text": ""}, {"decision": "revise", "text": "c.py も"}, {"decision": "revise", "text": ""},
-                   {"decision": "stop", "text": "やめる"})
-        combos = [(k, n, w, a, d) for k in kinds for n in inboxes for w in befores for a in answers for d in ((), ("d.py も",))]
+        # 前の周の審査役の中央の block と、受け箱の行の前後（無し・承認より前・承認より後・審査の前）。審査の前: 2 周目の頭が読んだ後・2 周目の
+        # 審査の前に行が入り、2 周目の審査が新しい中央の block b2 を出す（行はその周の審査を見ずに書かれた物なので、b2 より前に並ぶ）
+        answers = {None: None, "合意": {"decision": "approve", "text": ""}, "直す": {"decision": "revise", "text": "c.py も"},
+                   "空の直す": {"decision": "revise", "text": ""}, "止める": {"decision": "stop", "text": "やめる"}}
+        combos = [(k, n, w, answers[a], ("d.py も",) if d else ()) for k, n, w, a, d in self.PROMISE_ROWS]
         for kind, name, before, said, during in combos:
             with self.subTest(kind=kind, inbox=name, before=before, answer=said, during=during):
                 over, lines = kinds[kind], inboxes[name]
