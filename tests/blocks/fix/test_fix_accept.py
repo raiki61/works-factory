@@ -1993,6 +1993,13 @@ class UnboundSitesNeedChangeCase(_LSrc):
         _, row = self.build(self.sites(["a.py"] * 5), touched=["a.py"])
         self.assertEqual((row["covered"], row["closed"]), (1, False), row)
 
+    def test_unbound_without_touched_covers_nothing_and_says_why(self):
+        _, row = self.build(self.sites(self.FIVE), touched=None)
+        self.assertEqual((row["covered"], row["closed"]), (0, False), row)
+        self.assertTrue(row["discrepancies"][0].startswith("ファイルごとに数えられない"), row)
+        self.assertEqual(row["discrepancies"][1:], [unitrows.UNKNOWN_CHANGES],
+                         "覆いを数えなかった理由を足し、覆いから出る食い違い（remaining が無い）を重ねない")
+
 
 class GroundsCase(_LSrc):
     def setUp(self):

@@ -1,8 +1,9 @@
 """修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
-結び・組の子を起こす node が落ちた子で止まる・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・書き手の鎖の when と with:。
+結び・組の子を起こす node が落ちた子で止まる・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・書き手の鎖の when と with:・読むだけの役。
 
 2026-11-10 の削りで残したのは、壊すと赤になるのがこの試験だけの物（筋書きは書き手の鎖の型ごとの when の取り違えを通す）。返す node
-finish の all_done と待ちは tests/workflows の全体の検査、役の起こし方と書く道具は tests/layers が見る"""
+finish の all_done と待ちは tests/workflows の全体の検査、起動スクリプトの書き直し役の起こし方は tests/layers が見る。読むだけの役が
+書く印も書く道具も持たないこと（RolesCase）は、tests/layers が印と道具の食い違いだけを見るので残す"""
 import pathlib
 import sys
 import unittest
@@ -21,6 +22,7 @@ import rolekit  # noqa: E402
 AI_NODES = ("consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
 ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
 #                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）
+WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
 
 
 def top(doc=DOC) -> dict:
@@ -179,6 +181,17 @@ class WriterChainCase(unittest.TestCase):
                 self.assertEqual({k: v for k, v in body[accept]["with"].items() if k.startswith("reply_")}, want)
                 self.assertEqual(set(body[accept]["with"]) - set(want), {"consulted"})
                 self.assertEqual(set(body[check]["with"]) - set(want) - set(absent), {"pass"})
+
+
+class RolesCase(unittest.TestCase):
+    def test_readers_do_not_write(self):
+        """裁定役と相談の答えの役は作業ツリーを変えない（mutates_checkout: false・書く道具を持たない）。tests/layers の照らしは印と道具の
+        食い違いだけを見るので、両方を書く側へ替えた YAML はこの 1 本だけが赤にする"""
+        for nid in ("ruler", "consult-answer", "ruled-consult-answer"):
+            with self.subTest(node=nid):
+                n = every()[nid]
+                self.assertIs(n.get("mutates_checkout"), False)
+                self.assertFalse(set(n["allowed_tools"]) & WRITE_TOOLS)
 
 
 if __name__ == "__main__":

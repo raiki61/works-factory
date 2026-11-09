@@ -1280,10 +1280,28 @@ class TestFixPhaseFreezesOtherTests(ContractCase):
         self.assertFalse(got["ok"])
         self.assertIn(self.LOW, got["reason"])
 
+    def test_refactor_phase_edit_of_other_test_rejected(self):
+        self.red()
+        got = self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.st()["phase"], "refactor")
+        self.edit("test_other.py", "self.assertEqual(clamp(-1, 0, 10), 0)", "self.assertTrue(True)")
+        got = self.step({"phase": "refactor", "unit_key": CLAMP, "what": "テストの補助を整えた"})
+        self.assertFalse(got["ok"])
+        self.assertIn(self.LOW, got["reason"])
+
     def fix_with(self, old, new):
         self.red()
         self.edit("test_other.py", old, new)
         return self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})
+
+    def refactor_with(self, old, new):
+        self.red()
+        got = self.step({"phase": "fix", "unit_key": CLAMP, "files": ["stats.py"], "what": "上限の枝で hi を返す"})
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(self.st()["phase"], "refactor")
+        self.edit("test_other.py", old, new)
+        return self.step({"phase": "refactor", "unit_key": CLAMP, "what": "テストの補助を整えた"})
 
     def assert_vanished(self, got, outcome):
         self.assertFalse(got["ok"])
@@ -1296,6 +1314,12 @@ class TestFixPhaseFreezesOtherTests(ContractCase):
 
     def test_fix_phase_del_rejected(self):
         self.assert_vanished(self.fix_with(*OTHER_DEL), "missing")
+
+    def test_refactor_phase_skip_rejected(self):
+        self.assert_vanished(self.refactor_with(*OTHER_SKIP), "skipped")
+
+    def test_refactor_phase_del_rejected(self):
+        self.assert_vanished(self.refactor_with(*OTHER_DEL), "missing")
 
     def test_fix_phase_syntax_error_named_as_such(self):
         got = self.fix_with("    def test_low(self):\n", "    def test_low(self:\n")

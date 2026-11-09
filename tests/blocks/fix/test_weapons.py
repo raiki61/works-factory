@@ -336,6 +336,22 @@ class WeaponDutiesCase(unittest.TestCase):
             with self.subTest(site=site):
                 self.assertTrue(any("赤を見た sites の行" in t for t in duties.check("pin", {**f, "sites": [site]})))
 
+    def test_variant_asks_the_unit_for_a_site_that_saw_it_red(self):
+        """variant の表（duties.check）は、単位の sites のどれかが赤を見た記録（red_seen）を求める（受け付けを通した照らしの代わりの速い 1 本。
+        義務の関数 unit_red が型の表 DUTIES から外れると赤）"""
+        f = {"unit": "u", "named": ["test_a.py::test_x"], "before": {"test_a.py::test_x": "failure"},
+             "after": {"test_a.py::test_x": "passed"}, "class_query": None, "red_seen": True}
+        self.assertEqual(duties.check("variant", f), [])
+        self.assertTrue(any("red_seen" in t for t in duties.check("variant", {**f, "red_seen": False})))
+
+    def test_static_asks_a_row_for_each_kind_it_touched(self):
+        """static の表（duties.check）は、差分の種類ごとに evidence.kinds の確かめの行を求める（受け付けを通した照らしの代わりの速い 1 本。
+        義務の関数 kinds_rows が型の表 DUTIES から外れると赤）"""
+        f = {"unit": "u", "why_untested": "文書の言い回しだけを直す", "kinds": ["docs"], "allowed_kinds": ["docs"],
+             "kind_by_path": {"README.md": "docs"}, "test_files": [], "kinds_rows": [{"kind": "docs", "did": "読み直した"}]}
+        self.assertEqual(duties.check("static", f), [])
+        self.assertTrue(any("evidence.kinds" in t for t in duties.check("static", {**f, "kinds_rows": []})))
+
     def test_pin_twice_reads_the_run(self):
         self.assertEqual(pin.twice({"twice": None}), [])
         self.assertEqual(pin.twice({"twice": ["2 回目に落ちた"]}), ["2 回目に落ちた"])
