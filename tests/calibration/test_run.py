@@ -615,6 +615,21 @@ class RunTest(RunnerCase):
         self.assertIn("owner_repo_99-nothing", done.stderr)
         self.assertFalse(self.attempts.exists())
 
+    def test_old_works_resume_answers_stop_at_human_gate(self):
+        self.set_plan(waits=[1])
+        self.assertEqual(self.run_tasks("works", self.one).returncode, 1)
+        self.log.unlink()
+        self.set_plan(resume_waits=[3, 0], respond_waits=[3, 5])
+        self.assertRan(self.run_tasks("works", self.one, extra=["--resume"]))
+        rid = "b5c6d7e8-0000-old"
+        self.assertEqual([c["args"][1:5] for c in self.calls("continue.sh")],
+                         [["workflow", "resume", rid], ["workflow", "respond", rid, "stop"]])
+        [respond] = [c for c in self.calls("continue.sh") if c["args"][2] == "respond"]
+        self.assertIn("WORKS_USE_UNATTENDED=1", respond["args"][5])
+        self.assertEqual(respond["env"]["WORKS_DEV_HOME"], str(self.attempt(self.one) / "home"))
+        self.assertEqual(self.verbs("use.sh").count("wait"), 4)
+        self.assertEqual([r["key"] for r in self.records("works")], [self.one])
+
     def test_unreadable_events_stop_the_row(self):
         self.set_plan(events_unreadable="not json")
         done = self.run_tasks("works-factory", self.one)
@@ -782,6 +797,18 @@ class RunTest(RunnerCase):
         self.assertEqual(done.returncode, 1, done.stderr)
         self.assertIn("target", done.stderr)
         self.assertEqual([p.read_bytes() for p in written], before)
+
+    def test_convert_command_waits_for_no_runner(self):
+        self.assertRan(self.run_tasks("works-factory", self.one))
+        kept = self.out / "works-factory" / "convert" / f"{self.one}.json"
+        before = kept.read_bytes()
+        fd = os.open(self.attempts / ".lock", os.O_CREAT | os.O_RDWR)
+        self.addCleanup(os.close, fd)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        done = self.runner("convert", "works-factory", "--attempts", str(self.attempts), "--out", str(self.out))
+        self.assertEqual(done.returncode, 2, done.stderr)
+        self.assertIn("別のランナー", done.stderr)
+        self.assertEqual(kept.read_bytes(), before)
 
     def test_nodes_command_writes_json_and_md(self):
         self.assertRan(self.run_tasks("works-factory", self.one))

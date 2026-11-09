@@ -528,14 +528,15 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 
 2026-11-10 の削り（起動の殻・pack の形・道具。持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込み・承認・起動の認証と隔離・片付けを守らない試験と、同じ判断の 2 度目を落とした。消した物と、同じ判断を今守る試験:
 
-- `tests/bin/test_runstop.py`: 止めた Archon で回す 2 本（前で起こした run の子の run を片付ける・短い id で子の run を止める）を、配線を見る速い `CancelWiringTest` に替えた（短い id を完全な id に直してから子の run とプロセスを探す・持ち主を止めたら子の run を abandon に渡す。どちらも本体の 1 行を壊すと赤）。片付けの本体は残る 6 本（run と子の run・並びの run・前の run の持ち主ごと・子の run だけ・割り込んだ前の run・持ち主の消えた孤児）。
-- `tests/bin/test_launcher.py`: キャッシュの寿命の 2 本を判断ごとに代表 1 つの `test_run_layer_carries_the_prompt_cache_ttls` に畳んだ。同時数の上限は、渡した時だけ書く・自分の鍵だけ・1 行の形なら書かずに止める・渡さなければ触らない・正の整数だけの 5 本が残る（落とした 3 本は言い方・同じ値で書き直さない・改行の形）。落ちた run の終了の値と訳は `test_run_that_lost_origin_after_start_says_so` の 1 本（記録の置き場の文のほかの 6 本は落とした）。利用者の権限で走らせる告知は `test_users_home_reaches_target_commands_whether_or_not_a_switch_is_set` が見る。README の例の字の `ReadmeUsageTest` は落とした。
+- `tests/bin/test_runstop.py`: 止めた Archon で回す 2 本（前で起こした run の子の run を片付ける・短い id で子の run を止める）を、配線を見る速い `CancelWiringTest` に替えた（短い id を完全な id に直してから子の run とプロセスを探す・持ち主を止めたら子の run の一覧を `abandon_running` に渡す。どちらも `cancel` の 1 行を壊すと赤）。`abandon_running` の中で running の子だけに `workflow abandon` を打つ枝は、`AbandonRunningTest.test_only_running_child_runs_are_abandoned` が見る（Archon は要らない）。片付けの本体は残る 6 本（run と子の run・並びの run・前の run の持ち主ごと・子の run だけ・割り込んだ前の run・持ち主の消えた孤児）。
+- `tests/bin/test_launcher.py`: キャッシュの寿命の 2 本を判断ごとに代表 1 つの `test_run_layer_carries_the_prompt_cache_ttls` に畳んだ。同時数の上限は、渡した時だけ書く・自分の鍵だけ・1 行の形なら書かずに止める・渡さなければ触らない・同じ値なら書き直さず一時ファイルを残さない・CRLF を保つ・正の整数だけの 7 本が残る（隔離した Archon の家の config.yaml への書き込みなので、一度落とした 2 本を戻した。落としたのは言い方の 1 本だけ）。落ちた run の終了の値と訳は `test_run_that_lost_origin_after_start_says_so` の 1 本（記録の置き場の文のほかの 6 本は落とした）。利用者の権限で走らせる告知は `test_users_home_reaches_target_commands_whether_or_not_a_switch_is_set` が見る。README の例の字の `ReadmeUsageTest` は落とした。
 - `tests/bin/test_toolset.py`: 新しい版の知らせ（保守の道具で run に関わらない）は、数で比べて契約を当てる・読めない時に「無い」と閉じない 3 本・何も書かない、の 5 本。CLI の `--claude` の配線は殻の試験が見る（壊すと `test_launcher.py` の 100 本余りが赤）。消えた種類 mcp の `McpCase` は落とした。
 - `tests/bin/test_auth_launch.py`: 案内の字は、値を出さない確かめの命令の 1 本だけ。
 - `tests/shared/test_fence.py`: 起動の記録を読む `fenced_since`（読み手は試験だけ）の試験と、記録を書く 2 本・README の字を落とした。柵そのもの（書けない所・本物の claude で書けないことの実測）は残る。
 - `tests/e2e/`: 照らしの表 `evidence.json` の行の中身を決め打つ 4 本（id の重なり・waits-part の行・seed-cannot の 2 行・handed-off の欄）・種の字の `SeedTextCase`・要約 `scenario.md` の節の並びを落とした。行の形の崩れを拒む `row_problem` は `test_every_row_has_a_known_kind_and_fields` が見る（一度消したが、壊しても残りが赤にならなかったので戻した）。Archon を起こす通しの試験（run_env・run_groups・resume_probe・loop_prev）は版上げで最初に赤になる約束なので触っていない。
-- `tests/calibration/`: 元の works の作法の 3 本・convert の命令の 2 度目の 3 本・参照の位置の解き方の細目 5 本・箱の確かめが言う層の名 6 本・子モジュールの写しの道の片側と作りの言い方 5 本を落とした。結末を機械の記録から読む・読めない結末を名指す・資格を出さない・網の外へ出ない・封じた差分の当てと取りは残る。
+- `tests/calibration/`: 元の works の作法の 2 本・convert の命令の 2 度目の 2 本・参照の位置の解き方の細目 5 本・箱の確かめが言う層の名 6 本・子モジュールの写しの道の片側と作りの言い方 5 本を落とした。結末を機械の記録から読む・読めない結末を名指す・資格を出さない・網の外へ出ない・封じた差分の当てと取り・元の works の承認ノードに stop と答える（`test_old_works_resume_answers_stop_at_human_gate`）・別のランナーが錠を持つ間は控えを書き直さない（`test_convert_command_waits_for_no_runner`）は残る（後の 2 本は一度落とし、壊しても残りが緑だったので戻した）。
 - `tests/workflows/`: 型を割った時の書き手の移しの照らし（付録 A の行と返答の形の `test_weapon_assets.py`、23 の組の控えとの比べ）を落とし、`test_writer_prompts_kept.py` を場面ごとの段落の真偽の代表（型 1 つの 4 つの場面）に縮めた。`prompt.render` は真偽の誤りを拒まないので、却下・続きの周・裁定の段落を偽にする壊しはこの代表が赤にする。筋書きの注記の字の `test_fixture_claims.py` は落とした。
+- 直さずに残した薄い所（審査で壊しても緑と分かり、守らないと決めた物）: 書き手の返答の形 `writer-reply.schema.json` の必須の欄（例 `security_surface_changed`）を外しても赤にならない。形の試験として外す範囲で、security のレビューはいつも走るので承認は変わらない。柵の起動の記録を書けない時に claude を起こさない判断も試験が無い。記録の読み手が無いので、記録の仕組みを消す PR を別に切る。
 
 ## 10 keep-essence の 12 の仕組みと、守る block と試験
 

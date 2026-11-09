@@ -281,6 +281,19 @@ class AbandonRunningTest(unittest.TestCase):
         self.assertIn("kid", lines[0])
         self.assertIn("archon workflow abandon kid --cwd /target", lines[0])
 
+    def test_only_running_child_runs_are_abandoned(self):
+        """running の子の run には workflow abandon <子> --cwd を打ち、running でない子には打たない（親は打たない）"""
+        archon = runstop.Archon(["archon"], {}, "/target")
+        status = {"kid-running": "running", "kid-done": "completed"}
+        archon.get = lambda run_id: {"id": run_id, "status": status[run_id]}
+        calls = []
+        with mock.patch.object(runstop.subprocess, "run",
+                               lambda argv, **k: calls.append(argv) or subprocess.CompletedProcess(argv, 0)), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            archon.abandon_running("parent", {"parent", "kid-running", "kid-done"})
+        self.assertEqual(calls, [["archon", "workflow", "abandon", "kid-running", "--cwd", "/target"]])
+        self.assertEqual(err.getvalue(), "")
+
 
 class RunIdTest(unittest.TestCase):
     def test_the_run_id_is_read_after_flags_and_their_values(self):
