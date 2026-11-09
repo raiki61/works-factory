@@ -1,6 +1,6 @@
 # works-factory
 
-> **Status: under construction.** The whole flow has run with real AI roles on a request (stage 1, the first stage of the build order, on the shape before the rebuild in issue #765; issue [#154](https://github.com/raiki61/works-factory/issues/154)), but the factory has not yet caught up with the tool it replaces, the current works (see "Related projects"), and known gaps remain: for example, a light run still costs as much time and money as a standard one (issue [#687](https://github.com/raiki61/works-factory/issues/687)). Everything except this README and the role prompts (English) is in Japanese. If you need a fix factory you can rely on today, use the current works. More in "Current status".
+> **Status: under construction.** The whole flow has run with real AI roles on a request (stage 1, the first stage of the build order, on the shape before the rebuild in issue #765; issue [#154](https://github.com/raiki61/works-factory/issues/154)), but the factory has not yet caught up with the tool it replaces, the current works (see "Related projects"), and known gaps remain: for example, a light run still costs as much time and money as a standard one (issue [#687](https://github.com/raiki61/works-factory/issues/687)). Everything except this README, the role prompts, and the table of standalone blocks `docs/standalone-blocks.json` (all English) is in Japanese. If you need a fix factory you can rely on today, use the current works. More in "Current status".
 >
 > Before trying it, check "Requirements". Words such as run, node, and approval node are explained in "Terms" at the end.
 
@@ -8,7 +8,7 @@ works-factory is a fix factory you can point at any repository. Hand it what you
 
 GitHub About: A dev factory on Archon that turns a fix request into a verified change for any repository: plans are reviewed before code is written, red tests are proven before fixes, every agent claim is checked against quoted evidence, and independent reviewers judge blind. Japanese only for now.
 
-For now the factory works in Japanese only: its messages and its reports are in Japanese, and so is every other document in this repository (`AGENTS.md`, `MISSION.md`, `docs/`). The exceptions are this README, the one English document for people, and the role prompts (one English file per AI node), which only the AI reads. Everything you need to install, run, answer, and apply is written here; the documents it points to, marked "(Japanese)", are background you can skip.
+For now the factory works in Japanese only: its messages and its reports are in Japanese, and so is every other document in this repository (`AGENTS.md`, `MISSION.md`, `docs/`). The exceptions are this README, the one English document for people; the table of standalone blocks `docs/standalone-blocks.json`, whose English text is shown to you through the "Running one block on its own" section of this README; and the role prompts (one English file per AI node), which only the AI reads. Everything you need to install, run, answer, and apply is written here; the documents it points to, marked "(Japanese)", are background you can skip.
 
 ## What it promises
 
@@ -64,7 +64,6 @@ The entry point is a single shell script, `bin/works-factory`, and you type Arch
 - Opening a PR (only when you choose it; by default the run only leaves the diff and writes nothing to the target): add `--input deliver=pr`. After the last approval node, the checked diff is committed onto the run's branch as one commit per item of the fix plan, in dependency order (the target's commit hooks are not skipped and run with your HOME and XDG). When the diff's paths cannot be assigned to the items, it is one commit from the start; when the hooks fail on one of the item commits, the run restacks the diff as one commit (if the hooks fail on that too, it stops without committing). The report says why it fell back to one commit. Then Archon's bundled `archon-pr` pushes that branch and opens a PR against the target's default branch (a draft by default). If the run's branch has the same name as the target's default branch, it stops without pushing. It does not merge (that is left to the target's review and rules). The second line of the report says where the PR is, why it stopped without opening one, or why it could not confirm that one was opened. The PR is opened with your gh login, under gh's current account (the active account in `gh auth status`), so switch gh to an account that can open PRs on the target repository before the run. The push is a plain `git push` and uses only the credentials git finds in the run's environment (the entry script does not pass git credentials, so if none are found, no PR is opened and the report says it could not confirm one). The AI roles, and gh as called by the target's commands such as its tests, get a read-only gh. In a round chain, the child runs open no PR; the chain run opens a single PR from the final diff (`deliver` in the chain's output `result`).
 - Where the run's files are: when a foreground `workflow run` ends (or stops at an approval node), the script prints one line to standard error, `works-factory: 記録の置き場: <directory>`. That directory holds the run's artifact files, such as the `review.json` a block's return value points to. The script finds the run in Archon's own record (the run whose owner process is the one the script started), so it does not guess when several runs start at once. If it cannot find the run, it says so in one line and the same path is in `workflow get <run> --json` under `terminal_record.artifacts.root`. A `--detach` run prints no such line, because the script does not wait for it.
 - Chaining rounds (the round chain `works-factory-chain`, `workflows/chain/`): `bin/works-factory workflow run works-factory-chain --cwd <target> --input rounds=<1-5> [--input budget_usd=<USD>] --input request=<request>`. Each round is one child run of the main graph; if anything remains, it becomes the next request and starts the next round, and the chain stops on a stop word (`STOPS` in `lib/chain.py`). With `budget_usd`, it stops when the next round could go over the limit and when a round's cost cannot be read. Approval nodes inside a round stop in the child run, so the `<run>` you answer is the child run's id (see it with `workflow status`); once you answer, the parent continues. It cannot be started with `--no-worktree` (it commits each round's result onto the branch of the run's worktree). To apply, use `bin/apply <chain run>`; it applies the cumulative diff from the original base through the round it takes, which is the last round that did not stop (searching back from the final round). Diffs of stopped rounds are not taken; they are left in the chain run's directory and named in that directory's `chain.md` together with a per-round table and the totals.
-- Running one block on its own: every block (one viewpoint, such as the world check) runs alone with only its inputs and the target, for example `bin/works-factory workflow run works-factory-world --cwd <target> --input request='[{"where":"README","text":"…"}]' --input web=on`. Here `works-factory-world` is the world check (世界の解, in `workflows/world/`; design `docs/design/world.md`): it restates each request line as a problem class and compares the request's approach with industry practice quoted from primary sources. Each block's inputs are in its design document `docs/design/<block>.md` (Japanese).
 - This factory's graphs (`workflows/`) are passed to Archon only for `workflow run`. They do not reach `trigger` or `chat`.
 - A run copies only `workflows/` at its start, so changing this repository's `lib/` while it runs affects that run.
 - Optional settings are environment variables (with none set, it runs on your existing Claude Code and gh logins):
@@ -90,6 +89,149 @@ The entry point is a single shell script, `bin/works-factory`, and you type Arch
 - Login credentials expire after a few hours, so for long runs put a token made with `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN` when starting the script.
 
 From Claude Code, the same will be possible with `/works` (the works plugin of raiki61/claude-plugins).
+
+### Running one block on its own
+
+A block is one viewpoint of the factory (for example the world check, `works-factory-world`, in `workflows/world/`). The blocks listed below can each be started as a run of their own, outside the main graph: they need only their inputs and the target repository, and what they return is something you can read as it is. That is how they were chosen; the other blocks depend on what the main graph hands them. Every other block can still be started the same way, and its inputs are in its design document `docs/design/<block>.md` (Japanese).
+
+- Give the same `--cwd <target>` path you give the factory. A run's record is kept under a home chosen from that path, so a block run on one path is not found by the factory's runs on another.
+- The files a block's returned JSON points to are in the run's record: the directory printed on the `works-factory: 記録の置き場:` line, as described under "Where the run's files are" above.
+- Do not start several runs on a target the factory has not touched yet at the same time: they set up the same folder and fail together. Wait for the first run's `Running workflow:` line, then start the rest.
+- For a whole command with its inputs, see `world` below.
+- Each example below shows only the inputs a person types. The values are placeholders; replace them with your own.
+
+<!-- standalone_blocks_begin -->
+#### `plan-review`
+
+> Read before calling: this block spends real model budget (see the measured cost below); check it before you start the run.
+
+Returns: A pre-implementation review of a plan or policy text: the holes it finds (each with a kind, a location, a reason and a severity) and alternative approaches that would avoid them.
+
+| Input | Required | Default | What to give |
+| --- | --- | --- | --- |
+| `proposal_file` | no | `""` | Path to a text file holding the plan or policy text to attack before anything is written. It is read as plain text, even when its content is JSON. |
+| `purpose` | no | `""` | The goal in one sentence. Empty means no goal is given. |
+
+22 more inputs are wired by the main graph; leave them at their defaults.
+
+```sh
+bin/works-factory workflow run works-factory-plan-review --cwd <target> --input proposal_file=./proposal.md --input purpose='State the goal in one sentence'
+```
+
+Return node: `finish`.
+
+Time and cost: measured on 2026-10-21 (1 run, model Claude Opus, effort high (model group wf-plan-review)): 9 min 50 s wall time, $4.00 (run `abab34c9`).
+
+Reading the return: The `holes` pointer in the returned JSON points to `review.json`; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`) and read its `faces` list.
+
+#### `independent-design`
+
+Returns: Whether the goal's question stands, and if it does, an ideal design drawn only from the goal and the constraints, as a list of elements.
+
+| Input | Required | Default | What to give |
+| --- | --- | --- | --- |
+| `purpose` | yes | (none) | The goal in one sentence. |
+| `constraints` | no | `[]` | A JSON array of measured constraints, each `{text, measured_how, kind}`. Empty means none. |
+
+8 more inputs are wired by the main graph; leave them at their defaults.
+
+```sh
+bin/works-factory workflow run works-factory-independent-design --cwd <target> --input purpose='State the goal in one sentence'
+```
+
+Return node: `finish`.
+
+Time and cost: measured on 2026-10-21 (1 run, model Claude Opus, effort high (model group wf-plan-review)): 61 s wall time, $0.19 (run `89c8ef8e`).
+
+Reading the return: The `design` pointer in the returned JSON points to the design file; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). Compare its elements with your own design to find what you left out or assumed.
+
+#### `premises`
+
+Returns: The numbers, sizes, counts and exists-or-not claims in the request lines, measured again in the target, each with the command that was run and its output.
+
+| Input | Required | Default | What to give |
+| --- | --- | --- | --- |
+| `request` | yes | (none) | A JSON array of request lines, each `{where, text}`. The claims to measure are in `text`. |
+
+2 more inputs are wired by the main graph; leave them at their defaults.
+
+```sh
+bin/works-factory workflow run works-factory-premises --cwd <target> --input request='[{"where":"README","text":"The script has 3 entry points"}]'
+```
+
+Return node: `finish`.
+
+Time and cost: measured on 2026-10-21 (1 run, model Claude Sonnet, effort medium (model group wf-judge-materials)): 53 s wall time, $0.23 (run `5574c2b8`).
+
+Reading the return: The `constraints` pointer in the returned JSON points to `premises.json`; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). Each row is a measured fact; picking the rows that contradict your text is up to you.
+
+#### `prior-decisions`
+
+Returns: The points already settled in the target's decision records (documents, ADRs and the like) that touch the request lines, so that a new text does not contradict them.
+
+| Input | Required | Default | What to give |
+| --- | --- | --- | --- |
+| `request` | no | `[]` | A JSON array of request lines, each `{where, text}`. |
+| `entry` | no | `""` | Where the text came from, in one sentence. Empty means the run does not start from a judgment. |
+
+2 more inputs are wired by the main graph; leave them at their defaults.
+
+```sh
+bin/works-factory workflow run works-factory-prior-decisions --cwd <target> --input request='[{"where":"README","text":"Move the table to docs/"}]' --input entry='A conversation about the README'
+```
+
+Return node: `finish`.
+
+Time and cost: measured on 2026-10-21 (1 run, model Claude Sonnet, effort medium (model group wf-judge-materials)): 50 s wall time, $0.26 (run `fac6fefc`).
+
+Reading the return: The `material` pointer in the returned JSON points to `material.json`; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). A contradiction is described in the `detail` text of a point; there is no separate flag.
+
+#### `world`
+
+Returns: Each request line restated as a problem class without the proposed approach, compared with established practice quoted from primary sources, with a verdict of same or different for each class.
+
+| Input | Required | Default | What to give |
+| --- | --- | --- | --- |
+| `request` | yes | (none) | A JSON array of request lines, each `{where, text}`. |
+| `purpose` | no | `""` | The goal in one sentence. Empty means no goal is given. |
+| `web` | no | `on` | `on` searches the web for sources; `off` searches nothing and writes from knowledge only. |
+
+2 more inputs are wired by the main graph; leave them at their defaults.
+
+```sh
+bin/works-factory workflow run works-factory-world --cwd <target> --input request='[{"where":"README","text":"Cache the build output"}]' --input web=on
+```
+
+Return node: `finish`.
+
+Time and cost: measured on 2026-10-21 (1 run, model Claude Opus, effort high for one node and Claude Sonnet, effort medium for two (model groups wf-judge-core and wf-judge-materials)): 85 s wall time, $0.19 (run `e9c3ef35`).
+
+Reading the return: The `rows` pointer in the returned JSON points to `world.jsonl`, one row per class; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). A row whose `versus.verdict` is `differs` is a finding; a row with `basis: knowledge` has no source and rests on the model's knowledge.
+
+#### `diagnose`
+
+> Read before calling: this block spends real model budget (see the measured cost below); check it before you start the run.
+
+Returns: The request lines cut into root-cause units, each with a label, a disposition, a prescription and a way to count the defect, plus the questions that need a human answer.
+
+| Input | Required | Default | What to give |
+| --- | --- | --- | --- |
+| `request` | no | `[]` | A JSON array of request lines, each `{where, text}`. An empty array means no request lines. |
+| `request_origin` | no | `""` | Where the request lines came from, in one sentence. |
+| `purpose` | no | `""` | Path to a purpose file `{purpose_text, source, known_weaknesses, source_files}`. Empty means no goal is given. |
+
+24 more inputs are wired by the main graph; leave them at their defaults.
+
+```sh
+bin/works-factory workflow run works-factory-diagnose --cwd <target> --input request='[{"where":"README","text":"The list of blocks is missing"}]' --input request_origin='A conversation about the README'
+```
+
+Return node: `finish`.
+
+Time and cost: measured on 2026-10-21 (1 run, model Claude Opus, effort high (model group wf-judge-core)): 11 min 20 s wall time, $3.18 (run `a26fd71f`).
+
+Reading the return: The `judgment` pointer in the returned JSON points to the judgment file, and the returned `units` and `questions` summarise it; open the file under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`).
+<!-- standalone_blocks_end -->
 
 ### Choosing the approval nodes
 
@@ -277,7 +419,7 @@ The root holds this factory's own things side by side with what ASF's install co
 
 ## Documents
 
-All in Japanese. You do not need them to use the factory.
+All in Japanese, except `docs/standalone-blocks.json` (English; the source of the "Running one block on its own" section above). You do not need them to use the factory.
 
 - `MISSION.md`: the goal and what is out of scope
 - `AGENTS.md` (at each level): the build rules for AI (read before writing code and before reviewing). `engineering.md`, the file ASF's AI roles read first when they work on this repository, only points there

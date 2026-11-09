@@ -1,0 +1,129 @@
+{
+  "blocks": [
+    {
+      "block": "plan-review",
+      "returns_en": "A pre-implementation review of a plan or policy text: the holes it finds (each with a kind, a location, a reason and a severity) and alternative approaches that would avoid them.",
+      "read_en": "The `holes` pointer in the returned JSON points to `review.json`; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`) and read its `faces` list.",
+      "inputs": {
+        "proposal_file": "Path to a text file holding the plan or policy text to attack before anything is written. It is read as plain text, even when its content is JSON.",
+        "purpose": "The goal in one sentence. Empty means no goal is given."
+      },
+      "example": {
+        "proposal_file": "./proposal.md",
+        "purpose": "State the goal in one sentence"
+      },
+      "measured": {
+        "date": "2026-10-21",
+        "runs": 1,
+        "model": "Claude Opus, effort high (model group wf-plan-review)",
+        "wall": "9 min 50 s",
+        "cost_usd": 4.0,
+        "run_id": "abab34c9"
+      }
+    },
+    {
+      "block": "independent-design",
+      "returns_en": "Whether the goal's question stands, and if it does, an ideal design drawn only from the goal and the constraints, as a list of elements.",
+      "read_en": "The `design` pointer in the returned JSON points to the design file; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). Compare its elements with your own design to find what you left out or assumed.",
+      "inputs": {
+        "purpose": "The goal in one sentence.",
+        "constraints": "A JSON array of measured constraints, each `{text, measured_how, kind}`. Empty means none."
+      },
+      "example": {
+        "purpose": "State the goal in one sentence"
+      },
+      "measured": {
+        "date": "2026-10-21",
+        "runs": 1,
+        "model": "Claude Opus, effort high (model group wf-plan-review)",
+        "wall": "61 s",
+        "cost_usd": 0.19,
+        "run_id": "89c8ef8e"
+      }
+    },
+    {
+      "block": "premises",
+      "returns_en": "The numbers, sizes, counts and exists-or-not claims in the request lines, measured again in the target, each with the command that was run and its output.",
+      "read_en": "The `constraints` pointer in the returned JSON points to `premises.json`; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). Each row is a measured fact; picking the rows that contradict your text is up to you.",
+      "inputs": {
+        "request": "A JSON array of request lines, each `{where, text}`. The claims to measure are in `text`."
+      },
+      "example": {
+        "request": "[{\"where\":\"README\",\"text\":\"The script has 3 entry points\"}]"
+      },
+      "measured": {
+        "date": "2026-10-21",
+        "runs": 1,
+        "model": "Claude Sonnet, effort medium (model group wf-judge-materials)",
+        "wall": "53 s",
+        "cost_usd": 0.23,
+        "run_id": "5574c2b8"
+      }
+    },
+    {
+      "block": "prior-decisions",
+      "returns_en": "The points already settled in the target's decision records (documents, ADRs and the like) that touch the request lines, so that a new text does not contradict them.",
+      "read_en": "The `material` pointer in the returned JSON points to `material.json`; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). A contradiction is described in the `detail` text of a point; there is no separate flag.",
+      "inputs": {
+        "request": "A JSON array of request lines, each `{where, text}`.",
+        "entry": "Where the text came from, in one sentence. Empty means the run does not start from a judgment."
+      },
+      "example": {
+        "request": "[{\"where\":\"README\",\"text\":\"Move the table to docs/\"}]",
+        "entry": "A conversation about the README"
+      },
+      "measured": {
+        "date": "2026-10-21",
+        "runs": 1,
+        "model": "Claude Sonnet, effort medium (model group wf-judge-materials)",
+        "wall": "50 s",
+        "cost_usd": 0.26,
+        "run_id": "fac6fefc"
+      }
+    },
+    {
+      "block": "world",
+      "returns_en": "Each request line restated as a problem class without the proposed approach, compared with established practice quoted from primary sources, with a verdict of same or different for each class.",
+      "read_en": "The `rows` pointer in the returned JSON points to `world.jsonl`, one row per class; open it under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`). A row whose `versus.verdict` is `differs` is a finding; a row with `basis: knowledge` has no source and rests on the model's knowledge.",
+      "inputs": {
+        "request": "A JSON array of request lines, each `{where, text}`.",
+        "purpose": "The goal in one sentence. Empty means no goal is given.",
+        "web": "`on` searches the web for sources; `off` searches nothing and writes from knowledge only."
+      },
+      "example": {
+        "request": "[{\"where\":\"README\",\"text\":\"Cache the build output\"}]",
+        "web": "on"
+      },
+      "measured": {
+        "date": "2026-10-21",
+        "runs": 1,
+        "model": "Claude Opus, effort high for one node and Claude Sonnet, effort medium for two (model groups wf-judge-core and wf-judge-materials)",
+        "wall": "85 s",
+        "cost_usd": 0.19,
+        "run_id": "e9c3ef35"
+      }
+    },
+    {
+      "block": "diagnose",
+      "returns_en": "The request lines cut into root-cause units, each with a label, a disposition, a prescription and a way to count the defect, plus the questions that need a human answer.",
+      "read_en": "The `judgment` pointer in the returned JSON points to the judgment file, and the returned `units` and `questions` summarise it; open the file under the directory printed on the `works-factory: 記録の置き場:` line (or `terminal_record.artifacts.root` in `workflow get <run> --json`).",
+      "inputs": {
+        "request": "A JSON array of request lines, each `{where, text}`. An empty array means no request lines.",
+        "request_origin": "Where the request lines came from, in one sentence.",
+        "purpose": "Path to a purpose file `{purpose_text, source, known_weaknesses, source_files}`. Empty means no goal is given."
+      },
+      "example": {
+        "request": "[{\"where\":\"README\",\"text\":\"The list of blocks is missing\"}]",
+        "request_origin": "A conversation about the README"
+      },
+      "measured": {
+        "date": "2026-10-21",
+        "runs": 1,
+        "model": "Claude Opus, effort high (model group wf-judge-core)",
+        "wall": "11 min 20 s",
+        "cost_usd": 3.18,
+        "run_id": "a26fd71f"
+      }
+    }
+  ]
+}

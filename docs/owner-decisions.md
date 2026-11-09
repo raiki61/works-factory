@@ -360,6 +360,8 @@
 - 持ち主の言葉（2026-10-18、claude-plugins の窓口の会話）: 「うん。いいよ。英語にしましょう。」（works-factory の README.md を英語だけの 1 版にし、日本語の版は並べない案への答え。もとは raiki61/claude-plugins の根の README を英語の 1 版にした決め〔claude-plugins の docs の `readme-language.md`〕）
 - 決め: 根の `README.md` は英語だけで書く。日本語の訳の版（`README.ja.md` など）は持たない。ほかの文書（各階層の `AGENTS.md`・`MISSION.md`・`docs/`）と、工場が人に見せる字（殻の案内・報告）は日本語のまま。役の指示書（AI への指示の文）は、2026-10-19 の `prompts-english` で英語に替えた。
 - 当て方: 根の `AGENTS.md` の「文書は日本語。」の例外の 1 文。`README.md` の見出しは英語なので、見出しを名指す所（`workflows/line/src/testcmd_check.py`（#765 で line の `src/testcmd_check.py` へ移った） の `HOW`・`works-parity.md`（#765 で消した） の「今」の欄の `README.md「…」`）は英語の見出しの名で指す。殻や工場が出す日本語の字（`bin/_lib/launcher.py` の `TARGET_ENV_NOTICE`・試験の行の頭「止める（test_cmd）」「注意（test_cmd）」）は、README に字のまま引く。
+- 例外（2026-11-09、issue #811 の依頼の「決めたこと（2026-11-09）」の段・窓口の会話）: 単独で回す部品の英語の説明と、時間・費用の表 `docs/standalone-blocks.json` の 1 本だけは英語で書く。訳: README の単独 run のセクションのうち機械が描く区間の源で、README を通して人に見せる英語の字を持つから。窓口が推しで決めた。持ち主の言葉は「自明なことは聞かないで」（2026-11-09）。
+- 置き場（E10）: `docs/` の直下に、上の表のファイル 1 本を置く。読むのは `tests/workflows/` の試験 1 本だけ（README の区間を描いて照らす）。E11 の 3 つの答えは `docs/design/spec-driven.md` の 2.5。
 
 ### 2026-10-11 の決めから導いた事（持ち主の決めでなく、根拠つきの判断）
 
