@@ -18,7 +18,7 @@ works-factory は、修正依頼を受けて確かめ済みの変更と報告を
 - AGENTS.md には決まりとパスだけを書く。決まりを守らせる試験の細目はその試験の docstring に、設計の細目は `docs/design/` に置く（持ち主の決め `rules-tests-design-apart`）。各決まりの「機械」の行がその試験を名指す。試験で縛れない決まりは「人が見る」と書く。
 - 試験を足す・不具合を直す前に、仕組みで照らせないかを見る。場面ごとの自前の試験を継ぎ足さない（持ち主の決め `mechanism-over-tests`。試験の細目は `tests/AGENTS.md`）。
 - `CLAUDE.md` を置かない。Claude Code は `CLAUDE.md` が在ると `AGENTS.md` を読まない（持ち主の決め `agents-md-per-level`）。
-- 文書は日本語。ただし根の `README.md` は英語の 1 版（持ち主の決め `readme-english`）。AI のノードへの指示の md は英語（`prompts-english`）。
+- 文書は日本語。ただし根の `README.md` は英語の 1 版と、部品の表 `docs/standalone-blocks.json`（持ち主の決め `readme-english`）。AI のノードへの指示の md は英語（`prompts-english`）。
 - スキル（SKILL.md）やコマンドを書く・直す前に https://github.com/raiki61/claude-plugins/blob/main/docs/standards/skill-authoring.md を読む。
 - 元の works（このリポジトリの前の形。`raiki61/claude-plugins` の `works/`、版は `pack.json` の `works.commit`）は参照するだけで、作り直しの目標ではない。元に在って工場に無い物は、工場の git の履歴で意図して外したかを確かめてから戻すかを決める（持ち主の決め `read-original-works`・`lib-port-ended`）。
 - 止めた Archon の源（`dag-executor.ts` など）は取り置きを読み、`/` やホームの全体から find・Glob で探さない。取り置きの場所・殻の外と run の中での読み方は `docs/design/archon.md` の手順 1。
@@ -93,6 +93,7 @@ works-factory/
 │   ├── polyfills.md             埋めの名簿（E2）
 │   ├── concepts.md・concepts.json   考えの住処の地図と表（対象のリポジトリとして読まれる）
 │   ├── layers.json              層の地図（E22）
+│   ├── standalone-blocks.json   単独で回す部品の英語の説明と時間・費用の表（README の単独 run のセクションの源。英語。readme-english の例外）
 │   ├── calibration-214.md       #214 の自作の較正の束の比べの記録（束は消した）
 │   └── plans/                   実装の計画
 ├── .github/workflows/tests.yml  CI。check の名は tests（4 つの分けと job trace を集める。分けは tests/shard.py）
