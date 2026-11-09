@@ -38,7 +38,11 @@ KEY = "stats.py:4 mean"
 JUDGMENT = json.dumps({"units": [{"key": KEY, "label": "block", "reason": "空の並びで 0 除算する"}], "questions": []})
 GROUP = json.dumps({"group_id": "g1", "unit_ids": [KEY], "items": []})
 RUNNER = BLOCK / "fixtures" / "tdd-runner.py"
-PLAN = json.dumps({"round": 1, "fields": [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
+# 書き手の返答の見本（この試験は使わないが、tests/workflows/test_writer_prompts_kept.py の場面が読む）
+REPLY = {"changes": [], "not_done": [], "fix_closure": {"status": "not_applicable"}, "mechanism_changed": False,
+         "premise_drift": False, "gates_changed": False, "seams_changed": False, "security_surface_changed": False,
+         "path_changed": False, "interactions": [], "wrote_refs": [], "plan_faces": []}
+PLAN =json.dumps({"round": 1, "fields": [{"route": "direct", "tests": [], "rewrite_tests": [], "refactor": {"declared": False, "why": ""},
                                             "allowed_paths": ["stats.py"], "out_of_scope": []}]})
 FIX_PLAN = json.dumps({"plan": [{"unit_keys": [KEY], "approach": "空の並びを先に返す"}]})
 
