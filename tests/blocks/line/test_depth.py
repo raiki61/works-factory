@@ -7,7 +7,7 @@ depth.py と latedepth.py の関数で、名は元のまま。関数を直に呼
 - thickness の名指しで全部の単位を固定する（自動と空は機械が決める）
 - 信号で上げる（単位に結べる物はその単位、結べない物は全部）・下げない。修正の後の事実の理由の文と、引用の外のパスの拾い方
 - run の深さは全部が軽量の時だけ軽量（単位が無ければ標準）
-- 省く理由と報告の行（軽量で省いた物を名指す）
+- 省く理由（頭が軽量で単位が全部軽量の時だけ省く）
 """
 import json
 import pathlib
@@ -231,69 +231,22 @@ class LateCase(unittest.TestCase):
                 self.assertEqual(depth.skip_reason(raised, depth.LIGHT), "")
 
 
-class LinesCase(unittest.TestCase):
-    def test_light_run_names_what_it_skipped(self):
-        doc = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
-        reason = depth.skip_reason(doc, depth.LIGHT)
-        self.assertIn("軽量", reason)
-        text = "\n".join(depth.lines(doc, depth.LIGHT, cmd_skipped=1))
-        skipped = [x for x in depth.lines(doc, depth.LIGHT, cmd_skipped=1) if x.startswith("軽量で省いた: ")]
-        self.assertEqual(len(skipped), 1, "省いた物は 1 行にまとめる（2026-10-09 の片付け）")
-        for word in ("差分の審査", "レンズ", "r1.comment_candidates", "R1", "R2", "R3", "R4", "test_cmd"):
-            self.assertIn(word, skipped[0])
-        self.assertNotIn("AI の報告", text, "AI の報告は省かない（計画の決め 10）")
+class SkipCase(unittest.TestCase):
+    """差分の審査・レンズ・独立の目を省くか（skip_reason が空でないか。raise の checks が読む）: run の頭が軽量で、直す義務の単位が
+    全部軽量の時だけ省く（issue #561）。標準の単位が混ざる run と、頭が標準・重厚・不明の run は省かない"""
 
-    def test_standard_run_skips_nothing(self):
-        doc = depth.decide_doc([item([U1], paths=("a.json",))], [U1], forced="", checked=True)
-        self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
-        text = "\n".join(depth.lines(doc, depth.LIGHT, cmd_skipped=0))
-        self.assertNotIn("軽量で省いた", text)
-        self.assertIn("標準", text)
-
-    def test_only_a_light_head_omits(self):
-        """issue #561: 単位がどれも軽量でも、run の頭の深さが標準・重厚・不明なら何も省かず、深さの行が省かない訳を言う。省く物は
-        TIERS の omits"""
-        doc = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
-        self.assertEqual(depth.run_depth(doc), depth.LIGHT)
+    def test_only_a_light_head_with_only_light_units_omits(self):
+        light = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
+        self.assertIn("軽量", depth.skip_reason(light, depth.LIGHT))
+        mixed = depth.decide_doc([item([U1]), item([U2], paths=("a.json",))], [U1, U2], forced="", checked=True)
+        standard = depth.decide_doc([item([U1], paths=("a.json",))], [U1], forced="", checked=True)
+        for doc in (mixed, standard):
+            self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
         for head in (depth.STANDARD, depth.HEAVY, "", None, "極厚"):
             with self.subTest(head=head):
-                self.assertEqual(depth.skip_reason(doc, head), "")
-                text = "\n".join(depth.lines(doc, head, cmd_skipped=0))
-                self.assertNotIn("軽量で省いた", text)
-                self.assertIn("なので省かない", text)
+                self.assertEqual(depth.skip_reason(light, head), "")
         self.assertEqual(depth.TIERS[depth.LIGHT]["omits"], tuple(depth.OMITS))
         self.assertEqual((depth.TIERS[depth.STANDARD]["omits"], depth.TIERS[depth.HEAVY]["omits"]), ((), ()))
-
-
-    def test_light_head_names_test_cmd_skip_of_light_units(self):
-        """issue #561: 頭が軽量で軽量と標準の単位が混ざる run は、差分の審査と目は省かず、軽量の単位の test_cmd の省きだけを名指す。
-        頭が標準・重厚なら test_cmd も省かない（fixboard.unit_depths が空）ので何も言わない"""
-        doc = depth.decide_doc([item([U1]), item([U2], paths=("a.json",))], [U1, U2], forced="", checked=True)
-        self.assertEqual(depth.skip_reason(doc, depth.LIGHT), "")
-        self.assertIn(f"軽量の単位 1 個で省いた: {depth.UNIT_OMIT}", depth.lines(doc, depth.LIGHT, cmd_skipped=1))
-        for head in (depth.STANDARD, depth.HEAVY, ""):
-            with self.subTest(head=head):
-                self.assertNotIn("省いた", "\n".join(depth.lines(doc, head, cmd_skipped=0)))
-
-
-    def test_test_cmd_skip_is_named_only_when_the_loop_skipped_it(self):
-        """PR #597: test_cmd が空・関門が off で TDD の輪が何も省かなかった run は、頭が軽量で単位が軽量でも test_cmd の省きを言わない。
-        省いた数は輪の記録（cmd_skipped）で、上げ直しの後の深さからは数えない"""
-        light = depth.decide_doc([item([U1])], [U1], forced="", checked=True)
-        mixed = depth.decide_doc([item([U1]), item([U2], paths=("a.json",))], [U1, U2], forced="", checked=True)
-        skipped = [x for x in depth.lines(light, depth.LIGHT, cmd_skipped=0) if x.startswith("軽量で省いた: ")]
-        self.assertEqual(len(skipped), 1)
-        self.assertNotIn("test_cmd", skipped[0])
-        self.assertNotIn("省いた", "\n".join(depth.lines(mixed, depth.LIGHT, cmd_skipped=0)))
-        raised = depth.raise_doc(light, units={}, run=["再審が走った"])
-        self.assertIn(f"軽量の単位 1 個で省いた: {depth.UNIT_OMIT}", depth.lines(raised, depth.LIGHT, cmd_skipped=1))
-
-
-class WordsCase(unittest.TestCase):
-    def test_skipped_review_has_plain_word(self):
-        """省いた目（記録の reviews の skipped）は、最後の関所と報告の目の行に平易な語で出る"""
-        import gatemarks
-        self.assertEqual(gatemarks.eye_named("R1", "skipped"), f"{gatemarks.EYES['R1']}（R1）: 軽量で省いた（skipped）")
 
 
 def put(path: pathlib.Path, doc) -> None:

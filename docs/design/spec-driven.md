@@ -503,8 +503,8 @@ issue #802 の受け入れ「本線の振る舞いは変わらない」は、依
 4. `tests/blocks/line/test_start.py` に、`spec_table` が空の run の返りで `from_spec` が偽・`ports.spec_table` が空・`ports.routes` が `auto` で、ほかの欄が今と同じことを照らす試験を足す。
 5. `tests/blocks/line/test_wiring.py` に、足す node（`SPEC_DRIVEN_NODES` の id の並び。2 と同じく頭の字では名指さない）の `when:` がどれも `from_spec == true` か `spec-entry` の出力を読む句を持つこと、`judge` の `when:` が `from_spec == false` を持つことを照らす試験を足す（yes/no。憲法の 6）。
 6. 部品に足す入力（修正の部品の `routes`・計画の部品の `routes`・判定の役の `request_files`）は、どれも既定値で今の振る舞いのまま。それぞれの block の試験（`tests/blocks/fix/`・`tests/blocks/plan/`・`tests/blocks/diagnose/`）に、既定値の時に今と同じ返りになることと、名指した値の時の振る舞いを照らす試験を足す。本線の依頼の文の run は既定値しか渡さない（6.2 の変える node の 5 は `ports.routes` が `auto`）。
-7. 仕様駆動の道の筋書き `workflows/line/fixtures/spec-driven.stubs.yaml`（通って修正まで届く）・`spec-refused.stubs.yaml`（入口の確かめで止まり、AI の node に届かない）・`spec-mismatch.stubs.yaml`（形 check で止まる）を足す。
-8. 修正前の承認ノードが依頼の文の run と同じ条件で開くこと: `tests/blocks/line/test_wiring.py` に、`spec-ask-before-fix`・`spec-gate-before-fix`・`spec-answer-before-fix` が今の 3 つと同じ script・同じ `output_format`・同じ `wait:` の `form` と `options` を持ち（YAML の錨で本体が 1 つ）、`spec-gate-before-fix` の `attention` だけが `spec-ask-before-fix` を読むことを照らす試験を足す。筋書き `workflows/line/fixtures/spec-gate.stubs.yaml`（計画の部品が `decided_by` の無い能力を狭める行を返し、`spec-rounds` が `lib/gatemarks.py` の `narrow_asks` でそれを項目にし、`spec-ask-before-fix` の `open` が真になって `spec-gate-before-fix` が開く）と `spec-unattended.stubs.yaml`（無人の run で、今の本線の無人の筋書きと同じ結果になる。項目の行の全部が欄 `recommend` に推しを持てば推しで進み、そうでなければ開かずに止まる。[line.md](line.md) の 6 節）を足す。`tests/blocks/line/test_rounds.py` か新しい `test_spec_rounds.py` に、`spec-rounds` の返りが今の受け皿の `got` と同じ鍵を持ち、値が上の決め（`ok` が真・`status` が `nothing_owed` でない・`review_status` が `REVIEW_FELL` に当たらない・`deviations` が空）どおりで、`decided_by` の無い narrows が `asks` の行になることを照らす試験を足す。
+7. 仕様駆動の道の筋書き `workflows/line/fixtures/spec-driven.stubs.yaml`（通って修正まで届く）・`spec-refused.stubs.yaml`（入口の確かめで止まり、AI の node に届かない）・`spec-mismatch.stubs.yaml`（形 check で止まる）を足す。後に、結末ごとに 1 本を残す決め（持ち主の決め `tests-guard-writes`）で、`spec-refused`・`spec-mismatch` と 8 の `spec-gate`・`spec-unattended` は消した（入口の止めは筋書き start-refused、無人の止めは unattended-push-stop が同じ結末を見る）。
+8. 修正前の承認ノードが依頼の文の run と同じ条件で開くこと: `tests/blocks/line/test_wiring.py` に、`spec-ask-before-fix`・`spec-gate-before-fix`・`spec-answer-before-fix` が今の 3 つと同じ script・同じ `output_format`・同じ `wait:` の `form` と `options` を持ち（YAML の錨で本体が 1 つ）、`spec-gate-before-fix` の `attention` だけが `spec-ask-before-fix` を読むことを照らす試験を足す。筋書き `spec-gate`（計画の部品が `decided_by` の無い能力を狭める行を返し、`spec-rounds` が `lib/gatemarks.py` の `narrow_asks` でそれを項目にし、`spec-ask-before-fix` の `open` が真になって `spec-gate-before-fix` が開く）と `spec-unattended.stubs.yaml`（無人の run で、今の本線の無人の筋書きと同じ結果になる。項目の行の全部が欄 `recommend` に推しを持てば推しで進み、そうでなければ開かずに止まる。[line.md](line.md) の 6 節）を足す。`tests/blocks/line/test_rounds.py` か新しい `test_spec_rounds.py` に、`spec-rounds` の返りが今の受け皿の `got` と同じ鍵を持ち、値が上の決め（`ok` が真・`status` が `nothing_owed` でない・`review_status` が `REVIEW_FELL` に当たらない・`deviations` が空）どおりで、`decided_by` の無い narrows が `asks` の行になることを照らす試験を足す。
 
 ### 6.6 足す仕組みの E11 の 3 つの確かめ
 
@@ -551,7 +551,7 @@ PR の分け（頼みの 4。1 本ずつレビューに通せる大きさにす�
 2. 2 本目: block `works-factory-spec-driven`（形 entry と check・表の schema・筋書き）・`lib/spectable.py`・起動の殻の照らし（2.6 の 2）・計画の審査の入力 `proposal_file`（2.5 の詰まった所の 2）・E3 と E15 の外し・PyYAML の版の縛り（6.7）。
 3. 3 本目: 部品に足す入力と返り（修正の部品と計画の部品の `routes`・判定の役の `request_files`・前提の実測の `contradicts` と前の決めの確かめの `conflicts`、と 2.6 の 2 の e への足し。7・9 章と 2.5）と本線の配線（6.2）・`spec-rounds`・6.5 の残りの試験と筋書き。
 
-6.5 の 2 の試験は、足す node を頭の字 `spec-` でなく id の並びで名指す（`tests/blocks/line/test_scenarios.py` の `SPEC_DRIVEN_NODES`）。訳: 本線には前から仕様の段の照らし `spec-check-run` が在り、依頼の文の run でも走るので、頭の字で照らすと今の run が落ちる。
+6.5 の 2 の試験は、足す node を頭の字 `spec-` でなく id の並びで名指す（`tests/blocks/line/test_scenarios.py` の `SPEC_DRIVEN_NODES`）。訳: 本線には前から仕様の段の照らし `spec-check-run` が在り、依頼の文の run でも走るので、頭の字で照らすと今の run が落ちる。後に、依頼の文の run の道筋を照らす 6.5 の 2・5 の試験と `SPEC_DRIVEN_NODES` は、run の道筋を縛る試験を減らす決め（持ち主の決め `tests-guard-writes`）で消した。仕様駆動の道の結末は筋書き spec-driven・spec-direction が見る。
 
 ### 6.9 2 本目の PR で決めた事（block・表の読み・殻の照らし）
 
@@ -571,7 +571,7 @@ PR の分け（頼みの 4。1 本ずつレビューに通せる大きさにす�
 
 ### 6.10 3 本目の PR で決めた事（部品の入力と本線の配線）
 
-1. 足す node の並び（6.2）に `spec-check-out`（形 check の受け皿）を足した。`collect` は all_done で集めるので、include の返りを直に読まず受け皿を読む（`tests/blocks/line/test_wiring.py` の決まり）。足す node の id の並びは `tests/blocks/line/test_scenarios.py` の `SPEC_DRIVEN_NODES`。
+1. 足す node の並び（6.2）に `spec-check-out`（形 check の受け皿）を足した。`collect` は all_done で集めるので、include の返りを直に読まず受け皿を読む（`tests/blocks/line/test_wiring.py` の決まり）。足す node の id の並びは `tests/blocks/line/test_scenarios.py` の `SPEC_DRIVEN_NODES` に置いた（後に 6.8 の末尾のとおり消した）。
 2. `trigger_rule` を緩めた足す node（`spec-check`・`spec-gate-before-fix`）の `when:` は、頭を `$start.output.from_spec == true &&` にした。訳: 依頼の文の run でも依る node のどれかが通ると `when:` が評価され、飛ばされた `spec-entry`・`spec-ask-before-fix` の出力を読むと node が落ちる（6.2 の変える node の 2 と同じ打ち切りの形）。
 3. `spec-gate-before-fix` は `depends_on` に今の `gate-before-fix` を足した（`trigger_rule: none_failed_min_one_success`）。訳: Archon は待つ node が 2 つ同時に走りうるグラフを読み込みで拒む（「Suspending nodes … can run concurrently」）。今の `gate-before-fix` の `depends_on` と `trigger_rule` は変えていない。
 4. `spec-check` は `test-gate-base` にも依り、直す前の結末が通った時だけ回る。訳: 直す前の結末が落ちた run で、判定の役が回らなかったことを「直す単位を返さなかった」と読み違えないため。

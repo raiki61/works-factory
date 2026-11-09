@@ -82,7 +82,7 @@
 {"id": "L-G25", "kind": "seen", "writer": "workflows/line/src/final.py::eye_lines", "check": "text-contains", "where": "parent/gates/final-gate.md", "text": "前提と全体の筋を見る目（R3）: 通った（pass）"},
 {"id": "L-G26", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-G27", "kind": "scenario-only", "why": "筋書きでのみ"},
-{"id": "L-G28", "kind": "seed-cannot", "why": "棚卸しは筋書き plan-stalled・plan-unsettled だけを名指す（健全な種では計画の往復が止まらない）"},
+{"id": "L-G28", "kind": "seed-cannot", "why": "健全な種では計画の往復が止まらない。止まった往復で修正前の承認ノードが開くことは tests/blocks/line/test_gates.py の AskBeforeFixCase.test_stalled_has_one_row_with_the_reason が見る（筋書き plan-stalled・plan-unsettled は消した）"},
 {"id": "L-G29", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-G30", "kind": "scenario-only", "why": "筋書きでのみ"},
 {"id": "L-G31", "kind": "scenario-only", "why": "筋書きでのみ"},

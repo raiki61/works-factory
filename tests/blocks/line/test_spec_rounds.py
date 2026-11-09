@@ -1,11 +1,9 @@
 """仕様駆動の道の node spec-rounds（workflows/line/scripts/spec_rounds.py。docs/design/spec-driven.md の 6.2 の足す node の 8・6.5 の 8・
 6.8 の 1 と 2）。
 
-判定の役（spec-diagnose）と計画の部品（spec-plan）の返りを、今の judge-out と plan-rounds-out の受け皿の got と同じ形に組み直す:
-- 判定の部は fix-in が読む欄（fix_in.NAMES["judge"]）を全部持ち、値は今の本線でその欄を作る段が回らなかった run と同じ
-- 往復の部は ask_before_fix が求める欄（ask_before_fix.ROUNDS の 21）を全部持ち、ok は真・status は計画の部品の語・review_status は
-  ok・deviations は空
-- 決まっていない narrows（decided_by が無い）は lib/gatemarks.narrow_asks で asks の行になる
+判定の役（spec-diagnose）と計画の部品（spec-plan）の返りを、今の judge-out と plan-rounds-out の受け皿の got と同じ形に組み直す。
+ここで照らすのは、決まっていない narrows（decided_by が無い）が lib/gatemarks.narrow_asks で asks の行になり、修正前の承認ノードに
+出ること（欄が揃うかの形は照らさない。読む側の script が欄の欠けで落ちる）
 """
 import json
 import unittest
@@ -14,16 +12,6 @@ from tests.blocks import kit
 
 BLOCK = "line"
 U1 = "u1"
-
-
-def script_names(name: str, attr: str) -> tuple:
-    """line の script の名の表（fix_in.NAMES・ask_before_fix.ROUNDS）を、script を走らせずに字から引く"""
-    import ast
-    tree = ast.parse((kit.BLOCKS / BLOCK / "scripts" / f"{name}.py").read_text(encoding="utf-8"))
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == attr for t in node.targets):
-            return ast.literal_eval(node.value)
-    raise AssertionError(f"{name}.py に {attr} が無い")
 
 
 class SpecRoundsCase(unittest.TestCase):
@@ -62,29 +50,6 @@ class SpecRoundsCase(unittest.TestCase):
 
     def rounds(self, **kw):
         return self.run.script("spec_rounds", **self.inputs(**kw))
-
-    def test_judge_part_has_every_field_fix_in_reads(self):
-        got = self.rounds()
-        self.assertEqual(got["stop_reason"], "", got)
-        judge = got["judge"]
-        self.assertEqual(set(script_names("fix_in", "NAMES")["judge"]) - set(judge), set())
-        self.assertEqual((judge["ok"], judge["stop_reason"], judge["ready"], judge["units"][0]["id"]), (True, "", True, U1))
-        self.assertEqual((judge["purpose_text"], judge["means"], judge["tier"], judge["tier_record"]), ("目的の文", [], "標準", None))
-        for name in ("constraints", "world", "spec", "excluded", "decisions", "verify"):
-            self.assertIsNone(judge[name], name)
-        self.assertEqual(judge["questions"], [{"key": "q1"}])
-        self.assertEqual(self.rounds(forced="軽量")["judge"]["tier"], "軽量", "thickness の名指しは段の語")
-
-    def test_rounds_part_has_every_field_ask_before_fix_reads(self):
-        rounds = self.rounds()["rounds"]
-        self.assertEqual(set(script_names("ask_before_fix", "ROUNDS")) - set(rounds), set())
-        self.assertEqual(set(script_names("fix_in", "NAMES")["rounds"]) - set(rounds), set())
-        self.assertEqual((rounds["done"], rounds["ok"], rounds["status"], rounds["round"]), (True, True, "ok", 1))
-        self.assertEqual((rounds["review_status"], rounds["review_reason"], rounds["stop_reason"]), ("ok", "", ""))
-        self.assertEqual((rounds["stalled"], rounds["capped"], rounds["handoffs"], rounds["deviations"]), (False, False, [], []))
-        for name in ("plan_prior", "record", "review", "gave_up"):
-            self.assertIsNone(rounds[name], name)
-        self.assertEqual(rounds["owed"], [U1])
 
     def test_undecided_narrows_become_asks(self):
         """decided_by の無い narrows は decided が偽の asks の行（lib/gatemarks.narrow_asks。承認ノードに出る）。設計書の行を

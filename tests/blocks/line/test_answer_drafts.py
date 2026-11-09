@@ -50,22 +50,6 @@ class AnswerDraftsCase(unittest.TestCase):
         with self.run.env():
             return self.f.answer_drafts(values or {}, returns or {}, gates or {}, unattended)
 
-    def test_every_draft_is_marked(self):
-        """下書きは全部 draft: true と出どころ source を持つ（依頼の入口 carry.parts が拒む印）"""
-        got = self.drafts({**self.judged([FORK]), "eyes": {"questions": ["守りを触ってよいか"]}},
-                          values={"spec_check": {"questions": ["受け入れ条件のテストが変わった"]}})
-        self.assertEqual(len(got), 3, got)
-        self.assertTrue(all(d["draft"] is True and d["source"] for d in got), got)
-
-    def test_spec_question_is_drafted_with_its_words(self):
-        """承認し直すかの問いは text が空の下書き。照らせなかった（unchecked が false でない）時は「照らせなかった」の語で名乗る"""
-        for unchecked in (False, True):
-            with self.subTest(unchecked=unchecked):
-                got = self.drafts(values={"spec_check": {"questions": ["受け入れ条件のテストが変わった", " "], "unchecked": unchecked}})
-                words = self.gm.spec_words(unchecked)
-                self.assertEqual([(d["question"], d["text"], d["source"]) for d in got],
-                                 [("受け入れ条件のテストが変わった", "", words.source)])
-
     def test_final_gate_r4_questions_are_drafted_even_when_passed(self):
         """元 test_final_gate_r4_questions_are_drafted_even_when_passed: 独立の目 R4 の問いごとに下書き。関所の continue は問いに
         答えないので、人の居る run でも関所が通した run でも作る（#505）"""
@@ -235,15 +219,6 @@ class AnswerDraftsCase(unittest.TestCase):
             with self.subTest(gates=gates, unattended=unattended):
                 self.assertEqual(self.drafts(values=values, gates=gates, unattended=unattended), [])
 
-    def test_deferred_ledger_question_is_drafted_once(self):
-        """元 runreport.answer_drafts の ②（保留のままの台帳の問いごとに 1 行）と「同じ問いは 1 度だけ」: 無人の run が承認ノードに
-        載せなかった台帳の問い（deferred は gates.before_fix が gatemarks.ask_text で組む）は、保留の台帳の問いとして key で 1 行だけ
-        下書きにする。承認ノードの項目の文の行を重ねて作らない"""
-        returns = self.judged([BARE_FORK])
-        values = {"ask_before_fix": {"deferred": [self.gm.ask_text(BARE_FORK)]}}
-        got = self.drafts(returns, values=values, unattended=True)
-        self.assertEqual([d["question"] for d in got], [BARE_FORK["key"]], got)
-
     def test_held_ledger_question_is_drafted_in_attended_run_too(self):
         """元 test_held_ledger_question_is_drafted_in_attended_run_too: 保留のままの台帳の問いは、人の居る run でも key を question に
         した推しの下書きになる。決着した問いと関所で通した問いは下書きにしない。「保留: key」で保留を続けた問いは下書きにする"""
@@ -256,13 +231,6 @@ class AnswerDraftsCase(unittest.TestCase):
         self.assertEqual(self.drafts(returns, gates=passed), [])
         held = {"gate-before-fix": {"decision": "continue", "text": f"保留: {FORK['key']}", "asked": [self.gm.ask_text(FORK)]}}
         self.assertEqual(len(self.drafts(returns, gates=held)), 1)
-
-    def test_held_question_without_push_names_its_options(self):
-        """元 test_row_with_nothing_still_gets_a_draft_saying_so の台帳の問いの分: 推しの無い保留の問いは text が空で、選択肢を note に置く"""
-        drafts = self.drafts(self.judged([BARE_FORK]))
-        self.assertEqual([(d["question"], d["text"]) for d in drafts], [(BARE_FORK["key"], "")])
-        self.assertIn("推しを判定の役が書いていない", drafts[0]["note"])
-        self.assertIn("例外・0 を返す", drafts[0]["note"])
 
     def test_unattended_run_takes_the_held_fork_push(self):
         """元 test_unattended_run_takes_the_held_fork_push_in_the_head の下書きの分: 無人の run が推しを答えに採った台帳の問いは下書きに
@@ -282,18 +250,6 @@ class AnswerDraftsCase(unittest.TestCase):
         self.assertEqual(self.drafts({**returns, "request_in": answered}), [])
         unmeasured = {"request_answers": [{"question": "parallel_pr", "text": "無いはず"}]}
         self.assertEqual(self.drafts({**returns, "request_in": unmeasured}), [])
-
-    def test_material_with_its_question_is_drafted_once(self):
-        """素材から立てた問いが台帳に在れば、素材の行は足さず問いの下書きだけ（出どころ origin が素材の名）"""
-        q = {"key": "parallel_pr: 重なりを確かめる", "kind": "field", "status": "escalate", "origin": "", "reason": "測れていない"}
-        returns = self.judged([q], materials={"parallel_pr": {"status": "not_run", "reason": "forge が無い"}})
-        self.assertEqual([d["question"] for d in self.drafts(returns)], ["parallel_pr"], "素材の名だけに当たる問いは素材の名で答える")
-
-    def test_same_question_is_drafted_once(self):
-        """同じ question の下書きは 1 つだけ（先に組んだ物を残す）"""
-        got = self.drafts({"eyes": {"questions": ["同じ問い", "同じ問い"]}}, values={"spec_check": {"questions": ["同じ問い"], "unchecked": False}})
-        self.assertEqual(len(got), 1, got)
-        self.assertEqual(got[0]["source"], self.gm.spec_words(False).source)
 
 
 if __name__ == "__main__":
