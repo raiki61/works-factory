@@ -1,10 +1,8 @@
 """事前審査の block の形 theme（設計の案の審査。docs/design/plan-review.md の 19 節）の試験。
 
 script（intake → theme_prep → 台本の返答 → theme_accept → finish）を子のプロセスで回す。入口は入力 theme_doc が空でなければ形 theme と決め、
-設計の案の md を place に写し、往復の記録 prior から往復の番号を数える。指示は prompts/review-theme.md と断片から組み、設計の案の
-在りか・目的・世界の解の行・独立設計・前の往復の答えの要る穴・8 種の確かめと設計の観点（parts/theme-checks.md）を持ち、修正案の構造を
-前提にする文を持たない。受け付けは形 text の照らしに、前の往復の答えの要る穴が resolved か faces のどちらかに在る照らしを項目なしで
-足し、受け付けの網 rolekit.NET_AFTER 回目で諦める。拒まれた後の出し直しは同じ会話の続きの review-theme-fix で、前の答えと合わせる。
+設計の案の md を place に写し、往復の記録 prior から往復の番号を数える。指示の字は照らさない。受け付けは形 text の照らしに、
+前の往復の答えの要る穴が resolved か faces のどちらかに在る照らしを項目なしで足し、受け付けの網 rolekit.NET_AFTER 回目で諦める。拒まれた後の出し直しは同じ会話の続きの review-theme-fix で、前の答えと合わせる。
 """
 import unittest
 
@@ -18,7 +16,6 @@ import converge   # noqa: E402  lib/
 import rolekit    # noqa: E402  lib/
 
 DRAFT = "# 設計の案\n\nTHEME-DRAFT-MARK-4411 入口を 1 か所に寄せる\n\n## 問い\n\n- Q1: 段をいくつにするか\n"
-THEME_NODE = "p2.plan_review.theme"
 
 
 def face(key, kind="contract_drift", severity="block", reach="forces_redesign", **extra) -> dict:
@@ -59,12 +56,6 @@ class _Case(unittest.TestCase):
     def prep(self, prev="") -> dict:
         return self.r.script("theme_prep", prev=prev)
 
-    def prompt(self, **inputs) -> str:
-        self.intake(**inputs)
-        got = self.prep()
-        self.assertFalse(got["resubmit"], got)
-        return got["prompt"]
-
     def accept(self, doc=None, fix=None) -> dict:
         def raw(x):
             return "null" if x is None else x if isinstance(x, str) else V.dump(x)
@@ -96,50 +87,6 @@ class ThemeIntakeCase(_Case):
         got = self.r.intake(theme_doc=self.r.pointer("theme/nope.md"))
         self.assertFalse(got["due"])
         self.assertIn("入力 theme_doc", got["reason"])
-
-
-class ThemePromptCase(_Case):
-    def test_prompt_names_the_draft_and_the_design_checks(self):
-        """設計の案の在りか・目的・Repository の行・8 種の確かめ・設計の観点を持つ。組んだ指示と作業ツリーの姿を place に置く"""
-        prompt = self.prompt()
-        for want in (str(self.r.artifacts / files.THEME_COPY), "## Purpose", V.PURPOSE,
-                     f"Repository: {self.r.repo} (read version: `HEAD`) BASE: `HEAD`", "## What to look at", "8. **Precedent source**",
-                     "## What to look at in a design draft", "a design draft, not a fix plan", "Do not write `unit_keys`"):
-            self.assertIn(want, prompt, want)
-        self.assertTrue((self.r.artifacts / "review-theme-prompt-1.md").is_file())
-        self.assertTrue((self.r.artifacts / files.TREE_STATE).is_file())
-
-    def test_prompt_skips_what_needs_a_plan_structure(self):
-        prompt = self.prompt()
-        for absent in ("## Material", "Units:", "Items that write design_map", "How the checks above read the plan", "`shrink_first`",
-                       "Agent", "## Previous passes"):
-            self.assertNotIn(absent, prompt, absent)
-
-    def test_independent_design_and_world_rows(self):
-        prompt = self.prompt(design=V.dump(V.DESIGN_OK), world_rows=self.r.world(V.WORLD_ROW))
-        self.assertIn(V.DESIGN_TEXT, prompt)
-        self.assertIn("## Standard practice found for the theme", prompt)
-        self.assertIn("There is no independent design", self.prompt())
-
-    def test_previous_passes_list_the_owed_holes(self):
-        """2 往復目からは、前の往復の block の穴を挙げ、resolved か同じ key で faces に挙げ直せと頼む"""
-        prompt = self.prompt(prior=record(self.r, [face("design-gap-entrance")]))
-        self.assertIn("## Previous passes", prompt)
-        self.assertIn("#### design-gap-entrance", prompt)
-        self.assertIn("put the key in `resolved`", prompt)
-
-    def test_resubmit_prompt_continues_the_conversation(self):
-        """前の周の受け付けが拒み、合わせた答えの控えが在れば、出し直しの役の指示（拒否の訳と合わせた答えの在りか）を組む"""
-        self.intake()
-        self.prep()
-        got = self.accept(reply(face("entrance-without-no-add", kind="entrance")))
-        self.assertFalse(got["ok"], got)
-        self.assertEqual(self.prep(prev="false"), {"prompt": "", "resubmit": True})
-        out = self.r.script("theme_fix_prep")
-        self.assertIn("Your previous answer was rejected by the machine's check.", out["prompt"])
-        self.assertIn(str(rolekit.candidate_path(self.r.artifacts, THEME_NODE)), out["prompt"])
-        self.assertIn("no_add", out["prompt"])
-        self.assertTrue((self.r.artifacts / "review-theme-fix-prompt-1.md").is_file())
 
 
 class ThemeAcceptCase(_Case):

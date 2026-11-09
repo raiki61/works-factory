@@ -1,5 +1,5 @@
 # 形 plan・木の往復: 束ね役の要約だけを差し替える。下請けの答えのファイルが無いので受け付けが 1 回拒み、筋書きの輪は 1 周で終わる
-# （出口は status: failed で run は completed）。下請けの指示のファイルの字は tests/blocks/plan_review/test_tree.py が照らす
+# （出口は status: failed で run は completed）
 fixture:
   expect: completed
   reached:

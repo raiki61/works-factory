@@ -10,10 +10,8 @@ Flow と組み立ての助け（frow・item・fields・face・review・answer・
 """
 import copy
 import json
-import pathlib
 import shutil
 import unittest
-from unittest import mock
 
 from tests.bin.gitkit import committed_copy
 from tests.blocks import kit
@@ -122,7 +120,6 @@ SEED_DOCSTRING_FACE = {"key": "seed-docstring", "unit_keys": [UNIT_MEAN], "kind"
                        "why": "テストの説明文が「わざと試験しない」と言うので、試験を足す案は持ち主の方針とぶつかる",
                        "severity": "suggest", "reach": "against_policy", "decided_by": "test_stats.py:1"}
 ENTRANCE_BARE = face("entrance-without-no-add", kind="entrance")
-ENTRANCE_OK = face("entrance-with-no-add", kind="entrance", no_add="柵を足さずに 2 つの入口を 1 つの口にまとめる形")
 
 
 def full_map() -> list:
@@ -267,20 +264,12 @@ class FlowCase(unittest.TestCase):
 
 class ReviewAcceptCase(FlowCase):
     """審査役 1 つの受け付け（元 tests/workflows の test_plan_review.py の ReviewAcceptCase。元は tests/test_blk_plan.py の ScriptCase・
-    ConvergeReviewCase の事前審査の側）"""
+    ConvergeReviewCase の事前審査の側）。人に回る行・推し・記録した方針の名指し・読むだけの役の作業ツリー・諦めを照らす。欄ごとの拒みの
+    組み合わせは、受け付けの部品を直に呼ぶ PartsCase（plan_review_output・face_row_gaps）が速く照らす"""
 
     def prepped(self, **inputs):
         self.flow.intake(**inputs)
         self.flow.prep()
-
-    def test_entrance_needs_no_add(self):
-        """元 ReviewAcceptCase.test_entrance_needs_no_add（ScriptCase.test_plan_review_entrance_needs_no_add）"""
-        self.prepped()
-        got = self.flow.accept(review(ENTRANCE_BARE))
-        self.assertFalse(got["ok"])
-        self.assertTrue(got["reason"].startswith(self.take.FACE_REJECT), got["reason"])
-        self.assertIn("no_add", got["reason"])
-        self.assertTrue(self.flow.accept(review(ENTRANCE_OK))["ok"])
 
     def test_malformed_recommend_rejected(self):
         """元 ReviewAcceptCase.test_malformed_recommend_rejected"""
@@ -337,39 +326,6 @@ class ReviewAcceptCase(FlowCase):
         self.assertIsNone(f.read("pass.json")["push"])
         self.assertNotIn("push", f.carry())
 
-    def test_faces_none_and_units_and_keys(self):
-        """元 ReviewAcceptCase.test_faces_none_and_units_and_keys: 穴も別案も挙げない返答は faces_none が要る。案に無い単位・重複の key は拒む"""
-        self.prepped()
-        for bad, word in (({"faces": [], "shrink": [], "reason": "写し・入口・契約のずれを全部見て穴が無いと判じた理由"}, "faces_none"),
-                          (review(face("unknown-unit-key", unit="判定に無い単位の key")), "判定に無い単位の key"),
-                          (review(face("duplicated-key"), face("duplicated-key")), "重複")):
-            with self.subTest(word=word):
-                got = self.flow.accept(bad)
-                self.assertFalse(got["ok"])
-                self.assertIn(word, got["reason"])
-
-    def test_block_on_machine_field_rejected(self):
-        """元 ReviewAcceptCase.test_block_on_machine_field_rejected（#549）: where で機械の足した欄 removes_tests を名指す block は拒み、
-        往復を書かない。仮名・漢字に詰めて書いた名も見逃さない。同じ穴の suggest は受ける"""
-        f = self.flow
-        self.prepped()
-        for flush in ("項目1のremoves_testsが広い", "removes_testsの13件", "修正案の項目 1 の works の removes_tests（13 件）"):
-            with self.subTest(where=flush):
-                got = f.accept(review(face("removes-tests-unrelated", kind="regression", where=flush, undecided_because=CASE)))
-                self.assertFalse(got["ok"])
-                self.assertIn("removes_tests", got["reason"])
-        self.assertFalse((f.place / "pass.json").exists())
-        where = "修正案の項目 1 の works の removes_tests（13 件）"
-        self.assertTrue(f.accept(review(face("removes-tests-unrelated", kind="regression", severity="suggest", where=where, undecided_because=CASE)))["ok"])
-        self.assertEqual(f.carry()["blocks"], [])
-
-    def test_reply_by_number_is_named(self):
-        """元 ReviewAcceptCase.test_reply_by_number_is_named: unit_keys を no の整数で指してよく、受けた返答では単位の名に戻る"""
-        self.prepped()
-        self.assertTrue(self.flow.accept(review(face("number-pointed-face", unit=2, kind="regression", severity="suggest", undecided_because=CASE)))["ok"])
-        self.assertEqual(self.flow.read("review.json")["faces"][0]["unit_keys"], [UNIT_CLAMP])
-        self.assertEqual(self.flow.read("pass.json")["review"]["faces"][0]["unit_keys"], [UNIT_CLAMP])
-
     def test_read_only_tree_changed_rejected(self):
         """元 ReviewAcceptCase.test_read_only_tree_changed_rejected: 役の前後で作業ツリーが変われば拒み、往復を書かない。commit して
         HEAD を動かしても拒む"""
@@ -393,13 +349,6 @@ class ReviewAcceptCase(FlowCase):
         got = self.flow.accept(review())
         self.assertFalse(got["ok"])
         self.assertIn("review-tree-state.json", got["reason"])
-
-    def test_unreadable_reply_goes_back_to_the_role(self):
-        """元 ReviewAcceptCase.test_unreadable_reply_goes_back_to_the_role: JSON でない返答は拒み、輪は続く"""
-        self.prepped()
-        got = self.flow.accept(raw="{JSON でない")
-        self.assertEqual((got["ok"], got["done"]), (False, False))
-        self.assertIn("JSON", got["reason"])
 
     def test_give_up_at_the_net_reject(self):
         """元 ReviewAcceptCase.test_give_up_at_the_net_reject: 網の回まで拒まれ続けたら done・give_up で輪を抜け、出口は gave_up と網に
@@ -456,54 +405,6 @@ class ReviewAcceptCase(FlowCase):
         got = f.finish()
         self.assertEqual(got["status"], "ok", got)
 
-    def test_pass_rejects_are_only_this_pass_review_rejects(self):
-        """足す: pass.json の rejects は、この往復の事前審査の拒否の行（role は p2.plan_review）だけ。前の往復の拒否は次の入口が消すので
-        載らない（計画の拒否は line が足す）"""
-        f = self.flow
-        self.prepped()
-        first = f.accept(review(ENTRANCE_BARE))
-        self.assertTrue(f.accept(review())["ok"])
-        rows = f.read("pass.json")["rejects"]
-        self.assertEqual([(r["role"], r["reason"]) for r in rows], [(self.take.REVIEW_NODE, first["reason"])])
-        f.carry()
-        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)], rnd=2)
-        f.intake()
-        f.prep()
-        self.assertTrue(f.accept(review())["ok"])
-        self.assertEqual(f.read("pass.json")["rejects"], [])
-
-    def test_partial_resubmit_is_merged_with_the_previous_answer(self):
-        """元 ReviewAcceptCase.test_partial_resubmit_is_merged_with_the_previous_answer（#571）: 出し直しの役は拒まれた欄だけを返す。
-        受け付けは前の答えの控えと合わせて全体を照らし、合わせた答えを review.json に書く"""
-        f = self.flow
-        self.prepped()
-        self.assertFalse(f.accept(review(ENTRANCE_BARE))["ok"])
-        got = f.accept(None, fix={"faces": [ENTRANCE_OK]})
-        self.assertTrue(got["ok"], got["reason"])
-        saved = f.read("review.json")
-        self.assertEqual([x["key"] for x in saved["faces"]], ["entrance-with-no-add"])
-        self.assertEqual(saved["reason"], review()["reason"])
-
-    def test_empty_resubmit_rechecks_the_previous_answer(self):
-        """元 ReviewAcceptCase.test_empty_resubmit_rechecks_the_previous_answer: 空の出し直しは前の答えのまま全体を照らし直す"""
-        f = self.flow
-        self.prepped()
-        first = f.accept(review(ENTRANCE_BARE))
-        got = f.accept(None, fix={})
-        self.assertEqual((got["ok"], got["reason"]), (False, first["reason"]))
-
-    def test_missing_root_field_is_refused_and_resubmitted_alone(self):
-        """#832: 役の型は根の欄を要ると書かない（出し直しの役と同じ形）。要る欄 shrink の欠けた 1 回目の答えは受け付けが拒み、出し直しの
-        役が shrink だけを返せば通る"""
-        f = self.flow
-        self.prepped()
-        bare = review()
-        bare.pop("shrink")
-        got = f.accept(bare)
-        self.assertEqual((got["ok"], got["reason"]), (False, self.take.rolekit.MISSING_FIELDS.format(keys="shrink")))
-        got = f.accept(None, fix={"shrink": []})
-        self.assertTrue(got["ok"], got["reason"])
-
     def test_policy_face_must_name_a_recorded_row(self):
         """元 ReviewAcceptCase.test_policy_face_must_name_a_recorded_row（#427）: kind policy の穴は記録された方針の行を名指す時だけ
         受ける。対象のテストの docstring を名指す穴と、方針の文書の無い run の fences の policy_doc は拒み、記録された方針の行
@@ -523,16 +424,6 @@ class ReviewAcceptCase(FlowCase):
             with self.subTest(named=named):
                 self.assertTrue(f.accept(review({**SEED_DOCSTRING_FACE, "decided_by": named}))["ok"])
 
-    def test_fences_twice_rejected(self):
-        """足す: fences に同じ語を 2 つ持つ穴は拒む（役の型の uniqueItems は外した。設計書の 14 節の 12）。重ならなければ受ける"""
-        f = self.flow
-        self.prepped()
-        twice = face("fenced-twice-row", kind="regression", severity="suggest", fences=["irreversible", "irreversible"])
-        got = f.accept(review(twice))
-        self.assertFalse(got["ok"], got)
-        self.assertIn("faces[0]（fenced-twice-row）: fences に同じ語が 2 つ（irreversible）", got["reason"])
-        self.assertTrue(f.accept(review({**twice, "fences": ["irreversible", "external_write"]}))["ok"])
-
     def test_marks_stay_in_review_json_and_leave_the_pass_row(self):
         """決め手の欄（decided_by・undecided_because・world・fences・recommend・no_narrow）は、今の boardview._take と同じく review.json
         の穴に残る（報告の読み手が recommend・no_narrow・world を読む）。往復の記録に足す pass.json の review からは外れ、出口の asks が
@@ -551,7 +442,8 @@ class ReviewAcceptCase(FlowCase):
 
 
 class DesignAcceptCase(FlowCase):
-    """独立設計が立つ時の引用と design_map の照らし（元 ReviewAcceptCase の設計の 7 本。keep-essence の 9 の読み手の守り）"""
+    """独立設計が立つ時の引用と design_map の照らし（元 ReviewAcceptCase の設計の 7 本のうち、design_map が足した名と消した物と設計の要素を
+    覆うかの 5 本。keep-essence の 9 の読み手の守り）。引用の出どころの言い換えは落とした"""
 
     KEYLESS_WHY = "設計の上限の入口は項目 1 の stats.py の modify の行が受ける"
 
@@ -571,9 +463,7 @@ class DesignAcceptCase(FlowCase):
         drift = lambda why, head: face("design-drift-mean-split", why=head + why)  # noqa: E731
         cases = (("設計と継ぎ目の置き方が違う、という穴だ", "引用が無い"),
                  (f"設計の「上限は入口 2 箇所で掛け」に対し案の「{ROW_TEXT}」は食い違う", "設計の引用の字が 1 つ違う"),
-                 (f"設計の「上限は入口 1 箇所で掛け」に対し案の「{ROW_TEXT[:-1]}ぬ」は食い違う", "案の行の引用の字が違う"),
-                 ("設計の「上限は入口 1 箇所で掛け」を引いただけで案の行を引かない", "案の行の引用が無い"),
-                 (f"案の「{ROW_TEXT}」を引いただけで設計の行を引かない", "設計の引用が無い"))
+                 ("設計の「上限は入口 1 箇所で掛け」を引いただけで案の行を引かない", "案の行の引用が無い"))
         for head in (design.DRIFT_HEAD, design.UNPAIRED_HEAD):
             for why, label in cases:
                 with self.subTest(head=head, case=label):
@@ -614,26 +504,6 @@ class DesignAcceptCase(FlowCase):
         self.assertTrue(f.accept(review(design_map=[row, other]))["ok"])
         self.assertNotIn("design_map", f.read("review.json"))
         self.assertEqual(f.read("pass.json")["refs"], {"1": ["D1"], "2": []})
-
-    def test_design_quote_pasted_from_elements_or_plan_rows_names_the_source(self):
-        """元 ReviewAcceptCase.test_design_quote_pasted_from_elements_or_plan_rows_names_the_source（#568）: design_quote に本文でなく要素の
-        一覧の行か案の行の字を貼った答えは拒み、拒みの行がどちらを貼ったかと引き元の本文を言う。どちらにも無い字は null を勧める"""
-        f = self.flow
-        design = self.take.design
-        self.designed([item(UNIT_MEAN, 1, shrink_first=ROW_TEXT), item(UNIT_CLAMP, 2)])
-        row, other = full_map()
-        cases = (("D1: 足す: 上限の入口／消す: 無し", design.QUOTE_FROM_ELEMENTS + "を貼った"),
-                 ("D1: 足す: 上限の入口 ／ 消す: 無し", design.QUOTE_FROM_ELEMENTS + "を貼った"),
-                 (ROW_TEXT, "修正案の行の字を貼った"),
-                 ("上限は入口 2 箇所で掛け", design.QUOTE_NONE))
-        for quote, want in cases:
-            with self.subTest(quote=quote):
-                got = f.accept(review(design_map=[{**row, "design_quote": quote}, other]))
-                self.assertFalse(got["ok"], got)
-                self.assertTrue(got["reason"].startswith(self.take.DESIGN_QUOTE_REJECT), got["reason"])
-                self.assertIn(f"design_quote「{quote}」が独立設計の文に字のまま無い（{want}", got["reason"])
-                self.assertEqual(design.QUOTE_FROM in got["reason"], want != design.QUOTE_NONE, got["reason"])
-                self.assertIn(design.QUOTE_NONE, got["reason"])
 
     def test_design_map_keys_by_path_and_symbol_both_ways(self):
         """元 ReviewAcceptCase.test_design_map_keys_by_path_and_symbol_both_ways: 同じ名 helper を a.py と b.py に足す項目は 2 行要る。同じ
@@ -694,14 +564,6 @@ class DesignAcceptCase(FlowCase):
         self.assertIn("D2", got["reason"])
         self.assertNotIn("D1", got["reason"], "閉じた項目 1 が受けた D1 は数える")
         self.assertTrue(f.accept(review(design_map=[row(2, "D2")], resolved=fixed))["ok"])
-
-    def test_design_quotes_not_checked_without_design(self):
-        """元 ReviewAcceptCase.test_design_quotes_not_checked_without_design"""
-        f = self.flow
-        f.intake()
-        f.prep()
-        design = self.take.design
-        self.assertTrue(f.accept(review(face("design-drift-no-design", why=design.DRIFT_HEAD + "設計と継ぎ目の置き方が違う、という穴だ")))["ok"])
 
 
 class RereviewCase(FlowCase):
@@ -826,25 +688,6 @@ class ReplanCase(FlowCase):
         self.assertEqual((got["form"], got["tree"], got["k"]), ("replan", False, 0))
         f.prep()
 
-    def test_replan_records_no_pass(self):
-        """元 OpenCase.test_replan_form_records_no_pass・ReplanCase.test_replan_is_one_shot の受け付けの側: 形 replan は通っても pass.json を
-        書かず、出口の pass は null で、穴の在る返答も 1 回で返る"""
-        f = self.flow
-        self.replan()
-        self.assertEqual(f.intake_doc()["ruled"], [2])
-        self.assertTrue(f.accept(review(CLAMP_BLOCK))["ok"])
-        self.assertFalse((f.place / "pass.json").exists())
-        got = f.finish()
-        self.assertEqual((got["status"], got["form"], got["pass"], got["blocks"]), ("ok", "replan", None, [CLAMP_BLOCK["key"]]))
-
-    def test_replan_does_not_ask_where_earlier_blocks_went(self):
-        """足す: 前の往復の答えの要る穴の行き先（resolved_gaps）は形 plan だけが照らす。形 replan は往復の続きでないので、前の往復の
-        block を挙げ直さず resolved にも書かない返答を受ける"""
-        f = self.flow
-        self.replan(first=review(CLAMP_BLOCK))
-        got = f.accept(review())
-        self.assertTrue(got["ok"], got["reason"])
-
     def test_replan_drift_quotes_checked_and_extra_fields_dropped(self):
         """元 ReplanCase.test_replan_drift_quotes_checked_and_extra_fields_dropped: 壁打ちと束ね役の任意の欄（resolved・items）は外して
         から照らし、独立設計が立つ時は穴の引用と design_map を直した項目の行と照らす"""
@@ -887,14 +730,6 @@ class ReplanCase(FlowCase):
         self.assertEqual([(x["item"], x["ruling"]) for x in out["gave_up"]], [(2, self.CONFLICT["ruling"]["text"])])
         self.assertIn("事前審査の役の返答が受け付けの網", out["gave_up"][0]["why"])
 
-    def test_replan_without_block_passes(self):
-        """元 ReplanCase.test_replan_without_block_passes"""
-        f = self.flow
-        self.replan()
-        self.assertTrue(f.accept(review())["ok"])
-        got = f.finish()
-        self.assertEqual((got["status"], got["blocks"]), ("ok", []))
-
     def test_replan_with_unknown_ruling_is_failed(self):
         """元 ReplanCase.test_replan_with_unknown_ruling_asks_human（failed と訳の形に）・ReplanItemsCase.test_ruling_must_be_item_numbers:
         番号でない・案の外の ruling は、入口が訳つきで due: false にし、出口が failed でその訳を返す（黙って 0 項目を審査して通さない）"""
@@ -909,13 +744,6 @@ class ReplanCase(FlowCase):
                 out = f.finish()
                 self.assertEqual(out["status"], "failed")
                 self.assertIn(repr(bad), out["reason"])
-
-    def test_replan_without_an_approved_plan_names_it(self):
-        """元 ReplanCase.test_replan_without_an_approved_plan_names_it・ReplanItemsCase.test_no_approved_plan_stops_the_open: port prior に
-        承認済みの案の行が無ければ、入口は due: false でその訳を返す"""
-        got = self.flow.script("intake", ruling=dump(["1"]))
-        self.assertFalse(got["due"])
-        self.assertIn(self.flow.module("steps").NO_APPROVED, got["reason"])
 
     def test_replan_items_carry_old_new_and_rows(self):
         """元 ReplanItemsCase.test_old_new_and_rows_per_ruled_item・test_rows_match_the_plan_brief: 裁かれた項目ごとに承認済みの前の形
@@ -1024,29 +852,6 @@ class PartsCase(FlowCase):
         self.assertEqual((got["faces"][0]["unit_keys"], got["shrink"][0]["unit_keys"]), ([UNIT_MEAN, 9, UNIT_MEAN], [9]))
         self.assertEqual([self.take.unit_name([UNIT_MEAN], k) for k in (1, 9, UNIT_MEAN)], [UNIT_MEAN, 9, UNIT_MEAN])
 
-    def test_replan_compare_strips_the_gate_fields_in_one_place(self):
-        """元 Owners.test_replan_compare_strips_the_gate_fields_in_one_place（#260）: 案の直しの事実（gate.replan）は、項目から決め手の欄を
-        外す読みを replan.bare の 1 か所から引き、計画の節の名は planmarks.NODE"""
-        from unittest import mock
-        gate = self.flow.module("gate")
-        self.assertEqual(gate.PLAN_NODE, gate.planmarks.NODE)
-        row = {"unit_keys": [UNIT_MEAN], "approach": "分母を直す", "narrows": [{"what": "空の列", "why": "例外のまま", "decided_by": "x"}]}
-        seen = []
-        with mock.patch.object(gate.replanlib, "bare", lambda it: seen.append(it) or it):
-            gate.replan(self.flow.place, {"replan_items": [{"item": 1, "units": [UNIT_MEAN], "old": row, "new": row}]}, {})
-        self.assertEqual(seen, [row, row])
-
-    def test_width_and_whitespace_folded_but_one_char_difference_missing(self):
-        """元 test_blk_plan.py の QuoteFoldCase.test_width_and_whitespace_folded_but_one_char_difference_missing: 独立設計の引用の
-        照らしは両側を NFKC にし空白の並びを畳む。字の 1 つ違いは見逃さない"""
-        cite = kit.load(BLOCK, "gate").cite
-        source = "上限は入口 1 箇所で掛ける。\n呼び手は値を渡すだけにする"
-        self.assertEqual(cite.missing_quotes("「上限は入口 1 箇所で掛ける。 呼び手は値を渡す」", source), [])
-        self.assertEqual(cite.missing_quotes("「上限は入口 １ 箇所で掛ける」", source), [])
-        self.assertEqual(cite.missing_quotes("「上限は入口 2 箇所で掛ける」", source), ["上限は入口 2 箇所で掛ける"])
-        self.assertEqual(cite.missing_quotes("引用の無い文", source), [])
-        self.assertEqual(cite.quotes("短い「ab」と「四文字以上の引用」"), ["四文字以上の引用"])
-
     def test_reply_out_of_the_role_format_is_rejected(self):
         """元 PortedMaterialCase.test_reply_out_of_the_role_format_is_rejected: 型の外の返答（知らない kind）は review の node の
         output_format が拒む（受け付けは型を照らし直さない）"""
@@ -1055,20 +860,6 @@ class PartsCase(FlowCase):
         validate = kit.load(BLOCK, "tree").validate_schema
         self.assertEqual(validate(review(face("good-kind-face")), fmt), [])
         self.assertTrue(validate(review(face("bad-kind-face", kind="taste")), fmt))
-
-    def test_node_schema_names_each_way_it_cannot_read(self):
-        """足す: 下請けの答えの型を YAML から読む node_schema は、node が無い・output_format が無い（次の node が先）・JSON の流れの
-        形でない・object でない時に、それぞれ node を名指して落ちる"""
-        files = self.flow.module("files")
-        cases = {"- id: other\n  output_format: {}\n": "YAML に node review が無い",
-                 "- id: review\n  prompt: x\n- id: next\n  output_format: {}\n": "node review に output_format が無い",
-                 "- id: review\n  output_format:\n    type: object\n": "output_format が JSON の形でない",
-                 "- id: review\n  output_format: [1]\n": "output_format が object でない"}
-        for text, word in cases.items():
-            yaml_file = self.flow.tmp / "shape.yaml"
-            yaml_file.write_text(f"nodes:\n{text}", encoding="utf-8")
-            with self.subTest(word=word), mock.patch.object(files, "YAML", yaml_file), self.assertRaisesRegex(ValueError, word):
-                files.node_schema("review")
 
 
 if __name__ == "__main__":

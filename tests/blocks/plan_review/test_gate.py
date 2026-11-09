@@ -163,10 +163,8 @@ class RowsCase(GateBase):
 
 # ---------------------------------------------------------------- 4 つの軸（元 test_gate_axes.py の SplitCase）
 class SplitCase(GateBase):
-    def test_decided_url_is_all_ok(self):
-        """元 SplitCase.test_decided_url_is_all_ok（元 FourAxesCase.test_decided_by_url_passes）"""
-        got = self.row(DECIDED)
-        self.assertEqual((got["decided"], got["why"]), (True, {}))
+    """行ごとの 4 つの軸の分け。FourAxesCase と同じ分けの言い換え（URL・ファイルの行の決め手・現物に無い出どころ・単位の外・
+    人に上げない構造の行）は FourAxesCase の側だけに残した"""
 
     def test_no_decided_by_is_not_obvious(self):
         """元 SplitCase.test_no_decided_by_is_not_obvious"""
@@ -180,18 +178,6 @@ class SplitCase(GateBase):
         got = self.row({**DECIDED, "undecided_because": "世界の解が 2 つに割れる"})
         self.assertEqual(self.bad(got), ["obvious"])
         self.assertFalse(got["decided"])
-
-    def test_decided_by_must_exist(self):
-        """元 SplitCase.test_decided_by_must_exist: 現物に無い出どころは自明でない"""
-        got = self.row({**DECIDED, "decided_by": "docs/adr/0099-nope.md:3 の決め"})
-        self.assertIn("obvious", self.bad(got))
-        self.assertIn("決め手の出どころが現物に無い", self.note(got, "obvious"))
-
-    def test_decided_by_file_line_passes(self):
-        """元 SplitCase.test_decided_by_file_line_passes"""
-        (self.tmp / "docs").mkdir()
-        (self.tmp / "docs" / "0002-keep.md").write_text("# 決め\n\n空の列は例外のまま\n", encoding="utf-8")
-        self.assertEqual(self.row({**DECIDED, "decided_by": "docs/0002-keep.md:3（人の前の決定）"})["why"], {})
 
     def test_request_quote_must_be_in_request(self):
         """元 SplitCase.test_request_quote_must_be_in_request: 依頼の引用「…」は port request の本文に字のまま在る時だけ出どころ"""
@@ -253,11 +239,6 @@ class SplitCase(GateBase):
         self.assertEqual(self.bad(got), ["clean"])
         self.assertIn("構造の目が人に上げた単位（u）", self.note(got, "clean"))
 
-    def test_clean_route_rows_do_not_block(self):
-        """元 SplitCase.test_clean_route_rows_do_not_block"""
-        self.put_rows({**ROUTE_UP, "route": "自分で決める", "route_reason": "決め手で決まる", "undecided_because": ""})
-        self.assertEqual(self.row(DECIDED)["why"], {})
-
     def test_dirty_unit_without_answer_is_not_clean(self):
         """元 SplitCase.test_dirty_unit_without_answer_is_not_clean"""
         self.put_rows({**ROUTE_UP, "route": "自分で決める", "route_reason": "決め手で決まる", "undecided_because": ""})
@@ -289,12 +270,6 @@ class SplitCase(GateBase):
         self.assertEqual(self.bad(got), ["not_overkill"])
         self.assertFalse(got["decided"])
         self.assertIn("external_write", self.note(got, "not_overkill"))
-
-    def test_face_outside_plan_units_is_overkill(self):
-        """元 SplitCase.test_face_outside_plan_units_is_overkill（元 FourAxesCase.test_face_outside_plan_units_asks）"""
-        got = self.row(DECIDED, units=("別の単位",))
-        self.assertEqual(self.bad(got), ["not_overkill"])
-        self.assertIn("修正案の単位の外を名指す（別の単位）", self.note(got, "not_overkill"))
 
 
 # ---------------------------------------------------------------- 元 tests/workflows の test_plan_review.py の FourAxesCase
