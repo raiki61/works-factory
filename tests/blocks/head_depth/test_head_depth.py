@@ -2,7 +2,7 @@
 
 始めの記録の無い使い捨ての run directory と git のリポジトリ（stats.py の 4-5 行目に分母の誤り）で、port の値だけを渡し、
 intake → depth_prep → 台本の返答 → depth_accept → finish と回す。受け付けの決まりは src/steps の check を直に呼んでも確かめる。
-YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
+YAML は役の返答の型の語だけを見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
 import unittest
@@ -118,55 +118,7 @@ class GateCase(_RepoCase):
         self.assertNotIn("依頼に無い字の引用", self.prep()["prompt"])
 
 
-class PromptCase(_RepoCase):
-    def test_prompt_carries_rows_groups_and_words(self):
-        self.intake()
-        text = self.prep()["prompt"]
-        self.assertIn("- Line 1: " + TEXT, text)
-        self.assertIn("  - Location: stats.py:4-5 (file exists, line range inside the file)", text)
-        self.assertIn("Allowed models (weakest first): haiku, sonnet, opus", text)
-        launch = self.steps.launchgroups
-        for name in launch.GROUPS:
-            self.assertIn(f"`{name}`", text)
-        self.assertEqual(sum(1 for line in text.splitlines() if line.startswith("- `@wf-")), len(launch.GROUPS))
-        for name, spec in launch.GROUPS.items():
-            self.assertIn(f"- `{name}`: {spec['what']} (default {spec['model']}, {spec['effort']})", text)
-        self.assertIn(", ".join(launch.MODELS), text)
-        self.assertIn(", ".join(launch.EFFORTS), text)
-        self.assertEqual(launch.EFFORTS[0], "low")
-        self.assertEqual(launch.EFFORTS[-1], "max")
-        for word in (*self.steps.UNKNOWNS, *self.steps.HEADS):
-            self.assertIn(word, text)
-        self.assertNotRegex(text, r"\{[a-z0-9_]+\}", "埋まらない差し込み口が無い")
-        self.assertNotIn("Why your previous answer was rejected", text)
-        self.assertTrue((self.run.artifacts / "head-depth-prompt-1.md").is_file())
-
-    def test_limits_come_from_the_code(self):
-        self.intake()
-        text = self.prep()["prompt"]
-        cite = self.steps.cite
-        self.assertIn(f"{cite.QUOTE_MIN} ", text)
-        self.assertIn(f"{self.steps.WHERE_SPAN} ", text)
-
-    def test_lang_fills_the_last_sentence(self):
-        self.intake(lang="Japanese")
-        self.assertIn("Japanese", self.prep()["prompt"])
-        self.setUp()
-        self.intake()
-        self.assertIn("the language of the request", self.prep()["prompt"])
-
-    def test_rejections_come_back_in_the_next_prompt_all_of_them(self):
-        self.intake()
-        self.prep()
-        bad = reply({**CAUSE_ITEM, "cause_quote": "一回目の外れ"})
-        self.assertEqual(self.accept(bad)["done"], False)
-        self.prep()
-        self.accept(reply({**CAUSE_ITEM, "cause_quote": "二回目の外れ"}))
-        third = self.prep()["prompt"]
-        self.assertTrue(third.startswith("## Why your previous answer was rejected"), third[:80])
-        self.assertEqual(third.count("回目の拒否"), 2)
-        self.assertTrue((self.run.artifacts / "head-depth-prompt-3.md").is_file())
-
+class PrepCase(_RepoCase):
     def test_prep_without_intake_fails_the_node(self):
         self.assertIn("intake.json", self.run.failing("depth_prep"))
 
@@ -356,7 +308,7 @@ def _nodes(doc) -> list:
 
 
 class ShapeCase(unittest.TestCase):
-    """YAML と src/steps の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
+    """役の返答の型の語が段の表と同じ（enum から種類が落ちると、役はその種類を選べず、段が黙って軽くなる＝承認ノードと止めが減る）"""
 
     def setUp(self):
         self.steps = kit.load("head-depth", "steps")
@@ -371,34 +323,6 @@ class ShapeCase(unittest.TestCase):
         self.assertNotIn("tier", self.nodes["head-depth"]["output_format"]["properties"])
         self.assertNotIn("depth", self.nodes["head-depth"]["output_format"]["properties"])
         self.assertEqual(self.nodes["head-depth"]["output_format"]["required"], ["why", "items", "groups"])
-
-    def test_thickness_words_match_the_input(self):
-        text = _doc()["inputs"]["thickness"]["description"]
-        self.assertTrue(text.startswith(f"choice({'|'.join(self.steps.THICKNESS)}):"), text)
-        self.assertEqual(list(self.steps.THICKNESS.values())[1:], list(self.steps.HEADS))
-        self.assertEqual(_doc()["inputs"]["thickness"]["default"], "auto")
-
-    def test_has_checks_defaults_to_false(self):
-        self.assertEqual(_doc()["inputs"]["has_checks"]["default"], "false")
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        self.assertEqual(self.nodes["head-depth-loop"]["loop_group"]["max_iterations"], self.steps.rolekit.GIVE_UP_AFTER)
-
-    def test_role_keeps_the_old_settings(self):
-        node = self.nodes["head-depth"]
-        self.assertEqual({k: node.get(k) for k in ("model", "settingSources", "allowed_tools", "mutates_checkout", "sandbox",
-                                                   "idle_timeout", "retry")},
-                         {"model": "@wf-judge-materials", "settingSources": ["user"], "allowed_tools": ["Read", "Grep", "Glob"],
-                          "mutates_checkout": False, "sandbox": {"enabled": True, "allowUnsandboxedCommands": False},
-                          "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}})
-
-    def test_the_old_reject_node_is_gone(self):
-        self.assertEqual(set(self.nodes), {"intake", "head-depth-loop", "head-depth-prep", "head-depth", "head-depth-accept", "finish"})
-        self.assertEqual(self.nodes["head-depth-accept"]["with"], {"reply": "$head-depth.output"})
-        self.assertNotIn("with", self.nodes["head-depth-prep"])
-
-    def test_kinds_map_to_the_old_tiers(self):
-        self.assertEqual(self.steps.UNKNOWNS, {"無し": "軽量", "原因": "標準", "形": "標準", "範囲": "重厚"})
 
 
 if __name__ == "__main__":

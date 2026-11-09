@@ -1,7 +1,7 @@
 """前提の実測の block を、script を子のプロセスで回して確かめる（docs/design/premises.md の 7.2）。
 
 始めの記録の無い使い捨ての run directory と git のリポジトリ（stats.py）で、port の値だけを渡し、intake → measure_prep → 台本の返答 →
-measure_accept → finish と回す。受け付けの決まりは src/steps の check をこの過程で呼んで確かめる。YAML と筋書きの揃いも見る。筋書きを
+measure_accept → finish と回す。受け付けの決まりは src/steps の check をこの過程で呼んで確かめる。筋書きを
 Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
@@ -100,46 +100,6 @@ class IntakeCase(_RepoCase):
         for name in ("rejects-premises.json", "premises-prompt-1.md", "premises.json"):
             self.assertFalse((self.run.artifacts / name).exists(), name)
         self.assertTrue((self.run.artifacts / "other.json").is_file(), "ほかの物の名のファイルは消さない")
-
-
-class PromptCase(_RepoCase):
-    def test_request_json_reaches_the_prompt(self):
-        self.intake()
-        text = self.prep()["prompt"]
-        self.assertIn('"where": "stats.py:4"', text)
-        self.assertNotIn("ARTIFACTS_DIR", text)
-        self.assertNotIn("judge/request.json", text)
-        self.assertNotRegex(text, r"\{[a-z0-9_]+\}", "埋まらない差し込み口が無い")
-        self.assertNotIn("Why your previous answer was rejected", text)
-        self.assertTrue((self.run.artifacts / "premises-prompt-1.md").is_file())
-
-    def test_empty_request_is_an_empty_array(self):
-        self.intake(request="[]")
-        self.assertIn("```json\n[]\n```", self.prep()["prompt"])
-
-    def test_query_rule_is_in_without_the_spawns_paragraph(self):
-        self.intake()
-        text = self.prep()["prompt"]
-        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[1:]   # 0 行目は道具の印（指示には出ない）
-        self.assertTrue(text.startswith(rule[0]), text[:80])
-        self.assertNotIn("required-for-tools", text)
-        spawns = rule[rule.index("<!-- if spawns -->") + 1:rule.index("<!-- end spawns -->")]
-        self.assertTrue(spawns)
-        for line in spawns:
-            self.assertNotIn(line, text)
-
-    def test_rejections_reach_the_next_prompt(self):
-        self.intake()
-        self.prep()
-        got = self.accept({"constraints": []})
-        self.assertEqual((got["ok"], got["done"]), (False, False))
-        again = self.prep()["prompt"]
-        self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
-        self.assertIn("stats.py:4", again)
-        self.assertTrue((self.run.artifacts / "premises-prompt-2.md").is_file())
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("measure_prep"))
 
 
 class AcceptCase(_RepoCase):
@@ -302,14 +262,6 @@ class FinishCase(_RepoCase):
         self.assertEqual((fin["ok"], fin["status"], fin["constraints"]), (False, "failed", None))
         self.assertIn("前提の実測の支度が落ちた", fin["reason"])
 
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__premises-run__intake", request=REQUEST, carried="[]", lang="")
-        self.run.script("measure_prep", "judge__premises-run__premises-loop.premises-prep")
-        self.run.script("measure_accept", "judge__premises-run__premises-loop.premises-accept", reply=json.dumps(GOOD))
-        fin = self.run.script("finish", "judge__premises-run__finish")
-        self.assertEqual(fin["constraints"]["path"], "judge/premises-run/premises.json")
-        self.assertFalse((self.run.artifacts / "premises.json").exists())
-
 
 def _doc() -> dict:
     return yaml.safe_load((BLOCK / "works-factory-premises.yaml").read_text(encoding="utf-8"))
@@ -317,44 +269,6 @@ def _doc() -> dict:
 
 def _nodes() -> dict:
     return {m["id"]: m for n in _doc()["nodes"] for m in [n, *(n.get("loop_group") or {}).get("nodes", [])]}
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML と src/steps の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        self.steps = kit.load("premises", "steps")
-        self.nodes = _nodes()
-
-    def test_kind_enum_matches_the_words(self):
-        enum = self.nodes["premises"]["output_format"]["properties"]["constraints"]["items"]["properties"]["kind"]["enum"]
-        self.assertEqual(tuple(enum), (self.steps.MEASURED, self.steps.HYPOTHESIS))
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        self.assertEqual(self.nodes["premises-loop"]["loop_group"]["max_iterations"], self.steps.rolekit.GIVE_UP_AFTER)
-
-    def test_role_keeps_the_old_settings(self):
-        node = self.nodes["premises"]
-        self.assertEqual({k: node.get(k) for k in ("model", "settingSources", "allowed_tools", "mutates_checkout", "sandbox",
-                                                   "idle_timeout", "retry")},
-                         {"model": "@wf-judge-materials", "settingSources": ["user"],
-                          "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"], "mutates_checkout": None,
-                          "sandbox": {"enabled": True, "allowUnsandboxedCommands": False,
-                                      "filesystem": {"denyWrite": ["~/../archon-home"]}},
-                          "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}})
-
-    def test_role_reply_outside_the_type_is_rejected(self):
-        shape = self.nodes["premises"]["output_format"]
-        row = {"text": "a", "measured_how": "b", "kind": "実測", "measured_output": "x"}
-        self.assertEqual(validate_schema({"constraints": [row]}, shape), [])
-        for bad in ({"constraints": [{**row, "kind": "憶測"}]}, {"constraints": [{**row, "measured_output": "  "}]},
-                    {"constraints": [{**row, "extra": 1}]}, {"rows": []}):
-            with self.subTest(bad):
-                self.assertTrue(validate_schema(bad, shape))
-
-    def test_finish_fields_match_the_returns_shape(self):
-        props = self.nodes["finish"]["output_format"]["properties"]
-        self.assertEqual(set(props), {"ok", "status", "reason", "constraints", "report"})
 
 
 if __name__ == "__main__":

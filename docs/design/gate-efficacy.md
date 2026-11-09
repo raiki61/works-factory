@@ -289,11 +289,14 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 
 ### 2.9 試験
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 使われていない block なので、standalone の筋書きと流れの試験を残し、ほかの block と同じ型の字の照らしを落とした。下の一覧は写した時の記録で、今は次を持たない。
+- 筋書き `gave-up`（拒まれても run を止めない道）・`skipped`（合流で回さない道）・`entry`（入口で回さない道）。回さない 2 つの道は `FlowCase.test_merge_route_does_not_run_the_role`・`test_entry_route_does_not_run_the_role_and_merge_wins_when_both`、3 回で諦めるのは `FlowCase.test_three_rejections_give_up` が script で見る。
+- `FlowCase` の変異の宣言が指示に入る字（`test_declared_mutation_stage_reaches_the_instruction`。段落の真偽と値は `test_viewpoint.py` の `test_mutation_values_and_paragraphs` が見る）・intake 無しの落ち・include の道で place が分かれる（tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`）。
+- `ShapeCase`（輪の上限と役の起こし方の写し）。輪の until の配線と上限は tests/layers の `test_loop_bounds.py`、`denyWrite`・期限・retry は tests/layers の E7・E12・E19 の検査が見る。
+- `test_viewpoint.py` の `test_declaration`（宣言の定数の写し）と `test_materials_and_report`（報告の行の字）。宣言の定数を替える壊し（`GUARDED`・`NA`・`MATERIALS`）と `materials_of` を空にする壊しは、tests/blocks/materials の `test_viewpoints.py` と `FlowCase` が赤にする。
+
 - standalone の fixture（`workflows/gate-efficacy/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`gates: ""`・`entry: ""`・`lang: ""`。AI の node `gate-efficacy` だけを台本の返答（`material: {status: clean, checked: "…"}`・`arms` 1 行〔`red_confirmed: true`・`control_green: true`・`hit_evidence` 10 字以上〕）で差し替え、script は本物。`reached` に `finish`。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答は `material.status: clean`・`arms: []`（腕が 0 行で拒まれる）。筋書きでは輪が 1 周で終わるので拒否は 1 回で、run は `completed`、出口は落ちずに返る（fixture 自身の注にあるとおり）。3 回で諦めて `finish` が `status: gave_up` を返す数えは `test_gate_efficacy.py` の `test_three_rejections_give_up` が確かめる。
-  - `skipped.stubs.yaml`: `gates: merge`。AI の node に届かず、`finish` の `status` が `skipped`。
-  - `entry.stubs.yaml`: `entry: "人の依頼（standalone）"`。`finish` の `status` が `skipped`。
 - `tests/blocks/gate_efficacy/test_gate_efficacy.py`（materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリ）:
   - 写す元 `test_judge_accept.py::DueCase.test_gates_merge_turns_gate_efficacy_off`: `gates: merge` なら `intake` の `due` が偽で、`material.json` の `gate_efficacy` が `not_applicable`・`reason` が `GATES_MERGE_WHY` で始まる。`entry` が在れば `due` が偽で、`fill_entry` の字。合流と入口が両方在れば合流の字（順の照らし）。
   - 写す元 `MaterialCase.test_accept_rules` の `gate-efficacy` の部分: `clean` で `red_confirmed: false` の腕を持つ返答は拒まれ、`accepted.json` が無い。
@@ -354,7 +357,7 @@ bin/works-factory workflow run works-factory-gate-efficacy \
 - 腕の照らしの `blank` に `lib/recount.py` の `blank` を使い、写さない。訳: 同じ表 `EMPTY` と同じ見方（字の欄では同じ値を返す）を持つ KEEP の部品が在る。3 つ目の写しを block に置くと、空同然の語の表が 3 か所に割れる。返答の `hit_evidence` は `output_format` で字に決まるので、`recount.blank` の字でない値の扱い（空とみなす）の違いは効かない。
 - ゲートの印・変異の宣言の読み・腕の照らしを `src/` の 3 つのファイル（`signals.py`・`mutation.py`・`arms.py`）に分ける。訳: 写す元が `judge_accept.py` の別々の所（`:2003-2050`・`:2083-2096`・`:2160-2183`）にあり、試験も別々（`GateSignalsCase`・`test_gate_prep_shows_the_declared_mutation_stage`・`test_accept_rules`）。1 本にすると `viewpoint.py` が宣言の外の中身を持つ。
 - `due` の回す時の訳の字を「ゲートの検算は合流の道でも判定から入る run でもない run で回す（…1 run は 1 周で、いつも初回）」にする。訳: 今の字（「…前の周の P3 が何かを直した周——成り立つ（round=1・…）」）は 1 run = 1 周で効かない枝を名指す。prior-decisions.md の `due` の字と同じ書き方にそろえた。回さない時の訳と素材の埋めの字は今のまま。
-- 回さない時の fixture を、合流（`skipped.stubs.yaml`）と入口（`entry.stubs.yaml`）の 2 本にする。訳: 回さない道が 2 つ在り、埋めの字が違う。
+- 回さない時の照らしを、合流と入口の 2 つの道にする（筋書きは 2026-11-10 の削りで消し、`FlowCase` の 2 本が見る）。訳: 回さない道が 2 つ在り、埋めの字が違う。
 - 報告の行に腕ごとの 1 行を足す。訳: 素材の 1 行（materials.md の 2.10）は `detail` を 1 行に縮めるので、腕の 3 つの印のどれが欠けたかが報告から見えない。腕の行は判定の材料に載る事実そのまま。
 - 変異の 4 つの値（`mutation_argv`・`mutation_arms`・`mutation_error` と `decl_name`）は、段落が入らない回も空の字でいつも渡す（`values` の欄で、3 条件の足し分けにしない）。訳: 共通の `prompt.render` が選ばれない段落の中の差し込み口にも値を要り、足りないと落ちる（`.shared/AGENTS.md`）。
 - `fill` の判定から入る run の枝は `materialkit.fill_entry(entry, None)`（件数の句は「渡されていない」）にする。訳: 1.5 の `0` は「0 件」と読まれ、この block は `request` を持たないので事実と違う。materials.md の 2.6 は `request` を持たない観点に `None` を渡すと決めている。

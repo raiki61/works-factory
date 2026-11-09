@@ -495,6 +495,11 @@ uv run --isolated python3 tests/changed.py
 
 3 本の筋書き（`fixtures/`）は `tests/layers/test_block_shape.py` が `archon workflow test` で回し、`archon validate` が警告なしで通ることも照らす（この block の試験の package は `test_fixtures.py` を持たない。8 節の自分で決めた 12）。最後に、6 節の命令で本物の単独の run を 1 回回す（費用のかかる試しは聞かずに回してよい）。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `test_head_depth.py`: `PromptCase` の指示の字の 4 本（行の札・群の行・下限の数・言語・拒みの段落。印と値の対は workflows/.shared/prompt.py の emit が照らす。指示が組めない時に node が落ちる 1 本は `PrepCase` に残す）・`ShapeCase` の 6 本（入力の choice の語・`has_checks` の既定・輪の上限・役の鍵・古い node が無い・種類と段の表）。輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、役の鍵は E7・E12・E19 の tests/layers の試験、種類と段の表は `CheckCase.test_tier_is_the_heaviest_kind`・`AcceptCase.test_tier_follows_the_heaviest_kind_and_the_row_kinds_are_recorded`（lib/headdepth.py の表の「範囲」を標準に替える壊しで赤）が見る。`ShapeCase.test_kind_and_tier_enums_match_the_code` は残す（役の型の enum から種類が落ちても受け付けの試験は赤にならず、段が黙って軽くなる＝承認ノードと止めが減る。enum から「範囲」を抜く壊しで、ほかの試験は緑のままだった）。
+- `test_rejections_come_back_in_the_next_prompt_all_of_them`（拒否の控えの全部が次の指示に入る）も消した。拒否を最後の 1 件だけ渡す壊しは緑のまま（書き込みと承認に直に当たらない）。delta-review と diagnose は同じ種類の照らしを残していて、扱いが違う。
+- 筋書き `gave-up`（拒まれた返答は標準で控えを書き run は止めない。`AcceptCase.test_refused_reply_keeps_standard_and_the_role_why`・`FinishCase.test_three_rejections_give_up` が見る。拒みの控えを軽量で書く壊しで 3 本が赤）。
+
 ## 8 根拠を書いて自分で決めた事
 
 1. 試験のフォルダを `tests/blocks/head_depth/` にした。根拠: Python の package の名に `-` は使えず、unittest の discover が見つけない（`tests/AGENTS.md` の「`__init__.py` が無いと黙って見つけない」と同じ種類の黙った漏れ）。README の 3 節は `tests/blocks/<block>/` と書くので、`-` を `_` に替える決まりを README に足すのがよい。

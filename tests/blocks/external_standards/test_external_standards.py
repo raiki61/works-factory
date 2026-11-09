@@ -4,16 +4,13 @@
 role_accept → finish と回し、material.json と出力の 5 欄を照らす。拒まれる返答 3 回で gave_up になる道と、判定から入る run で
 役を起こさない道も回す。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
-import copy
 import json
 import unittest
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-BLOCK = kit.BLOCKS / "external-standards"
 NAME = "external-standards"
 LOOP = f"{NAME}-loop"
 PURPOSE = {"purpose_text": "設定ファイルの読み込みを速くする変更", "source": "①PR 説明", "known_weaknesses": [], "source_files": []}
@@ -118,21 +115,6 @@ class FlowCase(unittest.TestCase):
         self.assertIn("3 回とも受け付けで拒まれた", fin["reason"])
         self.assertEqual(self.material()["materials"]["external_standards"]["status"], "not_run")
 
-    def test_entry_run_does_not_start_the_role(self):
-        git(self.run.repo, "checkout", "--", "a.py")   # setUp の差分を戻し、差分が空の作業ツリーで回す
-        got = self.intake(entry="人の依頼（試験）")
-        self.assertFalse(got["due"])
-        fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"]), (True, "skipped"))
-        mat = self.material()["materials"]["external_standards"]
-        self.assertEqual(mat["status"], "not_applicable")
-        self.assertIn("人の依頼（試験）", mat["reason"])
-        self.assertIn("件数は渡されていない", mat["reason"])
-
-    def test_entry_with_a_diff_still_runs_the_role(self):
-        got = self.intake(entry="人の依頼（試験）")
-        self.assertTrue(got["due"], "差分が在れば entry に字が在っても回す")
-
     def test_unreadable_purpose_fails_with_the_port_name(self):
         got = self.intake(purpose='{"purpose_text": ""}')
         self.assertFalse(got["due"])
@@ -140,88 +122,6 @@ class FlowCase(unittest.TestCase):
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertIn("purpose", fin["reason"])
         self.assertEqual(self.material()["materials"]["external_standards"]["status"], "not_run")
-
-    def test_prompt_with_and_without_a_purpose(self):
-        """写す元 test_missing_purpose_is_said_not_invented: 目的の文が無い run は目的を作らせない 1 文を入れ、目的の値を渡さない"""
-        self.intake()
-        got = self.prep()["prompt"]
-        self.assertIn("Original purpose: " + PURPOSE["purpose_text"], got)
-        self.assertIn("Weaknesses already known and accepted: []", got)
-        self.assertNotIn("no purpose text is given", got)
-        self.assertNotIn("Why your previous answer was rejected", got)
-        self.assertIn("in the language of the request", got, "lang が空なら既定の言語の文")
-        rule = (kit.BLOCKS / ".shared" / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[1]   # 0 行目は道具の印（指示には出ない）
-        self.assertNotIn("required-for-tools", got)
-        self.assertEqual(got.count(rule), 1, "外への検索の決まりは role-investigator の断片が持つ 1 回だけ")
-        self.setUp()
-        self.intake(purpose="null", lang="Japanese")
-        got = self.prep()["prompt"]
-        self.assertIn("Original purpose: no purpose text is given in this run.", got)
-        self.assertNotIn(PURPOSE["purpose_text"], got)
-        self.assertIn("in Japanese.", got)
-        self.assertIn("Files the target diff touches: [\n \"a.py\"\n]", got)
-
-    def test_repo_review_paragraph_follows_the_file(self):
-        self.intake()
-        self.assertNotIn("The target repository's own source of truth", self.prep()["prompt"])
-        self.setUp()
-        (self.run.repo / "REVIEW.md").write_text("# 対象の観点\n", encoding="utf-8")
-        self.intake()
-        got = self.prep()["prompt"]
-        self.assertIn("The target repository's own source of truth: Read ", got)
-        self.assertIn(str((self.run.repo / "REVIEW.md").resolve()), got)
-        self.assertIn('Read the section "外部標準照合観点" of', got)
-
-    def test_a_rejection_is_shown_on_the_next_round(self):
-        self.intake()
-        self.prep()
-        self.accept({**GOOD, "rankings": [{**RANK, "diff_at": "どこにも無い"}]})
-        got = self.prep()["prompt"]
-        self.assertTrue(got.startswith("## Why your previous answer was rejected"), got[:80])
-        self.assertIn("ranked に無い", got)
-        self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
-        self.assertNotIn("started in a new conversation", got, "同じ会話で続ける役の指示に『新しい会話』と書かない")
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__external-standards-run__intake", base="", purpose="null", entry="", lang="")
-        self.assertTrue((self.run.artifacts / "judge" / "external-standards-run" / "intake.json").is_file())
-        fin = self.run.script("finish", "judge__external-standards-run__finish")
-        self.assertEqual(fin["material"]["path"], "judge/external-standards-run/material.json")
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        kit.load(NAME, "viewpoint")   # lib/ を読めるようにする
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    # 今の判定の external-standards の役の起こし方（tests/workflows の test_judge.py の ROLES["external-standards"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 net_closed_launch を、作り直しの時に字で写した物）
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
-              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                          "excludedCommands": ["works-gh:*"], "network": {"allowedDomains": []},
-                          "filesystem": {"denyWrite": ["~/../archon-home"]}},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def test_launch_matches_the_judge_role(self):
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertNotIn("mutates_checkout", role)
-        self.assertEqual(role["output_format"]["required"], ["material", "findings", "seen", "unseen", "web_refetched", "rankings"])
-        self.assertEqual(role["output_format"]["properties"]["rankings"]["items"]["required"], ["problem", "source", "ranked", "diff_at"])
 
 
 if __name__ == "__main__":

@@ -4,15 +4,10 @@ import unittest
 from tests.blocks import kit
 
 
-
 class ViewpointCase(unittest.TestCase):
     def setUp(self):
         self.vp = kit.load("prior-decisions", "viewpoint")
         self.mk = self.vp.materialkit
-
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         (("prior_decisions",), False, "never", True))
 
     def test_never_viewpoint_does_not_answer_applies_or_fill(self):
         with self.assertRaises(NotImplementedError):
@@ -31,8 +26,6 @@ class ViewpointCase(unittest.TestCase):
         self.assertEqual(self.vp.request_lines(diffed, {"entry": "e", "request": rows}), [])
         self.assertEqual(self.vp.request_lines(empty, {"entry": "e", "request": {"findings": rows}}), [{"where": "a", "text": "x"}])
         self.assertEqual(self.vp.materials_of({}), {})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"settled": [{"topic": "t"}]}}), ["  - 決着済みの論点: t（書いてある所の記録が無い）"])
 
 
 if __name__ == "__main__":

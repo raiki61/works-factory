@@ -5,7 +5,6 @@
 docstring に元の試験の名を書く）。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
-import os
 import pathlib
 import unittest
 from unittest import mock
@@ -102,9 +101,9 @@ class CompareRoadCase(_RepoCase):
         self.assertEqual(self.finish()["findings"], [])
 
     def test_settle_table_covers_every_status_and_kind(self):
-        """settle の表（上から順）を、返答の語と違いの種の組ごとに intake → compare_prep → save → finish で回す。block の status は
-        どの組でも ran。作り残しだけの返答は fix-needed で、reason の尾に行の where と text が付く。構造の行が 1 つでも在れば、返答の語が
-        pass でも redesign-needed（安全の側に倒す。指示の「構造の行を付けると機械が redesign-needed にする」と同じ）"""
+        """settle の表（上から順）を、返答の語と違いの種の組ごとに照らす。作り残しだけの返答は fix-needed で、reason の尾に行の where と
+        text が付く。構造の行が 1 つでも在れば、返答の語が pass でも redesign-needed（安全の側に倒す）。表は steps.settle を直に、出口の
+        配線（finish が settle を引き、block の status は ran、findings は fix-needed の時だけ）は判断の分かれる 2 行で script の口から"""
         steps = kit.load("r2", "steps")
         unfinished, structure, wording = steps.UNFINISHED_KIND, "構造", "表現"
         row = {unfinished: {"kind": unfinished, "text": "上限の確かめが無い", "where": "app.py:12"}, structure: {"kind": structure, "text": "継ぎ目が違う"},
@@ -127,6 +126,16 @@ class CompareRoadCase(_RepoCase):
         ]
         for status, kinds, want, reason in cases:
             with self.subTest(status=status, kinds=kinds):
+                got = steps.settle({"status": status, "reason": "R", "differences": [row[k] for k in kinds]})
+                self.assertEqual(got, {"status": want, "reason": reason})
+        for head in steps.KEEP_HEADS:
+            with self.subTest(head=head):
+                got = steps.settle({"status": "redesign-needed", "reason": head + "理由", "differences": [row[unfinished]]})
+                self.assertEqual(got, {"status": "redesign-needed", "reason": head + "理由"})
+        self.assertEqual(steps.settle({"status": "unverifiable", "reason": "x", "differences": [row[structure]]}),
+                         {"status": "unverifiable", "reason": "x"})
+        for status, kinds, want, reason in (cases[0], cases[1]):
+            with self.subTest(script=status, kinds=kinds):
                 self.intake()
                 self.compare()
                 self.save("r2-compare", {"status": status, "reason": "R", "differences": [row[k] for k in kinds]})
@@ -134,45 +143,6 @@ class CompareRoadCase(_RepoCase):
                 self.assertEqual((done["ok"], done["status"], done["reason"]), (True, "ran", ""))
                 self.assertEqual(done["verdict"], {"status": want, "reason": reason})
                 self.assertEqual(done["findings"], [{"where": "app.py:12", "text": "上限の確かめが無い"}] if want == "fix-needed" else [])
-        for head in steps.KEEP_HEADS:
-            with self.subTest(head=head):
-                self.intake()
-                self.compare()
-                self.save("r2-compare", {"status": "redesign-needed", "reason": head + "理由", "differences": [row[unfinished]]})
-                done = self.finish()
-                self.assertEqual((done["status"], done["verdict"]), ("ran", {"status": "redesign-needed", "reason": head + "理由"}))
-                self.assertEqual(done["findings"], [])
-        self.assertEqual(steps.settle({"status": "unverifiable", "reason": "x", "differences": [row[structure]]}),
-                         {"status": "unverifiable", "reason": "x"})
-
-    def test_compare_prompt_names_fix_needed_and_unfinished(self):
-        """比べの役の指示は 3 つの語と作り残しの種と where の書き方と KEEP_HEADS の 3 つの頭の字と、fix-needed に構造の行を添えない決まりを言う"""
-        steps = kit.load("r2", "steps")
-        self.intake()
-        text = self.compare()["prompt"]
-        for word in ("fix-needed", "redesign-needed", "pass", "作り残し", "`where`", *steps.KEEP_HEADS):
-            self.assertIn(word, text)
-        self.assertIn("When you write fix-needed, write no 構造 row", text)
-        self.assertIn("If you attach even one 構造 row, the machine makes `status` redesign-needed", text)
-        self.assertNotIn("{st_", text)
-        self.assertNotIn("{head_", text)
-
-    def test_prompt_pastes_the_measured_test_outcomes_and_the_tdd_proof(self):
-        """test_prep_pastes_the_measured_test_outcomes_and_the_tdd_proof（issue #384）: tdd の port で。渡っていない時は測っていないと書く"""
-        self.intake()
-        none = self.compare()["prompt"]
-        self.assertIn("test_outcomes）が渡っていない", none)
-        self.assertIn("修正の段が走っていない", none)
-        outcomes = {"rows": [{"key": "tests.test_stats.TestStats::test_clamp_above_range", "base": "failure", "final": "passed",
-                              "fail_message": "AssertionError: 0 != 10"}], "unmeasured": ""}
-        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
-                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
-                            "tests": ["tests/test_stats.py::TestStats::test_clamp_above_range"]}]}]]
-        self.intake(test_outcomes=dump(outcomes), tdd=dump(tdd))
-        got = self.compare()["prompt"]
-        self.assertIn("  - `tests.test_stats.TestStats::test_clamp_above_range`（base failure: AssertionError: 0 != 10）", got)
-        self.assertIn("u1: 赤 ok・緑 ok", got)
-        self.assertIn("名指しのテスト tests/test_stats.py::TestStats::test_clamp_above_range", got)
 
     def _stats_repo(self, *extra: str):
         """stats を変え、tests/test_stats.py がそれを import する形（#384 の改名の場面）。tests/test_other.py は other だけを import する。
@@ -190,12 +160,6 @@ class CompareRoadCase(_RepoCase):
         (self.repo / "stats.py").write_text("def middle(xs):\n    return xs\n", encoding="utf-8")
         for name in extra:
             (self.repo / name).write_text("after\n", encoding="utf-8")
-
-    def _commit_tests(self, *paths: str):
-        """テストのファイルを起点の版に入れる（作業ツリーの変更は stats.py だけに戻す。地図の起点がテストのファイル自身にならない）"""
-        git(self.repo, "add", *paths)
-        git(self.repo, "commit", "-q", "-m", "tests")
-        self.base = git(self.repo, "rev-parse", "HEAD").strip()
 
     STATS = [f"tests.test_stats.TestMedian::test_{n}" for n in ("odd", "even", "single")]
     OTHER = [f"tests.test_other.TestOther::test_{n}" for n in ("a", "b")]
@@ -231,120 +195,6 @@ class CompareRoadCase(_RepoCase):
         self.assertIn("  - `tests.test_other.TestOther::test_red`（base failure・最後 failure: boom）", outcomes)
         self.assertIn("  - `tests.test_other.TestOther::test_fixed`（base failure: was）", outcomes)
 
-    def test_runtime_copy_does_not_make_the_map_undecided(self):
-        """Archon が run の作業ツリーに写す pack（追跡されない .archon/workflows/ の下。動的 import を持つ）を地図の起点に入れない。
-        入れると all_tests_required になり、本番では届かない緑→緑の名がいつも貼られる（絞りが一度も効かない）"""
-        self._stats_repo()
-        copy = self.repo / ".archon" / "workflows" / "works-factory" / ".shared"
-        copy.mkdir(parents=True)
-        (copy / "ports.py").write_text("import importlib\n\n\ndef load(name):\n    return importlib.import_module(name)\n",
-                                       encoding="utf-8")
-        self.intake(test_outcomes=dump(self._outcomes()))
-        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
-        self.assertNotIn("TestOther::test_a`", outcomes)
-        self.assertIn("  - ほかに 2 件は名を貼っていない（変更したファイルから地図で届かないテストのファイルの物）", outcomes)
-        for k in self.STATS:
-            self.assertIn(f"  - `{k}`\n", outcomes)
-
-    def test_tests_under_a_test_named_folder_are_named(self):
-        """test_ で始まるフォルダの下のテスト（tests/test_integration/test_stats.py）も、地図が届けば緑→緑の名を貼る。classname の
-        どの部分がテストのファイルの名の幹でもよい"""
-        self._stats_repo()
-        (self.repo / "tests" / "test_integration").mkdir()
-        (self.repo / "tests" / "test_integration" / "test_stats.py").write_text("import stats\n", encoding="utf-8")
-        self._commit_tests("tests/test_integration/test_stats.py")
-        key = "tests.test_integration.test_stats.TestMedian::test_deep"
-        got = self._outcomes()
-        got["rows"].append({"key": key, "base": "passed", "final": "passed", "fail_message": ""})
-        self.intake(test_outcomes=dump(got))
-        self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
-
-    def test_tests_using_a_conftest_fixture_are_named(self):
-        """conftest.py の fixture 越しに変わった stats を使うテスト（テストのファイルは stats を import しない。client の fixture の
-        形）も、地図が conftest.py の下のテストまで届くと数えるので緑→緑の名を貼る（#384 が fixture の形で再発しない）"""
-        self._stats_repo()
-        (self.repo / "tests" / "api").mkdir()
-        (self.repo / "tests" / "conftest.py").write_text("import stats\n", encoding="utf-8")
-        (self.repo / "tests" / "api" / "test_api.py").write_text("def test_get(client):\n    pass\n", encoding="utf-8")
-        self._commit_tests("tests/conftest.py", "tests/api/test_api.py")
-        key = "tests.api.test_api.TestApi::test_get"
-        got = self._outcomes()
-        got["rows"].append({"key": key, "base": "passed", "final": "passed", "fail_message": ""})
-        self.intake(test_outcomes=dump(got))
-        self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
-
-    def test_tests_beyond_the_mention_hops_are_named(self):
-        """地図が言及の辺を辿る上限（impact.MENTION_HOPS）の先のテスト（stats.py ← run.sh ← wrap.sh ← tests/test_wrap.py の 3 本目）も、
-        地図が名を返す（not_seen.tests_beyond_mention_hops）ので緑→緑の名を貼る"""
-        self._stats_repo()
-        (self.repo / "run.sh").write_text("#!/bin/sh\npython stats.py\n", encoding="utf-8")
-        (self.repo / "wrap.sh").write_text("#!/bin/sh\n./run.sh \"$@\"\n", encoding="utf-8")
-        (self.repo / "tests" / "test_wrap.py").write_text(
-            "import subprocess\n\n\ndef test_wrap():\n    subprocess.run([\"./wrap.sh\"])\n", encoding="utf-8")
-        self._commit_tests("run.sh", "wrap.sh", "tests/test_wrap.py")
-        key = "tests.test_wrap.TestWrap::test_wrap"
-        got = self._outcomes()
-        got["rows"].append({"key": key, "base": "passed", "final": "passed", "fail_message": ""})
-        self.intake(test_outcomes=dump(got))
-        self.assertIn(f"  - `{key}`\n", self.compare()["prompt"])
-
-    def test_tests_in_the_tdd_test_files_are_named(self):
-        """TDD の記録の単位が test_files に名指したテストのファイルの物は、地図が届かなくても緑→緑の名を貼る（tests だけでなく）"""
-        self._stats_repo()
-        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
-                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok", "tests": [],
-                            "test_files": ["tests/test_other.py"]}]}]]
-        self.intake(test_outcomes=dump(self._outcomes()), tdd=dump(tdd))
-        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
-        for k in self.OTHER:
-            self.assertIn(f"  - `{k}`\n", outcomes)
-
-    def test_tests_in_the_files_of_the_tdd_tests_are_named(self):
-        """TDD の記録の単位が tests に名指したテストのファイルの物は、名指されていないテストも地図が届かなくても緑→緑の名を貼る
-        （fix の _named_files と同じく tests のファイルも範囲に入れる）"""
-        self._stats_repo()
-        tdd = [[{"group_id": "g1", "ran": True, "reason": "", "suite": "", "reused": {},
-                 "units": [{"unit_key": "u1", "route": "tdd", "red": "ok", "green": "ok",
-                            "tests": ["tests/test_other.py::TestOther::test_b"]}]}]]
-        self.intake(test_outcomes=dump(self._outcomes()), tdd=dump(tdd))
-        outcomes = self.compare()["prompt"].partition("### TDD loop records")[0]
-        for k in (*self.OTHER, "tests.test_other.TestOther::test_skip"):
-            self.assertIn(f"  - `{k}`\n", outcomes)
-        self.assertNotIn("件は名を貼っていない（", outcomes)
-
-    def test_all_names_are_pasted_when_the_cumulative_diff_is_empty(self):
-        """累積差分が本当に空（差分は取れたが変わったファイルが無い）なら、地図の起点が無く関わりを決められないので全部の名を貼る
-        （起点なしの地図は何にも届かず、緑→緑が全部件数になって #384 と同じ誤りになる）"""
-        self._stats_repo()
-        (self.repo / "stats.py").write_text("def median(xs):\n    return xs\n", encoding="utf-8")
-        self.intake(test_outcomes=dump(self._outcomes()))
-        text = self.compare()["prompt"]
-        for k in (*self.STATS, *self.OTHER, "tests.test_other.TestOther::test_skip"):
-            self.assertIn(f"  - `{k}`\n", text)
-        self.assertNotIn("件は名を貼っていない（", text)
-
-    def test_all_names_are_pasted_when_the_map_cannot_decide(self):
-        """地図が関わりを決められない時（変更の近くに読めない物が在り all_tests_required を返す）は、変わらない行も全部の名を貼る"""
-        self._stats_repo("data.zzq")
-        self.intake(test_outcomes=dump(self._outcomes()))
-        text = self.compare()["prompt"]
-        for k in (*self.STATS, *self.OTHER, "tests.test_other.TestOther::test_skip"):
-            self.assertIn(f"  - `{k}`\n", text)
-        self.assertNotIn("件は名を貼っていない（", text)
-
-    def test_origin_names_the_pr_diff_and_the_fix_diff_apart(self):
-        """test_prep_names_the_pr_diff_and_the_fix_diff_apart（issue #384）: head の port で"""
-        (self.repo / "a.txt").write_text("pr\n", encoding="utf-8")
-        git(self.repo, "commit", "-q", "-am", "pr")
-        head = git(self.repo, "rev-parse", "HEAD").strip()
-        (self.repo / "a.txt").write_text("a\n", encoding="utf-8")
-        self.intake(head=head, base_label="PR #7 の根")
-        text = self.compare()["prompt"]
-        self.assertIn(f"起点は PR の根 `{self.base[:12]}`（PR #7 の根）", text)
-        self.assertIn("PR の差分（起点 → 修正前の HEAD）で変わったファイル: a.txt", text)
-        self.assertIn("この run の直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: a.txt", text)
-        self.assertIn("打ち消し合った", text)
-
     def test_premises_are_pasted_and_the_late_answers_are_split(self):
         """test_prep_pastes_the_premises_and_names_the_target_review_md の前提の半分・test_prep_reads_constraints_from_the_premises_input:
         独立設計が見た数より後の答えは「後に来た答え」に分かれ、前提のずれ・記録の制約が載る"""
@@ -367,14 +217,6 @@ class CompareRoadCase(_RepoCase):
         self.assertEqual(len([g for g in ledger["given"] if g["kind"] == "human_answer"]), 2)
         self.assertEqual(len(ledger["after_design"]), 1)
         self.assertEqual([g["kind"] for g in ledger["given"] if g["kind"] in ("drift", "constraint")], ["drift", "constraint"])
-
-    def test_without_the_design_premises_nothing_is_split_as_late(self):
-        self.intake(answers=dump({"start": {"decision": "continue", "text": "x"}}))
-        text = self.compare()["prompt"]
-        self.assertNotIn("Answers that came after the independent design", text)
-        self.assertIn("（修正の印が渡っていない）", text)
-        self.assertIn("### Recorded constraints\n\n（無い）", text)
-        self.assertNotIn("after_design", json.loads((self.place / "r2-premises.json").read_text(encoding="utf-8")))
 
     def test_unreadable_request_says_so(self):
         """依頼のファイルが渡っていない時、request_unread の段落と withheld の行が入る"""
@@ -550,52 +392,6 @@ class PremiseSectionCase(_RepoCase):
                 with self.assertRaises(premises.BoardGap) as raised:
                     steps.compare_prompt(self.place, self.repo)
             self.assertIn("drift", str(raised.exception))
-
-    def test_says_what_was_not_passed(self):
-        """依頼が無い・修正の印が無い・制約が無い時の言い方（元 test_says_what_was_not_passed の残り）"""
-        self.intake()
-        text = self.compare()["prompt"]
-        self.assertIn("（修正の印が渡っていない）", text)
-        self.assertIn("### Recorded constraints\n\n（無い）", text)
-        self.intake(changed=dump({"premise_drift": False}))
-        self.assertIn("### Drift of premises (declared during the fix)\n\n（無い）", self.compare()["prompt"])
-        self.intake(changed=dump({"premise_drift": True}))
-        self.assertIn("（申告の文なし）", self.compare()["prompt"])
-
-    def test_constraints_come_as_an_object_and_read_the_same_in_both_roles(self):
-        """test_constraints_read_the_same_in_the_compare_head_and_the_premise_check（E43）: object の形で来ても同じ行。
-        検算の役の md にも同じ行が載る"""
-        cons = [{"kind": "実測", "text": "1 デプロイは 2 リポジトリ", "measured_how": "grep"},
-                {"kind": "仮説", "text": "入口は 1 つ", "measured_how": "読んだ"}]
-        want = "- （実測）1 デプロイは 2 リポジトリ\n- （仮説）入口は 1 つ"
-        for form in (cons, {"constraints": cons}):
-            with self.subTest(type(form).__name__):
-                self.intake(constraints=dump(form))
-                self.assertIn(want, self.compare()["prompt"])
-        self.intake(design=dump(NOT_STANDS), constraints=dump({"constraints": cons}))
-        self.assertIn(want, self.premise())
-
-
-class OriginSectionCase(_RepoCase):
-    """元 OriginSectionCase のうち、PR の根の 1 本以外を block の筋で（head と base_label の port で起点を替える）"""
-
-    def test_origin_at_head_has_no_pr_diff(self):
-        (self.repo / "a.txt").write_text("fix\n", encoding="utf-8")
-        self.intake()
-        text = self.compare()["prompt"]
-        self.assertIn(f"起点は修正前の HEAD `{self.base[:12]}`", text)
-        self.assertIn("PR の差分は無い", text)
-        self.assertIn("直しの差分（修正前の HEAD → 作業ツリー）で変わったファイル: a.txt", text)
-        self.assertNotIn("打ち消し", text)
-
-    @unittest.skipIf(os.geteuid() == 0, "root はモードを無視してファイルを読める")
-    def test_unreadable_work_tree_is_said_not_raised(self):
-        secret = self.repo / "secret"
-        secret.write_text("s\n", encoding="utf-8")
-        secret.chmod(0)
-        self.addCleanup(secret.chmod, 0o644)
-        self.intake()
-        self.assertIn("累積差分の起点を測れない", self.compare()["prompt"])
 
 
 class PremiseRoadCase(_RepoCase):

@@ -2,7 +2,7 @@
 
 始めの記録の無い使い捨ての run directory と git のリポジトリ（README.md・docs/plan.md・sub/x.py と git が無視するファイル）で、
 port の値だけを渡し、intake → purpose_prep → 台本の返答 → purpose_accept → finish と回す。受け付けの決まりは src/steps の check を
-この過程で呼んで確かめる。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
+この過程で呼んで確かめる。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
 import os
@@ -135,22 +135,6 @@ class IntakeCase(_RepoCase):
 
 
 class PromptCase(_RepoCase):
-    def test_pr_text_and_constraints_reach_the_prompt(self):
-        self.intake(pr_text="#7 題 T\n\n本文X", constraints=CONSTRAINTS)
-        text = self.prep()["prompt"]
-        self.assertIn("本文X", text)
-        self.assertNotIn("(This run has no PR.)", text)
-        self.assertIn('"measured_how": "sed で読んだ"', text)
-        self.assertIn('"where": "stats.py:4"', text)
-        self.assertTrue((self.run.artifacts / "purpose-prompt-1.md").is_file())
-
-    def test_run_without_pr_says_so(self):
-        self.intake()
-        text = self.prep()["prompt"]
-        self.assertIn("(This run has no PR.)", text)
-        self.assertIn("```json\n[]\n```", text, "前提の実測が無ければ空の配列")
-        self.assertIn("in the language of the request", text, "lang が空なら既定の言語の文")
-
     def test_role_does_not_see_the_prior_run(self):
         self.intake(request=PRIOR)
         text = self.prep()["prompt"]
@@ -160,39 +144,6 @@ class PromptCase(_RepoCase):
                 self.assertNotIn(word, json.dumps(node, ensure_ascii=False))
                 if word != "judgment":   # md の決まった文「The judgments of earlier runs are removed from it.」が持つ
                     self.assertNotIn(word, text)
-
-    def test_query_rule_and_source_words_are_filled(self):
-        self.intake(lang="Japanese")
-        text = self.prep()["prompt"]
-        # 断片の字は照らさない（字は .shared/prompts/query-rule.md が持つ）。断片の頭の行が入り、段落 spawns は入らないことだけを見る
-        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").splitlines()[1:]   # 0 行目は道具の印（指示には出ない）
-        self.assertTrue(text.startswith(rule[0]), text[:80])
-        self.assertNotIn("required-for-tools", text)
-        spawns = rule[rule.index("<!-- if spawns -->") + 1:rule.index("<!-- end spawns -->")]
-        self.assertTrue(spawns)
-        for line in spawns:
-            self.assertNotIn(line, text)
-        for word in self.steps.SOURCES:
-            self.assertIn(f"`{word}`", text)
-        self.assertIn('write "目的不明: " followed by', text)
-        self.assertIn("in Japanese", text)
-        self.assertNotRegex(text, r"\{[a-z0-9_]+\}", "埋まらない差し込み口が無い")
-        self.assertIn('an object whose keys are `findings`, `pr`, and `issue` (each an array)', text)
-
-    def test_rejected_reply_brings_the_reasons_to_the_next_prompt(self):
-        self.intake()
-        self.prep()
-        got = self.accept({**GOOD, "source_files": ["nothing.md"]})
-        self.assertEqual((got["ok"], got["done"]), (False, False))
-        again = self.prep()["prompt"]
-        self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
-        self.assertIn("restore any tracked file you rewrote with `git restore -- <path>`", again)
-        self.assertIn("with the letter case of the repository", again)
-        self.assertIn("nothing.md", again)
-        self.assertTrue((self.run.artifacts / "purpose-prompt-2.md").is_file())
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("purpose_prep"))
 
 
 class AcceptCase(_RepoCase):
@@ -353,14 +304,6 @@ class FinishCase(_RepoCase):
         self.assertEqual(fin["status"], "failed")
         self.assertIn("目的の文を受け付けた控えが無い", fin["reason"])
 
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__purpose-run__intake", request=REQUEST, pr_text="", constraints="[]", lang="")
-        self.run.script("purpose_prep", "judge__purpose-run__purpose-loop.purpose-prep")
-        self.run.script("purpose_accept", "judge__purpose-run__purpose-loop.purpose-accept", reply=json.dumps(GOOD))
-        fin = self.run.script("finish", "judge__purpose-run__finish")
-        self.assertEqual(fin["purpose"]["path"], "judge/purpose-run/purpose.json")
-        self.assertFalse((self.run.artifacts / "purpose.json").exists())
-
 
 def _doc() -> dict:
     return yaml.safe_load((BLOCK / "works-factory-purpose.yaml").read_text(encoding="utf-8"))
@@ -376,23 +319,6 @@ class ShapeCase(unittest.TestCase):
     def setUp(self):
         self.steps = kit.load("purpose", "steps")
         self.nodes = {n["id"]: n for n in _nodes(_doc())}
-
-    def test_source_enums_match_the_words(self):
-        role = self.nodes["purpose"]["output_format"]["properties"]["source"]["enum"]
-        self.assertEqual(tuple(role), self.steps.SOURCES)
-        self.assertEqual(tuple(self.nodes["finish"]["output_format"]["properties"]["source"]["enum"]), (*self.steps.SOURCES, ""))
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        self.assertEqual(self.nodes["purpose-loop"]["loop_group"]["max_iterations"], self.steps.rolekit.GIVE_UP_AFTER)
-
-    def test_role_keeps_the_old_settings(self):
-        node = self.nodes["purpose"]
-        self.assertEqual({k: node.get(k) for k in ("model", "settingSources", "allowed_tools", "mutates_checkout", "sandbox",
-                                                   "idle_timeout", "retry")},
-                         {"model": "@wf-judge-materials", "settingSources": ["user"],
-                          "allowed_tools": ["Read", "Grep", "Glob", "WebSearch", "WebFetch"], "mutates_checkout": False,
-                          "sandbox": {"enabled": True, "allowUnsandboxedCommands": False}, "idle_timeout": 1728000000,
-                          "retry": {"max_attempts": 2, "on_error": "all"}})
 
     def test_tree_keys_leave_out_porcelain(self):
         self.assertEqual(self.steps.TREE_KEYS, self.steps.accept.BEYOND_STATUS)

@@ -70,14 +70,6 @@ class JudgeIntakeCase(_Base):
         for name in ("tree.json", "view.json", "diff.patch", "changed-files.txt", "materials.json"):
             self.assertTrue((self.art / name).is_file(), name)
 
-    def test_input_doc_keys_are_the_documented_keys(self):
-        self.intake()
-        self.assertEqual(set(self.doc("diagnose-input.json")),
-                         {"materials", "local_findings", "consistency_findings", "bypass_findings", "external_findings",
-                          "procedure_findings", "test_double_fidelity", "main_path_observation", "provenance",
-                          "prior_decisions", "purpose_review", "request_findings", "constraints", "world_rows", "answers",
-                          "changed_files", "diff_file"})
-
     def test_diff_file_is_the_absolute_path_of_the_target_diff(self):
         """再審の役は 1 回目の材料のファイルからこのパスで差分に届く（再審の材料に diff.patch を直に渡さない）"""
         self.intake()
@@ -171,16 +163,6 @@ class JudgeIntakeCase(_Base):
         bad = self.intake(pr_material=json.dumps({"status": "unknown"}))
         self.assertFalse(bad["due"])
         self.assertIn("入力 materials", bad["reason"])
-
-    def test_gate_efficacy_is_not_a_material_of_this_block(self):
-        """gate_efficacy は判定の材料の欄でなく、gate-efficacy の block が返しても読まない（持ち主の決め 2026-10-19）"""
-        ptr = self.material("gate-efficacy", {"arms": [{"arm": "a"}]}, materials={"gate_efficacy": {"status": "clean", "checked": "x"}})
-        self.assertTrue(self.intake(materials=dump([json.loads(ptr)]))["due"])
-        doc = self.doc("diagnose-input.json")
-        self.assertNotIn("gate_efficacy", doc["materials"])
-        self.assertNotIn("gate_arms", doc)
-        self.assertEqual(len(doc["materials"]), 14)
-        self.assertNotIn("gate_efficacy", self.doc("materials.json"))
 
     def test_local_checks_come_from_the_baseline(self):
         import baseline_red
@@ -354,92 +336,3 @@ class JudgeIntakeCase(_Base):
         self.assertTrue((self.art / "other.json").is_file(), "名を持たないファイルは消さない")
 
 
-class ValuesCase(_Base):
-    def test_unknown_lines_use_known_kinds_only(self):
-        inputs = self.mod["inputs"]
-        rows = [{"item": 1, "unknown": "無し", "cause_quote": "分母が違う", "where": "stats.py:4", "code_quote": "return sum(xs) / 2"},
-                {"item": 2, "unknown": "原因", "cause_quote": "落ちる"},
-                {"item": 3, "unknown": "知らない種類", "cause_quote": "x"}]
-        self.assertEqual(inputs.unknown_lines(rows), [
-            "- line 1 (無し): request text 「分母が違う」・place stats.py:4「return sum(xs) / 2」",
-            "- line 2 (原因): request text 「落ちる」・place: none (the cause is not visible in code)"])
-
-    def test_head_depth_rows_and_why_reach_the_values(self):
-        import headdepth
-        self.intake(row_asks=json.dumps([{"item": 1, "unknown": "形", "cause_quote": "どちらでも"}]))
-        values, when = self.mod["inputs"].diagnose_values(self.art)
-        self.assertTrue(when["unknown_rows"] and not when["unknown_none"])
-        self.assertEqual(values["unknown_rows"], "- line 1 (形): request text 「どちらでも」・place: none (the cause is not visible in code)")
-        self.intake(depth_why="頭の深さが走らなかった")
-        values, when = self.mod["inputs"].diagnose_values(self.art)
-        self.assertTrue(when["unknown_none"] and not when["unknown_rows"])
-        self.assertEqual((values["unknown_rows"], values["unknown_why"]), ("", "頭の深さが走らなかった"))
-        self.intake()
-        self.assertEqual(self.mod["inputs"].diagnose_values(self.art)[0]["unknown_why"], headdepth.NO_RECORD)
-
-    def test_purpose_policy_and_pr_reach_the_values(self):
-        purpose = self.write("purpose/purpose.json", {"purpose_text": "平均の関数が正しい値を返す", "source": "②計画・タスク記述",
-                                                      "known_weaknesses": [], "source_files": []})
-        policy = self.write("policy-copy.md", "# 方針\n- 空の列は試験しない\n")
-        self.intake(purpose=purpose, policy=policy, pr_text="PR #3 平均を直す")
-        values, when = self.mod["inputs"].diagnose_values(self.art)
-        self.assertEqual(values["purpose_text"], "平均の関数が正しい値を返す")
-        self.assertIn("空の列は試験しない", values["policy_body"])
-        self.assertEqual(values["pr_text"], "PR #3 平均を直す")
-        self.assertTrue(when["purpose"] and when["policy"] and when["pr_text"])
-        self.assertFalse(when["repo_review"] or when["rejected"])
-        self.intake()
-        values, when = self.mod["inputs"].diagnose_values(self.art)
-        self.assertEqual((values["purpose_text"], values["policy_body"], values["pr_text"]), ("", "", ""))
-        self.assertFalse(when["purpose"] or when["policy"] or when["pr_text"])
-        self.assertTrue(when["recorded_none"])
-
-    def test_repo_review_md_is_found_in_the_target(self):
-        (self.run.repo / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
-        self.intake()
-        values, when = self.mod["inputs"].diagnose_values(self.art)
-        self.assertTrue(when["repo_review"])
-        self.assertTrue(values["repo_review_md"].endswith("REVIEW.md"))
-
-    def test_policy_body_is_cut_at_the_paste_cap(self):
-        import policy
-        path = self.art / "big-policy.md"
-        path.write_text("あ" * (policy.PASTE_CAP // 3 + 500), encoding="utf-8")
-        body = self.mod["inputs"].policy_body(path)
-        self.assertLessEqual(len(body.encode("utf-8")), policy.PASTE_CAP)
-        self.assertIn(f"続きは {path}", body)
-
-    def test_every_rejection_of_the_loop_reaches_the_next_prompt(self):
-        import rolekit
-        self.intake()
-        for reason in ("一つ目の拒否の印", "二つ目の拒否の印"):
-            rolekit.with_done(self.art, "diagnose", {"ok": False, "reason": reason})
-        values, when = self.mod["inputs"].diagnose_values(self.art)
-        self.assertTrue(when["rejected"])
-        self.assertTrue(values["rejection"].index("一つ目の拒否の印") < values["rejection"].index("二つ目の拒否の印"))
-
-
-class RejudgeValuesCase(_Base):
-    FIRST = {"framing": "根は 1 つ", "one_shot": "直す", "questions": [{"key": "q", "kind": "fork", "status": "held", "reason": "割れる"}],
-             "units": [{"key": "k1", "label": "block", "disposition": "do-now", "reason": "r", "class_query": {"how": {}}}]}
-
-    def test_values_and_paragraphs(self):
-        purpose = self.write("purpose/purpose.json", {"purpose_text": "p", "source": "目的不明", "known_weaknesses": [], "source_files": []})
-        self.run.script("intake", **{**PORTS, "objection": "異議の文", "prior": json.dumps(self.FIRST), "purpose": purpose,
-                                    "world_rows": self.write("world.jsonl", ""), "lang": "English"})
-        values, when = self.mod["inputs"].rejudge_values(self.art)
-        self.assertEqual(values["objection"], "異議の文")
-        self.assertEqual(json.loads(values["units"]), [{"key": "k1", "label": "block", "disposition": "do-now"}])
-        self.assertEqual(json.loads(values["questions"]), [{"key": "q", "kind": "fork", "status": "held"}])
-        self.assertEqual(json.loads(values["diagnosis"]), {"framing": "根は 1 つ", "one_shot": "直す"})
-        self.assertEqual(values["first_judgment_file"], str(self.art / "first-judgment.json"))
-        self.assertEqual(values["purpose_file"], str(self.art / "purpose" / "purpose.json"))
-        self.assertTrue(when["questions"] and when["diagnosis"] and when["purpose"] and when["world_rows"])
-        self.assertFalse(when["prior_brief"] or when["spec"] or when["verify"] or when["excluded"] or when["policy"])
-        self.assertEqual(values["lang"], "English")
-
-    def test_empty_ledger_and_view_turn_the_paragraphs_off(self):
-        self.run.script("intake", **{**PORTS, "objection": "異議の文", "prior": json.dumps({"units": []})})
-        values, when = self.mod["inputs"].rejudge_values(self.art)
-        self.assertFalse(when["questions"] or when["diagnosis"])
-        self.assertEqual((values["questions"], values["diagnosis"]), ("", ""))

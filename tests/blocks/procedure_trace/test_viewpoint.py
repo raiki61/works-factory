@@ -12,10 +12,6 @@ class ViewpointCase(unittest.TestCase):
     def view(self, *files):
         return self.mk.View(".", "b", "r", "d", tuple(files), "c", "", 0)
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH, self.vp.NA_REASON),
-                         (("procedure_trace",), False, "cond", True, "対象差分に手順書・スクリプト・CI 定義の変更が無い"))
-
     def test_applies_names_the_procedure_files(self):
         self.assertEqual(self.vp.procedure_files(self.view("src/a.txt", "docs/x.md", "run.sh", "run.sh")), ["docs/x.md", "run.sh"])
         self.assertEqual(self.vp.applies(self.view("run.sh"), {}), (True, "差分に手順書・スクリプト・CI 定義が 1 件"))
@@ -37,14 +33,10 @@ class ViewpointCase(unittest.TestCase):
             self.assertEqual(self.vp.fill(view, {"entry": entry}, self.vp.due(view, {"entry": entry})), want)
         self.assertEqual(self.mk.fill_problems(self.vp, want), [])
 
-    def test_material_and_report(self):
+    def test_material(self):
         self.assertFalse(self.vp.judged_na(None, {}))
         self.assertEqual(self.vp.materials_of({}), {})
         self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"procedure_trace": {"status": "clean"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"findings": [{"where": "run.sh:3", "text": "前提が\n欠ける"}],
-                                                          "unmeasured": ["網が要る"]}}),
-                         ["  - 所見: run.sh:3: 前提が 欠ける", "  - 未実測: 網が要る"])
 
 
 if __name__ == "__main__":

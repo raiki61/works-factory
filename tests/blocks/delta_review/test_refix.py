@@ -1,11 +1,9 @@
-"""手直しの役の受け付けと指示（docs/design/delta-review.md の 3.8・3.3・10.2 の RefixAcceptCase・RefixPromptCase）。"""
-import ast
+"""手直しの役の受け付けと凍結の印（docs/design/delta-review.md の 3.8・3.3・10.2 の RefixAcceptCase・SealCase）。"""
 import hashlib
-import importlib
 import json
 import os
-import pathlib
-from unittest import mock
+
+import yaml
 
 from tests.blocks import kit
 from tests.blocks.delta_review import support as s
@@ -113,44 +111,6 @@ class RefixAcceptCase(s.Flow):
         self.assertEqual((got["ok"], got["done"]), (False, False))
 
 
-class WritesLogNameCase(s.Flow):
-    """書き込みの記録の名の持ち主は writelog.LOG の 1 か所。手直しの受け付けの既定の置き場はその名を引き、src にほかの写しの字が無い
-    （元 lib/tests/test_writes.py の WritesLogNameCase。block の src の字を照らす）"""
-
-    def setUp(self):
-        super().setUp()
-        self.assertEqual(self.start(), {"due": True, "reason": ""})
-        self.write("a.py", "alpha = 1\nbeta = 22\ngamma = 5\n")
-
-    def test_default_record_name_is_writelog_log(self):
-        touchup = kit.load(s.BLOCK_NAME, "touchup")
-        writelog, writes = importlib.import_module("writelog"), importlib.import_module("writes")
-        seen = []
-
-        def check(reply, repo, paths, log, **kw):
-            seen.append(pathlib.Path(log))
-            return {"problems": ["止める"], "reply": reply}
-
-        reply = self.handled(self.answer(HOLE), self.answer(CHECK))
-        with mock.patch.object(writelog, "LOG", "renamed.jsonl"), mock.patch.object(writelog, "log_here", return_value=None), \
-                mock.patch.object(writes, "check", check):
-            got = touchup.take(self.run.artifacts, 1, reply, self.run.repo, self.read("intake.json")["base"], self.seal)
-        self.assertEqual(got["reason"], "止める", got)
-        self.assertEqual([p.name for p in seen], ["renamed.jsonl"])
-
-    def test_no_second_copy_of_the_record_name_in_src(self):
-        copies = []
-        for path in sorted((kit.BLOCKS / "delta-review" / "src").glob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            docs = {id(n.body[0].value) for n in ast.walk(tree)
-                    if isinstance(n, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.body
-                    and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
-            copies += [f"{path.name}:{n.lineno} {n.value!r}" for n in ast.walk(tree)
-                       if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs
-                       and "writes" in n.value and n.value.endswith(".jsonl")]
-        self.assertEqual(copies, [], "書き込みの記録の名は writelog.LOG を引く")
-
-
 class RefixScopeCase(s.Flow):
     """承認済みの修正案の項目の範囲の照らし（planrange.outside。修正の段が触ったファイルの外）"""
 
@@ -200,77 +160,18 @@ class RefixScopeCase(s.Flow):
         self.assertTrue(self.refix(1, self.answer_all("a.py", "c.py"))["ok"])
 
 
-
 class RefixPromptCase(s.Flow):
-    def prompt(self, n=1):
-        return self.step("refix_prep", n)["prompt"]
-
-    def test_policy_request_and_scope_reach_the_prompt(self):
-        policy = self.run.artifacts / "policy.md"
-        policy.write_text("# Policy\nNever weaken a test.\n", encoding="utf-8")
-        item = s.plan_item(1, ("a.py", "docs/**"), out_of_scope=[{"glob": "secret/**", "why": "owner only"}], tests=[{"id": "tests/test_a.py::test_x"}])
-        self.start(plan={"plan_items": [item], "ruled_paths": ["docs/ruled.md"], "agreed": []}, policy=str(policy), permits='["tests/p.py"]',
-                   request='[{"where": "a.py", "text": "fix it"}]', lang="Japanese")
-        text = self.prompt()
-        self.assertIn(f"Human policy document: `{policy}` (read it all first).", text)
-        self.assertIn(f"Request file: `{self.run.artifacts / 'request.json'}` (read it all first).", text)
-        for line in ("- Item 1 (units: unit-1)", "  - allowed_paths: `a.py`, `docs/**`", "  - test files (ids in tests and rewrite_tests): `tests/test_a.py`",
-                     "  - out_of_scope: `secret/**` (owner only)",
-                     "- Permits for every item (test-change permits and paths added by fix rulings; they do not beat out_of_scope): `tests/p.py`, `docs/ruled.md`"):
-            self.assertIn(line, text)
-        self.assertIn("in Japanese", text)
-        self.assertIn("Never weaken a test", self.step("review_prep", 1)["prompt"], "方針の本文は審査役にも貼られる")
-
-    def test_no_policy_no_request_no_plan_say_so(self):
-        self.start()
-        text = self.prompt()
-        self.assertIn("Human policy document: none.", text)
-        self.assertIn("Request file: none.", text)
-        self.assertNotIn("## Paths you may change", text)
-        self.assertNotIn("write in `how` which item it conflicts with", text)
-
-    def test_the_writer_rules_carry_the_evidence_kinds_but_not_the_conflict_declarations(self):
-        self.start()
-        text = self.prompt()
-        for part in ("## How to fix", "## Evidence for fixes whose red-to-green a test cannot show", "- Documents:", "- Instructions (prompts):",
-                     "- Settings, YAML, workflows:", "- Notes and types:", "## What to keep", "Rules for queries to outside services"):
-            self.assertIn(part, text)
-        self.assertNotIn("## Conflict declarations", text)
-        self.assertNotIn("put this whole block of rules, word for word, into its instructions", text, "下請けを起こさない役")
-
-    def test_seat_names_the_skill_and_the_reinterpretation(self):
-        self.start()
-        text = self.prompt()
-        self.assertIn("Read `receiving-code-review` with the Skill tool", text)
-        self.assertIn("審査の指摘を受けて、確かめてから直すか反論する仕事", text)
-        self.assertIn("unattended.md", text)
-        self.assertIn("Answer **every row of `owed` once**", text)
-        self.assertIn("a second review is run on the touch-up-only diff", text)
-
     def test_the_whole_rejection_history_comes_first_on_the_third_round(self):
+        """拒まれた周の次の手直しの指示は、輪の拒否の全部を古い順に頭に置く（prep が rolekit の控えを読む配線。最後の 1 件だけに
+        しても、ほかの試験は赤にならない）"""
         self.start()
         self.write("b.py", "gamma = 4\n")
         for _ in range(2):
             self.refix(1, self.handled(self.answer(HOLE)))
-            self.prompt()
+            self.step("refix_prep", 1)
         text = self.step("refix_prep", 1)["prompt"]
         self.assertTrue(text.startswith("## Why your previous answer was rejected"))
         self.assertEqual(text.count("回目の拒否:"), 2)
-
-    def test_the_second_round_prompt_is_about_the_touch_up_diff(self):
-        self.start()
-        self.write("a.py", "alpha = 1\nbeta = 22\ngamma = 5\n")
-        self.assertTrue(self.refix(1, self.handled(self.answer(HOLE), self.answer(CHECK)))["ok"])
-        self.assertTrue(self.run.script("cut2")["due"])
-        reply = s.second_reply(checks=[s.check(HOLE, closed=True), s.check(CHECK, closed=False)])
-        self.assertTrue(self.review(2, reply)["ok"])
-        self.assertTrue(self.step("owed", 2)["due"])
-        text = self.prompt(2)
-        self.assertIn("You are the writer who touches up the holes the second diff review raised.", text)
-        self.assertIn(str(self.run.artifacts / "delta-2.patch"), text)
-        self.assertIn("What you fix here will no longer be reviewed", text)
-        self.assertEqual(self.read("refix-2-brief.json")["owed"][0]["key"], CHECK)
-        self.assertNotIn("plan_items", self.read("refix-2-brief.json"))
 
 
 class SealCase(s.Flow):
@@ -280,6 +181,16 @@ class SealCase(s.Flow):
     def marks(self):
         rows = [json.loads(x) for x in (self.run.artifacts / "trace.jsonl").read_text(encoding="utf-8").splitlines()]
         return [r for r in rows if r["op"] == "plan_fields_saved"]
+
+    def test_the_seal_reaches_every_accept_through_with_outside_the_roles(self):
+        """入口の凍結の印は Archon が持ち、役の手の届かない with: で 4 つの受け付けへ渡る（YAML の配線。手元の確かめは筋書きを回さないので
+        ここで見る。印の無い受け付けが配線の誤りを名指すのは test_an_accept_without_the_seal_names_the_wiring）"""
+        doc = yaml.safe_load((kit.BLOCKS / s.BLOCK_NAME / "works-factory-delta-review.yaml").read_text(encoding="utf-8"))
+        loops = {n["id"]: {x["id"]: x for x in n["loop_group"]["nodes"]} for n in doc["nodes"] if "loop_group" in n}
+        for n in (1, 2):
+            for kind in ("review", "refix"):
+                self.assertEqual(loops[f"{kind}-{n}-loop"][f"{kind}-{n}-accept"]["with"],
+                                 {"n": n, "reply": f"${kind}-{n}.output", "seal": "$intake.output.seal"})
 
     def test_intake_seals_the_copies_in_the_planmarks_mark_shape_and_returns_the_marks(self):
         self.start()

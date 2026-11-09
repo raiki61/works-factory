@@ -7,12 +7,10 @@ skipped になる道も回す。筋書きを Archon の workflow test で回す�
 import json
 import unittest
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-BLOCK = kit.BLOCKS / "consistency-bypass"
 NAME = "consistency-bypass"
 LOOP = f"{NAME}-loop"
 GOOD = {"consistency": {"status": "found", "count": 1, "detail": "a.py:1 が b.py の宣言と食い違う"},
@@ -112,24 +110,6 @@ class FlowCase(unittest.TestCase):
         (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
         self.assertTrue(self.intake(entry="人の依頼（/tmp/req.json）")["due"], "差分が在る run は entry が在っても回す")
 
-    def test_repo_review_md_line_follows_the_target(self):
-        """対象の根に REVIEW.md が在れば組んだ指示にそのパスが入り、無ければ入らない（段落ごと）"""
-        mine = str(self.run.repo.resolve() / "REVIEW.md")
-        self.intake()
-        self.assertNotIn(mine, self.prep()["prompt"])
-        (self.run.repo / "REVIEW.md").write_text("# 対象の観点\n", encoding="utf-8")
-        git(self.run.repo, "add", "-A")
-        git(self.run.repo, "commit", "-q", "-m", "review")
-        self.intake()
-        self.assertIn(mine, self.prep()["prompt"])
-
-    def test_lang_and_conversation_wording(self):
-        self.intake(lang="Japanese")
-        got = self.prep()["prompt"]
-        self.assertIn("in Japanese.", got)
-        self.assertNotIn("new conversation", got, "輪は会話を継ぐので、新しい会話で起きたとは書かない")
-        self.assertNotIn("{repo_review_md}", got)
-
     def test_unreadable_base_fails_with_the_port_name(self):
         got = self.intake(base="no-such-revision")
         self.assertFalse(got["due"])
@@ -137,16 +117,6 @@ class FlowCase(unittest.TestCase):
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertEqual({k: v["status"] for k, v in self.material()["materials"].items()},
                          {"consistency": "not_run", "bypass": "not_run"})
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__consistency-bypass-run__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__consistency-bypass-run__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "consistency-bypass-run" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__consistency-bypass-run__finish")
-        self.assertEqual(fin["material"]["path"], "judge/consistency-bypass-run/material.json")
 
 
 class ViewpointCase(unittest.TestCase):
@@ -160,42 +130,9 @@ class ViewpointCase(unittest.TestCase):
             self.vp.applies(None, {})
         self.assertFalse(self.vp.judged_na(None, {}))
 
-    def test_report_lines_add_only_the_unseen_range(self):
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"unseen": "  "}}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"unseen": "a\nb"}}), ["  - 見ていない範囲: a b"])
-
     def test_materials_of_takes_only_object_materials(self):
         self.assertEqual(self.vp.materials_of({"consistency": {"status": "clean"}, "bypass": "x"}),
                          {"consistency": {"status": "clean"}})
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    # 今の判定の consistency-bypass の役の起こし方（tests/workflows の test_judge.py の ROLES["consistency-bypass"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 read_launch を、作り直しの時に字で写した物）
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"], "allowed_tools": ["Read", "Grep", "Glob"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False}, "idle_timeout": 1728000000,
-              "retry": {"max_attempts": 2, "on_error": "all"}, "mutates_checkout": False}
-
-    def setUp(self):
-        kit.load(NAME, "viewpoint")  # lib/ を sys.path に足す（launchgroups・rolekit の import に要る）
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_launch_matches_the_judge_role(self):
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertEqual(role["output_format"]["required"],
-                         ["consistency", "bypass", "findings", "bypass_findings", "seen", "unseen"])
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
 
 if __name__ == "__main__":

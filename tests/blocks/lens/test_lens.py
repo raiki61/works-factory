@@ -1,18 +1,14 @@
 """黙った失敗のレンズの block を、script を子のプロセスで回して確かめる（docs/design/lens.md の 8.2）。
 
 使い捨ての run directory と git のリポジトリ（README.md・docs/a.md・.archon/x.md を commit し、作業ツリーで変える）で、port の値だけを渡し、
-intake → lens_prep → 台本の返答を渡す lens_take → finish と回す。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは
+intake → lens_prep → 台本の返答を渡す lens_take → finish と回す。筋書きを Archon の workflow test で回すのは
 tests/layers/test_block_shape.py。
 """
-import ast
 import json
-import os
 import subprocess
 import sys
 import unittest
 from unittest import mock
-
-import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import git
@@ -150,31 +146,7 @@ class IntakeCase(_RepoCase):
         self.assertTrue((self.run.artifacts / "lens" / "intake.json").is_file())
 
 
-class PromptCase(_RepoCase):
-    def prep(self, lang=""):
-        self.change()
-        self.intake(lang=lang)
-        return self.run.script("lens_prep", lens=LENS)["prompt"]
-
-    def test_prompt_holds_the_definition_name_diff_files_limits_and_language(self):
-        text = self.prep(lang="Japanese")
-        self.assertIn("## Role definition (pr-review-toolkit:silent-failure-hunter)", text)
-        self.assertIn(BODY, text, "定義の本文の中の {…} は字のまま")
-        self.assertIn(f"Your lens name is `{LENS}`", text)
-        self.assertIn(str(self.run.artifacts / "lens.diff"), text)
-        self.assertIn('["README.md"]', text)
-        self.assertIn("at least 4 characters", text)
-        self.assertIn("at least 20 characters", text)
-        self.assertIn("Write `why` and `findings_none` in Japanese.", text)
-        self.assertTrue((self.run.artifacts / f"{LENS}-prompt-1.md").is_file())
-
-    def test_empty_language_uses_the_shared_default(self):
-        self.assertIn("in the language of the request (the user's language).", self.prep())
-
-    def test_no_slot_is_left_unfilled(self):
-        import re
-        self.assertEqual([m for m in re.findall(r"\{[a-z0-9_]+\}", self.prep()) if m != "{without}"], [])
-
+class PrepCase(_RepoCase):
     def test_prep_without_a_route_writes_the_error_and_fails(self):
         self.intake(base="nope")   # 入口が壊れて振り分けが無い
         err = self.run.failing("lens_prep", lens=LENS)
@@ -263,7 +235,6 @@ class FinishCase(_RepoCase):
         got = self.run.script("finish", include="lens__x")
         self.assertEqual((got["ok"], got["ran"], got["rows"]["path"]), (True, 1, "lens/lens.json"))
 
-
     def test_prep_whose_import_breaks_still_writes_the_error(self):
         self.change()
         self.intake()
@@ -274,69 +245,6 @@ class FinishCase(_RepoCase):
         self.assertEqual(self.read("errors.json")[-1]["node"], LENS)
         got = self.finish()
         self.assertEqual((got["ok"], got["status"]), (False, "failed"))
-
-
-def _literals(script: str, key: str) -> list:
-    """script の中の辞書の字面 {key: 値} の値（ast.literal_eval できる物）を全部返す"""
-    tree = ast.parse((BLOCK / "scripts" / script).read_text(encoding="utf-8"))
-    return [ast.literal_eval(v) for d in ast.walk(tree) if isinstance(d, ast.Dict)
-            for k, v in zip(d.keys, d.values) if isinstance(k, ast.Constant) and k.value == key]
-
-
-class ShapeCase(unittest.TestCase):
-    def setUp(self):
-        self.doc = yaml.safe_load((BLOCK / "works-factory-lens.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in self.doc["nodes"]}
-        self.table = kit.load("lens", "lenses").LENSES
-
-    def test_every_lens_row_has_its_three_nodes(self):
-        finish = self.nodes["finish"]
-        optional = kit.load("lens", "steps").OPTIONAL
-        for row in self.table:
-            name, key = row["lens"], row["lens"].replace("-", "_")
-            with self.subTest(lens=name):
-                for node in (f"{name}-prep", name, f"{name}-take"):
-                    self.assertIn(node, self.nodes)
-                    self.assertIn(node, finish["depends_on"])
-                self.assertIn(f"{key}_go", self.nodes["intake"]["output_format"]["required"])
-                self.assertEqual(self.nodes[f"{name}-prep"]["when"], f"$intake.output.{key}_go == true")
-                self.assertIn({"node": name, "bare": False}, optional)
-                self.assertIn({"node": f"{name}-take", "bare": False}, optional)
-                self.assertEqual((BLOCK / "prompts" / f"{name}.md").read_text(encoding="utf-8").strip(), "{part:lens}")
-        self.assertEqual(finish["trigger_rule"], "all_done")
-        self.assertIn("intake", finish["depends_on"])
-
-    def test_ai_node_keys(self):
-        for row in self.table:
-            node = self.nodes[row["lens"]]
-            self.assertEqual((node["model"], node["settingSources"], node["allowed_tools"], node["context"], node["mutates_checkout"]),
-                             ("@wf-fix-review", ["user"], ["Read", "Grep", "Glob"], "fresh", False))
-            self.assertEqual(node["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
-            self.assertEqual(node["retry"], {"max_attempts": 2, "on_error": "all"})
-            self.assertEqual(node["idle_timeout"], 1728000000)
-            self.assertEqual(node["depends_on"], [f"{row['lens']}-prep"], "輪の外の役の直前の層は 1 つ")
-            props = node["output_format"]["properties"]["findings"]["items"]["properties"]
-            lenses = kit.load("lens", "lenses")
-            self.assertEqual((props["cite"]["minLength"], props["why"]["minLength"]), (lenses.MIN_CITE, lenses.MIN_WHY))
-
-    def test_fallbacks_that_hand_copy_the_table_match_it(self):
-        steps = kit.load("lens", "steps")
-        want = [{"node": n, "bare": False} for r in self.table for n in (r["lens"], f"{r['lens']}-take")]
-        self.assertEqual(steps.OPTIONAL, want)
-        self.assertEqual(_literals("finish.py", "optional"), [want])
-        keys = {f"{r['lens'].replace('-', '_')}_go" for r in self.table}
-        source = (BLOCK / "scripts" / "intake.py").read_text(encoding="utf-8")
-        self.assertEqual({w for w in __import__("re").findall(r"[a-z0-9_]+_go", source)}, keys)
-        self.assertEqual(set(self.nodes["intake"]["output_format"]["properties"]) - {"due", "reason"}, keys)
-
-    def test_prep_error_file_name_is_the_one_in_files(self):
-        self.assertIn(f'/ "{kit.load("lens", "files").ERRORS}"', (BLOCK / "scripts" / "lens_prep.py").read_text(encoding="utf-8"))
-
-    def test_intake_output_lists_exactly_the_table_keys(self):
-        keys = {f"{r['lens'].replace('-', '_')}_go" for r in self.table}
-        shape = self.nodes["intake"]["output_format"]
-        self.assertEqual(set(shape["properties"]) - {"due", "reason"}, keys)
-        self.assertEqual(set(shape["required"]) - {"due", "reason"}, keys)
 
 
 if __name__ == "__main__":

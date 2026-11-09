@@ -90,7 +90,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。YAML �
 - 目的の監査の返答の形は共通の `workflows/.shared/schemas/purpose-review.schema.json`（judge が写し、この block が読む。findings の行は {text, cite, hits}。ほかの欄は許す）。
 - `workflows/independent-design/schemas/answers.schema.json`: `{decision, text}` の object かその配列（形の検査が知る語〔`KNOWN_KEYWORDS`〕に `anyOf` が無いので、型の並び `[object, array, null]` と properties・items で書く。null は答えが無い時。配列の行も `{decision, text}` の字の object。11 節の 11）。`{decision, text}` かその配列かの選びは `src/steps.py` の `answer_rows` が読む。
 - `constraints` の形はこの block に置かず、共通の `workflows/.shared/schemas/constraints.schema.json`（`json(shared:constraints.schema.json)`。11 節の 10）を使う。
-- `workflows/independent-design/fixtures/standalone.stubs.yaml`・`unusable.stubs.yaml`・`gave-up.stubs.yaml`（12 節）。
+- `workflows/independent-design/fixtures/standalone.stubs.yaml`（12 節）。
 - `tests/blocks/independent_design/__init__.py`・`test_independent_design.py`・`values.py`（12 節）。
 - 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す。README 11.1 の並べ方）: `workflows/.shared/prompts/design-premises.md`（2.3 の 3。r2 の block も使う）・`workflows/.shared/prompts/policy.md`（2.3 の 6。方針を受ける block の全部が使う）。
 - 土台の口に足す物: `workflows/.shared/prompt.py` に、AI の node の system prompt の md `prompts/<node-id>.system.md` を組む口（11 節の 1）。土台に無ければこの block の PR が足し、7.1 の 1・2 の形の検査を「`prompts/<node-id>.system.md` は、`systemPrompt: "$<prep>.output.system"` を持つ同じ id の AI の node の物」に広げる。
@@ -429,10 +429,13 @@ bin/works-factory workflow run works-factory-independent-design \
 
 ## 12 試験
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の一覧は写した時の記録で、今は次を持たない。
+- 筋書き `unusable`（目的が使えず役を起こさない道）と `gave-up`（拒まれても run を止めない道）。`gave-up` は standalone と同じ YAML の道で、違うのは差し替えの値だけ。役を起こすかの判定は `PromptCase.test_unknown_purpose_source_does_not_start_the_role`・`test_vetted_narrowing_review_does_not_start_the_role`・`test_other_purpose_source_starts_the_role`、3 回で諦めるのは `AcceptCase.test_give_up_on_the_third_reject_still_done` が見る。
+- `PromptCase` の指示の字（人の答えと名指しの節・控えの渡さなかった行・依頼や監査が読めない訳の字・方針と貼る上限・言語・system prompt・前の拒否の並び）。残すのは keep-essence の 9 の `test_prompt_carries_purpose_and_constraints_only` と、役を起こすかの判定の 4 本（裏取りの無い「狭めている」と読めない監査では起こす・裏取りの在る「狭めている」と「目的不明」では起こさない・ほかの出典では起こす）。
+- `ShapeCase` の YAML と名の写し（script が読む入力の名・輪の上限・筋書きの名）と `FlowCase.test_place_follows_the_include_path`。宣言した入力を読まない壊し（intake が `INPUTS_ANSWERS` を読まない）は `FlowCase` の 2 本と tests/layers の `test_block_returns.py`（E5）が赤にする。輪の until の配線と上限は tests/layers の `test_loop_bounds.py`、include の道で place が分かれるのは tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place` が見る。keep-essence の 9 の `ShapeCase.test_inputs_carry_no_plan_judgment_or_diff` は残す。
+
 - standalone の fixture（`workflows/independent-design/fixtures/`。`exec-code: true` で script は本当に走り、差し替えるのは AI の node `design` の返答だけ。11 節の 12）:
   - `standalone.stubs.yaml`: 入力は `purpose` だけ。`design` を例の run の返答（要素 1 つ）で差し替える。`resolved-text-contains` で、prep が md から本当に組んだ指示を照らす。`expect: completed`・`reached: [intake, design-prep, design, design-accept, finish]`。
-  - `unusable.stubs.yaml`: 入力は `purpose` と `purpose_source: 目的不明`。差し替えは無く、入口が本当に走って `unusable` を返す。`reached: [intake, finish]`（loop の 3 つは飛ばされる）。
-  - `gave-up.stubs.yaml`: `design` が要素の無い返答を返し、受け付けが 1 回拒む（筋書きの輪は 1 周で終わる。3 回で諦める数えは試験が見る）。`finish` は `status: failed` を返し、run は `completed`。
 - `tests/blocks/independent_design/test_independent_design.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と、根に `AGENTS.md` と設計書 1 本を commit した git のリポジトリで、port の値だけを渡す）:
   - `test_inputs_carry_no_plan_judgment_or_diff`（keep-essence の 9）: YAML の `inputs:` の鍵が、ちょうど `purpose`・`purpose_source`・`purpose_review`・`constraints`・`answers`・`request`・`policy`・`base`・`head`・`lang` の 10 個である（yes/no。今の `IsolationCase.test_r2_prep_reads_only_the_allowed_names` の作り直し）。
   - 筋: `intake` → `design_prep` → 台本の返答 → `design_accept` → `finish`。`finish` の `design` の先が返答と同じ、`premises` の先の `given` が `human_answer`・`repo_map` の行を持つ。

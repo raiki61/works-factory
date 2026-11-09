@@ -476,6 +476,10 @@ README の 10 節の 12 の仕組みのどれも、この block が担わない�
 - 本物の単独の run を 1 回（費用のかかる試しは聞かずに回してよい）: 開いた単位 2 つ以上の判定を `--input judgment=<ファイル>` で渡し、下請けが答えのファイルを書き、申し送りが `checked` になることと、`report` が日本語で出ることを見る。判定の値は例の run の `judgment.json` を使える。
 - 審査に、7.3 の 4 通りの並べと 27 項目の照らしを出す。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `test_report.py`（報告の行の字だけ）・`test_verify.py` の `ShapeCase`（束ね役の鍵・prep の返りの欄・出口の `trigger_rule`。役の鍵は E7・E12・E19 の tests/layers の試験が見る）。
+- 筋書き `one-unit`（開いた単位が 1 つなら束ね役を起こさない。`test_steps.py` の `PrepCase.test_one_open_unit_does_not_go_and_writes_not_run` が見る。単位の下限を 1 にする壊しで赤）。
+
 ## 8 未確認
 
 - Agent の道具で起こした `general-purpose` の下請けが、親の node の `allowed_tools`（Write を含む）と sandbox を継ぐか。今の run で下請けが答えのファイルを書けているので今の形で働くが、継ぎ方を源で確かめていない。

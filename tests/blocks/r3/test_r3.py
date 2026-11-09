@@ -3,12 +3,11 @@
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、intake → coherence_prep → 台本の返答 → save →
 finish と回す。今の tests/workflows/test_eyes.py の ScriptCase と lib/tests/test_eyeverdict.py の R3 の場面を、port の値で作り直した
 （各試験の docstring に元の試験の名を書く）。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
-keep-essence の 9（独立設計と R1〜R4）の R3 の守りは、役が別の会話・読むだけ（test_r3_shape.py）と、入力が修正の会話を持たないこと
-（test_inputs_carry_no_fix_conversation）が縛る。
+keep-essence の 9（独立設計と R1〜R4）の R3 の守りは、役が読むだけ（tests/layers/test_readonly_nodes.py）と、入力が修正の会話を持たない
+こと（test_inputs_carry_no_fix_conversation）が縛る。
 """
 import json
 import pathlib
-import re
 import unittest
 
 import yaml
@@ -74,20 +73,14 @@ class ShapeCase(unittest.TestCase):
         無い（目は材料だけで判じる）"""
         self.assertEqual(list(DOC["inputs"]), PORTS)
 
-    def test_scripts_read_only_the_declared_inputs(self):
-        read = set()
-        for path in (BLOCK / "scripts").glob("*.py"):
-            read |= {m.lower() for m in re.findall(r'os\.environ\.get\("INPUTS_([A-Z_]+)"', path.read_text(encoding="utf-8"))}
-        self.assertEqual(read - {"name", "reply"}, set(PORTS))
-
-    def test_save_name_is_the_ai_node(self):
-        files = kit.load("r3", "files")
-        self.assertEqual({n["with"]["name"] for n in DOC["nodes"] if n.get("script") == "save"}, set(files.REPLIES))
-        self.assertEqual(set(files.REPLIES), {n["id"] for n in DOC["nodes"] if "prompt" in n})
-
-    def test_fixture_reaches_every_node(self):
-        fx = kit.fixture("r3", "standalone")
-        self.assertEqual(fx["fixture"]["reached"], [n["id"] for n in DOC["nodes"]])
+    def test_status_words_are_the_seal_words(self):
+        """役の返答の型の status の語が lib/seal.py の目の状態の語のうち R3 が言える物（fix-needed は seal.FIX_EYES の目だけ）と同じ
+        （元 test_r3_shape.py の test_role_schema_matches_graph の status の照らし）。redesign-needed が型から落ちると作り直しを返せない"""
+        kit.load("r3", "files")   # lib/ を sys.path に足す
+        import seal
+        node = next(n for n in DOC["nodes"] if n["id"] == "r3-coherence")
+        self.assertEqual(tuple(node["output_format"]["properties"]["status"]["enum"]),
+                         tuple(s for s in seal.STATUSES if s != seal.FIX_NEEDED))
 
 
 class FlowCase(_RepoCase):
@@ -252,58 +245,6 @@ class DiffCase(_RepoCase):
         self.intake()
         self.assertEqual(self.intake_json()["diff"]["changed"], ["a.txt"])
         self.assertNotIn(ports.RUNTIME_COPY, (self.place / "run.diff").read_text(encoding="utf-8"))
-
-
-class MaterialCase(_RepoCase):
-    def test_prompt_names_the_bundled_and_the_target_review_md(self):
-        """test_prep_pastes_the_premises_and_names_the_target_review_md の REVIEW.md の半分（在る時はパス、無い時は札）"""
-        review = kit.SHARED / "prompts" / "REVIEW.md"
-        self.intake()
-        self.assertIn(f"The canonical sources: `{review}` (on the target repository's side: (none at the root of the target repository))",
-                      self.prompt())
-        (self.repo / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
-        self.intake()
-        self.assertIn(f"(on the target repository's side: {self.repo / 'REVIEW.md'})", self.prompt())
-
-    def test_green_paragraph_only_when_not_certified(self):
-        """test_green_line_only_when_not_certified（段落の有無に）。既定の true は文を足さない"""
-        line = "The certification of the last tests did not pass"
-        self.intake()
-        self.assertNotIn(line, self.prompt())
-        self.intake(green="true")
-        self.assertNotIn(line, self.prompt())
-        self.intake(green="false")
-        self.assertIn(line, self.prompt())
-
-    def test_policy_body_is_pasted(self):
-        """test_policy_path_is_frozen_copy（方針の本文が入る形に）: 方針の写しの本文を貼り、書く先は reason。無い run は節ごと入らない"""
-        self.intake()
-        self.assertNotIn("## The person's policy", self.prompt())
-        policy = self.write("policy/frozen.md", "方針の第 1 項: 入口は 1 つ\n")
-        self.intake(policy=str(policy))
-        text = self.prompt()
-        self.assertIn("## The person's policy", text)
-        self.assertIn("方針の第 1 項: 入口は 1 つ", text)
-        self.assertIn("This role makes a judgment, so write the item it conflicts with in `reason`", text)
-
-    def test_concept_map_section_follows_the_tree(self):
-        """test_concept_map_only_on_r1_and_r3 の r3 の半分: 見つかった・無いで段落を選び、住処の観点の後ろに在る"""
-        self.intake()
-        text = self.prompt()
-        self.assertIn("## Map of where concepts live\n\nNone (searched for: the tracked file `docs/concepts.md`", text)
-        (self.repo / "docs").mkdir()
-        (self.repo / "docs" / "concepts.md").write_text("# map\n", encoding="utf-8")
-        git(self.repo, "add", "-A")
-        text = self.prompt()
-        self.assertIn("## Map of where concepts live (the machine searched the tracked files; Read it first)\n\n- docs/concepts.md\n", text)
-        self.assertLess(text.index("## Where concepts live"), text.index("## Map of where concepts live"))
-        self.assertIn("start `reason` with \"考えの住処: \"", text)
-
-    def test_status_words_are_the_three_of_r3(self):
-        self.intake()
-        text = self.prompt()
-        self.assertIn("`status` is one of pass, redesign-needed, unverifiable, with the reason in `reason`.", text)
-        self.assertNotIn("fix-needed", text)
 
 
 class AfterCase(_RepoCase):

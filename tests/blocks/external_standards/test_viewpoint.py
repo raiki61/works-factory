@@ -10,10 +10,6 @@ class ViewpointCase(unittest.TestCase):
         self.mk = self.vp.materialkit
         self.view = self.mk.View(".", "b", "r", "d", ("x.py",), "c", "", 0)
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         (("external_standards",), False, "never", True))
-
     def test_never_viewpoint_does_not_answer_applies(self):
         with self.assertRaises(NotImplementedError):
             self.vp.applies(None, {})
@@ -42,14 +38,9 @@ class ViewpointCase(unittest.TestCase):
         self.assertEqual((bare["purpose_text"], bare["known_weaknesses"]), ("", ""))
         self.assertFalse(self.vp.when(view, {"purpose": None})["purpose"])
 
-    def test_materials_and_report_lines(self):
+    def test_materials(self):
         self.assertEqual(self.vp.materials_of({}), {})
         self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"external_standards": {"status": "clean"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        rows = [{"problem": "p q r s", "ranked": ["a", "b"], "diff_at": "b"}]
-        self.assertEqual(self.vp.report_lines({"reply": {"rankings": rows}}), ["  - 順位: p q r s——差分は 2 位／2 位中（b）"])
-        self.assertEqual(self.vp.report_lines({"reply": {"rankings": [], "rankings_none": "定番解なし"}}),
-                         ["  - 順位: 付けられる問題なし（定番解なし）"])
 
     def test_section_names_are_headings_of_the_source_of_truth(self):
         heads = [line[3:] for line in (kit.SHARED / "prompts" / "REVIEW.md").read_text(encoding="utf-8").splitlines() if line.startswith("## ")]

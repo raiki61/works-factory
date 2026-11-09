@@ -268,8 +268,6 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 - standalone の fixture（`workflows/hygiene/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `hygiene` だけを台本の返答（`findings: []`・`seen: "差分の全部"`）で差し替え、script は本物。`reached` に `finish`。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `{findings: [], seen: ""}`。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`。
 - `tests/blocks/hygiene/test_hygiene.py`（materials.md の 8 節の block の試験）:
   - 写す元 `test_judge_accept.py::MaterialCase.test_hygiene_reply_is_taken_or_refused`（`:1459-1467`）: `seen` の空の `clean` は「素材 'hygiene'（clean）に 'checked' が要る」で拒まれ、行の在る返答は受けて、`material.json` の `materials` が `{"hygiene": {"status": "found", "checked": "差分", "count": 1, "detail": "app.txt:2: 名が短い"}}`。
   - 写す元 `MaterialCase.test_prep_renders_role_inputs`（`:1209-1218`）の hygiene の部分: 試験の REVIEW.md（`# 観点` / `## コード衛生観点` / `衛生の本文` / `## 次`）を工場の観点の正本の置き場に置いた時、組んだ指示に「衛生の本文」が入り「## 次」が入らず、差分の本文（直した行）が入る。工場の観点の正本の置き場は `materialkit.review_md_paths` が引く所で、試験はその所を使い捨ての置き場に向ける（向け方は族の部品の試験と同じ物を使う）。
@@ -279,7 +277,7 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
   - 足す（起こし方の照らし）: block の YAML の AI の node が、今の tests/workflows の `test_judge.py:92` の表の hygiene の行（`"sonnet", "medium", [], BASE, True, …`）が照らす物と同じ。
 - 指示の比べ（README の 11.4）の試験は置かない。2 つ目の commit の形（例の run の値で組んだ指示を 2.6 の差の一覧に照らして審査に出す）だけを取る。
 - 振る舞いの試験の残り: 族の部品の試験（`lib/tests/test_materialkit.py`）が、作業ツリーの照らし・所見の場所の照らし（今の `test_location_beyond_the_file_is_sent_back_then_marked` は hygiene の返答の形で写す）・`material_from_findings` を見る。
-- 守る keep-essence の番号: 無い。守るのは「目的と近傍を知らない目」で、port の形（`base`・`entry`・`lang` だけ）と `allowed_tools: []`（起こし方の照らし）が担う。
+- 守る keep-essence の番号: 無い。守るのは「目的と近傍を知らない目」で、port の形（`base`・`entry`・`lang` だけ）と YAML の `allowed_tools: []` が担う（起こし方の照らしは 2026-11-10 の削りで消した。下の段落）。
 - 終わりの条件の命令（1 モジュールずつ）:
 
 ```sh
@@ -287,6 +285,12 @@ uv run --isolated python3 -m unittest discover -s tests/blocks/hygiene -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 ```
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/hygiene/test_hygiene.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/hygiene/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/hygiene/test_hygiene.py` の `FlowCase` から: 判定から入る run の飛ばしの 3 本・指示の字（観点の節と差分の貼り）・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `tests/blocks/hygiene/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
+- 2.9 が守りに挙げる「目的と近傍を知らない目」の起こし方の照らし（`allowed_tools: []` と入力が 3 つ）も `ShapeCase` と一緒に落とした。今は port の形（`inputs:`）と YAML の字だけが持つ。
 
 ## 3 script の node
 

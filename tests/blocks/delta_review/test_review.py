@@ -1,5 +1,8 @@
-"""審査役の返答の受け付けと 2 判定（docs/design/delta-review.md の 2.8・4 節・10.2 の ReviewAcceptCase・VerdictsCase）。"""
+"""審査役の返答の受け付けと 2 判定（docs/design/delta-review.md の 2.8・4 節・10.2 の ReviewAcceptCase・ReviewPromptCase・VerdictsCase）。"""
 import json
+import unittest
+
+import yaml
 
 from tests.blocks import kit
 from tests.blocks.delta_review import support as s
@@ -174,6 +177,20 @@ class ReviewAcceptCase(s.Case):
         self.assertIn("入力 n", self.run.failing("review_accept", n="3", reply="{}"))
 
 
+class ReviewPromptCase(s.Flow):
+    def test_a_rejected_round_brings_the_reasons_and_the_keep_the_holes_paragraph(self):
+        """拒まれた周の次の審査の指示は、拒否の理由を頭に置く（prep が rolekit の控えを読む配線。理由を落としても、ほかの試験は赤に
+        ならない）"""
+        self.write("a.py", "alpha = 1\nbeta = 22\n")
+        self.assertTrue(self.intake(fix_reply=json.dumps(s.CLAIMED))["due"])
+        self.step("review_prep", 1)
+        self.review(1, s.review_reply(checks=[]))
+        again = self.step("review_prep", 1)["prompt"]
+        self.assertTrue(again.startswith("## Why your previous answer was rejected"))
+        self.assertIn("検算が無い", again)
+        self.assertIn("Do not silently drop a hole that was rejected", again)
+
+
 class VerdictsCase(s.Case):
     def setUp(self):
         super().setUp()
@@ -271,3 +288,22 @@ class VerdictsCase(s.Case):
     def test_fail_rows_ignores_unreadable_records(self):
         self.assertEqual(self.verdicts.fail_rows(None), [])
         self.assertEqual(self.verdicts.fail_rows({"compliance": "x"}), [])
+
+
+class VocabularyCase(unittest.TestCase):
+    def test_verdict_words_match_the_acceptance(self):
+        """審査役の返答の型の判定の語（1 往復目の役）と穴の種類（2 つの役）が受け付けの表と同じ（元 test_shape.py の同じ名の試験と test_hole_kinds_match_the_acceptance）。
+        適合の fail が型から落ちると、役が不適合を返せず手直しの役が起きない"""
+        verdicts, review = kit.load("delta-review", "verdicts"), kit.load("delta-review", "review")
+        doc = yaml.safe_load((kit.BLOCKS / "delta-review" / "works-factory-delta-review.yaml").read_text(encoding="utf-8"))
+        roles = {x["id"]: x for n in doc["nodes"] if "loop_group" in n for x in n["loop_group"]["nodes"] if "prompt" in x}
+        props = roles["review-1"]["output_format"]["properties"]
+        comp = props["compliance"]["properties"]
+        self.assertEqual(tuple(comp["verdict"]["enum"]), verdicts.COMPLIANCE)
+        self.assertEqual(tuple(comp["items"]["items"]["properties"]["kind"]["enum"]), verdicts.KINDS)
+        self.assertEqual(tuple(props["quality"]["properties"]["verdict"]["enum"]), verdicts.QUALITY)
+        for key, schema in verdicts.FIELD_SCHEMA.items():
+            self.assertEqual(schema["properties"]["verdict"]["enum"], props[key]["properties"]["verdict"]["enum"])
+        for role in ("review-1", "review-2"):
+            kinds = roles[role]["output_format"]["properties"]["faces"]["items"]["properties"]["kind"]["enum"]
+            self.assertEqual(tuple(kinds), review.FACE_KINDS, role)

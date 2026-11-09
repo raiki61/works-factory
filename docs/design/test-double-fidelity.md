@@ -250,8 +250,6 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 - standalone の fixture（`workflows/test-double-fidelity/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `test-double-fidelity` だけを台本の返答（`material.status: clean`・`checked` 1 文・`mismatches: []`）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`。`finish` の出力の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`（`cond_true` で拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず（`reached` に `test-double-fidelity` が無い）、`finish` の `status` が `skipped`。
 - `tests/blocks/test_double_fidelity/test_test_double_fidelity.py`: materials.md の 8 節の block の試験。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す。
   - 写す元 `test_judge_accept.py::MaterialCase.test_test_double_fidelity_reply_is_taken_or_refused`: `carried_over` は拒まれ、拒みの文が「素材 'test_double_fidelity'（観点 test-double-fidelity）は今の周に走ったのに carried_over」を言う。`clean` の返答は通り、`material.json` の `materials` が `{"test_double_fidelity": <返答の material>}`。
   - 足す: `not_applicable` は拒まれ、拒みの文が「条件が真で走ったのに not_applicable」を言う。組んだ指示に `na_cond_true` の段落と「差分が外部との継ぎ目に触れる」の字が入り、ほかの 3 つの `na_*` の段落が入らない。
@@ -270,6 +268,12 @@ uv run --isolated python3 -m unittest discover -s tests/blocks/test_double_fidel
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 uv run --isolated python3 -m unittest tests.blocks.test_double_fidelity.test_prompts
 ```
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/test_double_fidelity/test_test_double_fidelity.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/test_double_fidelity/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/test_double_fidelity/test_test_double_fidelity.py` の `FlowCase` から: 判定から入る run の飛ばし・言語の 1 文・報告の行の字・intake 無しの落ち・自分の place に書く。`test_not_applicable_is_refused` は拒みだけを残し、指示の段落の字を落とした。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `tests/blocks/test_double_fidelity/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
 
 ## 3 script の node
 

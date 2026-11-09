@@ -13,10 +13,6 @@ class ViewpointCase(unittest.TestCase):
     def view(self, repo, files=("x.py",), diff="/nonexistent/diff.patch"):
         return self.mk.View(repo, "b", "r", diff, tuple(files), "c", "", 0)
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.NAME, self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         ("gate-efficacy", ("gate_efficacy",), False, "cond", True))
-
     def test_applies_is_always_true_and_fill_is_not_called_when_due(self):
         view = self.view(".")
         self.assertTrue(self.vp.applies(view, {}).run)
@@ -83,14 +79,6 @@ class ViewpointCase(unittest.TestCase):
                 else:
                     self.assertTrue(values["mutation_error"])
                     self.assertEqual((values["mutation_argv"], values["mutation_arms"]), ("", ""))
-
-    def test_materials_and_report(self):
-        self.assertEqual(self.vp.materials_of({}), {})
-        self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"gate_efficacy": {"status": "clean"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        row = {"gate": "ci", "arm": "the fence", "red_confirmed": True, "control_green": False, "hit_evidence": "x"}
-        self.assertEqual(self.vp.report_lines({"reply": {"arms": [row]}}),
-                         ["  - 腕: the fence（ci。赤 見た・対照の緑 見ていない・守る行の通過 見ていない）"])
 
     def test_declared_stage_suppresses_the_error_even_if_state_carries_one(self):
         """段が在れば読みの誤りは値にも段落の条件にも出ない（state が段と誤りを同時に返しても）"""

@@ -46,17 +46,6 @@ class TablesCase(_Base):
         self.assertFalse(is_open({"label": "suggest", "disposition": "defer"}))
         self.assertFalse(is_open({"label": "nit"}))
 
-    def test_tables_keep_the_words(self):
-        self.assertEqual(self.judge.LABELS, ("block", "suggest", "nit", "question", "info"))
-        self.assertEqual(set(self.judge.QUESTION_KINDS),
-                         {"fork", "split", "rule", "stuck", "thrash", "premise", "unverifiable", "awaiting", "field"})
-        self.assertEqual(self.judge.QUESTION_KINDS["fork"].fields, ("options",))
-        self.assertEqual({k: v.domain for k, v in self.judge.QUESTION_KINDS.items()},
-                         {"fork": "unit", "split": "unit", "rule": "unit", "stuck": "unit", "thrash": "none", "premise": "review",
-                          "unverifiable": "review", "awaiting": "material", "field": "none"})
-        self.assertEqual(self.judge.QUESTION_STATUS, {"held": (), "decided": ("resolution",), "resolved": ("resolution",), "escalate": ()})
-        self.assertEqual(self.judge.NO_OPEN_ORIGIN, ("split", "rule"))
-
 
 class JudgeTakeCase(_Base):
     def test_good_reply_is_written_as_judgment(self):

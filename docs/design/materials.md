@@ -481,8 +481,7 @@ README の 5.3 のまま。この族では:
   - `test_viewpoint.py`: その観点だけの宣言の中身。族の全部に当てる照らし（5.1 の名を全部持つ・`MATERIALS` が `materialkit.MATERIALS` の中・`NA == "never"` の `applies` が `NotImplementedError`・`GUARDED` が AI の node の `mutates_checkout: false` と同じ）は `tests/blocks/materials/test_viewpoints.py` が `src/viewpoint.py` を持つ block の全部に当てるので、観点の PR は足さない。
   - `test_prompts.py`（1 つ目の commit だけ。2 つ目の commit で消す）: 指示の比べ（README の 11.4）。1 つ目の commit は、日本語の md を今の `commands/material-<観点>.md` から作り（`$<観点>-prep.output.<欄>` を `{<欄>}` に替えた字）、本物の run の値で組んだ字が、今の md に同じ値を入れた字と同じになることを照らす。材料のファイル（今の `material-<観点>-brief.md`）は 1 つ目の commit でも prep が今と同じ字で書き、今の run の物と同じ字になることを照らす（各観点の設計書が値と照らし方を書く）。2 つ目の commit（英語。材料を指示に入れ、材料のファイルを無くす）でこの 2 つの試験を消し、新しい指示と古い指示（md と材料のファイル）を並べた物を PR に載せる。
   - `workflows/<観点>/fixtures/standalone.stubs.yaml`（8 節の終わりの命令で回す）: `fixture.inputs` は port の値だけ（pointer を持たない。README の 7.1 の 4）。AI の node だけを台本の返答で差し替え、script は本物を走らせる（`--exec-code`）。`reached` に `finish`。`resolved-text-contains` に AI の node の md の決まった文（形の検査）。筋書きは node の返りの欄を照らせないので、`finish` の `status` は `test_<観点>.py` が照らす。
-  - `workflows/<観点>/fixtures/gave-up.stubs.yaml`: 役の返答が拒まれ、run が `completed`（dry-run は輪を 1 周で終えるので拒否は 1 回。3 回で `gave_up` になる数えは `test_<観点>.py`）。
-  - 回す条件を持つ観点は `skipped.stubs.yaml`: 役を起こさず run が `completed`。
+  - 筋書きは `standalone.stubs.yaml` の 1 本だけを置く（2026-11-10 の削り。持ち主の決め `tests-guard-writes`・`slim-first`）。諦める道（3 回で `gave_up`）は `test_<観点>.py` の `FlowCase`、回さない道は `test_viewpoint.py` の `due` の試験と lib/tests の `test_materialkit.py`、諦めても役が落ちても返す node が走る配線は `tests/workflows/test_returns_never_fail.py` が見る。輪の `when:` が intake の `due` を読む配線は、どの試験も見ない（読み違えても役が無駄に走るだけで、書き込みと承認は変わらない）。
 - 形の検査（README の 7.1）は族の block にもそのまま当たる。族だけの yes/no は `tests/blocks/materials/test_viewpoints.py` に置く（上）。
 - 終わりの条件の命令（PR ごと。どれも 1 モジュールずつ回す。手元で全部の試験は回さない）:
 

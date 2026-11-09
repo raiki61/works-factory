@@ -68,7 +68,7 @@ script の node はどれも `runtime: uv`・`mutates_checkout: false`。受け�
 - `workflows/cold-read/src/files.py`: place のファイルの名（1.4）。
 - `workflows/cold-read/src/reply.py`: 返答の読み。今の `runreport.py` の `_cold_of`（:1912-1917）・`COLD_UNREADABLE`・`COLD_EMPTY`（:1920-1921）・`_cold_lines`（:1924-1928）の写しと、`VERDICTS = ("pass", "redesign-needed")`（今の `runreport.COLD_SCHEMA` の `verdict` の enum。md の `{passed}`・`{redesign}` と `output_format` の enum が同じ字を持つ。試験が YAML の enum と突き合わせる）。`stuck(c)` は 1.2 の決まり。
 - `workflows/cold-read/src/report.py`: 報告の行（9 節）。
-- `workflows/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`・`unreadable.stubs.yaml`（11 節）。
+- `workflows/cold-read/fixtures/standalone.stubs.yaml`・`redesign.stubs.yaml`（11 節）。
 - `tests/blocks/cold_read/__init__.py`・`test_cold_read.py`（11 節。Python の package の名は `-` を持てないので `_`）。
 
 使う `lib/`（KEEP）: `jsonfile`・`oneline` だけ。lib の `runreport.py`・lib の `report_roles.py` は import しない（どちらも report の物）。
@@ -271,10 +271,14 @@ bin/works-factory workflow run works-factory-cold-read \
 
 ## 11 試験
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 使われていない block なので、standalone と `redesign` の筋書きと流れの試験を残し、ほかの block と同じ型の字の照らしを落とした。下の一覧は写した時の記録で、今は次を持たない。
+- 筋書き `unreadable`（本文が読めず役を飛ばす道）。読ませないと決めて訳を返すのは `PrepCase.test_missing_file_is_not_due`・`test_not_utf8_is_not_due`、出口が failed を返すのは `FinishCase.test_prep_stopped_it` が script で見る。役が飛んでも出口が走る YAML の配線（`finish` の `trigger_rule: all_done`）は、もう試験が見ない。
+- `PrepCase` の指示の字（断片と本文が入る・報告の頭の決まりが入らない・言語・本文の字がそのまま入る）と、include の道で place が分かれる（tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`）。
+- `ShapeCase`（判定の語と enum の写し・読み手の道具と会話・出口の配線・筋書きの名）。判定の語を替える壊しは `FinishCase` の 3 本が赤にする。
+
 - standalone の fixture（`workflows/cold-read/fixtures/`。script の node は差し替えず本当に走らせ、AI の役 `cold` の返答だけを差し替える。10 節の 4）:
   - `standalone.stubs.yaml`: 入力は `text: README.md` だけ。`cold` を `{verdict: pass, stops: [], guessed: [], decidable: true}` で差し替える。`resolved-text-contains` は `cold.md` 自身の決まった文（`Read only the text below.`）。`expect: completed`・`reached: [cold-prep, cold, cold-save, finish]`。
   - `redesign.stubs.yaml`: `cold` が `redesign-needed` と止まった所 1 つ。`finish` は本当に走り、`pass: false`・`stuck` 1 行になる。
-  - `unreadable.stubs.yaml`: 存在しないファイル名 `no-such-file.md` を渡し、`cold-prep` が本当に `due: false` を返す。`reached: [cold-prep, finish]`（`cold` は飛ばされる）、`finish` が `status: failed`、run は `completed`。
 - `tests/blocks/cold_read/test_cold_read.py`（script を子のプロセスで回す。始めの記録の無い使い捨ての `ARTIFACTS_DIR` と git のリポジトリで、port の値だけを渡す）:
   - `cold_prep` が組んだ指示に、断片 `role-cold-reader` の本文と本文の字が入り、報告の頭の決まりの字（「頭の後ろ」「機械が組んだ事実」）が入らない。
   - 本文の字がそのまま指示に入る（`$x.output.y` の形の字と `{name}` の形の字を含む本文で、置き換わらずに残る。今の test-gate の `test_reject_with_a_reference_reaches_the_prompt_verbatim` と同じ確かめ）。

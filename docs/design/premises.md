@@ -332,7 +332,7 @@ null を許す欄の書き方 `type: [object, "null"]` は、今の `workflows/c
 - `workflows/premises/prompts/premises.md`
 - `workflows/premises/scripts/intake.py`・`measure_prep.py`・`measure_accept.py`・`finish.py`（どれも uv の頭の宣言 `# /// script` を持つ）
 - `workflows/premises/src/__init__.py`・`src/steps.py`・`src/report.py`
-- `workflows/premises/fixtures/standalone.stubs.yaml`・`gave-up.stubs.yaml`・`bad-request.stubs.yaml`
+- `workflows/premises/fixtures/standalone.stubs.yaml`
 - `tests/blocks/premises/__init__.py`・`test_premises.py`・`test_prompt_compare.py`（1 つ目の commit だけ）。筋書きを Archon で回すのは `tests/layers/test_block_shape.py` が全 block を回すので、`test_fixtures.py` は作らない（8 節の自分で決めた 9）
 - `docs/design/premises.md`（この文書。直す時）
 
@@ -362,12 +362,16 @@ bin/works-factory workflow run works-factory-premises \
 
 ## 7 試験と、済んだと言える条件
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の 7.1・7.2 は写した時の記録で、今は次を持たない。
+- 筋書き `gave-up`（拒まれても run を止めない道）と `bad-request`（読めない依頼で役を起こさない道）。`gave-up` は standalone と同じ YAML の道（輪は受け付けの `done` で抜け、`finish` は `trigger_rule: all_done`）で、違うのは差し替えの値だけ。`bad-request` の輪を飛ばす `when:` が壊れても、役の支度が落ちて出口が failed を返すだけで、書き込みも承認も動かない。3 回で諦めるのは `FinishCase.test_three_rejections_give_up`、読めない依頼で止めないのは `IntakeCase.test_unreadable_request_does_not_stop_the_run`・`FinishCase.test_failed_intake_is_failed` が見る。
+- `PromptCase` の全部（指示の字・検索の断片・前の拒否が次の指示に入る・intake 無しの落ち）。印に値が無い・値に印が無いのは workflows/.shared/prompt.py の emit が全体に照らす。
+- `FinishCase.test_included_block_writes_in_its_own_place`: include の道で place が分かれるのは tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、block が自前に place を組まないのは tests/layers の `test_block_shape.py`（7.1 の 7）が見る。
+- `ShapeCase` の全部（`kind` の enum と語の写し・役の返答の型・出口の欄・輪の上限・AI の node の鍵）。語の写しのずれ（`MEASURED` を替える壊し）は `AcceptCase.test_measured_without_output_rejected` が赤にする。出口の欄は tests/layers の E5（`test_block_returns.py`）、輪の until の配線と上限は tests/layers の `test_loop_bounds.py`、AI の node の鍵は tests/layers の E7・E12・E19 の検査が見る。
+
 ### 7.1 standalone の fixture（`workflows/premises/fixtures/`）
 
 - 筋書きは `exec-code: true` で script を本当に走らせ、差し替えるのは AI の node `premises` の返答だけ（`tests/layers/test_block_shape.py` の約束）。
 - `standalone.stubs.yaml`: `fixture.inputs` は `request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す", "measured": "3"}]'` だけ。`expect: completed`・`reached: [intake, premises-prep, premises, premises-accept, finish]`。`resolved-text-contains` の `premises` は md の決まった文。`premises` の返答は `where` を `text` に含む `kind: 実測` の 1 行（`measured_output` 付き）。
-- `gave-up.stubs.yaml`: 入力は同じ。`premises` の返答は `where` を含まない `仮説` の行で、受け付けが拒み（筋書きは輪が 1 周で終わる）、`finish` が `status: failed` を返す。3 回で諦める数えは 7.2 の試験が確かめる。
-- `bad-request.stubs.yaml`: `fixture.inputs` は `request: '{"rows": []}'`（容器の鍵でない）。`reached: [intake, finish]`（`intake` が本当に `due: false` を返し、役は起きない）。
 
 ### 7.2 `tests/blocks/premises/test_premises.py`
 
@@ -405,7 +409,7 @@ uv run --isolated python3 -m unittest tests.layers.test_block_shape
 uv run --isolated python3 tests/changed.py
 ```
 
-`test_fixtures.py` は `tests/archon.py` の使い捨ての木に `workflows/` を置いて `archon workflow test works-factory-premises --json` を回し、3 本の筋書きが全部通ることと、`archon validate workflows` が警告なしで通ることを照らす。最後に、6 節の命令で本物の単独の run を 1 回回す。
+`test_fixtures.py` は `tests/archon.py` の使い捨ての木に `workflows/` を置いて `archon workflow test works-factory-premises --json` を回し、筋書きが全部通ることと、`archon validate workflows` が警告なしで通ることを照らす。最後に、6 節の命令で本物の単独の run を 1 回回す。
 
 ## 8 根拠を書いて自分で決めた事
 

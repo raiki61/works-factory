@@ -10,12 +10,10 @@ import os
 import unittest
 from unittest import mock
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-BLOCK = kit.BLOCKS / "local-review"
 NAME = "local-review"
 LOOP = f"{NAME}-loop"
 LENSES = ["/code-review", "pr-review-toolkit:code-reviewer", "/simplify", "/security-review",
@@ -229,126 +227,12 @@ class FlowCase(unittest.TestCase):
         self.assertIn("3 回とも受け付けで拒まれた", fin["reason"])
         self.assertEqual(self.material()["materials"]["local_review"]["status"], "not_run")
 
-    def test_entry_run_does_not_start_the_role(self):
-        """判定から入る run（entry が空でない）は役を起こさず、出口が skipped と fill_entry の字で素材を埋める"""
-        got = self.intake(entry="人の依頼（/path/req.json）")
-        self.assertFalse(got["due"])
-        fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"]), (True, "skipped"))
-        mk = kit.load(NAME, "viewpoint").materialkit
-        self.assertEqual(fin["reason"], mk.entry_skip("P1 の役").why)
-        mat = self.material()
-        self.assertEqual(mat["materials"], {"local_review": mk.fill_entry("人の依頼（/path/req.json）", None)})
-        self.assertIn("件数は渡されていない", mat["materials"]["local_review"]["reason"])
-        self.assertIsNone(mat["reply"])
-
-    def test_entry_with_a_diff_still_starts_the_role(self):
-        """entry が空でなくても、作業ツリーに差分が在れば判定から入る run ではない——回す"""
-        (self.run.repo / "app.txt").write_text("一行目\n二行目\n", encoding="utf-8")
-        got = self.intake(entry="人の依頼（/path/req.json）")
-        self.assertTrue(got["due"])
-
-    def test_prompt_declares_the_lenses_without_notes(self):
-        """prep が組んだ指示の {skills} の値: /security-review は applies: true と理由を持ち、どの要素も note を持たない。
-        対象の根に REVIEW.md が無ければ repo_review の段落が入らず、在れば入る"""
-        self.intake()
-        got = self.prep()["prompt"]
-        start = got.index("[\n {\n  \"skill\": \"/code-review\"")
-        declared = json.JSONDecoder().raw_decode(got[start:])[0]
-        self.assertEqual([e["skill"] for e in declared], LENSES)
-        self.assertEqual(declared[3], {"skill": "/security-review", "required": False, "applies_cond": "security_surface_touched",
-                                       "applies": True, "applies_why": WHY})
-        self.assertFalse(any("note" in e for e in declared))
-        self.assertNotIn("The target repository's own review viewpoints", got)
-        self.assertIn("reading rules below", got)
-        self.assertIn("# 借りた superpowers のスキルを無人の役で読むときの読み替え", got)
-        self.setUp()
-        (self.run.repo / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
-        self.intake()
-        self.assertIn("The target repository's own review viewpoints:", self.prep()["prompt"])
-
-    def test_code_review_is_started_inside_an_agent_child(self):
-        """/code-review を役の会話の Skill で直に起こすと、fork が役の返答の道具 StructuredOutput を継いで所見をそこへ書き、本文が
-        届かない（実測 2026-11-05: guided-resolver の局所レビューの会話 15 本すべて）。general-purpose の子の中で Skill を起こすと、
-        子も孫の fork も返答の道具を持たず本文が返る（実測 4 本中 4 本）。指示がその道を役に渡すか"""
-        self.intake()
-        got = self.prep()["prompt"]
-        section = got[got.index("## How /code-review returns"):]
-        self.assertIn("Do not start `/code-review` with Skill in this conversation", section)
-        self.assertIn("general-purpose child", section)
-        self.assertNotIn("A lens whose name starts with `/` is a skill, started with Skill.", got)
-
-    def test_sandbox_shell_rules_ride_in_the_section_copied_to_helpers(self):
-        """Agent の子へ丸ごと写す節 `## Reading borrowed skills` の中に、sandbox の中の shell の書き方の断片が在る"""
-        fragment = kit.SHARED / "prompts" / "sandbox-shell.md"
-        self.assertTrue(fragment.is_file(), "sandbox の中の shell の書き方の断片 sandbox-shell.md が無い")
-        body = fragment.read_text(encoding="utf-8").split("\n", 1)[1].strip()   # 頭の印の行は組み上がりに残らない
-        self.intake()
-        got = self.prep()["prompt"]
-        self.assertIn("## Reading borrowed skills", got)
-        self.assertIn(body, got[got.index("## Reading borrowed skills"):])
-        # shell の決まりは借りたスキルを読むかどうかに依らず効く: 読み替えの本文の前に置き、頭の 1 文もそう言う
-        overlay_head = "# 借りた superpowers のスキルを無人の役で読むときの読み替え"
-        self.assertIn(overlay_head, got)
-        self.assertLess(got.index("## Reading borrowed skills"), got.index(body))
-        self.assertLess(got.index(body), got.index(overlay_head))
-        lead = got[got.index("## Reading borrowed skills"):got.index(body)]
-        self.assertIn("Follow the shell rules below whenever you run a shell command.", lead)
-        self.assertIn("When you read a borrowed skill (superpowers), also follow the reading rules below.", lead)
-
-    def test_lang_reaches_the_prompt(self):
-        self.intake(lang="Japanese")
-        self.assertIn("in Japanese.", self.prep()["prompt"])
-
     def test_unreadable_base_fails_with_the_port_name(self):
         got = self.intake(base="no-such-commit")
         self.assertFalse(got["due"])
         fin = self.finish()
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertEqual(self.material()["materials"]["local_review"]["status"], "not_run")
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__local-review-run__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__local-review-run__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "local-review-run" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__local-review-run__finish")
-        self.assertEqual(fin["material"]["path"], "judge/local-review-run/material.json")
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    # 今の判定の local-review の役の起こし方（tests/workflows の test_judge.py の ROLES["local-review"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 net_closed_launch に node が足す 3 つの鍵を、作り直しの時に字で写した物）。
-    # 組み込みで workflows/ が入れ替わっても、この期待は block の起こし方の正本として残る
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
-              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch", "Skill", "Agent"],
-              "skills": ["code-review", "simplify", "security-review"], "plugins": ["pr-review-toolkit@works-local"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                          "excludedCommands": ["works-gh:*"], "network": {"allowedDomains": []},
-                          "filesystem": {"denyWrite": ["~/../archon-home"]}},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def test_launch_matches_the_judge_role(self):
-        """起こし方は今の判定の local-review の役と同じ（群の既定は sonnet・medium。役の node は mutates_checkout を持たない）"""
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertNotIn("mutates_checkout", role)
-        self.assertEqual(role["output_format"]["required"], ["material", "findings", "simplify_carried"])
 
 
 if __name__ == "__main__":

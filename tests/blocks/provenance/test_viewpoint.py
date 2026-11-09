@@ -10,10 +10,6 @@ class ViewpointCase(unittest.TestCase):
         self.vp = kit.load("provenance", "viewpoint")
         self.mk = self.vp.materialkit
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         (("provenance",), False, "never", True))
-
     def test_entry_with_empty_diff_is_not_due(self):
         view = types.SimpleNamespace(empty=True)
         self.assertTrue(self.vp.due(view, {"entry": ""}).run)
@@ -29,12 +25,9 @@ class ViewpointCase(unittest.TestCase):
         got = self.vp.due(types.SimpleNamespace(empty=False), {"entry": "人の依頼"})
         self.assertTrue(got.run)
 
-    def test_material_and_report(self):
+    def test_material(self):
         self.assertEqual(self.vp.materials_of({}), {})
         self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"provenance": {"status": "clean"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        rows = [{"claim": "a", "exists_at_base": True, "evidence": "e"}, {"claim": "b\nc", "exists_at_base": False, "evidence": "e"}]
-        self.assertEqual(self.vp.report_lines({"reply": {"claims": rows}}), ["  - 差分の根に無い根拠: b c"])
         self.assertEqual(self.vp.when(None, {}), {"spawns": False})
 
 

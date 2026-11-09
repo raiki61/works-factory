@@ -2,13 +2,12 @@
 
 始めの記録の無い使い捨ての run directory と git のリポジトリ（根の AGENTS.md・設計書 1 本・pr_commit.py を commit した物）で、
 port の値だけを渡し、intake → design_prep → 台本の返答 → design_accept → finish と回す。受け付けと印は script と src の関数を
-この過程で呼んで確かめる。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
+この過程で呼んで確かめる。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 keep-essence の 9（独立設計と R1〜R4）の守りは test_inputs_carry_no_plan_judgment_or_diff が縛る。
 """
 import contextlib
 import io
 import json
-import pathlib
 import runpy
 import unittest
 import unittest.mock
@@ -86,25 +85,6 @@ class ShapeCase(unittest.TestCase):
         doc = yaml.safe_load((BLOCK / "works-factory-independent-design.yaml").read_text(encoding="utf-8"))
         self.assertEqual(sorted(doc["inputs"]), sorted(PORTS))
 
-    def test_scripts_read_only_the_declared_inputs(self):
-        import re
-        read = set()
-        for path in (BLOCK / "scripts").glob("*.py"):
-            read |= {m.lower() for m in re.findall(r'os\.environ(?:\.get)?\(?\[?"INPUTS_([A-Z_]+)"', path.read_text(encoding="utf-8"))}
-        self.assertEqual(read - {"reply", "status_guarded"}, set(PORTS))
-
-    def test_loop_count_is_the_give_up_count(self):
-        doc = yaml.safe_load((BLOCK / "works-factory-independent-design.yaml").read_text(encoding="utf-8"))
-        loop = next(n for n in doc["nodes"] if n["id"] == "design-loop")["loop_group"]
-        self.assertEqual(loop["max_iterations"], kit.load("independent-design", "steps").rolekit.GIVE_UP_AFTER)
-
-    def test_fixtures_match_the_nodes(self):
-        doc = yaml.safe_load((BLOCK / "works-factory-independent-design.yaml").read_text(encoding="utf-8"))
-        ids = {n["id"] for n in doc["nodes"]} | {n["id"] for n in doc["nodes"][1]["loop_group"]["nodes"]}
-        for name in ("standalone", "unusable", "gave-up"):
-            with self.subTest(name):
-                fx = kit.fixture("independent-design", name)
-                self.assertLessEqual(set(fx["fixture"]["reached"]), ids)
 
 class FlowCase(_RepoCase):
     def test_flow_reaches_the_design_and_the_ledger(self):
@@ -150,11 +130,6 @@ class FlowCase(_RepoCase):
             self.assertFalse((self.run.artifacts / name).exists(), name)
         self.assertTrue((self.run.artifacts / "other.json").is_file(), "ほかの物の名のファイルは消さない")
 
-    def test_place_follows_the_include_path(self):
-        self.run.script("intake", include="judge__independent-design__intake", purpose=values.PURPOSE)
-        self.assertTrue((self.run.artifacts / "judge" / "independent-design" / "intake.json").is_file())
-        self.assertFalse((self.run.artifacts / "intake.json").exists())
-
 
 class PromptCase(_RepoCase):
     def test_prompt_carries_purpose_and_constraints_only(self):
@@ -166,23 +141,6 @@ class PromptCase(_RepoCase):
             self.assertNotIn(foreign, text)
         self.assertIn("AGENTS.md:1-", text)
         self.assertIn(values.AGENTS_MD.splitlines()[2], text)
-
-    def test_human_answers_and_named_sections_are_pasted(self):
-        request = self.write("request.json", json.dumps([{"where": "docs/design.md", "text": "`docs/design.md` 2 節 の通りに直す"}],
-                                                        ensure_ascii=False))
-        text = self.to_prompt(answers=dump(values.ANSWERS), request=request)
-        self.assertIn("continue（一言: 始める（main の確かめの run））", text)
-        self.assertIn("フックの環境を試験で縛る。", text)
-        self.assertIn("docs/design.md:", text)
-        ledger = self.read("design-premises.json")
-        self.assertEqual({g["kind"] for g in ledger["given"]}, {"human_answer", "named_section", "repo_map"})
-        self.assertEqual(ledger["seen"], {"count": 1, "last_round": 1})
-
-    def test_no_answers_and_no_constraints_are_named_in_the_ledger(self):
-        self.intake()
-        self.prep()
-        withheld = {(w["kind"], w["what"]) for w in self.read("design-premises.json")["withheld"]}
-        self.assertEqual(withheld, {("human_answer", "answers"), ("constraint", "constraints")})
 
     def test_unvetted_narrowing_review_is_pasted_and_does_not_stop_the_role(self):
         review = {"verdict": "狭めている", "reason": "r", "findings": [{"text": "cite の無い行"}]}
@@ -220,67 +178,6 @@ class PromptCase(_RepoCase):
         self.assertEqual(len(rows), 1)
         self.assertIn("目的の監査の受けた返答", rows[0]["why"])
         self.assertEqual(self.read("intake.json")["purpose_review"], {})
-
-    def test_unreadable_purpose_review_names_the_real_cause(self):
-        broken = self.write("review.json", "{not json")
-        self.assertTrue(self.intake(purpose_review=broken)["due"])
-        self.prep()
-        why = [w for w in self.read("design-premises.json")["withheld"] if w["kind"] == "purpose_review"][0]["why"]
-        self.assertNotIn("（ValueError）", why)
-        self.assertNotIn("\n", why)
-        self.assertRegex(why, r"JSON|json|Expecting|review")
-
-    def test_unreadable_request_file_is_named(self):
-        got = self.intake(request="/no/such/request.md")
-        self.assertTrue(got["due"])
-        text = self.prep()["prompt"]
-        rows = [w for w in self.read("design-premises.json")["withheld"] if w["kind"] == "named_section"]
-        self.assertEqual(len(rows), 1)
-        self.assertIn("依頼のファイル /no/such/request.md を読めない", rows[0]["why"])
-        self.assertNotIn("/no/such/request.md", text)
-        self.assertEqual(rows[0]["what"], "/no/such/request.md")
-        self.assertEqual(self.read("intake.json")["request_given"], "/no/such/request.md")
-        self.assertIn("The request file could not be read", text)
-
-    def test_readable_request_file_does_not_say_it_was_unread(self):
-        request = self.write("request.json", json.dumps([{"where": "README.md", "text": "依頼の本文"}], ensure_ascii=False))
-        self.assertNotIn("The request file could not be read", self.to_prompt(request=request))
-        self.assertNotIn("The request file could not be read", self.to_prompt())
-
-    def test_policy_is_pasted(self):
-        policy = self.write("policy.md", "方針の印 POLICY-QRS: 環境は 1 か所で組む\n")
-        text = self.to_prompt(policy=policy)
-        self.assertIn("POLICY-QRS", text)
-        self.assertNotIn("POLICY-QRS", self.to_prompt())
-
-    def test_policy_body_is_capped(self):
-        policy = self.steps.policy
-        path = self.run.artifacts.parent / "big.md"
-        path.write_text("あ" * (policy.PASTE_CAP // 3 + 100), encoding="utf-8")
-        body = self.steps.policy_body(path)
-        self.assertLessEqual(len(body.encode("utf-8")), policy.PASTE_CAP)
-        self.assertIn(f"［方針の文書は {path.stat().st_size} バイトで、{policy.PASTE_CAP} バイトまでを貼った。続きは {path}］", body)
-        path.write_text("短い方針\n", encoding="utf-8")
-        self.assertEqual(self.steps.policy_body(path), "短い方針\n")
-
-    def test_lang_is_given_to_the_role(self):
-        self.assertIn("in English.", self.to_prompt(lang="English"))
-        self.assertIn("in the language of the request (the user's language).", self.to_prompt())
-
-    def test_system_prompt_is_the_blind_judge_definition(self):
-        self.intake()
-        system = self.prep()["system"]
-        self.assertEqual(system, (kit.SHARED / "prompts" / "role-blind-judge.md").read_text(encoding="utf-8"))
-        self.assertEqual((self.run.artifacts / "design-system-1.md").read_text(encoding="utf-8"), system)
-
-    def test_earlier_rejects_are_pasted_oldest_first(self):
-        self.intake()
-        self.prep()
-        self.assertFalse(self.accept({**values.REPLY, "elements": []})["done"])
-        self.assertFalse(self.accept({**values.REPLY, "elements": []}, )["done"])
-        text = self.prep()["prompt"]
-        self.assertEqual(text.count("elements に誤りが在る"), 2)
-        self.assertTrue((self.run.artifacts / "design-prompt-2.md").is_file())
 
 
 class AddedMarkCase(_RepoCase):

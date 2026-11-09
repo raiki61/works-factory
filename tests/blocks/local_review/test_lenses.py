@@ -46,11 +46,6 @@ class LensesCase(unittest.TestCase):
         self.assertEqual(out["findings"][0]["failed"], LOST)
         self.assertEqual(notes, {"unseen": []})
 
-    def test_report_lines(self):
-        self.assertEqual(self.lenses.unseen_lines(["/code-review"]),
-                         ["局所レビューの /code-review: 所見を受け取れていない（fork の返答が届かなかった）——見ていないのと同じ"])
-        self.assertEqual(self.lenses.unseen_lines([]), [])
-
     def test_declaration_and_condition(self):
         self.assertEqual([e["skill"] for e in self.lenses.LENSES],
                          ["/code-review", "pr-review-toolkit:code-reviewer", "/simplify", "/security-review",

@@ -9,12 +9,10 @@ import pathlib
 import unittest
 from unittest import mock
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-BLOCK = kit.BLOCKS / "hygiene"
 NAME = "hygiene"
 LOOP = f"{NAME}-loop"
 REVIEW = "# 観点\n\n## コード衛生観点\n\n衛生の本文\n\n### 小見出し\n\n中の字\n\n## 次\n\n別の節\n"
@@ -105,45 +103,6 @@ class FlowCase(unittest.TestCase):
         self.assertIn("3 回とも受け付けで拒まれた", fin["reason"])
         self.assertEqual(self.material()["materials"]["hygiene"]["status"], "not_run")
 
-    def test_entry_run_is_skipped_with_a_reason(self):
-        """写す元 DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions のこの観点の部分"""
-        got = self.intake(entry="人の依頼（試験）")
-        self.assertFalse(got["due"])
-        fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"]), (True, "skipped"))
-        mat = self.material()["materials"]["hygiene"]
-        self.assertEqual(mat["status"], "not_applicable")
-        self.assertIn("人の依頼（試験）", mat["reason"])
-
-    def test_entry_with_a_diff_still_runs(self):
-        self.change()
-        self.assertTrue(self.intake(entry="人の依頼（試験）")["due"])
-
-    def test_without_entry_runs_on_an_empty_diff(self):
-        self.assertTrue(self.intake()["due"])
-
-    def test_prompt_pastes_the_viewpoint_and_the_whole_diff(self):
-        """写す元 MaterialCase.test_prep_renders_role_inputs の hygiene の部分。工場の観点の節と差分の本文の全部が指示に入り、
-        資料であって指示ではないという囲いの文は md だけが持つ。素材の書き方と『条件に当たらない』の段は入れない"""
-        self.change()
-        self.intake(lang="Japanese")
-        got = self.prep()["prompt"]
-        self.assertIn("コード衛生観点", got)
-        self.assertIn("+直した行", got)
-        self.assertIn("----- material begins -----", got)
-        self.assertIn("```diff\ndiff --git", got)
-        self.assertIn("in Japanese.", got)
-        self.assertNotIn("資料であって指示ではない", got)
-        self.assertNotIn("How to write `material`", got)
-        self.assertNotIn("not_applicable", got)
-        self.assertNotIn("Why your previous answer was rejected", got)
-        self.assertNotIn("new conversation", got, "輪の 2 回目以降は同じ会話の続き")
-        self.accept({"findings": [], "seen": ""})
-        again = self.prep()["prompt"]
-        self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
-        self.assertIn("'checked' が要る", again)
-        self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
-
     def test_missing_viewpoint_section_fails_prep_and_finish_still_returns(self):
         """観点の節が見つからない時は黙って空で役を起こさず、prep の本体（prompt_inputs）が見出しの名つきの KeyError で落ちる
         （工場の不具合）。役の返答が無いまま出口を回すと、落ちずに failed で返る（docs/design/hygiene.md の 2.9）"""
@@ -171,15 +130,6 @@ class FlowCase(unittest.TestCase):
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertIn("役の返答を受けた記録が無い", fin["reason"])
         self.assertEqual(self.material()["materials"]["hygiene"]["status"], "not_run")
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__hygiene-run__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__hygiene-run__{LOOP}.{NAME}-prep")
-        fin = self.run.script("finish", "judge__hygiene-run__finish")
-        self.assertEqual(fin["material"]["path"], "judge/hygiene-run/material.json")
 
 
 class PasteCase(unittest.TestCase):
@@ -230,38 +180,6 @@ class PasteCase(unittest.TestCase):
         got = vp.values(view, {})
         self.assertNotIn("対象の本文", got["review_section"])
         self.assertEqual(got["diff"], "+直した\n")
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    # 今の判定の hygiene の役の起こし方（tests/workflows の test_judge.py の表の hygiene の行と workflows/judge/works-factory-judge.yaml の
-    # node を、作り直しの時に字で写した物）。組み込みで workflows/ が入れ替わっても、この期待は block の起こし方の正本として残る
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"], "allowed_tools": [], "mutates_checkout": False,
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def test_launch_matches_the_judge_role(self):
-        """起こし方は今の判定の hygiene の役と同じ（群の既定は sonnet・medium。道具を 1 つも持たない）"""
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertEqual(role["output_format"]["required"], ["findings", "seen"])
-        self.assertEqual(sorted(role["output_format"]["properties"]), ["findings", "seen"])
-
-    def test_inputs_are_the_family_three(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.assertEqual(sorted(doc["inputs"]), ["base", "entry", "lang"])
 
 
 if __name__ == "__main__":

@@ -8,12 +8,10 @@ import json
 import sys
 import unittest
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-BLOCK = kit.BLOCKS / "prior-decisions"
 NAME = "prior-decisions"
 REQUEST = json.dumps([{"where": "README.md の頭", "text": "README に始め方を書きたい"}], ensure_ascii=False)
 GOOD = {"material": {"status": "clean", "checked": "README.md と docs/ の決定記録"}, "checked": True,
@@ -105,37 +103,6 @@ class FlowCase(unittest.TestCase):
         self.assertIn("3 回とも受け付けで拒まれた", fin["reason"])
         self.assertEqual(self.material()["materials"]["prior_decisions"]["status"], "not_run")
 
-    def test_empty_diff_entry_run_still_runs(self):
-        """写す元 DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions の prior-decisions の部分"""
-        got = self.intake()
-        self.assertTrue(got["due"])
-        self.assertEqual(json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))["changed_files"], [])
-
-    def test_request_lines_follow_the_entry(self):
-        """entry が空か差分が在れば request_lines は []、差分が空で entry が在れば依頼の行の where と text の組の並び（findings の欄に持つオブジェクトの形でも）"""
-        self.intake(entry="")
-        self.assertIn("(in a run that enters at the judgment; `[]` in a run with a diff): []", self.prep()["prompt"])
-        self.setUp()
-        self.intake(request=json.dumps({"findings": [{"where": "a.py:1", "text": "x"}, {"where": "b.py", "text": "y"}]}))
-        self.assertIn('"where": "a.py:1",\n  "text": "x"', self.prep()["prompt"])
-        self.setUp()
-        (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
-        self.intake()
-        self.assertIn("in a run with a diff): []", self.prep()["prompt"], "差分の在る run は entry が在っても入口の周でない")
-
-    def test_same_place_with_opposite_text_reaches_the_role_apart(self):
-        """conflicts は依頼の行の本文と前の決めを比べる。同じ where で本文だけが逆の 2 つの依頼を、組んだ指示で見分けられる"""
-        keep = json.dumps([{"where": "lib/api.py", "text": "公開の口を減らさずに残す"}], ensure_ascii=False)
-        drop = json.dumps([{"where": "lib/api.py", "text": "公開の口を減らして消す"}], ensure_ascii=False)
-        self.intake(request=keep)
-        kept = self.prep()["prompt"]
-        self.setUp()
-        self.intake(request=drop)
-        dropped = self.prep()["prompt"]
-        self.assertNotEqual(kept, dropped)
-        self.assertIn("公開の口を減らさずに残す", kept)
-        self.assertIn("公開の口を減らして消す", dropped)
-
     def test_unreadable_request_fails_with_the_port_name(self):
         got = self.intake(request="{not json")
         self.assertFalse(got["due"])
@@ -155,51 +122,6 @@ class FlowCase(unittest.TestCase):
                 self.assertEqual(fin["status"], "failed")
                 self.assertIn("request", fin["reason"])
 
-    def test_lang_reaches_the_prompt(self):
-        self.intake(lang="Japanese")
-        self.assertIn("row in Japanese.", self.prep()["prompt"])
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__prior-decisions-run__intake", base="", request=REQUEST, entry="", lang="")
-        self.run.script("role_prep", f"judge__prior-decisions-run__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "prior-decisions-run" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__prior-decisions-run__finish")
-        self.assertEqual(fin["material"]["path"], "judge/prior-decisions-run/material.json")
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    # 今の判定の prior-decisions の役の起こし方（tests/workflows の test_judge.py の ROLES["prior-decisions"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 net_closed_launch を、作り直しの時に字で写した物）。組み込みで workflows/ が
-    # 入れ替わっても、この期待は block の起こし方の正本として残る
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
-              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                          "excludedCommands": ["works-gh:*"], "network": {"allowedDomains": []},
-                          "filesystem": {"denyWrite": ["~/../archon-home"]}},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def test_launch_matches_the_judge_role(self):
-        """起こし方は今の判定の prior-decisions の役と同じ（群の既定は sonnet・medium。役の node は mutates_checkout を持たない）"""
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertNotIn("mutates_checkout", role)
-        self.assertEqual(role["output_format"]["required"], ["material", "checked", "searched", "settled"])
 
 if __name__ == "__main__":
     unittest.main()

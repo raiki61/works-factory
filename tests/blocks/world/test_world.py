@@ -1,7 +1,7 @@
 """世界の解の block を、script を子のプロセスで回して確かめる（docs/design/README.md の 11.2・docs/design/world.md の 8 節）。
 
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、intake → restate_prep → 台本の返答 →
-restate_accept → pick → web_prep → 台本の返答 → web_accept → finish と回す（web は off。網に出ない）。YAML と筋書きの揃いも見る。
+restate_accept → pick → web_prep → 台本の返答 → web_accept → finish と回す（web は off。網に出ない）。YAML は役の道具だけを見る。
 筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
@@ -70,11 +70,6 @@ class FlowCase(unittest.TestCase):
         self.assertTrue((self.run.artifacts / "world" / "world-judge-offline-prompt-1.md").is_file(), "web が off なら道具の無い役の指示")
         self.assertFalse((self.run.artifacts / "world.jsonl").exists())
 
-    def test_lang_reaches_the_prompt(self):
-        got = self.walk(lang="Japanese")
-        self.assertIn("in Japanese", got["restate_prep"]["prompt"])
-        self.assertIn("in Japanese", got["web_prep"]["prompt"])
-
     def test_rejected_reply_brings_the_reason_to_the_next_prompt(self):
         """拒んだ返答の理由は、次の回の指示の頭に共通の断片の段落で入る。出口は落ちずに status: failed と理由を返す"""
         bad = {"classes": [{**CLASSES["classes"][0], "queries": []}]}
@@ -104,16 +99,11 @@ class FlowCase(unittest.TestCase):
 
 
 class ShapeCase(unittest.TestCase):
-    """YAML と筋書きの揃い（block の形の検査は tests/layers/test_block_shape.py。ここは world だけの揃い）"""
+    """役の道具（block の形の検査は tests/layers/test_block_shape.py）"""
 
     def setUp(self):
         self.doc = yaml.safe_load((BLOCK / "works-factory-world.yaml").read_text(encoding="utf-8"))
         self.nodes = {n["id"]: n for n in self.doc["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        rolekit = kit.load("world", "steps").rolekit
-        for loop in ("world-classes-loop", "world-judge-loop", "world-judge-offline-loop"):
-            self.assertEqual(self.nodes[loop]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
 
     def test_roles_have_only_their_tools(self):
         """言い直す役は道具を持たず、web の役は web の検索と取得だけ（keep-essence の 12。対象を読まずに上の類に上がる）"""
@@ -123,21 +113,6 @@ class ShapeCase(unittest.TestCase):
         self.assertEqual(body["world-judge"]["allowed_tools"], ["WebSearch", "WebFetch"])
         self.assertEqual(body["world-judge-offline"]["allowed_tools"], [], "web が off の run は道具で web を断つ")
         self.assertEqual(body["world-judge-offline"]["output_format"], body["world-judge"]["output_format"])
-
-    def test_web_switch_picks_exactly_one_judge_loop(self):
-        whens = {self.nodes[n]["when"] for n in ("world-judge-loop", "world-judge-offline-loop")}
-        self.assertEqual(whens, {"$pick.output.due == true && $pick.output.web == true",
-                                 "$pick.output.due == true && $pick.output.web == false"})
-        for node in ("world-judge", "world-judge-offline"):
-            self.assertTrue((BLOCK / "prompts" / f"{node}.md").read_text(encoding="utf-8").endswith("{part:world-judge}\n"), "同じ部品の md から組む")
-        self.assertIn("{shared:query-rule}", (BLOCK / "prompts" / "world-judge.md").read_text(encoding="utf-8"))
-        self.assertNotIn("{shared:query-rule}", (BLOCK / "prompts" / "world-judge-offline.md").read_text(encoding="utf-8"),
-                         "道具を持たない役に外への検索の決まりを渡さない")
-
-    def test_web_off_fixture_needs_no_network(self):
-        fixture = kit.fixture("world", "standalone")
-        self.assertEqual(fixture["fixture"]["inputs"]["web"], "off")
-        self.assertEqual(fixture["world-judge-offline"]["excerpts"], [])
 
 
 if __name__ == "__main__":

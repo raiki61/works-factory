@@ -452,6 +452,11 @@ bin/works-factory <同じ引数> workflow run works-factory-structure \
 - 読み手の側の試験はそれぞれの block と line に残す（plan の `structure_gaps`・plan-review の写し・line の修正前の承認ノードの人に上げる行・eyes の `after_section`・report の行・`outcome` の残りの数え）。
 - keep-essence の 12 の仕組みのうち、この block が担う物は無い（README の 10 節）。README の 1.3 の歩かせ 9 が割り当てた直した後の実測の能力の行（E68・E74）はこの block の after の試験で縛る: `structure-after.json` の `after.changed` と `after.timing.wall_s` が在る（上の after の試験）。e2e の `tests/e2e/evidence.json` の P061・P065・P067（`rules.maps` は `intent.json` の文書の行に替える）・P068・P079・P081・P082（`eye-prompt-2.md` は `structure-eye-prompt-2.md` に）・P083・P084・P093・P095・P099・P101・E68・E70・E74・L-W54 は、node の id と place のパスを新しい物に合わせる。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `test_eye.py`: `NamesCase`（段 B のファイル名の写し。名を替える壊しは `test_stage_b.py` の `AfterCase` と `test_structure.py` の `AfterCase` が赤にする）・`VocabularyCase` の 3 本（`minLength` の pattern・形の外の行を型が拒む・md の番号の数）。`test_vocabulary_matches_output_format` は残す（enum から「人に上げる」が落ちると、役が人に上げる行を書けず承認ノードに問いが届かない）。
+- `test_structure.py`: `ShapeCase`（YAML の形・script の名・fixture の名の一覧・輪の上限。輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、読むだけの script は `tests/layers/test_readonly_nodes.py`、script の名は `tests/layers/test_block_shape.py`。描く役が飛んでも構造の目が回る `trigger_rule` は筋書き `after` が見る）・`FlowCase` の 4 本（port の値だけで届く・言語の段落・include の place の分け・時間の記録）・`IntentCase` の指示の字の assert・`ConceptsCase.test_cut_policy_is_the_last_written_intent`（指示の字）。`ShapeCase.test_own_file_names_match_the_rejection_ledger` の代わりに、`FlowCase.test_fresh_measure_drops_old_eye_state_and_only_its_own_files` が前の拒否の控えが消えることを見る（消す物の表から控えを抜く壊しで赤）。
+- 筋書き `eye-gave-up`（拒まれても run は止めず status failed。`test_eye.py` の `StateCase.test_each_failure_names_the_reason` と `FlowCase.test_third_rejection_gives_up_and_the_state_names_the_last_reason` が見る。途中の輪を ok と読む壊しで赤）・`eye-skipped`（測れた単位が無ければ目を飛ばして ok。`FlowCase.test_no_measured_unit_skips_the_eye_but_still_returns_ok` が見る。due を真にする壊しで赤）。
+
 ## 8 報告の行
 
 `intent.json` の名指された文書ごとの 1 行（`書いた意図: <名指した文書> が名指す <path> は、読む版に無い（<at> の版から読んで書いた意図に足した|どの版にも無く読めない）`。`src/intent.py` の `report_lines`）と、`structmark.report_lines(<structure-state.json>, <after なら place、before なら None>)` の行（判定の行か落ちの印・構造の実測と目で増えた時間・直した後の実測の行）。after で目の行が在れば、判定の行が直した後の目の行になる。block が組むのはこの呼び出しだけで、文の字は `structmark` が持つ（KEEP。最後の承認ノードと共に使う）。

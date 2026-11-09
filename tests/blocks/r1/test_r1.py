@@ -72,22 +72,25 @@ class ShapeCase(unittest.TestCase):
         運ぶ port が無い（目は材料だけで判じる）"""
         self.assertEqual(list(DOC["inputs"]), PORTS)
 
-    def test_scripts_read_only_the_declared_inputs(self):
-        import re
-        read = set()
-        for path in (BLOCK / "scripts").glob("*.py"):
-            read |= {m.lower() for m in re.findall(r'os\.environ\.get\("INPUTS_([A-Z_]+)"', path.read_text(encoding="utf-8"))}
-        self.assertEqual(read - {"name", "reply"}, set(PORTS))
+    def test_status_words_are_the_seal_words(self):
+        """役の返答の型の status の語が lib/seal.py の目の状態の語と同じ（元 test_r1_shape.py の test_role_schemas_match_graph の
+        status の照らし）。redesign-needed・fix-needed が型から落ちると、役が作り直し・直しを返せず修正の段へ返らない"""
+        kit.load("r1", "files")   # lib/ を sys.path に足す
+        import seal
+        node = next(n for n in DOC["nodes"] if n["id"] == "r1-minimality")
+        self.assertEqual(tuple(node["output_format"]["properties"]["status"]["enum"]), seal.STATUSES)
 
-    def test_save_names_are_the_ai_nodes(self):
-        files = kit.load("r1", "files")
-        saves = {n["with"]["name"] for n in DOC["nodes"] if n.get("script") == "save"}
-        self.assertEqual(saves, set(files.REPLIES))
-        self.assertEqual(set(files.REPLIES), {n["id"] for n in DOC["nodes"] if "prompt" in n})
 
-    def test_fixture_reaches_every_node(self):
-        fx = kit.fixture("r1", "standalone")
-        self.assertEqual(fx["fixture"]["reached"], [n["id"] for n in DOC["nodes"]])
+class PortCase(_RepoCase):
+    def test_malformed_x_scalars_are_refused_at_the_port(self):
+        """規模の数値の形は名 x_<小文字> と数の値を宣言する（#861。持ち主の答え「型は決まるでしょ」）。object でない値・形の外の欄・
+        数でない値は入口 ports.json が落とし、R1 の目は回らない（due: false と訳）。形で照らさずに読んでも、ほかの試験は赤にならない"""
+        for raw in ("[1]", dump({"endpoints": 2, "x_ok": 1}), dump({"x_ok": "2"})):
+            with self.subTest(raw):
+                got = self.intake(x_scalars=raw)
+                self.assertFalse(got["due"])
+                self.assertIn("入力 x_scalars", got["reason"])
+        self.assertTrue(self.intake(x_scalars=dump({"x_ok": 1}))["due"])
 
 
 class FlowCase(_RepoCase):
@@ -163,6 +166,7 @@ class FlowCase(_RepoCase):
         self.assertEqual([n for n, p in old.items() if p.exists()], [])
         self.assertEqual(self.finish()["status"], "failed")
 
+
 class DiffCase(_RepoCase):
     def test_no_fix_round_sees_the_requested_change(self):
         """test_no_fix_round_sees_the_requested_change・test_prep_takes_the_diff_from_the_entry_base: 目は port base からの累積差分を読む"""
@@ -206,111 +210,6 @@ class DiffCase(_RepoCase):
         self.intake()
         self.assertEqual(self.intake_json()["diff"]["changed"], ["a.txt"])
         self.assertNotIn(ports.RUNTIME_COPY, (self.place / "run.diff").read_text(encoding="utf-8"))
-
-
-class MaterialCase(_RepoCase):
-    def test_units_fixes_and_scalars_are_listed(self):
-        """PromptTextsCase.test_units_fixes_and_context_are_listed の units と fixes の半分と、規模の数値"""
-        (self.repo / "a.txt").write_text("b\n", encoding="utf-8")
-        self.intake(units=dump([{"id": "u1", "paths": ["a.txt"], "summary": "入口が古い"}]),
-                    fixes=dump([{"unit_id": "u1", "group_id": "g1", "status": "fixed", "reason": "直した"}]),
-                    x_scalars=dump({"x_endpoints": 2}))
-        text = self.minimality()
-        self.assertIn("Root units:\n- u1: 入口が古い（a.txt）\n", text)
-        self.assertIn("Fixes in this run:\n- u1（組 g1）: fixed——直した\n", text)
-        self.assertIn("Scalars: now 足した行 1・消した行 1・文書の足した行 0・変わったファイル 1 本・x_endpoints 2 / no previous round", text)
-        self.assertIn("Frozen purpose: (not given)", text)
-
-    def test_malformed_x_scalars_are_refused_at_the_port(self):
-        """規模の数値の形は名 x_<小文字> と数の値を宣言する（#861。持ち主の答え「型は決まるでしょ」）。object でない値・形の外の欄・
-        数でない値は入口 ports.json が落とし、R1 の目は回らない（due: false と訳）"""
-        for raw in ("[1]", dump({"endpoints": 2, "x_ok": 1}), dump({"x_ok": "2"})):
-            with self.subTest(raw):
-                got = self.intake(x_scalars=raw)
-                self.assertFalse(got["due"])
-                self.assertIn("入力 x_scalars", got["reason"])
-        self.assertTrue(self.intake(x_scalars=dump({"x_ok": 1}))["due"])
-
-    def test_missing_units_and_fixes_say_so(self):
-        self.intake()
-        text = self.minimality()
-        self.assertIn("（単位の目録が渡っていない）", text)
-        self.assertIn("（修正の単位の結末が渡っていない）", text)
-
-    def test_r1_minimality_reads_the_question_ledger(self):
-        """test_r1_minimality_reads_the_question_ledger"""
-        judgment = self.write("judge/judgment.json", dump({"units": [], "questions": []}))
-        self.intake(judgment=str(judgment))
-        text = self.minimality()
-        self.assertIn(f"Question ledger: Read `questions` in `{judgment}`.", text)
-        self.intake()
-        self.assertIn("Question ledger: the judgment's output was not given", self.minimality())
-
-    def test_prep_names_the_final_gate_evidence_for_r1(self):
-        """test_prep_names_the_final_gate_evidence_for_r1: 証拠の文は pointer で受け、置き場のパスを Read させる"""
-        evidence = self.run.artifacts / "test-gate" / "final" / "evidence.md"
-        evidence.parent.mkdir(parents=True)
-        evidence.write_text("# test-gate（final）\n", encoding="utf-8")
-        self.intake(checks=self.run.pointer("test-gate/final/evidence.md"))
-        self.assertIn(f"Evidence of the last test gate: `{self.run.artifacts / 'test-gate' / 'final' / 'evidence.md'}` (Read it. "
-                      "Also Read the log location the evidence names.)", self.minimality())
-
-    def test_prep_says_when_no_gate_evidence_came(self):
-        """test_prep_says_when_no_gate_evidence_came"""
-        self.intake()
-        self.assertIn("Evidence of the last test gate: none (最後の試験の関門の証拠が渡っていない).", self.minimality())
-
-    def test_prep_names_an_unreadable_gate_evidence(self):
-        """test_prep_names_an_unreadable_gate_evidence: 読めない証拠は落とさず、入力の名・読めないこと・先のパスを書く"""
-        self.assertTrue(self.intake(checks=self.run.pointer("gone/evidence.md"))["due"])
-        text = self.minimality()
-        for want in ("入力 checks の証拠の文が読めない", str(self.run.artifacts / "gone" / "evidence.md")):
-            self.assertIn(want, text)
-        self.assertNotIn("最後の試験の関門の証拠が渡っていない", text)
-
-    def test_green_paragraph_only_when_not_certified(self):
-        """test_green_line_only_when_not_certified（段落の有無に）。既定の true は文を足さない"""
-        line = "The certification of the last tests did not pass"
-        self.intake()
-        self.assertNotIn(line, self.minimality())
-        self.intake(green="true")
-        self.assertNotIn(line, self.minimality())
-        self.intake(green="false")
-        self.assertIn(line, self.minimality())
-
-    def test_policy_body_is_pasted(self):
-        """test_policy_path_is_frozen_copy（方針の本文が入る形に）: 方針の写しの本文を貼り、書く先は reason。無い run は節ごと入らない"""
-        self.intake()
-        self.assertNotIn("## The person's policy", self.minimality())
-        policy = self.write("policy/frozen.md", "方針の第 1 項: 入口は 1 つ\n")
-        self.intake(policy=str(policy))
-        text = self.minimality()
-        self.assertIn("## The person's policy", text)
-        self.assertIn("方針の第 1 項: 入口は 1 つ", text)
-        self.assertIn("This role makes a judgment, so write the item it conflicts with in `reason`", text)
-
-    def test_prep_names_the_bundled_review_md(self):
-        """test_prep_names_the_bundled_review_md: 同梱の観点の正本を 2 つの役に名指す"""
-        self.intake()
-        review = kit.SHARED / "prompts" / "REVIEW.md"
-        text = review.read_text(encoding="utf-8")
-        for head in ("**処方の最小性", "**導線を作る手段の優先順位**"):
-            self.assertIn(head, text)
-        self.assertIn(f"`{review}`, the section \"導線を作る手段の優先順位\"", self.comments())
-        self.assertIn(f"Canonical sources: `{review}` (\"処方の最小性\"", self.minimality())
-
-    def test_concept_map_section_follows_the_tree(self):
-        """test_concept_map_only_on_r1_and_r3 の r1 の半分: 地図の節は 2 段目にだけ在り、見つかった・無いで段落を選ぶ"""
-        self.intake()
-        self.assertNotIn("Map of where concepts live", self.comments())
-        text = self.minimality()
-        self.assertIn("## Map of where concepts live\n\nNone (searched for: the tracked file `docs/concepts.md`", text)
-        (self.repo / "docs").mkdir()
-        (self.repo / "docs" / "concepts.md").write_text("# map\n", encoding="utf-8")
-        git(self.repo, "add", "-A")
-        text = self.minimality()
-        self.assertIn("## Map of where concepts live (the machine searched the tracked files; Read it first)\n\n- docs/concepts.md\n", text)
-        self.assertLess(text.index("## What minimal means"), text.index("## Map of where concepts live"))
 
 
 class AfterCase(_RepoCase):

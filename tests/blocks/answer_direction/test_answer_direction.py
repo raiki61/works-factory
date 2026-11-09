@@ -78,24 +78,6 @@ class AnswerDirectionCase(unittest.TestCase):
                 got = self.finish(prep)
                 self.assertEqual((got["ok"], got["status"], got["aligned"], got["direction"], got["reason"]), (True, "skipped", True, "", ""))
 
-    def test_prompt_carries_the_plan_approach_and_the_note(self):
-        got = self.prep()
-        self.assertTrue(got["due"])
-        for want in (NOTE, ASKED[0], *PLAN):
-            self.assertIn(want, got["prompt"])
-        self.assertEqual((self.run.artifacts / "direction-prompt-1.md").read_text(encoding="utf-8"), got["prompt"])
-        # 言語: 既定は一言の言語、渡せばその言語
-        self.assertIn("in the language of the note", got["prompt"])
-        self.assertIn("in Japanese", self.prep(lang="Japanese")["prompt"])
-        # 一言の中の {name} と $x.output.y は置き換わらずに残る（値の中の字は読み直さない）
-        note = "Use $direction-prep.output.body and {plan} and {note} here."
-        self.assertIn(note, self.prep({"decision": "continue", "text": note})["prompt"])
-        # 見せた項目が無い（null）でも、一言と計画だけで判じる
-        self.assertTrue(self.prep(asked="null")["due"])
-        # include の中は place が include の道に分かれる
-        self.run.script("direction_prep", "answer-direction__direction-prep", answer=dump(GO), asked=dump(ASKED), plan=dump(PLAN), lang="")
-        self.assertTrue((self.run.artifacts / "answer-direction" / "direction-prompt-1.md").is_file())
-
     def test_a_missing_reply_fails_closed(self):
         """役を起こしたのに返答の控えが無い（役が落ちた・飛ばされた）時は failed・aligned 偽。前の返答の控えは支度が消すので読み違えない"""
         (self.run.artifacts / "reply.json").write_text(dump(ALIGNED), encoding="utf-8")   # 前の周の古い控え

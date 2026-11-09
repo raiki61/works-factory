@@ -281,8 +281,6 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 
 - standalone の fixture（`workflows/consistency-bypass/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `consistency-bypass` だけを台本の返答（`consistency: {status: clean, checked: "呼び手を見た"}`・`bypass: {status: clean, checked: "標準の口を見た"}`・`findings: []`・`bypass_findings: []`・`seen: "差分の全部"`・`unseen: "無し"`）で差し替え、script は本物。`reached` に `finish`。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `consistency.status: not_applicable`。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず（`reached` に `consistency-bypass` が無い）、`finish` の `status` が `skipped`。
 - `tests/blocks/consistency_bypass/test_consistency_bypass.py`（materials.md の 8 節の block の試験）:
   - 写す元 `test_judge_accept.py::MaterialCase.test_consistency_bypass_reply_is_taken_or_refused`（`:1447-1457`）: `bypass` の無い返答は「素材 'bypass' が返答に無い」で拒まれ、2 つを書いた返答は受けて、`material.json` の `materials` が `{"consistency": …, "bypass": …}`。
   - 写す元 `DueCase.test_empty_diff_run_with_requests_runs_only_prior_decisions`（`:1124-1130`）のうちこの観点の部分: `entry` が在れば `intake` の `due` が偽で訳を言い、`finish` が `status: skipped`・2 つの素材が `not_applicable`（`reason` が `entry` の字を含む）。`DueCase.test_run_with_a_diff_runs_them`（`:1136-1139`）の部分: `entry` が空なら `due` が真。
@@ -302,6 +300,12 @@ uv run --isolated python3 -m unittest tests.blocks.consistency_bypass.test_promp
 ```
 
   最後の行は 1 つ目の commit の間だけ回す（2 つ目の commit で `test_prompts.py` を消す）。
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/consistency_bypass/test_consistency_bypass.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/consistency_bypass/test_consistency_bypass.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/consistency_bypass/test_consistency_bypass.py` の `FlowCase` から: 指示の字の 2 本（REVIEW.md の行・言語と会話の言い方）・intake 無しの落ち・自分の place に書く。判定から入る run の飛ばし `test_entry_run_skips_the_role` は、この block に due の単体の試験が無いので残した。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `ViewpointCase` から報告の行の字（`test_report_lines_add_only_the_unseen_range`）。
 
 ## 3 script の node
 

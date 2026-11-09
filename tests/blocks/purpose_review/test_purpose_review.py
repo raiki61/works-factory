@@ -146,12 +146,6 @@ class FlowCase(unittest.TestCase):
         self.assertTrue(got["reason"].startswith("目的の文が渡されていない"), got["reason"])
         self.assertEqual(self.finish()["status"], "skipped")
 
-    def test_the_entry_mark_does_not_stop_the_role(self):
-        """写す元 DueCase: 差分が空で entry の在る run でも、出典が writer の要約なら回す（この観点は入口の印を読まない）"""
-        got = self.intake(entry="人の依頼（試験）")
-        self.assertTrue(got["due"])
-        self.assertEqual(json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))["changed_files"], [])
-
     def test_unreadable_purpose_fails_with_the_port_name(self):
         for raw in ("{not json", json.dumps({"purpose_text": "x", "source": "どこか"})):
             with self.subTest(raw=raw):
@@ -162,9 +156,6 @@ class FlowCase(unittest.TestCase):
                 self.assertIn("purpose", fin["reason"])
                 self.assertEqual(self.material()["materials"], {})
 
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
     def test_the_role_changing_the_tree_is_refused(self):
         self.intake()
         self.prep()
@@ -173,43 +164,11 @@ class FlowCase(unittest.TestCase):
         self.assertFalse(got["ok"])
         self.assertIn("読むだけの役が作業ツリーを変えた", got["reason"])
 
-    def test_prompt_carries_the_values_and_the_rejection(self):
-        self.intake(lang="Japanese")
-        got = self.prep()["prompt"]
-        self.assertIn(TEXT, got)
-        self.assertIn("Revision to read: " + json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))["review_rev"], got)
-        self.assertIn("`問題なし` (no problem) or `狭めている` (narrowed)", got)
-        self.assertIn("findings` row in Japanese.", got)
-        self.assertNotIn("new conversation", got, "later rounds resume the same conversation")
-        self.assertNotIn("Why your previous answer was rejected", got)
-        self.assertFalse(self.accept(reply())["ok"])
-        again = self.prep()["prompt"]
-        self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
-        self.assertIn("Split it and give one finding per line.", again)
-        self.assertIn("open the working tree and give a string that exists there", again)
-        self.assertIn("findings が空", again)
-        self.assertTrue((self.run.artifacts / f"{NAME}-prompt-2.md").is_file())
-
-    def test_braces_in_the_purpose_text_are_kept(self):
-        self.intake(purpose=purpose(text="PATCH /threads/{id} を {a, b} で $x と受ける"))
-        self.assertIn("PATCH /threads/{id} を {a, b} で $x と受ける", self.prep()["prompt"])
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__purpose-review-run__intake", base="", purpose=purpose(), entry="", lang="")
-        self.run.script("role_prep", f"judge__purpose-review-run__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "purpose-review-run" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__purpose-review-run__finish")
-        self.assertEqual(fin["material"]["path"], "judge/purpose-review-run/material.json")
-
 
 class ViewpointCase(unittest.TestCase):
     def setUp(self):
         self.vp = kit.load(NAME, "viewpoint")
         self.mk = self.vp.materialkit
-
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         ((), True, "never", False))
 
     def test_due_follows_the_source_word(self):
         empty = self.mk.View(".", "b", "r", "d", (), "c", "", 0)
@@ -234,38 +193,6 @@ class ViewpointCase(unittest.TestCase):
         steps = kit.load("purpose", "steps")
         self.assertEqual(self.vp.WRITER_SOURCE, steps.WRITER_SOURCE)
         self.assertEqual(schema["properties"]["source"]["enum"], list(steps.SOURCES))
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    # 今の判定の purpose-review の役の起こし方（tests/workflows の test_judge.py の ROLES["purpose-review"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 read_launch を、作り直しの時に字で写した物）
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"], "allowed_tools": ["Read", "Grep", "Glob"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False}, "idle_timeout": 1728000000,
-              "mutates_checkout": False, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def test_launch_matches_the_judge_role(self):
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-
-    def test_the_reply_shape_is_the_current_one(self):
-        shape = self.body[NAME]["output_format"]
-        self.assertEqual(shape["required"], ["verdict", "reason", "findings"])
-        row = shape["properties"]["findings"]["items"]
-        self.assertEqual((row["required"], row["additionalProperties"]), (["text", "cite", "hits"], False))
-        self.assertEqual(row["properties"]["hits"], {"type": "integer", "minimum": 0})
 
 
 if __name__ == "__main__":
