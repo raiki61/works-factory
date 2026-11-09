@@ -73,6 +73,15 @@ class ShapeCase(unittest.TestCase):
         無い（目は材料だけで判じる）"""
         self.assertEqual(list(DOC["inputs"]), PORTS)
 
+    def test_status_words_are_the_seal_words(self):
+        """役の返答の型の status の語が lib/seal.py の目の状態の語のうち R3 が言える物（fix-needed は seal.FIX_EYES の目だけ）と同じ
+        （元 test_r3_shape.py の test_role_schema_matches_graph の status の照らし）。redesign-needed が型から落ちると作り直しを返せない"""
+        kit.load("r3", "files")   # lib/ を sys.path に足す
+        import seal
+        node = next(n for n in DOC["nodes"] if n["id"] == "r3-coherence")
+        self.assertEqual(tuple(node["output_format"]["properties"]["status"]["enum"]),
+                         tuple(s for s in seal.STATUSES if s != seal.FIX_NEEDED))
+
 
 class FlowCase(_RepoCase):
     def test_flow_reaches_the_verdict_and_the_report(self):

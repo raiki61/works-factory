@@ -596,7 +596,9 @@ bin/works-factory workflow run works-factory-diagnose --cwd <対象> \
 ### 9.2 `tests/blocks/diagnose/`
 
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の一覧は写した時の記録で、今は次を持たない。
-- `test_diagnose.py` の `YamlCase`（輪の形・when の分け・役の道具・語の表と YAML の enum の一致・入力を script が読む）: 輪の上限は `tests/layers/test_loop_bounds.py`、役の道具と印は tests/layers の E7・E19 の検査、when と `trigger_rule` の配線は筋書き（`standalone`・`gave-up`・`rejudge`・`rejudge-resubmit`）を回す `tests/layers/test_block_shape.py` の `ArchonCase`。語の写しは字だけ。
+- `test_diagnose.py` の `YamlCase`（輪の形・when の分け・役の道具・語の表と YAML の enum の一致・入力を script が読む）: 輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、役の道具と印は tests/layers の E7・E19 の検査、when と `trigger_rule` の配線は筋書き（`standalone`・`gave-up`・`rejudge`・`rejudge-resubmit`）を回す `tests/layers/test_block_shape.py` の `ArchonCase`。語の表と判定役の返答の型の enum の一致（`test_reply_vocabulary_matches_the_tables`）は、独立の審査で消すと守りが無くなると分かったので `test_diagnose.py` の `VocabularyCase` に戻した（問いの status から `escalate` が落ちると、`lib/gatemarks.py` の `ASKING` を通って修正前の承認ノードの項目になる問いが届かない。`escalate` を抜く壊しで赤）。
+- 人に上げる語が役の返答の型から落ちないかの照らしは、diagnose・r1〜r4・delta-review・spec・structure・head-depth が block ごとに 1 本ずつ持つ。全体を 1 本の仕組み（受け付けが読む語の表と役の `output_format` の enum が同じ、の yes/no）にまとめる案は別の PR の候補。
+- head-depth は拒否の控えの全部が次の指示に入る照らしを消したが（`docs/design/head-depth.md` の削り）、ここでは `JudgePathCase.test_three_rejections_give_up_with_the_last_reason` が同じ種類を見るので残っている。
 - `test_inputs.py` の `ValuesCase`・`RejudgeValuesCase`（指示に渡す値の字）と、材料のファイルの鍵の写し・消えた素材でないことの照らし: 輪の拒否の全部が次の指示に入るのは `test_diagnose.py` の `JudgePathCase.test_three_rejections_give_up_with_the_last_reason`（拒否を最後の 1 件にする壊しで赤）、材料のファイルの鍵の欠けは出口の `ports.pointer` の形の照らし（鍵 `answers` を落とす壊しで `JudgePathCase` と `test_inputs.py` が赤）。
 - `test_judge.py` の `TablesCase.test_tables_keep_the_words`（語の表の写し。字だけ）。
 - `test_judgment_schema.py`（共通の形に見本を当てる）: 出口が判定のファイルを `ports.pointer` の form `json(shared:judgment.schema.json)` で照らす（空の判定から `units` を落とす壊しで `FinishNeverFailsCase` が赤）。

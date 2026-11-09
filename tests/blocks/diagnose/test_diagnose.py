@@ -8,6 +8,8 @@ import runpy
 import unittest
 from unittest import mock
 
+import yaml
+
 
 from tests.blocks import kit
 from tests.blocks.diagnose import support
@@ -336,3 +338,15 @@ class FallbackCase(_Base):
         self.assertEqual(self.doc("prompt-error.json"), {"node": "diagnose-accept", "reason": got["reason"]})
 
 
+class VocabularyCase(unittest.TestCase):
+    def test_reply_vocabulary_matches_the_tables(self):
+        """判定役の返答の型の語が受け付けの表と同じ（元 YamlCase の同じ名の試験）。問いの status から escalate が落ちると、人に上げる
+        問いを役が書けず、lib/gatemarks.py の ASKING を通って修正前の承認ノードの項目になる問いが届かない"""
+        judge = support.modules()["judge"]
+        doc = yaml.safe_load((BLOCK / "works-factory-diagnose.yaml").read_text(encoding="utf-8"))
+        loop = next(n for n in doc["nodes"] if n["id"] == "diagnose-loop")["loop_group"]
+        props = next(n for n in loop["nodes"] if n["id"] == "diagnose")["output_format"]["properties"]
+        self.assertEqual(tuple(props["units"]["items"]["properties"]["label"]["enum"]), judge.LABELS)
+        self.assertEqual(set(props["questions"]["items"]["properties"]["kind"]["enum"]), set(judge.QUESTION_KINDS))
+        self.assertEqual(set(props["questions"]["items"]["properties"]["status"]["enum"]), set(judge.QUESTION_STATUS))
+        self.assertEqual(tuple(props["questions"]["items"]["properties"]), judge.QUESTION_FIELDS)

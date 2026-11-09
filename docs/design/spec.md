@@ -608,7 +608,7 @@ bin/works-factory workflow run works-factory-spec \
 
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
 - `test_spec.py`: `PromptCase`（3 つの役と出し直しの指示の字。印と値の対は workflows/.shared/prompt.py の emit が照らし、出し直しの役の md は筋書き `resubmit-*` が照らす）・`ReportCase`（報告の行の字）・`ResubmitCase` の指示に貼る字の 2 本（最後の拒否と前の答えのパス・3 回目の役が全部の拒否を読む）。
-- `test_spec.py` の `ShapeCase`: 承認ノードの 4 語は tests/layers の `test_gates.py`（`reject` を抜く壊しで赤）、輪の上限は `tests/layers/test_loop_bounds.py`、会話を続ける輪の層は `tests/layers/test_block_loop_sessions.py`、md と AI の node の対は `tests/layers/test_block_shape.py`、`spec-freeze` の印は E7 の表 `CHANGE_CHECKOUT` が見る。役の型の enum と下限の写し・出し直しの役の型・入力の鍵の並びは落とした（食い違えば受け付けが拒み続けて `works:spec` で止まる）。残すのは `test_accept_settings`（作業ツリーを変えた返答を拒む印 `status_guarded` が審査の役の受け付けにだけ渡る配線。受け付けの試験は印を自分で渡すので、ここだけが見る）。
+- `test_spec.py` の `ShapeCase`: 承認ノードの 4 語は tests/layers の `test_gates.py`（`reject` を抜く壊しで赤）、輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、会話を続ける輪の層は `tests/layers/test_block_loop_sessions.py`、md と AI の node の対は `tests/layers/test_block_shape.py`、`spec-freeze` の印は E7 の表 `CHANGE_CHECKOUT` が見る。出し直しの役の型・入力の鍵の並びは落とした（食い違えば受け付けが拒み続けて `works:spec` で止まる）。役の型の enum と下限の照らし `test_output_enums_match_the_words_the_md_takes` は、独立の審査で消すと守りが無くなると分かったので戻した（審査の穴の `missing` が型から落ちると欠けた受け入れ条件を返せず、仕様の承認ノードに欠けの問いが届かない。抜く壊しで赤）。ほかに残すのは `test_accept_settings`（作業ツリーを変えた返答を拒む印 `status_guarded` が審査の役の受け付けにだけ渡る配線。受け付けの試験は印を自分で渡すので、ここだけが見る）。
 - 筋書きは消していない（`resubmit-write`・`resubmit-review`・`resubmit-revise` は出し直しの役の指示を組んだ証で、消すと `tests/layers/test_block_shape.py` の `check_standalone_renders` が赤）。
 
 ## 11 自分で決めた事

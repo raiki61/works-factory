@@ -72,6 +72,14 @@ class ShapeCase(unittest.TestCase):
         運ぶ port が無い（目は材料だけで判じる）"""
         self.assertEqual(list(DOC["inputs"]), PORTS)
 
+    def test_status_words_are_the_seal_words(self):
+        """役の返答の型の status の語が lib/seal.py の目の状態の語と同じ（元 test_r1_shape.py の test_role_schemas_match_graph の
+        status の照らし）。redesign-needed・fix-needed が型から落ちると、役が作り直し・直しを返せず修正の段へ返らない"""
+        kit.load("r1", "files")   # lib/ を sys.path に足す
+        import seal
+        node = next(n for n in DOC["nodes"] if n["id"] == "r1-minimality")
+        self.assertEqual(tuple(node["output_format"]["properties"]["status"]["enum"]), seal.STATUSES)
+
 
 class PortCase(_RepoCase):
     def test_malformed_x_scalars_are_refused_at_the_port(self):

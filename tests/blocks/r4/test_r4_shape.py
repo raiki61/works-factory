@@ -34,5 +34,15 @@ class ReplyTypeCase(unittest.TestCase):
         self.assertNotEqual(validate_schema({**reply, "status": "weird"}, schema), [])
 
 
+    def test_status_words_are_the_seal_words(self):
+        """2 つの役の返答の型の status の語が lib/seal.py の目の状態の語のうち R4 が言える物（fix-needed は seal.FIX_EYES の目だけ）と
+        同じ（元 test_role_schemas_match_graph の status の照らし）。redesign-needed が型から落ちると作り直しを返せない"""
+        kit.load("r4", "files")   # lib/ を sys.path に足す
+        import seal
+        for nid in ROLES:
+            with self.subTest(nid):
+                self.assertEqual(tuple(NODES[nid]["output_format"]["properties"]["status"]["enum"]),
+                                 tuple(s for s in seal.STATUSES if s != seal.FIX_NEEDED))
+
 if __name__ == "__main__":
     unittest.main()

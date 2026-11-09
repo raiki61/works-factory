@@ -657,8 +657,8 @@ class CheckCase(_Case):
 
 
 class ShapeCase(unittest.TestCase):
-    """受け付けの配線: 作業ツリーを変えた返答を拒む印 status_guarded が審査の役（読むだけ）の受け付けにだけ渡る。受け付けの試験は
-    印を自分で渡すので、YAML の with: の取り違えはここだけが見る"""
+    """受け付けの配線と語: 作業ツリーを変えた返答を拒む印 status_guarded が審査の役（読むだけ）の受け付けにだけ渡る（受け付けの試験は
+    印を自分で渡すので、YAML の with: の取り違えはここだけが見る）。役の返答の型の語が受け付けの表と同じ"""
 
     def test_accept_settings(self):
         ns = nodes()
@@ -668,6 +668,18 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual((with_["role"], str(with_["status_guarded"]).lower()), (role, guarded))
             self.assertEqual(ns[f"spec-{role}-prep"]["with"]["role"], role)
             self.assertEqual(ns[f"spec-{role}-fix-prep"]["with"]["role"], role)
+
+    def test_output_enums_match_the_words_the_md_takes(self):
+        """審査と直しの役の返答の型の語と長さが受け付けの表と同じ（2026-11-10 の削りの後に戻した）。審査の穴の missing が型から落ちると、
+        役が欠けた受け入れ条件を返せず、仕様の承認ノードに欠けの問いが届かない"""
+        files = kit.load("spec", "files")
+        props = nodes()["spec-review"]["output_format"]["properties"]["faces"]["items"]["properties"]
+        self.assertEqual(tuple(props["kind"]["enum"]), files.FACE_KINDS)
+        self.assertEqual(props["why"]["minLength"], files.MIN_WHY)
+        self.assertEqual(nodes()["spec-review"]["output_format"]["properties"]["reason"]["minLength"], files.MIN_REASON)
+        handled = nodes()["spec-revise"]["output_format"]["properties"]["handled"]["items"]["properties"]
+        self.assertEqual(tuple(handled["handled"]["enum"]), files.HANDLED)
+        self.assertEqual(handled["how"]["minLength"], files.MIN_HOW)
 
 
 if __name__ == "__main__":
