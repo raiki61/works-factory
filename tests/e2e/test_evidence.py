@@ -262,6 +262,20 @@ class EvidenceTableCase(unittest.TestCase):
     def setUpClass(cls):
         cls.rows = evidence.read_table(evidence.TABLE)
 
+    def test_every_row_has_a_known_kind_and_fields(self):
+        for row in self.rows:
+            with self.subTest(row=row.get("id")):
+                self.assertIsNone(evidence.row_problem(row))
+        for broken in ({"id": "J1", "kind": "seen", "writer": "lib/a.py::f"}, {"id": "J1", "kind": "maybe", "why": "x"},
+                       {"id": "J1", "kind": "seen", "check": "exists", "where": "parent/a"},
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py::f", "check": "node-completed", "where": "parent/a",
+                        "node": "x"},
+                       {"id": "J1", "kind": "waits-part", "part": "Z"}, {"id": "J1", "kind": "handed-off", "why": "x"},
+                       {"id": "J1", "kind": "scenario-only", "why": "x", "check": "exists", "where": "parent/a"},
+                       {"id": "J1", "kind": "seen", "writer": "lib/a.py::f", "check": "exists", "where": "elsewhere/a"}):
+            with self.subTest(broken=broken):
+                self.assertIsNotNone(evidence.row_problem(broken))
+
     def test_node_rules_name_node_ids_the_workflow_makes(self):
         """run の記録の節を照らす行は node-completed で、node はその run の工程の YAML から組んだ節の id そのもの（include の頭は
         差し込んだ節のどれか 1 つが走れば通るので名指さない）。種類を問わない（seen でない行も、当たらなければ unexpected を言えない）。
