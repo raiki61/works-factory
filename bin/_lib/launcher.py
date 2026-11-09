@@ -255,7 +255,7 @@ def forge_folder(loaded: dict, source: Path, cache: Path, user: Mapping[str, str
         return None
     try:
         return str(place.forge_plugin(loaded, source, cache))
-    except RuntimeError as error:
+    except (RuntimeError, OSError) as error:
         print(f"{NAME}: {error}（出口の語 pr の run は PR を作る前に断られる）", file=sys.stderr)
         return None
 
