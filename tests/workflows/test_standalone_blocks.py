@@ -23,7 +23,7 @@ import yaml
 
 from tests.blocks import kit
 
-RUNTIME_READS = ("README.md", "docs/standalone-blocks.json", "workflows/")
+RUNTIME_READS = ("README.md", "workflows/")
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 README = ROOT / "README.md"
 TABLE = ROOT / "docs" / "standalone-blocks.json"
@@ -127,6 +127,8 @@ def table_problems(table: dict | None, docs: dict | None = None) -> list[str]:
         for name, spec in yaml_inputs.items():
             if (spec or {}).get("required") is True and name not in listed:
                 out.append(f"[inputs] {block}: required input `{name}` is not in the table")
+            if (spec or {}).get("required") is True and name not in (row.get("example") or {}):
+                out.append(f"[inputs] {block}: required input `{name}` is not in the example")
         for name in row.get("example") or {}:
             if name not in listed:
                 out.append(f"[inputs] {block}: example input `{name}` is not in the table inputs")
@@ -220,6 +222,9 @@ class StandaloneBlocksCase(unittest.TestCase):
             del row["inputs"][required]
             row["example"].pop(required, None)
 
+        def drop_required_from_example(t):
+            next(r for r in t["blocks"] if r["block"] == needs["block"])["example"].pop(required)
+
         def rename_yaml_input(d):
             inputs = d[first["block"]]["inputs"]
             name = next(iter(first["inputs"]))
@@ -231,6 +236,7 @@ class StandaloneBlocksCase(unittest.TestCase):
             "a YAML input renamed": ("inputs", self.readme, self.table, docs_with(rename_yaml_input)),
             "an undeclared name in the table": ("inputs", self.readme, table_with(lambda t: t["blocks"][0]["inputs"].update({"no_such_input": "x"})), self.docs),
             "a required input removed from the table": ("inputs", self.readme, table_with(drop_required), self.docs),
+            "a required input removed from the example": ("inputs", self.readme, table_with(drop_required_from_example), self.docs),
             "an example name not in the table": ("inputs", self.readme, table_with(lambda t: t["blocks"][0]["example"].update({"no_such_input": "x"})), self.docs),
             "a block with no workflow YAML": ("rows", self.readme, table_with(lambda t: t["blocks"].append(dict(copy.deepcopy(first), block="no-such-block"))), self.docs),
             "markers removed": ("markers", self.readme.replace(BEGIN, "").replace(END, ""), self.table, self.docs),

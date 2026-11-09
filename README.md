@@ -97,7 +97,7 @@ A block is one viewpoint of the factory (for example the world check, `works-fac
 - Give the same `--cwd <target>` path you give the factory. A run's record is kept under a home chosen from that path, so a block run on one path is not found by the factory's runs on another.
 - The files a block's returned JSON points to are in the run's record: the directory printed on the `works-factory: 記録の置き場:` line, as described under "Where the run's files are" above.
 - Do not start several runs on a target the factory has not touched yet at the same time: they set up the same folder and fail together. Wait for the first run's `Running workflow:` line, then start the rest.
-- For example, the world check (`works-factory-world`, design `docs/design/world.md`) restates each request line as a problem class and compares the request's approach with industry practice quoted from primary sources: `bin/works-factory workflow run works-factory-world --cwd <target> --input request='[{"where":"README","text":"…"}]' --input web=on`.
+- For a whole command with its inputs, see `world` below.
 - Each example below shows only the inputs a person types. The values are placeholders; replace them with your own.
 
 <!-- standalone_blocks_begin -->
