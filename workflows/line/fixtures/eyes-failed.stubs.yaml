@@ -4,7 +4,7 @@
 # 落ちた node を語る（docs/design/line.md の 13.1。持ち主の決め returns-never-fail）。守りのパスの当たりの道は seal-protected。
 fixture:
   expect: "failed"
-  fail-node: "eyes__verdict"
+  fail-node: ["eyes__verdict", "collect"]
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
   reached: ["test-gate-final__result", "eyes-in"]
 exec-code: true

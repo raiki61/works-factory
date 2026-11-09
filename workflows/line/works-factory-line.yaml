@@ -1725,7 +1725,6 @@ nodes:
   - id: back-1-eyes
     include: works-factory-eyes
     depends_on: [back-1-gate]
-    trigger_rule: none_failed_min_one_success
     when: "$back-1-fixed.output.go == true"
     with:
       <<: *eyes_with
@@ -1795,7 +1794,6 @@ nodes:
   - id: back-2-eyes
     include: works-factory-eyes
     depends_on: [back-2-gate]
-    trigger_rule: none_failed_min_one_success
     when: "$back-2-fixed.output.go == true"
     with:
       <<: *eyes_with
@@ -1865,7 +1863,6 @@ nodes:
   - id: back-3-eyes
     include: works-factory-eyes
     depends_on: [back-3-gate]
-    trigger_rule: none_failed_min_one_success
     when: "$back-3-fixed.output.go == true"
     with:
       <<: *eyes_with
