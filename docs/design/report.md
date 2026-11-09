@@ -453,7 +453,8 @@ Notes that earlier rounds of you wrote, named by the machine, oldest first. …
 ### 2.9 試験
 
 - standalone の fixture（`workflows/report/fixtures/`。AI の node だけを台本の返答で差し替え、script は本物を走らせる `--exec-code`）:
-  - `standalone.stubs.yaml`: `fixture.inputs` は `sections`（`[{"title":"直した所","lines":["単位 u1: 直した"]}]`）と `facts`（`{"start_ok":true,"proved":true}`）だけ。`write` は本文 1 段落・`terms: []`・`handoff` の 4 つの空の配列、`cold` は `pass`。`reached` に `facts`・`write`・`cold`・`write-accept`・`finish`。`finish` の `outcome` が `fixed`、`human` が null でない。
+  - `standalone.stubs.yaml`: `fixture.inputs` は `sections`（`[{"title":"直した所","lines":["単位 u1: 直した"]}]`）と `facts`（`{"start_ok":true,"proved":true,"request_texts":[依頼の字 1 行]}`）だけ。`write` は本文 1 段落・`terms: []`・`handoff` の 4 つの空の配列、`cold` は `pass`。`reached` に `facts`・`write`・`cold`・`write-accept`・`finish`。`finish` の `outcome` が `fixed`、`human` が null でない。
+    - 報告の 1 行目（初見の読み手に貼る `M1` の行）が、依頼の字から `title.render` が描く字と同じ（`test_fixtures.py` が、依頼の字の無い `cold-head-only.stubs.yaml` と並べて回して照らす）。
   - `no-ai-report.stubs.yaml`: `facts` が `{}`。結末は `record_invalid`、書き手のループは飛び、`finish` の `human` が null（今の筋書きの写し）。
   - `stopped-by-request.stubs.yaml`: `facts.gates` に、`decision` が `answer.STOP_WORDS` の語で `text` が `request:` で始まる答え。結末は `stopped_by_request`（今の筋書きの写し）。
   - `cold-gave-up.stubs.yaml`: `cold` が 3 回とも `redesign-needed`。3 回目に受け取り、人に向けた報告の冒頭に `report_roles.NOT_PASSED` の行が在る（今は筋書きが無い）。

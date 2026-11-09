@@ -1,11 +1,13 @@
 # 単独の run: sections と facts だけで最後まで届く（script は本当に走り、AI の役の返答だけを差し替える）。始めの記録も、ほかの block の run も
-# 要らない。書き手は本文 1 段落を返し、初見の読み手は通す。結末は fixed で、人に向けた報告が書かれる
+# 要らない。書き手は本文 1 段落を返し、初見の読み手は通す。結末は fixed で、人に向けた報告が書かれる。facts に依頼の字が 1 行在り、報告の
+# 1 行目の題に run の id と並んで出る
 fixture:
   expect: completed
   reached: [facts, write-prep, write, cold-prep, cold, write-accept, finish]
   inputs:
     sections: '[{"title": "直した所", "lines": ["単位 u1: 直した"]}]'
-    facts: '{"start_ok": true, "proved": true}'
+    facts: '{"start_ok": true, "proved": true,
+      "request_texts": ["平均の関数が空の並びで落ちる所を直す"]}'
   resolved-text-contains:
     write: 'make it one item and name the other stages inside it.'
     cold: 'You have no context: you are given none of the history, the record, or the diff.'
