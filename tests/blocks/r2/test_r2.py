@@ -790,16 +790,19 @@ class MeansCase(_RepoCase):
         self.assertTrue(any("means: M1: 集計は 1 か所の関数にまとめる" in n for n in done["notes"]))
 
     def test_checked_row_becomes_a_question_with_the_push_tail(self):
-        """引用が合う行は推しの尾つきの問いになり、判定は役の語のまま（pass）。報告の R2 の行にも並ぶ"""
+        """引用が合う行は、役の推しを欄 recommend に持つ問いの行になり（文に推しの尾は書かない）、判定は役の語のまま（pass）。報告の R2 の行にも並ぶ"""
         done = self.run_with(conflict())
         self.assertEqual(done["verdict"]["status"], "pass")
         self.assertEqual(len(done["questions"]), 1)
         q = done["questions"][0]["text"]
+        self.assertEqual(done["questions"][0]["recommend"], REC)
+        self.assertNotIn("推し:", q)
         self.assertTrue(q.startswith("R2: 差分は頼みの解き方 M1「集計は 1 か所の関数にまとめる」どおりだが、独立設計と食い違う——"
                                      "独立設計は集計を呼び手ごとに置く（人に聞く訳: "), q)
-        self.assertIn("／推し: 通す（continue）——頼みどおりのまま通す（理由: 頼みがこの形を指定した）", q)
         self.assertNotIn("引用を照らせなかった", q)
         self.assertIn(f"  - {q}", done["report"])
+        at = done["report"].index(f"  - {q}")
+        self.assertEqual(done["report"][at + 1], "    - 機械が検めた推し: 通す（continue）——頼みどおりのまま通す（理由: 頼みがこの形を指定した）")
 
     def test_deleted_line_can_be_quoted(self):
         """diff_quote は消した行の字でもよい（頼みが「X を消す」だけの時）。差分の頭の行（--- a/…）の字は引用に数えない"""
@@ -845,7 +848,7 @@ class MeansCase(_RepoCase):
 
     def test_request_conflict_title_rides_on_the_question(self):
         """比べの役の request_conflicts の行に title が在れば、finish の questions の行がその題（改行は畳む）を持ち、本文は今の問いの文。
-        題の無い行は title の欄を持たない。題が空白だけでも役を拒まない"""
+        題の無い行は title の欄を持たない。引用を照らせた行は役の推しを欄 recommend に持つ。題が空白だけでも役を拒まない"""
         done = self.run_with(conflict(title="頼みどおりの形で\n通すか決める"), conflict(why="独立設計は集計を呼び手ごとに置く（2 つ目）", title="  \n "), conflict())
         self.assertTrue(done["questions"] and all(isinstance(q, dict) for q in done["questions"]), "finish の questions が {text, title} の行でない")
         bare = self.run_with(conflict())["questions"][0]
@@ -853,8 +856,8 @@ class MeansCase(_RepoCase):
         self.assertEqual(titled["title"], "頼みどおりの形で 通すか決める")
         self.assertTrue(titled["text"].startswith("R2: 差分は頼みの解き方 M1「集計は 1 か所の関数にまとめる」どおりだが"), titled["text"])
         self.assertEqual(titled["text"], bare["text"], "本文は題の有無に依らない今の問いの文")
-        self.assertEqual(set(titled), {"text", "title"})
-        self.assertEqual((set(blank), set(plain)), ({"text"}, {"text"}), "空白だけの題・題の無い行は title の欄を持たない")
+        self.assertEqual(set(titled), {"text", "title", "recommend"})
+        self.assertEqual((set(blank), set(plain)), ({"text", "recommend"}, {"text", "recommend"}), "空白だけの題・題の無い行は title の欄を持たない")
         self.assertIn(f"  - {titled['text']}", done["report"], "報告の R2 の行には本文を並べる")
 
     def test_redesign_needed_stays(self):

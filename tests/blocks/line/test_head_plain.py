@@ -235,6 +235,23 @@ class AskTitleCase(unittest.TestCase):
         self.assertEqual([(a["text"].split("——")[0], a.get("title")) for a in rows],
                          [("載せなかった問い", "空の列の扱いを決める"), ("字だけの問い", None), ("題の無い行", None)])
 
+    def test_report_head_push_is_not_cut_from_the_middle_of_a_role_text(self):
+        """報告の人が決めることの行の推しの句は、行の欄 recommend からだけ組む。載せなかった修正前の問いの文の途中に「推し: …」が在っても、その切れ端は
+        推しの句に出ず、欄の無い行は「判定の役が書いていない」を 1 度だけ足す。欄 recommend を持つ行は、文の字に依らず検めた推しの句を足す"""
+        rec = {"answer": "continue", "note": "空の列は 0 を返す形で通す", "why": "呼び手が 0 を前提に書かれている"}
+        middle = "空の列で例外を投げるか（割れる。推し: 案A——訳（役の字の途中）。ほかに案B が在る）"
+        v = base.passing()
+        v["ask_before_fix"] = {**v["ask_before_fix"], "open": False, "deferred": [{"text": middle}, {"text": "欄の在る問い", "recommend": rec}]}
+        with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
+            facts = self.f.build(v, base.record())
+        bare, field = [a["text"] for a in self.of_kind(facts["asks"], "修正前の問い")]
+        self.assertEqual(bare, middle + "——" + self.gm.PUSH + self.gm.NO_PUSH)
+        self.assertEqual(bare.count("推し: 案A"), 1, "切れ端を推しの句として足さない")
+        self.assertEqual(field, "欄の在る問い——" + self.gm.PUSH + self.gm._words(rec))
+        before = facts["decisions"]["before"]
+        self.assertIn(f"  - {middle}", before)
+        self.assertIn(f"  - 欄の在る問い——{self.gm.PUSH}{self.gm._words(rec)}", before)
+
     def test_a_machine_built_kind_gets_its_fixed_title(self):
         """機械が本文を組む種の行は、種ごとの決まった字の題を持つ。題に単位の id（工場の中の値）を差し込まない"""
         self.assertTrue(hasattr(self.f, "ASK_SOURCES"), "人が決める物の種ごとの題の出どころの表 ASK_SOURCES が無い")

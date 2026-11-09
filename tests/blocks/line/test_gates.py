@@ -105,6 +105,8 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual(out["items"][0][0], self.gm.MEANS_KIND)
         self.assertNotIn("世界の解:", out["asked"][0])
         self.assertIn(self.gm.MEANS_WHY, out["asked"][0])
+        self.assertEqual(out["items"][0][1]["recommend"], REC, "推しは項目の行の欄 recommend に在る")
+        self.assertNotIn(self.gm.PUSH, out["asked"][0], "文には推しの尾が無い")
         got = self.ask(rounds(deviations=[self.means_row()]), unattended=True)
         self.assertTrue(got["go"])
         self.assertEqual(got["pushed"]["pushed"][0]["answer"], "continue")
@@ -122,9 +124,9 @@ class AskBeforeFixCase(unittest.TestCase):
         out = self.ask(got, plan_fields=fields, means=["分母を len(xs) にする"])
         kinds = [k for k, _ in out["items"]]
         self.assertIn(self.gm.MEANS_KIND, kinds)
-        text = dict(out["items"])[self.gm.MEANS_KIND]
-        self.assertTrue(text.startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従わない——"), text)
-        self.assertIsNone(self.gm.push_rec(text))
+        row = dict(out["items"])[self.gm.MEANS_KIND]
+        self.assertTrue(row["text"].startswith("修正案 1 は頼みの解き方 M1「分母を len(xs) にする」に従わない——"), row["text"])
+        self.assertNotIn("recommend", row, "計画の欄から組む行は推しの欄を持たない")
         self.assertFalse(self.ask(got, plan_fields=fields, means=["分母を len(xs) にする"], unattended=True)["go"])
         self.assertNotIn(self.gm.MEANS_KIND, [k for k, _ in self.ask(rounds(), plan_fields=fields, means=["x"])["items"]],
                          "事前審査が通った周は計画の欄から組まない（事前審査の deviations が持つ）")
@@ -151,6 +153,8 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual(out["items"][0][0], self.gm.PRESCRIPTION_KIND)
         self.assertIn("1. 分母を len(xs) にする", out["asked"][0])
         self.assertNotIn("世界の解:", out["asked"][0])
+        self.assertEqual(out["items"][0][1]["recommend"], REC, "推しは項目の行の欄 recommend に在る")
+        self.assertNotIn(self.gm.PUSH, out["asked"][0], "文には推しの尾が無い")
         got = self.ask(rounds(deviations=[self.prescription_row()]), unattended=True)
         self.assertTrue(got["go"])
         self.assertEqual(got["pushed"]["pushed"][0]["answer"], "continue")
@@ -167,15 +171,73 @@ class AskBeforeFixCase(unittest.TestCase):
         got = rounds(review_status="gave_up", review_reason="受け付けが諦めた")
         self.assertIn("prescription", [k for k, _ in self.ask(got, plan_fields=fields)["items"]], "処方の文を渡さなくても項目は出る")
         out = self.ask(got, plan_fields=fields, prescriptions=self.RX)
-        text = dict(out["items"]).get("prescription", "")
+        row = dict(out["items"]).get("prescription", {})
+        text = row.get("text", "")
         self.assertIn("1. 分母を len(xs) にする", text, out["items"])
         self.assertTrue(text.startswith("修正案 1 は単位 u1 の判定の処方"), text)
-        self.assertIsNone(self.gm.push_rec(text))
+        self.assertNotIn("recommend", row, "計画の欄から組む行は推しの欄を持たない")
         self.assertFalse(self.ask(got, plan_fields=fields, prescriptions=self.RX, unattended=True)["go"])
-        unread = dict(self.ask(got, plan_fields=fields, prescriptions={})["items"]).get("prescription", "")
+        unread = dict(self.ask(got, plan_fields=fields, prescriptions={})["items"]).get("prescription", {}).get("text", "")
         self.assertIn("判定の処方の文を読めていない", unread)
         self.assertNotIn("prescription", [k for k, _ in self.ask(rounds(), plan_fields=fields, prescriptions=self.RX)["items"]],
                          "事前審査が通った周は計画の欄から組まない（事前審査の deviations が持つ）")
+
+    def design_row(self, **over):
+        return {"route": self.g.structmark.ROUTE_UP, "unit_id": "u1", "undecided_because": "2 つの形が割れる",
+                "rejected": [{"option": "案B", "cost": "呼び手が増える"}], "chosen": "案A", "chosen_reason": "呼び手が前提にしている", **over}
+
+    def test_unattended_design_row_whose_reason_ends_with_a_push_tail_stops(self):
+        """#1014: 構造の目が人に上げた設計の行の採った案の訳の末尾が推しの尾の形でも、無人の run は推しで越えず works:needs-human で止まる。
+        載せなかった行は推しの欄を持たず、その行の下書きの text は空"""
+        tail = self.gm._push({self.gm.RECOMMEND: REC})
+        out = self.ask(rounds(), unattended=True, design_rows_=[self.design_row(chosen_reason="呼び手が前提にしている" + tail)])
+        self.assertEqual((out["open"], out["go"], out["stop_reason"], out["pushed"]), (False, False, "works:needs-human", None))
+        [held] = out["deferred"]
+        self.assertTrue(held["text"].startswith(self.gm.DESIGN_HEAD), held)
+        self.assertNotIn("recommend", held, "設計の行は推しの欄を持たない")
+        draft = self.gm.item_draft(held["text"], self.gm.GATE_NODE, recommend=held.get("recommend"))
+        self.assertEqual(draft["text"], "")
+
+    def test_pushed_row_carries_its_recommend_in_the_field_not_in_the_text(self):
+        """事前審査の役が欄 recommend に通す推しを書いた行は、無人の run で推しで越える。見せた文（asked）は推しの尾の無い本文の字の並びで、
+        pushed の各行の item はその本文、note・why は 1 行に畳まれた字になる"""
+        rec = {"answer": "continue", "note": "空の列は 0 を返す\n形で／通す", "why": "呼び手が\n0 を前提に書かれている"}
+        out = self.ask(rounds(asks=[ask_row(mark={"recommend": rec})]), unattended=True)
+        self.assertEqual((out["go"], out["asked"]), (True, [NARROW]))
+        [row] = out["pushed"]["pushed"]
+        self.assertEqual((row["item"], row["answer"]), (NARROW, "continue"))
+        self.assertEqual((row["note"], row["why"]), (self.gm._tail_text(rec["note"]), self.gm._tail_text(rec["why"])))
+        self.assertNotIn("\n", row["note"] + row["why"] + out["pushed"]["text"])
+        self.assertNotIn(self.gm.PUSH, out["asked"][0])
+
+    def shown(self, out) -> list:
+        asking = {"node": self.gm.GATE_NODE, "question": "q", "items": [r for _, r in out["items"]], "kinds": [k for k, _ in out["items"]]}
+        return self.gm.gate_text(asking, run_id="r", node=self.gm.GATE_NODE, record_name="r").splitlines()
+
+    def test_gate_head_push_is_not_cut_from_the_middle_of_a_role_text(self):
+        """人の居る run の承認ノードの冒頭の推しの行は、行の欄からだけ組む。審査役の文の途中に「推し: …」が在っても、その切れ端は出ない"""
+        middle = NARROW + "（割れる。推し: 案A——訳（審査役の字の途中）。ほかに案B が在る）"
+        out = self.ask(rounds(asks=[ask_row(text=middle)]))
+        lines = self.shown(out)
+        self.assertIn("- " + middle, lines, "文は本文のまま並ぶ")
+        self.assertEqual([x for x in lines if x.startswith(self.gm.PUSH)], [self.gm.PUSH + self.gm.NO_PUSH])
+        pushed = self.ask(rounds(asks=[ask_row(mark={"recommend": REC})]))
+        self.assertIn(self.gm.PUSH + "通す（continue）——空の列は 0 を返す形で通す（理由: 呼び手が 0 を前提に書かれている）", self.shown(pushed))
+
+    def test_design_row_chosen_keeps_showing_in_the_head_and_item_line(self):
+        """設計の行の構造の目が採った案は、項目の行に CHOSEN_HEAD の後ろで出て、冒頭の推しの行にも「構造の目が採った案: …」で出る。機械が検めた推しの
+        子の行は出さず、抜け方も下書きも採った案を推しと読まない。採った案が無い行は NO_CHOSEN で、推しに数えない"""
+        out = self.ask(rounds(), design_rows_=[self.design_row()])
+        lines = self.shown(out)
+        [item] = [x for x in lines if x.startswith("- " + self.gm.DESIGN_HEAD)]
+        self.assertIn(self.gm.CHOSEN_HEAD + "案A（呼び手が前提にしている）", item)
+        self.assertEqual([x for x in lines if x.startswith(self.gm.PUSH)], [self.gm.PUSH + self.gm.CHOSEN + "案A（呼び手が前提にしている）"])
+        self.assertFalse(any(x.startswith(self.gm.MACHINE_PUSH) for x in lines))
+        draft = self.gm.item_draft(out["items"][0][1]["text"], self.gm.GATE_NODE, recommend=None)
+        self.assertEqual(draft["text"], "")
+        bare = self.ask(rounds(), design_rows_=[self.design_row(chosen="", chosen_reason="")])
+        self.assertIn(self.gm.CHOSEN_HEAD + self.gm.NO_CHOSEN, bare["items"][0][1]["text"])
+        self.assertEqual([x for x in self.shown(bare) if x.startswith(self.gm.PUSH)], [self.gm.PUSH + self.gm.NO_PUSH])
 
     def test_deviation_of_an_unknown_source_is_asked(self):
         """表に無い source の外れの行は黙って捨てずに承認ノードの項目になる。source design の行は事前審査の穴の道で聞くので項目にしない"""
@@ -298,7 +360,7 @@ class PointedAskCase(unittest.TestCase):
         self.assertIn(f"{self.g.POINTED_BY_ANSWER}が名指す docs/canon.md", canon)
         self.assertIn("canon", canon)
         self.assertTrue(rule.startswith("AGENTS.md が名指す docs/deploy.adoc"), rule)
-        self.assertIsNone(self.gm.push_rec(canon), "従ってよいかは人が決める（機械は推しを作らない）")
+        self.assertNotIn("recommend", out["items"][0][1], "従ってよいかは人が決める（機械は推しを作らない）")
 
     def test_a_document_in_no_version_alone_does_not_open(self):
         out = self.ask(rounds(pointed=[self.GONE]))
@@ -308,9 +370,10 @@ class PointedAskCase(unittest.TestCase):
         out = self.ask(rounds(pointed=[self.GONE], asks=[ask_row()]))
         self.assertTrue(out["open"])
         self.assertEqual(out["items"][-1][0], self.gm.POINTED_MISSING_KIND)
-        rec = self.gm.push_rec(out["asked"][-1])
+        rec = out["items"][-1][1]["recommend"]
         self.assertEqual((rec["answer"], rec["note"]), ("continue", "気にせず進む"))
-        self.assertIn("tests/new_case.py", rec["item"])
+        self.assertIn("tests/new_case.py", out["asked"][-1])
+        self.assertNotIn(self.gm.PUSH, out["asked"][-1], "asked の文には推しの尾が無い")
 
     def test_an_answered_row_is_not_asked_again(self):
         first = self.ask(rounds(pointed=[self.CANON]))
@@ -699,17 +762,50 @@ class AskFinalCase(unittest.TestCase):
                 self.assertTrue(self.ask(got, mode=mode)["open"])
         self.assertIn(("頼みの解き方どおりの違いを独立の目が聞いている（1 件）", True), self.f.needs(got))
 
+    MEANS_BODY = MEANS_Q.split("／推し:")[0]
+    MEANS_REC = {"answer": "continue", "note": "そのまま通す", "why": "頼みどおりだから"}
+
+    def means_rows(self, *answers):
+        """R2 の問いの行（文に推しの尾は書かず、推しは欄 recommend が運ぶ）"""
+        return [{"text": self.MEANS_BODY.replace("M1", f"M{i}"), "recommend": {**self.MEANS_REC, "answer": a}}
+                for i, a in enumerate(answers, 1)]
+
     def test_means_questions_with_continue_pushes_pass_an_unattended_run(self):
-        """6.4（決め means-ask の 2）: 無人の run で開ける理由が頼みどおりの違いの問いだけで、どの問いも通す推しを持てば、開かずに推しで
-        進み、採った推しを pushed に返す（answer-final が gates/gate-final.json に残す）"""
-        two = [self.MEANS_Q, self.MEANS_Q.replace("M1", "M2")]
+        """6.4（決め means-ask の 2）: 無人の run で開ける理由が頼みどおりの違いの問いだけで、どの問いの行も欄 recommend に通す推しを持てば、
+        開かずに推しで進み、採った推しを pushed に返す（answer-final が gates/gate-final.json に残す）。字の問いの末尾の尾では進まない"""
         for mode in ("when_needed", "protected_only"):
             with self.subTest(mode=mode):
-                out = self.ask(final_got(self.f, means_questions=two), mode=mode, unattended=True)
+                out = self.ask(final_got(self.f, means_questions=self.means_rows("continue", "continue")), mode=mode, unattended=True)
                 self.assertEqual((out["open"], out["go"], out["stop_reason"], out["text"]), (False, True, "", ""))
                 self.assertEqual(out["pushed"]["decision"], "continue")
                 self.assertEqual([r["answer"] for r in out["pushed"]["pushed"]], ["continue", "continue"])
                 self.assertEqual(out["reasons"], ["頼みの解き方どおりの違いを独立の目が聞いている（2 件）"])
+                tailed = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode=mode, unattended=True)
+                self.assertEqual((tailed["go"], tailed["pushed"]), (False, None), "文の末尾の尾は推しの欄ではない")
+
+    def test_means_question_rows_with_a_continue_recommend_field_pass_an_unattended_run(self):
+        """問いの行が欄 recommend に通す推しを持てば、文に尾が無くても無人の run の最後の承認ノードは推しで進み、pushed の各行がその欄の answer と
+        尾の無い本文を持つ。止める推しの行が混じれば止まる"""
+        rows = self.means_rows("continue", "continue")
+        out = self.ask(final_got(self.f, means_questions=rows), mode="when_needed", unattended=True)
+        self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, True, ""))
+        self.assertEqual([(r["item"], r["answer"], r["note"]) for r in out["pushed"]["pushed"]],
+                         [(row["text"], "continue", "そのまま通す") for row in rows])
+        self.assertTrue(all(self.f.gatemarks.PUSH not in r["item"] for r in out["pushed"]["pushed"]))
+        halted = self.ask(final_got(self.f, means_questions=self.means_rows("continue", "stop")), mode="when_needed", unattended=True)
+        self.assertEqual((halted["go"], halted["stop_reason"], halted["pushed"]), (False, "works:needs-human", None))
+
+    def test_final_head_push_is_not_cut_from_the_middle_of_a_means_question_text(self):
+        """最後の承認ノードの冒頭の推しの行は、問いの行の欄 recommend からだけ組む。欄を持たない問いの文の途中に「推し: …」が在っても、その切れ端は出ない"""
+        gm = self.f.gatemarks
+        middle = self.MEANS_BODY + "（人に聞く訳: x。" + gm._push({gm.RECOMMEND: self.MEANS_REC}).lstrip("／") + "。ほかにも案が在る）"
+        head = self.f.final_head(final_got(self.f, means_questions=[{"text": middle}]), [])
+        self.assertEqual([x for x in head if x.startswith(gm.PUSH)], [gm.PUSH + gm.NO_PUSH])
+        rows = self.means_rows("continue")
+        shown = self.f.final_head(final_got(self.f, means_questions=[{"text": middle}, *rows]), [])
+        [line] = [x for x in shown if x.startswith(gm.PUSH)]
+        self.assertIn("そのまま通す", line)
+        self.assertNotIn("ほかにも案が在る", line)
 
     def test_unattended_means_questions_stop_without_a_continue_push_on_every_row(self):
         """推しの無い問い（引用を照らせず尾を外した行）か止める推しが 1 つでも在れば、今どおり works:needs-human で止まる"""
@@ -734,15 +830,17 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
 
     def test_row_shaped_eye_questions_still_open_the_final_gate(self):
-        """独立の目の問いが {text, title} の行で届いても、最後の承認ノードの事実（gather）には本文の字として入る。頼みどおりの違いの問いが在る時は
-        開き方に依らず開く。字の問いは字のまま。本文が空の行は落とす"""
+        """独立の目の問いが {text, title} の行で届いても、最後の承認ノードの事実（gather）の R4 の問いには本文の字として入り、R2 の問いは本文の行
+        （欄 recommend を持ち回る）として入る。頼みどおりの違いの問いが在る時は開き方に依らず開く。字の問いは字のまま。本文が空の行は落とす"""
         eyes = {"questions": [{"text": "R4 の問い", "title": "題 1"}, "字の問い", {"title": "本文の無い行"}],
-                "means_questions": [{"text": self.MEANS_Q, "title": "題 2"}], "passes": [], "after": None}
+                "means_questions": [{"text": self.MEANS_BODY, "title": "題 2", "recommend": self.MEANS_REC}, "字の問い 2",
+                                    {"title": "本文の無い行"}], "passes": [], "after": None}
         got = self.f.gather(fix_in={}, fixed={}, judged=None, tests=None, eyes=eyes, seal_got=None, spec_check=None, parallel_after=None,
                             replan_answer=None, widened=[], record={}, given={}, rounds_lines=[], unread=[],
                             eyes_back={"rows": [], "exit": "返す物が無い", "left": []})
         self.assertEqual(got["questions"], ["R4 の問い", "字の問い"])
-        self.assertEqual(got["means_questions"], [self.MEANS_Q])
+        self.assertEqual(got["means_questions"], [{"text": self.MEANS_BODY, "recommend": self.MEANS_REC}, {"text": "字の問い 2"}],
+                         "R2 の問いは本文の行になり、欄 recommend を落とさない")
         shaped = final_got(self.f, questions=got["questions"], means_questions=got["means_questions"])
         for mode in ("when_needed", "protected_only"):
             with self.subTest(mode=mode):
@@ -1186,7 +1284,7 @@ class ScriptCase(unittest.TestCase):
         self.assertFalse(self.ask_replan([row], before_fix=passed)["open"])
 
     def test_means_rows_of_revised_items_are_asked_with_their_push(self):
-        """計画 means-answers の 3.3 の 5: 直した項目の頼みの解き方の行を推しの尾つきで聞き（無人の run は推しで抜ける）、直さない項目の
+        """計画 means-answers の 3.3 の 5: 直した項目の頼みの解き方の行を推しの欄 recommend つきで聞き（無人の run は推しで抜ける）、直さない項目の
         行と、修正前の承認ノードが continue で通した同じ鍵 (項目, M<n>, 向き) の行は、推しの文が書き直されていても聞かない（前に通したのが
         同じ項目の食い違いの行なら、今の外れの行は聞く）"""
         def dev(item, note):
@@ -1198,9 +1296,11 @@ class ScriptCase(unittest.TestCase):
         out = self.ask_replan([row])
         self.assertTrue(out["open"], out)
         self.assertEqual([a[:9] for a in out["asked"]], ["修正案 1 は頼み"], out["asked"])
-        self.assertIsNotNone(__import__("gatemarks").push_rec(out["asked"][0]))
+        self.assertNotIn("推し:", out["asked"][0], "asked の文には推しの尾が無い")
+        self.assertIn(__import__("gatemarks").MACHINE_PUSH + "通す（continue）——計画のまま通す", out["text"], "推しは行の欄から子の行に出る")
         got = self.ask_replan([row], unattended=True)
         self.assertTrue(got["go"], got)
+        self.assertEqual([r["answer"] for r in got["pushed"]["pushed"]], ["continue"])
         before = json.dumps({"decision": "continue", "text": "", "asked": [out["asked"][0]]})
         self.deviations = [dev(1, "前と違う一言で通す")]
         self.assertFalse(self.ask_replan([row], before_fix=before)["open"])
@@ -1223,7 +1323,11 @@ class ScriptCase(unittest.TestCase):
         means = [a for a in out["asked"] if a.startswith("修正案")]
         self.assertEqual(len(means), 1, out["asked"])
         self.assertTrue(means[0].startswith("修正案 1 は頼みの解き方 M1「分母を直す」に従わない——"), means)
-        self.assertIsNone(__import__("gatemarks").push_rec(means[0]))
+        self.assertNotIn("推し:", means[0])
+        stopped = self.run.script("ask_replan", replan=json.dumps(self.replan_got(new)), review=json.dumps(self.review_got([], "gave_up")),
+                                  old_plan=old, items=json.dumps([1]), conflicts="null", before_fix="null",
+                                  record=self.put("r1/start.json", {}), means=json.dumps(["分母を直す"]), ports=self.ports(unattended=True))
+        self.assertEqual((stopped["go"], stopped["pushed"]), (False, None), "推しの欄の無い行は無人の run では推し無しとして止まる")
 
     def prescription_dev(self, item, note="計画のまま通す", deviation="決まりが別の層に置く"):
         return {"source": "prescription", "item": item, "why": ["判定の処方と計画の決め手が別の答えを指す"],
@@ -1231,14 +1335,15 @@ class ScriptCase(unittest.TestCase):
                 "mark": {"decided_by": "決まり", "recommend": {**REC, "note": note}}}
 
     def test_prescription_rows_of_revised_items_are_asked_with_their_push(self):
-        """直した項目の判定の処方の外れの行を推しの尾つきで聞き（無人の run は推しで抜ける）、直さない項目の行は聞かない。事前審査が
+        """直した項目の判定の処方の外れの行を推しの欄 recommend つきで聞き（無人の run は推しで抜ける）、直さない項目の行は聞かない。事前審査が
         落ちた道では、入力 judgment の判定の処方の文を載せた推しなしの行を聞く"""
         self.deviations = [self.prescription_dev(1), self.prescription_dev(2)]
         row = {"item": 1, "units": ["u1"], "contract_changed": [], "human": [], "widened": None}
         out = self.ask_replan([row])
         self.assertEqual([a[:12] for a in out["asked"]], ["修正案 1 は単位 u1"], out["asked"])
         self.assertTrue(out["open"], out)
-        self.assertIsNotNone(__import__("gatemarks").push_rec(out["asked"][0]))
+        self.assertNotIn("推し:", out["asked"][0], "asked の文には推しの尾が無い")
+        self.assertIn(__import__("gatemarks").MACHINE_PUSH + "通す（continue）——計画のまま通す", out["text"])
         self.assertTrue(self.ask_replan([row], unattended=True)["go"])
         old, _ = self.plans()
         dev = {"prescription": "u1", "deviation": "決まりが別の層に置く"}
@@ -1254,7 +1359,7 @@ class ScriptCase(unittest.TestCase):
                 rows = [a for a in out["asked"] if a.startswith("修正案")]
                 self.assertEqual(len(rows), 1, out["asked"])
                 self.assertIn(word, rows[0])
-                self.assertIsNone(__import__("gatemarks").push_rec(rows[0]))
+                self.assertNotIn("推し:", rows[0])
 
     def test_prescription_row_passed_before_is_not_reasked_when_only_the_push_changes(self):
         """修正前の承認ノードが continue で通した処方の外れの行と、同じ項目・同じ単位・同じ deviation で推しの note だけが違う行は聞き直さない。

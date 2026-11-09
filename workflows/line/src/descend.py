@@ -4,7 +4,7 @@
   依頼の行に、関所の答えと推しを採った問いを依頼の答えの行にした依頼のファイル（files.THEME_DESCENDED）と、承認された設計の md の写し
   （files.THEME_APPROVED）を書く。人の居る run は関所の合意（agreed が通す語）だけで降り、止める答え・往復の止めは止めの語を返す。無人の
   run は関所の項目（src.themetalk.items）が無い時だけ降り（推しで進んだ印 answer.PUSHED を gates/gate-theme.json に残す）、項目が在れば
-  src.gates.passage のとおり works:needs-human で止める。変える所が無ければ降りずに設計だけの結末（no_change）
+  推しの欄を持たない項目なので works:needs-human で止める。変える所が無ければ降りずに設計だけの結末（no_change）
 - request_in(given, theme) -> dict: request-in。依頼の出どころを 1 つに選ぶ（テーマの run は theme-descend の返り、ほかの run は start の
   配る値）。判定から後ろは依頼をここからだけ読む
 - dealt(given, request_raw) -> dict: 配る値の依頼の欄を request-in の返りの物に替えた写し（配る値まるごとを受ける script の読み口）
@@ -96,7 +96,7 @@ def _stopped(reason: str, word: str, said=None, *, notes=()) -> dict:
 
 
 def descend(got, *, given: dict, place: Path) -> dict:
-    from src import files, gates, talk, themetalk
+    from src import files, talk, themetalk
     if not isinstance(got, dict):
         return _stopped(NO_ROUNDS, stopby.LINE_SCRIPT)
     notes = [str(n) for n in got.get("notes") or []]
@@ -113,10 +113,9 @@ def descend(got, *, given: dict, place: Path) -> dict:
                             word or stopby.HUMAN + talk.THEME.gate, said, notes=notes)
     else:
         rows = [t for _, t in themetalk.items(got)]
-        if rows or not got.get("ok"):
-            got_ = gates.passage(rows, gates.row_push) if rows else gates.Passage(False, stopby.NEEDS_HUMAN, [], None)
+        if rows or not got.get("ok"):   # 設計の段の項目は推しの欄を持たないので、項目が在れば必ず止める
             why = "無人の run で、設計の段の承認ノードの項目に通す推しが無い（" + ("・".join(oneline.one_line(r) for r in rows) or "設計の往復が収まらなかった") + "）"
-            return _stopped(why, got_.stop_reason or stopby.NEEDS_HUMAN)
+            return _stopped(why, stopby.NEEDS_HUMAN)
         pushed = {"decision": answer.VERBS[0], "text": answer.PUSHED_NOTE + " 持ち主に聞く問いが残らず、設計の往復が収まった", answer.PUSHED: []}
         said = answer.taken(None, go=True, stop_reason="", place=talk.THEME.gate, folder=place, pushed=pushed)["answer"]
     design = _design(got)

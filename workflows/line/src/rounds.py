@@ -523,7 +523,7 @@ def dropped_cites(doc: dict, *, unattended: bool, design_talk: bool) -> list[str
 
 
 def last_push(doc: dict) -> dict | None:
-    """最後の往復の行の推し（形の整った recommend だけ）の {go, note}（note は尾の字。今の gatemarks.stuck_push の読み）。無ければ None"""
+    """最後の往復の行の推し（形の整った recommend だけ）の {go, note}（note は 1 行に畳んだ字。今の gatemarks.stuck_push の読み）。無ければ None"""
     import gatemarks
     mark = {gatemarks.RECOMMEND: doc["passes"][-1].get("push") if doc.get("passes") else None}
     rec = gatemarks.recommend_of(mark)

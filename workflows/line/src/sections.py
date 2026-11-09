@@ -347,8 +347,9 @@ def build(values: dict, record: dict, *, cwd, folder) -> list:
     if ask:
         lines = [f"開いた: {'はい' if ask.get('open') else 'いいえ'}"]
         lines += [f"聞かずに通した行: {json.dumps(p, ensure_ascii=False)}" for p in _l(ask.get("passes"))]
+        import gatemarks
         import plainask   # lib/。載せなかった問いの要素（字でも {text, title} の行でも）の本文の読み口
-        lines += [f"載せなかった問い: {plainask.item_text(q) or json.dumps(q, ensure_ascii=False)}" for q in _l(ask.get("deferred"))]
+        lines += [f"載せなかった問い: {plainask.item_text(q) or json.dumps(q, ensure_ascii=False)}{gatemarks._push(q)}" for q in _l(ask.get("deferred"))]
         out.append(_section(BEFORE_FIX, lines))
     out += _review_section(REVIEW_1, v.get("lens"), v.get("delta"), v.get("fix"), v.get("raise"))
     if v.get("replan") or v.get("replan_review"):

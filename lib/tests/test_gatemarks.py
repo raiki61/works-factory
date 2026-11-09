@@ -18,6 +18,7 @@ if str(LIB) not in sys.path:
 
 import answer  # noqa: E402
 import gatemarks  # noqa: E402
+import plainask  # noqa: E402
 import seal  # noqa: E402
 from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
 from tests.blocks.kit import load as kit_load  # noqa: E402
@@ -140,106 +141,78 @@ class DutyCase(unittest.TestCase):
 
 
 class PushRecCase(unittest.TestCase):
-    """#552: 関所の項目の推しの尾（_push の形）を読み戻し、無人の run が推しで通る答えを組む"""
+    """#552: 関所の項目の推しは行の欄 recommend が運び、下書きは同じ欄を同じ recommend_of で読む。項目の文の末尾の字は推しと読まない"""
     REC = {"answer": "continue", "note": "空の列は 0 を返す／形で通す", "why": "呼び手が 0 を前提に書かれている"}
     BODY = "修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える（人に聞く訳: 決め手の欄が揃わない）"
 
-    def row(self, **rec):
-        return self.BODY + gatemarks._push({gatemarks.RECOMMEND: {**self.REC, **rec}})
+    def tail(self, **rec):
+        """審査役が文の末尾に書いた推しの形の字（欄 recommend ではない）"""
+        return gatemarks._push({gatemarks.RECOMMEND: {**self.REC, **rec}})
 
-    def test_round_trip_of_the_push_tail(self):
-        got = gatemarks.push_rec(self.row())
-        self.assertEqual(got, {"item": self.BODY, "answer": "continue", "note": "空の列は 0 を返す・形で通す",
-                               "why": "呼び手が 0 を前提に書かれている"})
-        self.assertEqual(gatemarks.push_rec(self.row(answer="stop"))["answer"], "stop")
-
-    def test_item_draft_reads_the_push_tail(self):
-        """尾を読み戻せる文は推しが下書きの答えになり（question は尾を含む文のまま）、読めない文は text が空で、文に書かれた推しを note が名指す"""
-        self.assertTrue(callable(getattr(gatemarks, "item_draft", None)), "項目の文の下書きの口 item_draft が在る")
-        self.assertIn("read_tail", inspect.signature(gatemarks.item_draft).parameters, "呼び手が尾を読むかを言う口")
-        text = self.row()
-        got = gatemarks.item_draft(text, gatemarks.GATE_NODE, read_tail=True)
-        self.assertEqual(got["question"], text)
-        self.assertEqual(got["text"], "continue: 空の列は 0 を返す・形で通す（推す理由: 呼び手が 0 を前提に書かれている）")
+    def test_item_draft_answers_from_the_recommend_field(self):
+        """欄 recommend が在る項目は推しが下書きの答えになり（question は文のまま）、欄が無い・崩れた項目は text が空。文の末尾が推しの形でも答えにしない"""
+        self.assertIn("recommend", inspect.signature(gatemarks.item_draft).parameters, "呼び手が行の欄を渡す口")
+        self.assertNotIn("read_tail", inspect.signature(gatemarks.item_draft).parameters)
+        got = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, recommend=self.REC)
+        self.assertEqual(got["question"], self.BODY)
+        self.assertEqual(got["text"], "continue: 空の列は 0 を返す／形で通す（推す理由: 呼び手が 0 を前提に書かれている）")
         self.assertIn(gatemarks.RECOMMEND, got["source"])
-        self.assertTrue(gatemarks.item_draft(self.row(answer="stop"), gatemarks.GATE_NODE, read_tail=True)["text"].startswith("stop: "))
-        bare = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, read_tail=True)
+        self.assertTrue(gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, recommend={**self.REC, "answer": "stop"})["text"].startswith("stop: "))
+        bare = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, recommend=None)
         self.assertEqual((bare["question"], bare["text"]), (self.BODY, ""))
+        self.assertIn("推しの欄が無い", bare["source"])
         self.assertNotIn("役が書いていない", bare["note"])
-        said = gatemarks.item_draft(self.BODY + "／推し: 案A", gatemarks.GATE_NODE, read_tail=True)
-        self.assertEqual(said["text"], "")
-        self.assertIn("案A", said["note"])
-        self.assertNotIn("役が書いていない", said["note"])
-        short = gatemarks.item_draft(self.BODY + "／推し: 通す（continue）——短（理由: 呼び手が 0 を前提に書かれている）", gatemarks.GATE_NODE, read_tail=True)
+        tailed = gatemarks.item_draft(self.BODY + self.tail(), gatemarks.GATE_NODE, recommend=None)
+        self.assertEqual(tailed["text"], "", "文の末尾の字は推しの欄ではない")
+        self.assertEqual(tailed["question"], self.BODY + self.tail(), "question は文の全体のまま")
+        self.assertNotIn("文に書かれた推し", tailed["note"], "note は文から推しを拾わない")
+        short = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, recommend={**self.REC, "note": "短"})
         self.assertEqual(short["text"], "")
-        self.assertNotIn("役が書いていない", short["note"])
-        self.assertIn("崩れ", short["source"], "尾の形は読めたが欄が短い文は、尾が元から無い文と言い分ける")
-        self.assertNotIn("崩れ", bare["source"])
-        self.assertNotIn("尾が無い", short["note"])
-        unchosen = gatemarks.item_draft(self.BODY + "／推し: " + gatemarks.NO_CHOSEN, gatemarks.GATE_NODE, read_tail=True)
-        self.assertNotIn("文に書かれた推し:", unchosen["note"])
+        self.assertIn("推しの欄が無い", short["source"])
 
     def test_item_draft_notes_world_and_no_narrow_tails(self):
-        """推しの尾の無い文は、_world・_no_narrow が付けた尾の値を note が名指す。欄の無い行の置き字は値として置かない。
-        推しの尾も在る文は答えが推しのまま"""
-        self.assertTrue(callable(getattr(gatemarks, "item_draft", None)), "項目の文の下書きの口 item_draft が在る")
-        self.assertIn("read_tail", inspect.signature(gatemarks.item_draft).parameters, "呼び手が尾を読むかを言う口")
+        """推しの欄の無い文は、_world・_no_narrow が付けた尾の値を note が名指す。欄の無い行の置き字は値として置かない。
+        recommend を渡せば、同じ文でも答えが推しになる"""
         mark = {"decided_by": "x", "world": "W（括弧つき）", gatemarks.NO_NARROW: "N"}
         why = "（人に聞く訳: 2 つの形が割れる）"
         text = self.BODY + gatemarks._world(mark) + gatemarks._no_narrow(mark) + why
-        got = gatemarks.item_draft(text, gatemarks.GATE_NODE, read_tail=True)
+        got = gatemarks.item_draft(text, gatemarks.GATE_NODE, recommend=None)
         self.assertEqual((got["question"], got["text"]), (text, ""))
         self.assertIn("世界の解: W（括弧つき）", got["note"])
         self.assertIn("狭めない案: N", got["note"])
         self.assertNotIn("人に聞く訳", got["note"])
-        unsaid = gatemarks.item_draft(self.BODY + gatemarks._world({"decided_by": "x"}) + why, gatemarks.GATE_NODE, read_tail=True)
+        unsaid = gatemarks.item_draft(self.BODY + gatemarks._world({"decided_by": "x"}) + why, gatemarks.GATE_NODE, recommend=None)
         self.assertNotIn("世界の解:", unsaid["note"], "欄の無い行の置き字は値として写さない")
         self.assertNotIn("役が書いていない", unsaid["note"])
-        pushed = gatemarks.item_draft(text + gatemarks._push({gatemarks.RECOMMEND: self.REC}), gatemarks.GATE_NODE, read_tail=True)
+        pushed = gatemarks.item_draft(text, gatemarks.GATE_NODE, recommend=self.REC)
         self.assertTrue(pushed["text"].startswith("continue: "))
 
-    def test_item_draft_with_read_tail_false_does_not_read_the_tail(self):
-        """尾を読まない出どころの文（read_tail=False）は、末尾が推しの尾の形でも push_rec を読まない: text は空、question は文の全体のまま、
-        文に書かれた推しを note が名指す。read_tail=True なら尾の推しが答え"""
-        self.assertIn("read_tail", inspect.signature(gatemarks.item_draft).parameters, "呼び手が尾を読むかを言う口")
-        text = self.row()
-        got = gatemarks.item_draft(text, gatemarks.GATE_NODE, read_tail=False)
+    def test_item_draft_without_a_field_does_not_answer_from_a_tail_shaped_text(self):
+        """gatemarks._push で組んだ尾を末尾に持つ文でも、欄 recommend が無ければ text は空で、question は文の全体のまま、note は文の推しを名指さない
+        （尾を読むかを言う口 read_tail は無い）。同じ文に欄を渡せばその推しが答え"""
+        self.assertNotIn("read_tail", inspect.signature(gatemarks.item_draft).parameters)
+        text = self.BODY + self.tail()
+        got = gatemarks.item_draft(text, gatemarks.GATE_NODE, recommend=None)
         self.assertEqual((got["question"], got["text"]), (text, ""))
-        self.assertIn("文に書かれた推し", got["note"])
-        self.assertIn("空の列は 0 を返す", got["note"])
-        self.assertNotIn("尾が無い", got["source"] + got["note"], "尾の見える文に尾が無いとは言わない")
-        self.assertTrue(gatemarks.item_draft(text, gatemarks.GATE_NODE, read_tail=True)["text"].startswith("continue: "))
-
-    def test_reason_head_in_why_keeps_the_cut(self):
-        """why が「（理由: 」を含んでも、note は書いたとおり戻り、why は区切りを中和した字で戻る（note に why の断片が混ざらない）"""
-        got = gatemarks.push_rec(self.row(note="空の列は 0 を返す形で通す", why="呼び手が前提にする（理由: 0 を返す）"))
-        self.assertEqual((got["note"], got["why"]), ("空の列は 0 を返す形で通す", "呼び手が前提にする（理由：0 を返す）"))
-
-    def test_reason_head_in_note_and_why_round_trips(self):
-        """note と why の両方が「（理由: 」を含むと、note は書いたとおり、why は中和した字で戻って崩れない"""
-        got = gatemarks.push_rec(self.row(note="空の列は 0 を返す（理由: 呼び手の都合）形で通す",
-                                          why="呼び手が前提にする（理由: 0 を返す）"))
-        self.assertEqual((got["note"], got["why"]),
-                         ("空の列は 0 を返す（理由: 呼び手の都合）形で通す", "呼び手が前提にする（理由：0 を返す）"))
-
-    def test_rows_without_an_answer_word_are_not_pushes(self):
-        for text in (self.BODY, f"{gatemarks.DESIGN_HEAD}x／推し: 案 A", f"x／推し: {gatemarks.NO_PUSH}",
-                     "x／推し: 止める（continue）——a（理由: b）"):
-            with self.subTest(text=text):
-                self.assertIsNone(gatemarks.push_rec(text))
-
-    def test_the_go_push_word_is_the_go_answer_word(self):
-        """#733: 通す推しの字と、推しで進んだ時に答えに書く字（answer.VERBS の頭）は同じ"""
-        self.assertEqual(gatemarks.RECOMMEND_ANSWERS[0], answer.VERBS[0])
+        self.assertNotIn("文に書かれた推し", got["note"])
+        self.assertNotIn("空の列は 0 を返す", got["note"])
+        self.assertTrue(gatemarks.item_draft(text, gatemarks.GATE_NODE, recommend=self.REC)["text"].startswith("continue: "))
 
     def test_scenario_rows_are_read(self):
-        """筋書き unattended-push・unattended-push-stop の項目の字は push_rec で読める（字の形のずれを赤にする）"""
+        """筋書き unattended-push・unattended-push-stop の事前審査の行は、推しを mark の欄 recommend に持ち（recommend_of が読める）、
+        文に「／推し:」を書かない"""
         fixtures = pathlib.Path(__file__).resolve().parents[2] / "workflows" / "line" / "fixtures"
         for name, word in (("unattended-push", "continue"), ("unattended-push-stop", "stop")):
             with self.subTest(name=name):
                 text = (fixtures / f"{name}.stubs.yaml").read_text(encoding="utf-8")
-                row = next(line.split('"text": "', 1)[1].split('"', 1)[0] for line in text.splitlines() if "／推し: " in line)
-                self.assertEqual(gatemarks.push_rec(row)["answer"], word)
+                line = next(line for line in text.splitlines() if line.startswith("plan-out:"))
+                ask = json.loads(line.split(":", 1)[1])["asks"][0]
+                self.assertEqual(gatemarks.recommend_of(ask["mark"])["answer"], word)
+                self.assertNotIn("／推し:", ask["text"])
+
+    def test_the_go_push_word_is_the_go_answer_word(self):
+        """#733: 通す推しの字と、推しで進んだ時に答えに書く字（answer.VERBS の頭）は同じ"""
+        self.assertEqual(gatemarks.RECOMMEND_ANSWERS[0], answer.VERBS[0])
 
     def test_pass_line_tells_a_push_from_a_human(self):
         row = {"node": gatemarks.R4_GATE_NODE, "round": 1, "item": "x", "passed_at": {"node": gatemarks.GATE_NODE, "round": 1}}
@@ -321,6 +294,38 @@ class GateTextCase(unittest.TestCase):
         self.assertIn("修正役に届く", spec)
         self.assertIn("process.spec.approval", spec)
 
+    REC = {"answer": "continue", "note": "このまま通す", "why": "呼び手が前提にしている"}
+
+    def text_of(self, *items) -> str:
+        return gatemarks.gate_text({**self.ASKING, "items": list(items)}, run_id="run-1", node=gatemarks.GATE_NODE, record_name="r")
+
+    def test_gate_text_shows_each_rows_recommend_field(self):
+        """承認ノードの文は、欄 recommend の推しを、その項目の下の子の行「機械が検めた推し: …」と冒頭 3 行の推しの行にだけ出す。末尾が推しの尾の形でも
+        欄の無い行・字の要素は、本文の字のまま並び、子の行も冒頭の推しも持たない"""
+        tail = gatemarks._push({gatemarks.RECOMMEND: self.REC})
+        pushed = plainask.item_row("欄に推しを持つ行", None, self.REC)
+        tailed = plainask.item_row("尾だけ在る行" + tail)
+        lines = self.text_of(pushed, tailed, "字の要素" + tail).splitlines()
+        i = lines.index("- 欄に推しを持つ行")
+        self.assertEqual(lines[i + 1], gatemarks.MACHINE_PUSH + "通す（continue）——このまま通す（理由: 呼び手が前提にしている）")
+        self.assertEqual(lines[i + 2], "- 尾だけ在る行" + tail, "欄の無い行は本文のまま、子の行を持たない")
+        self.assertEqual(lines[i + 3], "- 字の要素" + tail)
+        self.assertEqual(sum(x.startswith(gatemarks.MACHINE_PUSH) for x in lines), 1)
+        head = [x for x in lines if x.startswith(gatemarks.PUSH)]
+        self.assertEqual(head, [gatemarks.PUSH + "通す（continue）——このまま通す（理由: 呼び手が前提にしている）（ほかの項目の推しは判定の役が書いていない）"])
+        self.assertNotIn("dict", "".join(lines), "行の要素を dict の字のまま並べない")
+
+    def test_head_push_line_is_built_only_from_row_fields(self):
+        """冒頭の推しの行は行の欄（recommend・reason_push）からだけ組む。文の途中に「推し: …」が在っても、欄が無い行はその切れ端を出さない"""
+        middle = "割れる。推し: 案A——訳（これは審査役の字の途中）。ほかに案B が在る"
+        lines = self.text_of(plainask.item_row(middle), middle).splitlines()
+        self.assertEqual([x for x in lines if x.startswith(gatemarks.PUSH)], [gatemarks.PUSH + gatemarks.NO_PUSH])
+        self.assertNotIn(gatemarks.MACHINE_PUSH, "".join(lines))
+        shown = self.text_of(plainask.item_row(middle, None, None, "案B——訳"), plainask.item_row("欄の推し", None, self.REC)).splitlines()
+        [head] = [x for x in shown if x.startswith(gatemarks.PUSH)]
+        self.assertEqual(head, gatemarks.PUSH + "案B——訳；通す（continue）——このまま通す（理由: 呼び手が前提にしている）")
+        self.assertEqual(sum(x.startswith(gatemarks.MACHINE_PUSH) for x in shown), 1, "表示だけの欄 reason_push は機械が検めた推しの子の行にしない")
+
 
 class MeansRowsCase(unittest.TestCase):
     """頼みの解き方の外れの行（計画 means-answers の 3.2 の 8・3.3 の 2）: 文の頭・推しの尾・鍵の読み戻し。推しは渡した行の物だけ"""
@@ -339,14 +344,15 @@ class MeansRowsCase(unittest.TestCase):
         self.assertEqual(r["why"], [gatemarks.MEANS_WHY])
         text = gatemarks.depart_item(r)
         self.assertNotIn("世界の解:", text)
-        self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
+        self.assertEqual(gatemarks.recommend_of(r["mark"])["answer"], "continue", "推しは行の mark の欄 recommend が運ぶ")
+        self.assertNotIn(gatemarks.PUSH, text, "文には推しの尾を書かない")
         self.assertEqual(gatemarks.means_key(text), (2, "M1", "departs"))
 
     def test_plan_row_without_departs_has_no_push(self):
         r = gatemarks.means_rows(self.FIELDS, self.SAID)[0]
         self.assertNotIn("recommend", r["mark"])
-        text = gatemarks.depart_item(r)
-        self.assertIsNone(gatemarks.push_rec(text))
+        self.assertIsNone(gatemarks.recommend_of(r["mark"]))
+        self.assertNotIn(gatemarks.PUSH, gatemarks.depart_item(r))
 
     def test_drift_row(self):
         r = gatemarks.means_drift_rows([{"item": 1, "means": "M1", "design_quote": "設計の字", "plan_quote": "案の字",
@@ -381,10 +387,12 @@ class PrescriptionRowsCase(unittest.TestCase):
         self.assertTrue(gatemarks.PRESCRIPTION_WHY.startswith(gatemarks.ASK_CASES[0]), gatemarks.PRESCRIPTION_WHY)
         text = gatemarks.depart_item(r)
         self.assertNotIn("世界の解:", text)
-        self.assertEqual(gatemarks.push_rec(text)["answer"], "continue")
+        self.assertEqual(gatemarks.recommend_of(r["mark"])["answer"], "continue")
+        self.assertNotIn(gatemarks.PUSH, text, "文には推しの尾を書かない")
         bare = gatemarks.prescription_depart_rows(self.FIELDS, self.RX)[0]
         self.assertNotIn("recommend", bare["mark"])
-        self.assertIsNone(gatemarks.push_rec(gatemarks.depart_item(bare)), "推しの行を渡さなければ推しの尾は付かない")
+        self.assertIsNone(gatemarks.recommend_of(bare["mark"]), "推しの行を渡さなければ推しの欄は無い")
+        self.assertNotIn(gatemarks.PUSH, gatemarks.depart_item(bare))
         unread = gatemarks.prescription_depart_rows(self.FIELDS, {})[0]
         self.assertIn(gatemarks.PRESCRIPTION_UNREAD, unread["text"])
 

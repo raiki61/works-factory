@@ -22,7 +22,7 @@ def lines(rows: list) -> str:
 
 def human_passed(asked, before_fix) -> dict:
     """元 eyeverdict._human_passed。修正前の承認ノードの答え before_fix（{decision, text, asked}）が通す語なら、そこで聞いた項目 asked
-    （{kind, text}）のうち狭める能力と事前審査の穴の行を {(種類, 頭と推しの尾を外した本文): 答えた周} で返す（台帳の問いの行は数えない。
+    （{kind, text}）のうち狭める能力と事前審査の穴の行を {(種類, 頭を外した本文): 答えた周} で返す（台帳の問いの行は数えない。
     1 run 1 周）"""
     if not isinstance(before_fix, dict) or before_fix.get("decision") not in answer.GO_WORDS:
         return {}
@@ -31,7 +31,7 @@ def human_passed(asked, before_fix) -> dict:
         m = gatemarks.NARROW_HEAD.match(a)
         f = None if m else gatemarks.FACE_HEAD.match(a)
         if m or f:
-            out.setdefault(("regression" if m else f.group(1), gatemarks.PUSH_TAIL.sub("", a[(m or f).end():])), 1)
+            out.setdefault(("regression" if m else f.group(1), a[(m or f).end():]), 1)
     return out
 
 

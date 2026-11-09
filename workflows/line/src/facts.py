@@ -449,11 +449,13 @@ def halt_rows(returns: dict) -> list:
     return out
 
 
-def _question_rows(items) -> list:
+def _question_rows(items, *, push: bool = False) -> list:
     """独立の目の問いの要素（字でも {text, title} の行でも。plainask の読み口）を {text, title} の行にする。本文が空の物は落とす。
-    題は読み口が 1 行に畳み、無ければ None"""
+    題は読み口が 1 行に畳み、無ければ None。push が真（R2 の問い）なら行の欄 recommend も持ち回る（R4 の問いは欄を持たない）"""
     import plainask
-    return [{"text": plainask.item_text(q), "title": plainask.item_title(q)} for q in _list(items) if plainask.item_text(q).strip()]
+    return [{"text": plainask.item_text(q), "title": plainask.item_title(q),
+             **({"recommend": plainask.item_recommend(q)} if push and plainask.item_recommend(q) is not None else {})}
+            for q in _list(items) if plainask.item_text(q).strip()]
 
 
 def eye_questions(returns: dict) -> list:
@@ -467,7 +469,7 @@ def means_questions(returns: dict, gates: dict) -> list:
     import answer
     import seal
     eyes = as_dict(returns.get("eyes"))
-    qs = _question_rows(eyes.get("means_questions"))
+    qs = _question_rows(eyes.get("means_questions"), push=True)
     decided = as_dict(gates.get("gate-final")).get("decision") in (*answer.GO_WORDS, *answer.STOP_WORDS)
     return [] if decided and as_dict(eyes.get("r2")).get("status") != seal.REDESIGN else qs
 
@@ -1006,16 +1008,26 @@ def _deferred_said(q) -> str:
 # ---------------------------------------------------------------- 人が決めること
 class AskRow(typing.NamedTuple):
     """人が決める物の 1 行: text は 1 行に畳んだ本文、title は本文を書いた所の題（読み口が畳んだ字。無ければ None）、push は問いの種の行
-    （推しの尾を足す）"""
+    （推しの句を足す）、recommend は行の欄の推し（gatemarks.recommend_of が検めた値。無ければ None）、reason_push は台帳の問いの理由の推し
+    （本文が理由を載せているので句は足さず、推しが在ることだけを言う表示の欄。無ければ None）"""
     text: str
     title: str | None = None
     push: bool = False
+    recommend: dict | None = None
+    reason_push: str | None = None
 
 
-def _rows(items, *, push: bool = False, titles=None) -> list:
-    """items の各要素を AskRow に（本文は _item_said を 1 行に畳む）。titles は要素の並びと同じ長さの題の並び"""
+def _rows(items, *, push: bool = False, titles=None, recommends=None, reason_pushes=None) -> list:
+    """items の各要素を AskRow に（本文は _item_said を 1 行に畳む）。titles・recommends・reason_pushes は要素の並びと同じ長さの題・検めた推し・
+    台帳の問いの理由の推しの並び"""
     import oneline
-    return [AskRow(oneline.one_line(_item_said(x)), (titles[i] if titles else None), push) for i, x in enumerate(items)]
+    return [AskRow(oneline.one_line(_item_said(x)), (titles[i] if titles else None), push, (recommends[i] if recommends else None),
+                   (reason_pushes[i] if reason_pushes else None)) for i, x in enumerate(items)]
+
+
+def _vetted(x) -> dict | None:
+    """行の欄 recommend を gatemarks.recommend_of で検めた値（字の要素・欄の無い行・崩れた欄は None）"""
+    return gatemarks.recommend_of(x) if isinstance(x, dict) else None
 
 
 def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, unreturned: list, closed: bool) -> dict:
@@ -1049,10 +1061,13 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, un
         UNRESTORED_GROUP_HEAD: unrest(UNRESTORED_GROUP_HEAD, unrestored_lines(returns)),
         BACKED_OUT_HEAD: unrest(BACKED_OUT_HEAD, backed_out_lines(returns)),
         spec_head: _rows(spec_qs, push=True),
-        PLAN_KIND: _rows([plainask.item_text(q) for q in deferred], push=True, titles=[plainask.item_title(q) for q in deferred]),
+        PLAN_KIND: _rows([plainask.item_text(q) for q in deferred], push=True, titles=[plainask.item_title(q) for q in deferred],
+                         recommends=[_vetted(q) for q in deferred], reason_pushes=[plainask.item_reason_push(q) for q in deferred]),
         EYE_ASK_HEAD: _rows([q["text"] for q in eyes_], push=True, titles=[q["title"] for q in eyes_]),
-        MEANS_ASK_HEAD: _rows([q["text"] for q in means], push=True, titles=[q["title"] for q in means]),
-        HELD_KIND: _rows([line for _, line in held], push=True, titles=[plainask.item_title(q) if q else None for q, _ in held]),
+        MEANS_ASK_HEAD: _rows([q["text"] for q in means], push=True, titles=[q["title"] for q in means],
+                              recommends=[_vetted(q) for q in means]),
+        HELD_KIND: _rows([line for _, line in held], push=True, titles=[plainask.item_title(q) if q else None for q, _ in held],
+                         reason_pushes=[(gatemarks.reason_push(q) or None) if q else None for q, _ in held]),
         CONFLICT_ASK_HEAD: _rows(asked_conflicts(returns, closed)),
         fixboard.HANDOFF_HEAD: _rows(handoffs, titles=[plainask.item_title({"title": handoff_titles.get(x)}) for x in handoffs]),
         PROTECTED_HITS_HEAD: _rows(hits[:5]),
@@ -1060,6 +1075,16 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, un
         UNCOMPARED_HEAD: _rows(uncompared_rows(returns)),
         ESCALATED_KIND: _rows([premise] if premise.get("verdict") == "escalate" else []),
     }
+
+
+def _push_clause(row: AskRow, *, said: bool = False) -> str:
+    """行の本文の後ろに足す推しの句。欄 recommend が在れば検めた推し。欄が無い問いの種の行は「判定の役が書いていない」（行の本文か台帳の問いの理由が
+    推しを載せている行〔reason_push〕と、本文が既にその句を言っている行には足さない）。said が真（報告の頭の行）は、推しの在る行にだけ足す"""
+    if row.recommend is not None:
+        return f"——{gatemarks.PUSH}{gatemarks._words(row.recommend)}"
+    if said or not row.push or row.reason_push or gatemarks.PUSH + gatemarks.NO_PUSH in row.text:
+        return ""
+    return f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}"
 
 
 def ask_title(kind: str, row: AskRow) -> str | None:
@@ -1091,11 +1116,10 @@ def decisions(values: dict, returns: dict, gates: dict, *, unattended: bool, lef
         emitted.add(kind)
         if kind not in OWN_LINES:
             before.append(f"{kind}: {tallied.get(kind, len(rows))} 件")
-            before += [f"  - {row.text}" for row in rows]
+            before += [f"  - {row.text}{_push_clause(row, said=True)}" for row in rows]
         for row in rows:
             title = ask_title(kind, row)
-            text = row.text + ("" if not row.push or gatemarks.PUSH_IN.search(row.text) else f"——{gatemarks.PUSH}{gatemarks.NO_PUSH}")
-            asks.append({"kind": kind, "text": text, **({"title": title} if title else {})})
+            asks.append({"kind": kind, "text": row.text + _push_clause(row), **({"title": title} if title else {})})
     if HELD_KIND in emitted:
         before.append(f"  {gatemarks.ANSWER_HOW}")
     after = []
@@ -1162,17 +1186,17 @@ def answer_drafts(values: dict, returns: dict, gates: dict, unattended: bool) ->
     out += redirect_drafts(values)
     b = ledger(returns, gates, unattended)
     held = gatemarks.held_questions(b)
-    asked = [(q["text"], False) for q in eye_questions(returns)]
+    asked = [plainask.item_row(q["text"]) for q in eye_questions(returns)]   # R4 の問いは欄 recommend を持たない
     if unattended and as_dict(gates.get("gate-before-fix")).get("decision") not in answer.GO_WORDS:
         # 載せなかった修正前の項目のうち台帳の問い（gatemarks.ask_text の文）は、下の保留の台帳の問いとして key で 1 行にする
         ledger_texts = {gatemarks.ask_text(q) for q in held}
-        deferred = [plainask.item_text(q) for q in _list(as_dict(values.get("ask_before_fix")).get("deferred"))]
-        asked = [(q, True) for q in deferred if q not in ledger_texts] + asked
-    asked += [(q["text"], True) for q in means_questions(returns, gates)]
-    # asked は (文, 尾を読むか) の組: final.unattended_pass は R2 の行だけを gates.passage に掛け、R4 の行は読まずに止める。下書きも同じ分け方にする。
-    # 載せなかった修正前の項目のうち構造の目の設計の行と、R2 の照らせない行（UNCHECKED の尾に役の字を写す）は、末尾が役の字でも
-    # 抜け方が推しとして読むので、ここでも True のまま抜け方と揃える（その穴は issue #1014）
-    out += [gatemarks.item_draft(q, gatemarks.GATE_NODE, read_tail=r) for q, r in asked if q.strip()]
+        deferred = [q for q in _list(as_dict(values.get("ask_before_fix")).get("deferred")) if plainask.item_text(q) not in ledger_texts]
+        asked = [plainask.item_row(plainask.item_text(q), None, _vetted(q)) for q in deferred] + asked
+    asked += [plainask.item_row(q["text"], None, _vetted(q)) for q in means_questions(returns, gates)]
+    # asked は行の並び: 下書きの答えは行の欄 recommend だけから決める（final.unattended_pass と gates.before_fix の抜け方 gates.passage が同じ欄を
+    # 同じ gatemarks.recommend_of で読むので、抜け方と下書きは食い違わない）。欄の無い行（R4 の問い・設計の行・R2 の照らせない行）は text が空
+    out += [gatemarks.item_draft(plainask.item_text(q), gatemarks.GATE_NODE, recommend=q.get("recommend")) for q in asked
+            if plainask.item_text(q).strip()]
     for q in held:
         key = gatemarks.answer_key(b, q)
         push = gatemarks.reason_push(q)

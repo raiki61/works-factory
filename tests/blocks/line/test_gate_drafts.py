@@ -2,7 +2,7 @@
 
 元のファイルの SchemaCase・GapsCase（推しの欄の形と照らし。KEEP の lib/gatemarks.py）・IntakeCase（下書きの答えを依頼の入口が拒む。
 KEEP の lib/carry.py）は lib/tests に残り、planblk.RECOMMEND_REJECT の照らしは plan の block の試験へ移る。line に移るのは、役が
-書いた推しの尾で無人の run が修正前の承認ノードを抜けるか止まるかの決め（src/gates.py。機械は推しを作らない）。
+書いた推しの欄 recommend で無人の run が修正前の承認ノードを抜けるか止まるかの決め（src/gates.py。機械は推しを作らない）。
 """
 import unittest
 
@@ -27,10 +27,10 @@ class UnattendedDraftsCase(unittest.TestCase):
         return gates.before_fix(rounds_with(marks), unattended_run=True, design=False)
 
     def test_recommend_tail_reaches_the_gate_row(self):
-        """役が人に回す行に書いた推し recommend は、項目の文の末尾の尾になり、無人の run の答えに読み戻せる"""
+        """役が人に回す行に書いた推し recommend は、項目の行の欄 recommend に載って無人の run の答えになり、見せた文（asked）は推しの尾の無い本文"""
         out = self.ask([{gatemarks.RECOMMEND: REC}])
-        self.assertTrue(out["asked"][0].startswith(NARROW))
-        self.assertEqual(gatemarks.push_rec(out["asked"][0])["note"], REC["note"])
+        self.assertEqual(out["asked"][0], NARROW)
+        self.assertEqual(out["items"][0][1]["recommend"]["note"], REC["note"])
         self.assertEqual((out["go"], out["pushed"]["text"]), (True, REC["note"]))
 
     def test_no_recommend_stops_without_making_a_push(self):

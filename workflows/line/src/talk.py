@@ -48,6 +48,7 @@ import answer
 import gatemarks
 import jsonfile
 import oneline
+import plainask
 import ports
 import stopby
 
@@ -391,7 +392,7 @@ def settle(*, turn_got: dict, plan_out: dict | None, previous: dict | None, give
             text = talk_text(plan_out, items, run_id=run_id, consult=bool(consult), doc=doc, ways=ways, back=theme_run(given))
         if held:   # まだ計画の役に回していない受け箱の行と、答えでそれがどうなるか
             text += "\n" + "\n".join([UNPICKED_HEAD.format(what=ways["held"]), *(f"- {e['line']}" for e in held)]) + "\n"
-        return {**out, "done": False, "open": True, "text": text, "asked": [t for _, t in items]}
+        return {**out, "done": False, "open": True, "text": text, "asked": [plainask.item_text(r) for _, r in items]}
     base = {k: v for k, v in (previous or failed(stage)).items() if k not in TALK_FIELDS}
     said = turn_got.get("answer") or {}
     if turn_got.get("stop_reason"):   # 上限の周の修正要望・空の revise の続き・周の頭の落ち: 設計し直さずに止める
@@ -498,16 +499,16 @@ def talk_text(po: dict, items: list, *, run_id: str, consult: bool, doc: dict | 
     from src import gates, rounds
     k = po.get("round")
     doc = doc if isinstance(doc, dict) else _record(po)   # 材料が読んだ往復の記録（相談の結果だけの周は渡されないので読む）
-    texts = [t for _, t in items]
+    texts = [plainask.item_text(r) for _, r in items]   # 項目は字（設計の段の項目）か行（修正前の項目）。合意の照らしと件数は本文の字で
     ways = ways or outcomes(po)
     lines = gatemarks.head3(
         f"設計の相談の承認ノード（{gates.TALK_GATE}）が開いた。計画の周 {k} の設計案と事前審査の結果を見せる"
         + ("（相談の結果だけ。修正へは進まない）" if consult else ""),
         "この設計で修正・試験・レビューへ進めてよいか（合意）、直してほしい所を一言に書いて設計し直させるか、止めるか（打つ行は末尾の答え方）",
-        gatemarks.push_of(texts) if texts else
+        gatemarks.push_of([r for _, r in items]) if texts else
         f"人が決める項目は無い。事前審査の抜け方は {rounds.WORDS.get(doc.get('outcome'), 'まだ無い')}") + [""]
     lines += [f"設計案（計画の周 {k}）:", *plan_lines(po), "", "事前審査の結果:", *review_lines(po, doc), ""]
-    lines += [f"人が決める項目（{len(texts)} 件。合意すると修正前の承認ノードでは聞き直さない）:", *([f"- {t}" for t in texts] or [NO_ITEMS]), ""]
+    lines += [f"人が決める項目（{len(texts)} 件。合意すると修正前の承認ノードでは聞き直さない）:", *(gatemarks.item_lines([r for _, r in items]) or [NO_ITEMS]), ""]
     lines += ["答え方（依頼者に聞いて、その言葉で答える。答えるまで run は待つ）:",
               f"- 合意する: {answer.line(run_id, 'continue', '<通す範囲と条件>')}（{ways['agree']}。一言は run の記録 {gates.TALK_GATE} と"
               "修正前の答えに残り、修正役に届く。条件が無ければ approve でもよい）",

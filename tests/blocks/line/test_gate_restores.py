@@ -26,12 +26,16 @@ class ReviewFellCase(unittest.TestCase):
     def test_given_up_review_opens_with_its_reason(self):
         out = self.g.before_fix(self.fell("gave_up"), unattended_run=False, design=False)
         self.assertEqual((out["open"], out["go"]), (True, True))
-        self.assertEqual(out["items"], [(self.gm.GIVEN_UP_KIND, self.g.GIVEN_UP_FACES + "受け付けが 3 回拒んだ")])
+        kind, row = out["items"][0]
+        self.assertEqual(len(out["items"]), 1)
+        self.assertEqual((kind, row["text"]), (self.gm.GIVEN_UP_KIND, self.g.GIVEN_UP_FACES + "受け付けが 3 回拒んだ"))
+        self.assertNotIn("recommend", row, "諦めた事前審査の行は推しの欄を持たない")
 
     def test_failed_review_opens_too(self):
         out = self.g.before_fix(self.fell("failed", "plan-review の intake が落ちた"), unattended_run=False, design=False)
         self.assertTrue(out["open"])
-        self.assertEqual(out["items"][0], (self.gm.GIVEN_UP_KIND, self.g.REVIEW_FAILED + "plan-review の intake が落ちた"))
+        kind, row = out["items"][0]
+        self.assertEqual((kind, row["text"]), (self.gm.GIVEN_UP_KIND, self.g.REVIEW_FAILED + "plan-review の intake が落ちた"))
 
     def test_unattended_run_stops_as_needs_human(self):
         for status in ("gave_up", "failed"):

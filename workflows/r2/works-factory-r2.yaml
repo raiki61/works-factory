@@ -194,13 +194,20 @@ nodes:
             reason: {type: string}
         questions:
           type: array
-          # 要素は {text, title} の行（題 title は飾りの欄で、無い行は欄を持たない）。前の記録の字も受ける
+          # 要素は {text, title, recommend} の行（題 title は飾りの欄で、無い行は欄を持たない。recommend は引用を照らせた行にだけ、比べの役が書いた
+          # 推し {answer, note, why} を写す。照らせない行は欄を持たない）。前の記録の字も受ける
           items:
             type: [string, object]
             required: [text]
             properties:
               text: {type: string}
               title: {type: string}
+              recommend:
+                type: object
+                properties:
+                  answer: {type: string}
+                  note: {type: string}
+                  why: {type: string}
         premise_check:
           type: [object, 'null']
           properties:
