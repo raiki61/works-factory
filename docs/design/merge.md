@@ -229,6 +229,7 @@ bin/works-factory workflow run works-factory-merge \
 13. `report.lines` の引数は `(place, deliver, sealed_diff)`（前の版の設計の `(place, commit, read, deliver)` から替えた）。根拠: 積んだ commit の並びと訳は `deliver` が `commits`・`split` で既に持つので、commit と read の返りを渡し直す要が無い。seal の消すファイルの行は封じた差分を読むので、実のパス（`ports.place()` の `sealed.diff`）を受ける。node `merge` の place は seal の node と同じ include の道なので同じ場所を指す。本文は 1.3 の 5 と 3.4。
 14. この block は AI の node を持たないので、プロンプトの md も指示の比べの試験も無い。作業は 1 つの commit にまとめた（#764 の 2 つの commit の形は AI の md の写しと翻訳のための物）。`pr_commit.py` の commit の文など、人に見せる日本語の字は今のまま日本語で残す（AI に届く指示ではなく、PR の本文の材料と報告の行）。
 15. 標準の筋書きは今の `seal.stubs.yaml` を `standalone.stubs.yaml` に改めた物（6 本はそのまま）。入力は `base` を 40 字の版で。`place` と `pr-commit` と `pr-open` は stub で差し替え、`pr-read` と `merge` は本物の script が走る。
+16. `archon-pr` が GitHub に触る forge のプラグイン（止めた Archon `442c90f1` から要る。上流の #5365）は、殻が止めた源から作って Archon の子の `PATH` に置き、block は何もしない（`docs/design/archon.md` の「pack.json」の手順 4）。E11 の 3 つの答え: (1) Archon が持つか: プラグインと探し方（`ARCHON_HOME/plugins/`・`forge.plugins`・`PATH` の `archon-forge-*`）と、入れる命令 `archon plugin add`（公開版の実行ファイルを網から取る）を持つ。工場は家を run ごとに隔離するので、利用者が入れた物は届かず、公開版の実行ファイルは持ち主の決め `archon-same-as-asf` で使わない。上流の文書が書く手で作る道（`bun build --compile` で源の入口から作る）を殻が打つ。(2) ASF が持つか: `archon-pr` の頭の `forge-check` が、プラグインと資格が無ければ AI が走る前に断るだけで、置かない。(3) 要るか: 出口の語 `pr` の道（持ち主の決め `deliver-via-archon-pr`）は、置かないと毎回 `forge-check` で断られる。既定の道（差分だけを返す run）は要らないが、作るのは源ごとに 1 度で、網も利用者の手も要らない（E14）。
 
 ## 11 試験
 

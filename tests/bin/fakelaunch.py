@@ -2,6 +2,7 @@
 
 リポジトリの bin/・lib/・workflows/・pack.json を使い捨ての木に写し、その factory/pack.json は、同じ木の取り置きの置き場に作った
 偽の Archon の源の commit を名指す（本物の源は取らない・網に出ない）。偽の bun は受けた引数と環境を JSON に書く。
+殻が源から作る forge のプラグイン（bin/_lib/place.py の forge_plugin）も、偽の物を取り置きに置く（殻は作らずに使う）。
 """
 import json
 import pathlib
@@ -63,6 +64,11 @@ def put(path: pathlib.Path, body: str) -> pathlib.Path:
     return path
 
 
+def forge_plugin(cache_home: pathlib.Path, commit: str) -> pathlib.Path:
+    """殻が commit の源から作る forge のプラグインの取り置きの置き場（bin/_lib/place.py の forge_plugin の dest の中）"""
+    return cache_home / "works-factory" / "forge-plugin" / commit / "archon-forge-github"
+
+
 def build(base: pathlib.Path) -> Tree:
     """base（空の実体のパス）の下に、写したリポジトリ・偽の Archon の源・道具の置き場を作る"""
     repo = base / "repo"
@@ -86,6 +92,7 @@ def build(base: pathlib.Path) -> Tree:
     source.parent.mkdir(parents=True)
     staging.rename(source)
     (source / "node_modules").mkdir()
+    put(forge_plugin(cache_home, commit), "#!/bin/sh\n# 偽の forge のプラグイン\nexit 0\n")
     asf.update(integration_revision_required=commit, repository=str(source))
     (repo / "factory").mkdir()
     (repo / "factory" / "pack.json").write_text(json.dumps(asf), encoding="utf-8")

@@ -406,9 +406,9 @@ ARCHON_ROWS = (
     Row("workflow get --verbose --events の出来事の列の鍵", lambda: apply.EVENTS, "packages/cli/src/commands/workflow-query.ts",
         r"rawEvents\n\s*\? \{\n\s*\.\.\.run,\n\s*transcript_path: transcriptPath,\n\s*terminal_record: terminalRecord,\n\s*(events),$"),
     Row("ノードの出力を持つ出来事と済んだ状態", lambda: (*apply.OUTPUT_EVENTS, apply.COMPLETED), "packages/workflows/src/terminal-record.ts",
-        r"case '(node_completed)':\n\s*nodes\.set\(\n\s*nodeId,\n\s*withFanOutOutcome\(\{ node_id: nodeId, state: '(\w+)' \}, "
-        r"record\.data\.fan_out_outcome\)\n\s*\);\n\s*outputs\.set\(nodeId, record\.data\);"
-        r".*?case '(node_skipped_prior_success)':\n.*?\{ node_id: nodeId, state: '\2' \},.*?outputs\.set\(nodeId, record\.data\);",
+        r"case '(node_completed)':\n\s*nodes\.set\(\n\s*key,\n\s*withFanOutOutcome\(\{ node_id: nodeId, state: '(\w+)' \}, "
+        r"record\.data\.fan_out_outcome\)\n\s*\);\n\s*outputs\.set\(key, record\.data\);"
+        r".*?case '(node_skipped_prior_success)':\n.*?\{ node_id: nodeId, state: '\2' \},.*?outputs\.set\(key, record\.data\);",
         lambda m: (m[1], m[3], m[2])),
     Row("記録の出力の読みの鍵（型つきの出力・切り詰めの印・素の出力）", lambda: apply.OUTPUT_KEYS, "packages/workflows/src/terminal-record.ts",
         r"Object\.hasOwn\(data, '(\w+)'\).*?data\?\.(\w+) === true.*?typeof data\?\.(\w+) === 'string'", lambda m: m.groups()),

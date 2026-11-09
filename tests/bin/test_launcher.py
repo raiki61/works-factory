@@ -971,6 +971,64 @@ class LauncherTest(unittest.TestCase):
         self.assertIn(str(self.gh), shim)
         self.assertIn(str(self.home), shim)
 
+    def forge_cached(self) -> pathlib.Path:
+        """偽の木の取り置きの forge のプラグイン。消す試験のために、試験の後に元の偽の物へ戻す"""
+        plugin = fakelaunch.forge_plugin(self.cache_home, self.source.name)
+        self.addCleanup(put, plugin, plugin.read_text(encoding="utf-8"))
+        return plugin
+
+    def builds_forge(self, code: int) -> pathlib.Path:
+        """bun build だけを受けて打った場所と引数を控え、code が 0 なら --outfile を作る偽の bun（ほかは FAKE_BUN）。控えの置き場を返す"""
+        log = self.tmp / "builds.jsonl"
+        put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, pathlib, sys\nif sys.argv[1:2] == ['build']:\n"
+            f"    open({str(log)!r}, 'a').write(json.dumps({{'argv': sys.argv[1:], 'cwd': os.getcwd()}}) + '\\n')\n"
+            f"    if {code} == 0:\n"
+            "        out = pathlib.Path(sys.argv[sys.argv.index('--outfile') + 1])\n"
+            "        out.write_text('#!/bin/sh\\nexit 0\\n'); out.chmod(0o755)\n"
+            "        pathlib.Path(os.getcwd(), '.left.bun-build').write_text('x')\n"
+            f"    sys.exit({code})\n" + FAKE_BUN.split("\n", 2)[2])
+        return log
+
+    def test_forge_plugin_is_on_the_path_of_archon(self):
+        """出口の語 pr の archon-pr は forge のプラグインで GitHub に触り、Archon は PATH の archon-forge-* の名でも探す。殻は止めた源から
+        作った物を Archon の子の PATH に置く（隔離した家に利用者が入れた物は届かない）"""
+        env = self.reached(self.launch("workflow", "status"))["env"]
+        found = shutil.which(place.FORGE_PLUGIN, path=env["PATH"])
+        self.assertEqual(pathlib.Path(found), fakelaunch.forge_plugin(self.cache_home, self.source.name))
+
+    def test_forge_plugin_is_built_once_from_the_pinned_source_outside_it(self):
+        """取り置きに無ければ、止めた源の入口から 1 度だけ作る。bun は打った場所に一時の物を残すので、源の外の使い捨ての置き場で打ち、
+        取り置きにはプラグインだけが残る"""
+        plugin = self.forge_cached()
+        shutil.rmtree(plugin.parent)
+        log = self.builds_forge(0)
+        for _ in range(2):
+            env = self.reached(self.launch("workflow", "status"))["env"]
+            self.assertEqual(pathlib.Path(shutil.which(place.FORGE_PLUGIN, path=env["PATH"])), plugin)
+        builds = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(builds), 1, "2 度目の起動も作った")
+        self.assertEqual(builds[0]["argv"][:3], ["build", "--compile", str(self.source / place.FORGE_ENTRY)])
+        self.assertFalse(pathlib.Path(builds[0]["cwd"]).is_relative_to(self.source), builds[0]["cwd"])
+        self.assertEqual(sorted(p.name for p in plugin.parent.iterdir()), [place.FORGE_PLUGIN])
+
+    def test_forge_plugin_that_cannot_be_built_is_told_and_the_launch_goes_on(self):
+        """作れなければ 1 行告げて PATH に足さずに起こす（既定の道はプラグインが要らない）。取り置きに半端な物を残さない"""
+        plugin = self.forge_cached()
+        shutil.rmtree(plugin.parent)
+        self.builds_forge(1)
+        done = self.launch("workflow", "status")
+        env = self.reached(done)["env"]
+        self.assertIsNone(shutil.which(place.FORGE_PLUGIN, path=env["PATH"]))
+        self.assertIn(f"forge のプラグイン {place.FORGE_PLUGIN} が作れない", done.stderr)
+        self.assertFalse(plugin.parent.exists())
+
+    def test_users_own_forge_plugin_is_not_doubled(self):
+        """利用者の PATH に同じ名のプラグインが在れば、殻の物を足さない（Archon は同じプラグインが 2 つ在ると探しを落とす）"""
+        own = put(self.fake / place.FORGE_PLUGIN, "#!/bin/sh\nexit 0\n")
+        env = self.reached(self.launch("workflow", "status"))["env"]
+        self.assertEqual(shutil.which(place.FORGE_PLUGIN, path=env["PATH"]), str(own))
+        self.assertNotIn(str(fakelaunch.forge_plugin(self.cache_home, self.source.name).parent), env["PATH"].split(os.pathsep))
+
     def test_role_path_starts_with_read_only_gh(self):
         """役が打つ gh は読むだけの口 works-gh（役の claude を起こす包みが PATH の頭に足す）: 書く命令とトークンの読み出しを拒み、
         読む命令は利用者の gh を継ぐ口へ渡す"""

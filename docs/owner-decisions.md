@@ -166,6 +166,9 @@
 - 持ち主の言葉: 「アーキ的にArchonの上に載るだけ。ASFを参考にするって感じにしておいてね。自分でカバーしたりはしてないと思うから都度用心しておいて」（2026-10-13）
 - 決め: works-factory は Archon の上に載る pack で、ASF は作りの手本にとどめる。Archon が持つ役（グラフの実行・承認ノード・止まりの記録・ノードへの値の受け渡しなど）を works-factory の側で作り直して覆わない。
 - 当て方: issue を立てる時と PR に目を当てる時に、毎回「Archon の役を自分で覆っていないか」を問い、issue の「直す向き」と PR の目の結果に 1 行で書く。Archon で足りない所を埋める物は `docs/polyfills.md` の埋めとして名指した範囲だけ。`asf-on-archon`・`archon-base` と同じ向き。
+- 持ち主の言葉（2026-11-09。上流への追い付きの計画の会話）: 「置き換えれるなら、自作はなくしたい」
+  - 決め: 上流の Archon・ASF の口で置き換えられる自作の物（埋めと、埋めでない自前の部品）は、置き換えて消す。
+  - 当て方: 版を上げるたびに、`docs/polyfills.md` の上流の行と、`docs/design/archon.md` の「入った口のうち、工場の部品を減らせなかった物と訳」で、置き換えられる物を挙げる。置き換えが作りの変わる物（例: メイングラフの受け皿を `$NODE_OUTCOMES_FILE` の読みに替える。埋め P8）は、版上げとは別の PR で、先に設計書に 1 枚書いてから替える。`slim-first` の一部。
 
 ### `no-mutation-in-graph` 変異の検算はグラフに戻さない。変異試験は CI などで別に回す
 
@@ -277,7 +280,7 @@
 
 - 持ち主の言葉（2026-10-16、PR #637）: 「asfは他人のものなので、勝手にあがったらそれを使えばいいのでは？今の版に固執する意味はどこにある？」
 - 決め: 止めた Archon は 1 つの止めのまま upstream の dev に上げ、ASF も dev に在るグラフだけを使う。ASF の枝 `refs/heads/factory/sdlc-on-dev` の版に留まる理由を持たない。dev に無い ASF のグラフ（`archon-lifecycle`・`archon-merge-queue`・`archon-verify-runtime`・`archon-verify-runtime-suite`・`archon-deploy`・`archon-backlog`・`archon-discoveries`・`archon-regress`）を指す所は外す。
-- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
+- 当て方: `factory/pack.json` の `integration_revision_required` と `entries`（2026-11-09 に `442c90f1` へ上げた時、dev で消えた `archon-validate`〔#5391〕を `entries` から外した。上げるのは `slim-first` の初めの仕事）。`factory/consumer.py` は merge の方針（必須の check・守りのパス）をグラフの入力に差し込まず、schedule は `.factory/schedule.json` の `workflow` を名指さなければ断る。下の「段 0〜1 を回す ASF のグラフ」と引いた決めの「自分食いと手の直し」の当て方の lifecycle は、この決めで ship に置き換える。
 - 運び役の決め（2026-10-16、PR #637 の修理の依頼 3 回目。持ち主の言葉ではない）: dev に従うのは ASF のグラフと Archon の版で、Archon 本体の既定の値には従わず、工場が自分で決める物がある（既定の provider の claude・`workflows.autoResumeOnQuotaReset: false`）。後者は、使用枠の上限で落ちた run を別のアカウントで resume する今の回復の道と、待ちに入った fan_out の子の起こし方を実測するまで、落とす形を残すため。当て方（#679 で家の `config.yaml` の書き換えをやめた）: 既定の provider は Archon の環境変数 `DEFAULT_AI_ASSISTANT`（家と対象の repo の設定が provider を選んでいればそちらが勝つ）、`workflows.autoResumeOnQuotaReset` は新しい run の `--config` の層（`bin/_lib/place.py` の `run_config`。利用者の `--config` の値が勝つ）。群の別名（`@wf-<群>`）も同じ層で渡す（`run-model-choice`）。
 - 運び役の決め（2026-10-17、#679 の修理の依頼。持ち主の言葉ではない）: 使用枠の方針 `workflows.autoResumeOnQuotaReset` は、対象のリポジトリの設定（`.archon/config.yaml`）より層が勝つ。変えられるのは利用者の `--config` だけ（審査される側のリポジトリに工場の方針を変えさせない）。
 
@@ -937,6 +940,31 @@
   3. 裏返しと採った key は、後の往復で挙げ直しても裏返しのまま読む。
 - 足す置き場（E10）: 足さない。出自の語に `flip` を 1 つ、往復の行に欄 `flips` を 1 つ足す。
 - 当て方: 出自の照らし `lib/converge.py` の `flip_claims`・`flipped`・`central_keys`（line の写し `workflows/line/src/rounds.py` の `add_pass` が呼ぶ）、承認ノードの行 `workflows/plan-review/src/gate.py` の `_face_rows`、審査の指示 `workflows/plan-review/prompts/parts/origin-ask.md`。
+
+## 2026-11-09 の決め（上流への追い付きとスリム化）
+
+出典: 2026-11-09 の持ち主と運び役の会話。上流の Archon の dev（`442c90f1`）への追い付きと、自作の範囲を減らす計画の問い（使われていない block を消すか・上流の試験の型を当てるか）への答え。
+
+### `slim-first` 機能の開発は区切りで止め、上流への追い付きとスリム化を先にする
+
+- 持ち主の言葉: 「一旦私の工場は良い区切りがきたら開発をとめましょうか。綺麗にスリムにするのを次は優先します。」「そうね。まずは追いつきも込みで。自作の範囲も減らしていこう。」
+- 決め: 工場の機能を足す開発は良い区切りで止め、次は工場を綺麗に小さくするのを優先する。その初めに、止めた Archon を上流の dev に上げる（追い付き）。あわせて自作の範囲を減らす（上流で置き換えられる物は下の `on-archon-only` の 2026-11-09 の行、試験は `tests-guard-writes`）。
+- 足す置き場（E10）: 足さない。
+- 当て方: 版上げ（2026-11-09 に `2886e883d` から `442c90f1`。`asf-follows-dev`）を先に入れ、その後に自作を減らす PR を並べる。区切りの後は、新しい機能の PR より追い付きと自作を減らす PR を先にする。`slim` と同じ向き。
+
+### `keep-standalone-blocks` どの graph からも呼ばれない block も、単独で使える部品として残す
+
+- 持ち主の言葉: 「まあ部品は残しましょうか。単独で使えるしアセットだよね」（どの graph からも呼ばれない block 3 本〔`cold-read`・`guidance-path`・`gate-efficacy`〕を消すかの問いへの答え。推しは消すだった）
+- 決め: どの graph からも `include:`・`workflow:` で呼ばれない block も消さない。単独で回せる部品として残し、単独の筋書きの試験を CI で回し続ける。
+- 足す置き場（E10）: 足さない。
+- 当て方: `slim`・`slim-first` で消す物を選ぶ時に、呼ばれないことだけを消す訳にしない。`gate-efficacy-outside-judge` の「単独で回せる形のまま残す」と同じ向き。
+
+### `tests-guard-writes` 試験は、書き込みか承認の判断を守る物を残す向きで減らす（上流 #5364 の型。`tests/layers/` は外す）
+
+- 持ち主の言葉: 「どうぞ」（上流の SDLC の pack が #5364 で採った「書き込みか承認を守る試験だけを残す」型を工場の試験に当てるかの問いに、運び役が推し〔当てる。ただし `tests/layers/` は今は外し、`tests/blocks/` と筋書きから始める〕を述べての答え）
+- 決め: 工場の試験を減らす物差しに、上流の SDLC の pack の型（pack の憲法 `.archon/workflows/sdlc/CONSTITUTION.md` の「Tests help authoring」。試験は書き込み・承認と merge の判断・持ち主の承認・片付けを守る物と、人が気にする結末ごとに 1 本の筋書きを残し、指示の字・YAML の形・run の道筋だけを縛る試験は減らす）を当てる。決まりの機械の行の試験（`tests/layers/`）は物差しから外す（憲法の 6 と `mechanism-over-tests` のまま）。`tests/blocks/` と筋書きから始め、どれを消すかは別の調べで一覧にしてから消す。
+- 足す置き場（E10）: 足さない。
+- 当て方: 試験を消す PR は、消した試験と、それが守っていた物（と代わりに照らす物が在ればそれ）を本文に書く（`mechanism-over-tests` の消す時の書き方と同じ）。`docs/asf-notes.md` の「採るか決めていない候補」の pack の憲法の行。
 
 ## 引き継いだ決め
 

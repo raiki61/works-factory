@@ -3,7 +3,7 @@
 
 - ASF（AI software factory）: Archon の作者が `coleam00/Archon` の `.archon/workflows/sdlc/` に置く、SDLC（作業の受け付けから PR まで）のグラフの束。下の行の多くが引く `d97d00ef` は枝 `refs/heads/factory/sdlc-on-dev` の commit で、upstream の dev から消えたグラフ（lifecycle・merge-queue・verify-runtime など 8 本）を含む。
 - コードは写さず、型（なぜその形か）だけを採る（`AGENTS.md` の E8）。Archon のリポジトリの根には MIT の `LICENSE` が在る（`05a564a74` から）が、写さないのは E8 の決め。
-- 見る版は止めた Archon（`docs/design/archon.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `2886e883d67ad422068bdd0a1c4d95709a8a6de9`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
+- 見る版は止めた Archon（`docs/design/archon.md` の「語」）（Archon の本体と同じ源。持ち主の決め `archon-same-as-asf`）。今は upstream の dev の `442c90f10b3d24fc823ce5b73bfc50932c1a4844`（持ち主の決め `asf-follows-dev`）。`bin/` が取ったその源の `.archon/workflows/sdlc/` を横に並べて読む。下の行の commit は、その型を採った時の版。
 - 下のパスは ASF のリポジトリの根からの相対。`W` は `.archon/workflows/sdlc` の略。
 
 ## 書き方
@@ -108,7 +108,7 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 
 ### A13 走らせ方を見つけるのは AI、走らせるのは script
 
-- ASF: d97d00ef の `W/validate/archon-validate.yaml`:106-154（走らせ方を見つけるのは判断なので役 `discover` が argv の並びを返し、走らせるのは計算なので script `run` が走らせて終了コードを控える）。
+- ASF: d97d00ef の `W/validate/archon-validate.yaml`:106-154（走らせ方を見つけるのは判断なので役 `discover` が argv の並びを返し、走らせるのは計算なので script `run` が走らせて終了コードを控える）。`archon-validate` は upstream の dev の #5391（`df32f3ff3`）で消え、`442c90f1` には無い。型は採ったまま残す（採った先は ASF のグラフを読まない）。
 - なぜその形か: 対象ごとの道具の知識は役の判断に置き、走らせと事実の照らしは機械が持つ。役の申告を走らせた結末で確かめられる。
 - 採った先: test-gate の `suite-loop`（tdd_suite を省いた run の base で、`suite-write` が TDD の実行器の本文を返し、`suite-place` が置き、`suite-try` が走らせて照らす）。
 - 違い: argv でなく実行器の本文を返す（JUnit XML の 1 件ごとの結末を第 1 引数の書き先に書く約束が要るため）。照らしは別に走らせず、修正前のテストの一式の回を兼ねる 1 回の結末（JUnit XML が出たか・試験が 1 件以上か）を読む。照らしを通った本文は test_cmd の字と実行器を書く指示の版を鍵に利用者ごとの取り置きに置き、次の run は役を起こさずに使う（使う時も同じ照らしを通す。持ち主の決め `suite-by-ai`）。
@@ -135,3 +135,4 @@ ASF の版を進めた時は、各セクションの行を新しい版で読み�
 - 続きの審査は前の周から今までの「この変更の分」だけを見て、同じ仕組みの指摘は類ごと 1 つにまとめる（ASF #4220）。再審と 2 度目の修正の目に渡せる。
 - 2 度目の同じ指摘は類の一覧つきの直しへ、範囲を越えるかの問いは人へ回し、計画のやり直しにしない（ASF #4517）。
 - 想像した危険に手を打たない。指摘は今そこへ届く道を名指す（ASF #4398）。修正の規則と独立の目の指示に足せる。
+- pack の憲法 `W/CONSTITUTION.md` の「Tests help authoring」と「Smaller is the default」（`442c90f1` で読んだ。ASF #5364・#5385）。試験は書き込みか承認の判断を守る物と、人が気にする結末ごとに 1 本の筋書きだけを残し、形・指示の字・道筋を縛る試験は壊れた時に消す。ノードを足す前に消せる物を探す。工場の試験を減らす物差しに当てると持ち主が決めた（`docs/owner-decisions.md` の `tests-guard-writes`。`tests/layers/` は外す）。減らした時に上の書き方で 1 セクションにする。

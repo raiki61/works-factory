@@ -1702,7 +1702,7 @@ def _human_gate(node) -> bool:
 def _gate_words(root: Path) -> list[str]:
     """関所は wait: の attention を form: select で書き、options に答えの語（lib/answer.py の GO_WORDS・STOP_WORDS。STOP_WORDS は
     REJECT を含む）を全部持つ（K10。止めた Archon は options に無い答えを拒み、run は関所で止まったまま。実測 2026-10-16）。
-    approval: は書かない（止めた Archon が非推奨にした。packages/workflows/src/loader.ts の LEGACY_PAUSE_REPLACEMENTS）。
+    approval: は書かない（止めた Archon が非推奨にした。packages/workflows/src/schemas/gate-node.ts の approvalConfigSchema に付けた legacy_pause の印）。
     輪（loop_group）の本体に置く関所は、本体の唯一の終わり（本体のどの節もその関所に依らず、ほかの本体の節はどれもほかの本体の節に
     依られる）だけで、輪の until_bash はその関所の出力（`$<関所>.output`）を読まない（K18。止めた Archon a972888a の正式な形
     「Pausing to ask inside the body」: 答えは次の周の頭が $LOOP_PREV で読み、when: で飛んだ関所は出力を持たないので、until_bash が読むと

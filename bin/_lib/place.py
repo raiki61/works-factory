@@ -50,8 +50,15 @@ CAP_ENV = "WORKS_FACTORY_CLAUDE_CONCURRENCY"
 # provider-concurrency.ts。run の層〔--config〕からは読まない）。リクエストのたびに読み直すので、置き場の設定として残る
 CAP_FILE = "config.yaml"
 
+# 出口の語 pr の時に merge が起こす ASF の archon-pr は、GitHub に forge のプラグインだけで触る（上流の #5365）。Archon はプラグインを
+# $ARCHON_HOME/plugins・家の config.yaml の forge.plugins・PATH の archon-forge-* の名で探す（源の文書 reference/forge.md）が、殻は
+# run ごとに家を隔離するので、利用者が入れた物は届かない。殻が止めた源の物を 1 度だけ作り、Archon の子の PATH に足す（forge_plugin）
+FORGE_PLUGIN = "archon-forge-github"
+FORGE_ENTRY = "packages/adapters/src/forge/github/plugin.ts"
+
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
+Build = Callable[[Path, Path], None]
 
 
 def cache_dir(env: Mapping[str, str]) -> Path:
@@ -268,6 +275,36 @@ def git_fetch(repo: str, commit: str, dest: Path) -> None:
 def bun_install(source: Path) -> None:
     """源の bun.lock のとおりに依存を入れる。lock は書き換えない"""
     subprocess.run(["bun", "install", "--frozen-lockfile"], cwd=source, check=True)
+
+
+def bun_build(entry: Path, out: Path) -> None:
+    """entry を 1 つの実行ファイル out に作る（bun build --compile。網に出ない）。bun は打った場所に一時の実行ファイル
+    （.<hash>.bun-build）を残すので、源の中でなく、使い捨ての置き場で打つ（源に残ると _verify の照らしが落ちる）"""
+    with tempfile.TemporaryDirectory(dir=out.parent, prefix=".build.") as work:
+        subprocess.run(["bun", "build", "--compile", str(entry), "--outfile", str(out)], cwd=work, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+
+
+def forge_plugin(pack: dict, source: Path, cache: Path, build: Build = bun_build) -> Path:
+    """止めた源 source の GitHub の forge のプラグインを <cache>/forge-plugin/<commit>/archon-forge-github に 1 度だけ作り、その置き場
+    （FORGE_PLUGIN だけが在るフォルダ。PATH に足す）を返す。在れば作らない。作れなければ途中の物を残さず 1 行の RuntimeError"""
+    dest = cache / "forge-plugin" / pack["archon"]["commit"]
+    if (dest / FORGE_PLUGIN).is_file():
+        return dest
+
+    def fill(staging: Path) -> None:
+        staging.mkdir()
+        try:
+            build(source / FORGE_ENTRY, staging / FORGE_PLUGIN)
+            if not (staging / FORGE_PLUGIN).is_file():
+                raise FileNotFoundError(f"{FORGE_PLUGIN} ができていない")
+        except Exception as error:
+            said = getattr(error, "stderr", None) or str(error)
+            reason = " ".join(str(said).split())[-300:] or type(error).__name__
+            raise RuntimeError(f"forge のプラグイン {FORGE_PLUGIN} が作れない: {reason}") from error
+
+    _replace(dest, fill)
+    return dest
 
 
 def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
