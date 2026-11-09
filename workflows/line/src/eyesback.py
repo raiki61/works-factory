@@ -47,6 +47,7 @@ FIELDS = ("go", "round", "only_items", "notes", "prior", "plan", "fix_plan", "ri
           "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims", "item_kinds")
 RECORD = ("rows", "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims")
 FIX_ROUTE = "fix"
+UNFINISHED = "unfinished"   # 返す項目の種のうち作り残し（直す前の赤を求める側）。種の語の列挙の正本は独立の目の出力の形
 _LINE_AT = re.compile(r":\d+(?:-\d+)?$")
 
 
@@ -119,9 +120,15 @@ def _tied(items: list, plan_fields) -> list:
 
 def _kinds(items: list, plan_fields, only: list) -> list:
     """返した項目の種を修正案の項目の番号ごとに並べた [{item, kind}]（現れた順・重なりは 1 つ）。項目に結べた時（only が空でない）は、
-    結べた項目の番号とその指摘の種。結べず全部を対象にした時は、全部の項目の番号に返した種を並べる。種の無い指摘は行を作らない"""
+    結べた項目の番号とその指摘の種。ただし結べなかった指摘に作り残し（unfinished）が 1 つでも在れば、その指摘は notes でだけ渡り
+    どの項目で直されるか分からないので、only の全部の項目を unfinished にする（赤の義務を黙って外さない。持ち主の決め no-silent-loosen）。
+    結べず全部を対象にした時は、全部の項目の番号に返した種を並べる。種の無い指摘は行を作らない"""
     if only:
-        pairs = [(n, i.get("kind")) for i, n in _ties(items, plan_fields)]
+        ties = _ties(items, plan_fields)
+        tied = [id(i) for i, _ in ties]
+        if any(i.get("kind") == UNFINISHED and id(i) not in tied for i in items):
+            return [{"item": n, "kind": UNFINISHED} for n in only]
+        pairs = [(n, i.get("kind")) for i, n in ties]
     else:
         pairs = [(n, i.get("kind")) for i in items for n in range(1, len(plan_fields or []) + 1)]
     return [{"item": n, "kind": kind} for n, kind in dict.fromkeys(pairs) if isinstance(kind, str) and kind]

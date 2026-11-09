@@ -86,14 +86,19 @@ class TurnCase(_Case):
                          ({"head": "abc", "diff_hash": "h1"}, True, False, True, {"items": [], "claims": []}))
 
     def test_returned_items_carry_their_kinds_by_item_number(self):
-        """返す項目の種を修正案の項目の番号ごとに item_kinds へ運ぶ。R1 の指摘だけが結ばれた項目は trim の 1 行・R1 と R2 が同じ項目に
-        結ばれれば 2 行・結べず全部を対象にした時は全部の項目に返した種を並べ・種の無い指摘は行を作らない。返さない抜け方と
-        script の落ちた時の形では空の配列になる"""
+        """返す項目の種を修正案の項目の番号ごとに item_kinds へ運ぶ。R1 と R2 が同じ項目に結ばれれば 2 行・結べず全部を対象にした時は
+        全部の項目に返した種を並べ・種の無い指摘は行を作らない。結べなかった指摘に作り残し（unfinished）が在れば、notes で渡る
+        その指摘を赤なしで直させないよう、結べた項目を全部 unfinished にする（整えの指摘だけが結ばれた項目も。持ち主の決め
+        no-silent-loosen）。結べなかった指摘が整えだけなら結べた項目の種のまま。返さない抜け方と script の落ちた時の形では空の配列になる"""
         r1 = {"eye": "r1", "kind": "trim", "where": "src/a.py:12", "text": "写しが残っている"}
         r2 = {"eye": "r2", "kind": "unfinished", "where": "", "text": "入口が足りない"}
         r2_tied = {**r2, "where": "src/a.py:30"}
         got = self.run_turn(eyes=eyes(items=[r1, r2]))
-        self.assertEqual(got.get("item_kinds"), [{"item": 1, "kind": "trim"}], "結べたのは R1 の指摘だけ")
+        self.assertEqual(got.get("item_kinds"), [{"item": 1, "kind": "unfinished"}],
+                         "結べたのは R1 の整えだけでも、結べなかった R2 の作り残しが在るので項目 1 は赤を求める側に倒す")
+        r2_trim = {**r2, "kind": "trim"}
+        self.assertEqual(self.run_turn(eyes=eyes(items=[r1, r2_trim])).get("item_kinds"), [{"item": 1, "kind": "trim"}],
+                         "結べなかった指摘が整えだけなら結べた項目の種のまま")
         both = self.run_turn(eyes=eyes(items=[r1, r2_tied]))
         self.assertCountEqual(both.get("item_kinds") or [], [{"item": 1, "kind": "trim"}, {"item": 1, "kind": "unfinished"}])
         untied = self.run_turn(eyes=eyes(items=[r2]))
