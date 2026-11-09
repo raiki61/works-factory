@@ -384,8 +384,6 @@ materials.md の 4 節の順。観点の前の照らし（4 節の 3）と後の
 
 - standalone の fixture（`workflows/local-review/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node `local-review` だけを台本の返答（`material.status: clean`・`checked` 1 文・`simplify_carried: false`・`findings` は 7 本のレンズに 1 行ずつ、`items: []`・`invoked: true`・`failed: "起こしたが所見なし（差分を見た）"`。ただし `/code-review` の行は `items` に 1 件〔`where` は fixture の作業ツリーに在るファイルの 1 行目〕を持たせ、見ていない印が付かない形にする）で差し替え、script は本物（`--exec-code`）。`reached` に `finish`。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: not_applicable`（ほかは standalone と同じ）。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`、`reason` が `materialkit.entry_skip("P1 の役").why` の字。
 - `tests/blocks/local_review/test_local_review.py`: materials.md の 8 節の block の試験（使い捨ての `ARTIFACTS_DIR` と git のリポジトリ、port の値だけ）。写す元は `test_judge_accept.py` の `MaterialCase`:
   - `test_local_review_rows_cover_the_declared_lenses`: 行の欠け・宣言の外の名・同じレンズの 2 行・`items` も `failed` も無い行を、それぞれ拒む（宣言の外の名の文は「正本は宣言のレンズ」）。
   - `test_missing_required_lens_is_refused`: 必須のレンズを起こしていない返答と、それを `awaiting_human` にした返答を拒み、プラグインが入っていれば `done` が偽（`CLAUDE_CONFIG_DIR` を使い捨ての設定に向ける）。
@@ -409,6 +407,13 @@ uv run --isolated python3 -m unittest discover -s tests/blocks/local_review -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 uv run --isolated python3 -m unittest tests.blocks.local_review.test_prompts
 ```
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/local_review/test_local_review.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/local_review/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/local_review/test_local_review.py` の `FlowCase` から: 判定から入る run の飛ばしの 2 本・指示の字の 4 本（レンズの宣言・/code-review を子の中で起こす節・sandbox の shell の断片・言語）・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `tests/blocks/local_review/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
+- `tests/blocks/local_review/test_lenses.py` から報告の行の字（`test_report_lines`）。
 
 ## 3 script の node
 

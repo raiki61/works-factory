@@ -275,8 +275,6 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 
 - standalone の fixture（`workflows/purpose-review/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`purpose: '{"purpose_text":"…目的の文…","source":"③writer の要約","known_weaknesses":[],"source_files":[]}'`・`entry: ""`・`lang: ""`。AI の node `purpose-review` だけを台本の返答（`verdict: 問題なし`・`reason` 1 行・`findings: []`）で差し替える。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が `verdict: 狭めている`・`findings: []`（台本は 1 周分。3 回の数えは単体の試験 `test_three_rejections_give_up` が見る）。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `purpose` の `source` を `①PR 説明` にする。AI の node は走らず、`finish` の `status` が `skipped`、`reason` が「目的テキストの出典が ①PR 説明——…」。
 - `tests/blocks/purpose_review/test_purpose_review.py`（materials.md の 8 節の block の試験）:
   - 写す元 `test_judge_accept.py::MaterialCase.test_purpose_review_findings_must_cite_the_version`: 4 つの返答（数の合う根拠・版に無い字・数の合わない申告・根拠の無い『狭めている』）で、1 つ目だけが `material.json` の `reply` に載り、ほかは拒みの文に今の字（「'どこにも無い字列' が現物に 1 件も無い」など）を含む。根拠の字は試験のリポジトリで固めた版に在る字にする。
   - 写す元 `DueCase.test_purpose_review_only_for_writer_summary`: 出典が `③writer の要約` なら `due` が真、`①PR 説明` なら偽。足す: `purpose` が null なら偽で、`reason` が「目的の文が渡されていない」で始まる。差分が空で `entry` の在る run でも、出典が ③ なら真（入口の印を読まない）。
@@ -294,6 +292,12 @@ uv run --isolated python3 -m unittest lib.tests.test_materialkit
 uv run --isolated python3 -m unittest discover -s tests/blocks/purpose_review -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 ```
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/purpose_review/test_purpose_review.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/purpose_review/test_purpose_review.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/purpose_review/test_purpose_review.py` の `FlowCase` から: 入口の印を読まない 1 本（`ViewpointCase.test_due_follows_the_source_word` が見る）・指示の字の 2 本（値と拒みの節・目的の文の波括弧。波括弧が残ることは `tests/blocks/shared/test_prompt.py` の `test_values_fill_slots_and_braces_stay`）・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `ViewpointCase.test_declaration`（族の全部は `tests/blocks/materials/test_viewpoints.py`）。語の写し `test_words_match_the_yaml_and_the_other_blocks` は、出典の語が purpose と食い違うと役が黙って起きなくなるので残した。
 
 ## 3 script の node
 
@@ -345,4 +349,4 @@ bin/works-factory workflow run works-factory-purpose-review \
   - `role_prep.py` に 4 つの鍵を外す 1 行は要らなかった。訳: main の `materialkit.prompt_inputs` が `NA_PARAGRAPH` が偽の観点には `na_*` を足さない。`viewpoint.NA_PARAGRAPH = False`（`tests/blocks/materials/test_viewpoints.py` が名を要る）。
   - 英語の md の「started in a new conversation」を外した。訳: 輪が `fresh_context: false` で、2 回目からは同じ会話を続ける。「新しい会話」と書くと事実に反する（調整役の知らせ）。輪は prep → 役 → accept の 1 本道で、同じ層に 2 つの node は並ばない。
   - 「purpose」の port の既定は文字列 `"null"`。訳: `ports.json` は空の字を拒み、Archon は省いた入力に既定を入れる。
-  - `skipped.stubs.yaml` は AI の node を `reached` に入れない。status と reason の字は `tests/blocks/purpose_review` が見る。
+  - 出典が writer の要約でない run の筋書き（skipped）は AI の node を `reached` に入れなかった（2026-11-10 の削りで消した。2.9 の終わり）。status と reason の字は `tests/blocks/purpose_review` が見る。

@@ -16,7 +16,7 @@
 
 ### 1.1 役
 
-差分が解いている問題を一般の問題の類にし、外の一次情報で、その類の定番解・順位・既知の落とし穴を確かめ、差分がどの順位に乗るか・手元に宣言済みの依存で済むのに自作していないかを返す。見た範囲と見ていない範囲も返させる。機械が、作業ツリーを変えていないか・所見の場所がファイルに在るか・順位の行の差分の乗る所が順位の字に在り、最上位でなければ訳が在るか・素材の欄が決まりに合うかで受け付ける。判定から入る run では役を起こさない。判定から入る run かは port `entry` だけで決める: line（メイングラフ。run の始めに始めの記録を書き、判定のまとめを通して block に port の値を配る）は差分が空で人の依頼が在る run にだけ `entry` に出どころの文を入れて渡し、block は差分と依頼から推し直さない（prior-decisions と同じ。materials.md の 10 節）。単独の run でも `materialkit.is_entry_run`（`entry` が空でなく、かつ block が測った対象差分が空）で決め、差分が在る run は `entry` に字を入れても回す（2.9 の `skipped.stubs.yaml` はこれで回さない道を確かめる）。
+差分が解いている問題を一般の問題の類にし、外の一次情報で、その類の定番解・順位・既知の落とし穴を確かめ、差分がどの順位に乗るか・手元に宣言済みの依存で済むのに自作していないかを返す。見た範囲と見ていない範囲も返させる。機械が、作業ツリーを変えていないか・所見の場所がファイルに在るか・順位の行の差分の乗る所が順位の字に在り、最上位でなければ訳が在るか・素材の欄が決まりに合うかで受け付ける。判定から入る run では役を起こさない。判定から入る run かは port `entry` だけで決める: line（メイングラフ。run の始めに始めの記録を書き、判定のまとめを通して block に port の値を配る）は差分が空で人の依頼が在る run にだけ `entry` に出どころの文を入れて渡し、block は差分と依頼から推し直さない（prior-decisions と同じ。materials.md の 10 節）。単独の run でも `materialkit.is_entry_run`（`entry` が空でなく、かつ block が測った対象差分が空）で決め、差分が在る run は `entry` に字を入れても回す（回さない道は `tests/blocks/external_standards/test_viewpoint.py` の due の試験が確かめる）。
 
 ### 1.2 port
 
@@ -279,8 +279,6 @@ materials.md の 4 節の順のまま。観点の前の照らしは無く、後�
 
 - standalone の fixture（`workflows/external-standards/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`purpose: '{"purpose_text":"…目的の文…","source":"①PR 説明","known_weaknesses":[],"source_files":[]}'`・`entry: ""`・`lang: ""`。AI の node `external-standards` だけを台本の返答（`material.status: clean`・`checked` 1 行・`findings: []`・`seen`・`unseen` 1 行ずつ・`web_refetched: true`・`rankings` 1 行〔`ranked` 1 つ、`diff_at` が同じ字〕）で差し替える。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `diff_at` が `ranked` に無い。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node は走らず、`finish` の `status` が `skipped`、`material.json` の素材 `external_standards` が `not_applicable` で、`reason` が出どころ「人の依頼（standalone）」と「件数は渡されていない」の句を含む。
 - `tests/blocks/external_standards/test_external_standards.py`（materials.md の 8 節の block の試験）:
   - 写す元 `test_judge_accept.py::MaterialCase.test_accept_rules` の external-standards の場合（`diff_at` が最上位でなく `why_not_higher` が無い返答を拒み、`material.json` を書かない）。足す: `rankings` が空で `rankings_none` が無い返答を拒む・`diff_at` が `ranked` に無い返答を拒み、文が「ranked に無い」を含む・`rankings` が空でも `rankings_none` に訳が在る `clean` を受ける・拒みの文の頭が `観点 external-standards: `。
   - 写す元 `test_missing_purpose_is_said_not_invented`: `purpose` が null の run で組んだ指示が目的の文の無い 1 文を含み、`Original purpose: ` の後に目的の文を持たず、`prompt_inputs` の値に `purpose_text`・`known_weaknesses` が無い。
@@ -300,6 +298,12 @@ uv run --isolated python3 -m unittest discover -s tests/blocks/external_standard
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 uv run --isolated python3 -m unittest tests.blocks.external_standards.test_prompts
 ```
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/external_standards/test_external_standards.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/external_standards/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/external_standards/test_external_standards.py` の `FlowCase` から: 判定から入る run の飛ばしの 2 本・指示の字の 3 本（目的の有無・REVIEW.md の段落・次の周の拒みの節）・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `tests/blocks/external_standards/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
 
 ## 3 script の node
 
@@ -346,5 +350,5 @@ bin/works-factory workflow run works-factory-external-standards \
   - 役の md の頭の文から「started in a new conversation」を外した（`You are the external-standards role. Your only job …`）。訳: 輪は `fresh_context: false` で、2 回目からは同じ会話を続けるので、「新しい会話」と言うと誤る。standalone の筋書きの決まった文もこの頭の文に合わせた。
   - `NA_PARAGRAPH = True` を宣言に足した（共通の試験が要る名。1.5 は書いていない）。
   - 1 つ目の commit の材料のファイル `src/oldbrief.py` は、本物の run の物が手元に無いので、今の `judge_accept.material_prep` の字（見出し・節の名・『条件に当たらない』の段）を `judge_accept.py` の定数から組み直して書いた。本物の run の物との字の比べ（2.9 の (b)）はしていない。2 つ目の commit で消した。
-  - 試験は 2.9 のとおり。起こし方の照らしは、2.9 が名指す pack の試験 tests/workflows の `test_judge.py`（#765 で消えた）の行を `ShapeCase.LAUNCH` に字で写した。
+  - 試験は 2.9 のとおり。起こし方の照らしは、2.9 が名指す pack の試験 tests/workflows の `test_judge.py`（#765 で消えた）の行を `ShapeCase.LAUNCH` に字で写した（2026-11-10 の削りで消した。2.9 の終わり）。
   - `values` は目的の値と `repo_review_md` を、段落が入らない時は空の字で渡す。訳: 1.5 は「在る時だけ」と書くが、`workflows/.shared/AGENTS.md` の決め（指示を組む口は選ばれない段落の中の `{name}` も数える。prep はいつも同じ組の値を渡す）が勝つ。

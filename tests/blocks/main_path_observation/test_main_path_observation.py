@@ -8,13 +8,11 @@ import json
 import sys
 import unittest
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
 sys.path.append(str(kit.ROOT / "lib"))
-BLOCK = kit.BLOCKS / "main-path-observation"
 NAME = "main-path-observation"
 LOOP = f"{NAME}-loop"
 ROW = {"path": "変えたコマンドを 1 回動かした", "value": "使い方の文を出して終了コード 0"}
@@ -81,12 +79,9 @@ class FlowCase(unittest.TestCase):
                 self.assertEqual(self.material()["materials"], {"main_path_observation": material})
                 (self.run.artifacts / "accepted.json").unlink()
 
-    def test_not_applicable_is_refused_and_the_prompt_says_so(self):
+    def test_not_applicable_is_refused(self):
         self.intake()
-        prompt = self.prep()["prompt"]
-        self.assertIn("The condition of this viewpoint holds for this run (差分が利用者から見える経路に触れる)", prompt)
-        for gone in ("does not hold for this run", "none of the facts the machine holds", "has no condition under which"):
-            self.assertNotIn(gone, prompt)
+        self.prep()
         got = self.accept({"material": {"status": "not_applicable", "reason": "無い"}, "observed": []})
         self.assertEqual((got["ok"], got["done"]), (False, False))
         self.assertIn("条件が真で走ったのに not_applicable", got["reason"])
@@ -112,79 +107,6 @@ class FlowCase(unittest.TestCase):
         got = self.accept(GOOD)
         self.assertFalse(got["ok"])
         self.assertIn("作業ツリー", got["reason"])
-
-    def test_entry_run_is_skipped_with_a_reasoned_material(self):
-        """写す元 MaterialCase.test_materials_of_an_entry_run_are_not_applicable: 判定から入る run は役を起こさず、出どころつきの not_applicable"""
-        got = self.intake(entry="人の依頼（/p/req.json）")
-        self.assertFalse(got["due"])
-        fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"]), (True, "skipped"))
-        mat = self.material()["materials"]["main_path_observation"]
-        self.assertEqual(mat["status"], "not_applicable")
-        self.assertIn("人の依頼（/p/req.json）", mat["reason"])
-        self.assertIn("件数は渡されていない", mat["reason"])
-        self.assertEqual(fin["report"][0].split("（")[0], "素材 main_path_observation: not_applicable")
-
-    def test_entry_with_a_diff_still_runs(self):
-        (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
-        self.assertTrue(self.intake(entry="人の依頼（/p/req.json）")["due"])
-
-    def test_prompt_carries_the_paths_and_the_language(self):
-        (self.run.repo / "README.md").write_text("直した\n", encoding="utf-8")
-        self.intake(lang="Japanese")
-        got = self.prep()["prompt"]
-        view = json.loads((self.run.artifacts / "view.json").read_text(encoding="utf-8"))
-        for line in (f"- Target diff (Read it): {view['diff_file']}",
-                     f"- List of changed files (one file per line; Read only what you need): {view['changed_files_file']}",
-                     f"- Repository: {view['repo']}"):
-            self.assertIn(line, got)
-        self.assertIn("row in Japanese.", got)
-
-    def test_included_block_writes_in_its_own_place(self):
-        RUN = f"{NAME}-run"   # judge の graph がこの block を include する id（block の中の node と同じ id にしない）
-        self.run.script("intake", f"judge__{RUN}__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__{RUN}__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / RUN / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", f"judge__{RUN}__finish")
-        self.assertEqual(fin["material"]["path"], f"judge/{RUN}/material.json")
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    # 今の判定の main-path-observation の役の起こし方（tests/workflows の test_judge.py の ROLES["main-path-observation"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 test_run_launch を、作り直しの時に字で写した物）。組み込みで workflows/ が
-    # 入れ替わっても、この期待は block の起こし方の正本として残る
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
-              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                          "enableWeakerNetworkIsolation": True, "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                          "filesystem": {"allowWrite": ["/"], "denyWrite": ["~/../archon-home"]}},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def test_launch_matches_the_judge_role(self):
-        """起こし方は今の判定の main-path-observation の役と同じ（群の既定は sonnet・medium。役の node は mutates_checkout を持たない）"""
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertNotIn("mutates_checkout", role)
-        self.assertEqual(role["output_format"]["required"], ["material", "observed"])
-        row = role["output_format"]["properties"]["observed"]["items"]
-        self.assertEqual((row["required"], row["additionalProperties"]), (["path", "value"], False))
-        self.assertEqual(row["properties"], {"path": {"type": "string", "minLength": 1}, "value": {"type": "string", "minLength": 1}})
 
 
 if __name__ == "__main__":

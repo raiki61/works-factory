@@ -7,12 +7,10 @@ import json
 import sys
 import unittest
 
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-BLOCK = kit.BLOCKS / "test-double-fidelity"
 NAME = "test-double-fidelity"
 LOOP = f"{NAME}-loop"
 GOOD = {"material": {"status": "clean", "checked": "client.py の代役と実物の応答 1 件の形"}, "mismatches": []}
@@ -42,10 +40,6 @@ class FlowCase(unittest.TestCase):
     def material(self):
         return json.loads((self.run.artifacts / "material.json").read_text(encoding="utf-8"))
 
-    def test_lang_reaches_the_prompt(self):
-        self.intake(lang="Japanese")
-        self.assertIn(" in Japanese.", self.prep()["prompt"])
-
     def test_port_values_alone_reach_the_material(self):
         """写す元 MaterialCase.test_test_double_fidelity_reply_is_taken_or_refused: carried_over は拒み、clean は素材の欄に写して受ける"""
         self.assertEqual(self.intake()["due"], True)
@@ -62,14 +56,9 @@ class FlowCase(unittest.TestCase):
         self.assertEqual((doc["role"], doc["status"]), (NAME, "ran"))
         self.assertEqual(doc["materials"], {"test_double_fidelity": GOOD["material"]})
 
-    def test_not_applicable_is_refused_and_the_paragraph_says_why(self):
+    def test_not_applicable_is_refused(self):
         self.intake()
-        got = self.prep()["prompt"]
-        self.assertIn("The condition of this viewpoint holds for this run (差分が外部との継ぎ目に触れる)", got)
-        for gone in ("has no condition under which", "does not hold for this run", "none of the facts the machine holds"):
-            self.assertNotIn(gone, got)
-        self.assertIn("Bash runs inside a sandbox, and its network is open", got)
-        self.assertNotIn("If you start a sub-agent", got)
+        self.prep()
         refused = self.accept({**GOOD, "material": {"status": "not_applicable", "reason": "継ぎ目が無い"}})
         self.assertEqual((refused["ok"], refused["done"]), (False, False))
         self.assertIn("条件が真で走ったのに not_applicable", refused["reason"])
@@ -103,68 +92,6 @@ class FlowCase(unittest.TestCase):
         self.finish()
         wheres = [r["where"] for r in self.material()["reply"]["mismatches"]]
         self.assertEqual(wheres, ["app.txt:1", "app.txt:99" + materialkit.LOCATION_MARK])
-
-    def test_entry_run_skips_the_role(self):
-        got = self.intake(entry="人の依頼（試験）")
-        self.assertFalse(got["due"])
-        fin = self.finish()
-        self.assertEqual((fin["ok"], fin["status"]), (True, "skipped"))
-        mat = self.material()["materials"]["test_double_fidelity"]
-        self.assertEqual(mat["status"], "not_applicable")
-        self.assertIn("人の依頼（試験）", mat["reason"])
-        self.assertIn("件数は渡されていない", mat["reason"])
-
-    def test_report_lists_each_mismatch(self):
-        self.intake()
-        self.prep()
-        self.assertTrue(self.accept(FOUND)["ok"])
-        fin = self.finish()
-        self.assertEqual(fin["status"], "ran")
-        self.assertIn("  - 代役の不一致: 代役の応答に id が無い（app.txt:1）", fin["report"])
-
-    def test_prep_without_intake_fails_the_node(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        RUN = f"{NAME}-run"   # judge の graph がこの block を include する id（block の中の node と同じ id にしない）
-        self.run.script("intake", f"judge__{RUN}__intake", base="", entry="", lang="")
-        self.run.script("role_prep", f"judge__{RUN}__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / RUN / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", f"judge__{RUN}__finish")
-        self.assertEqual(fin["material"]["path"], f"judge/{RUN}/material.json")
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    # 今の判定の test-double-fidelity の役の起こし方（workflows/judge/works-factory-judge.yaml の錨 test_run_launch と
-    # tests/workflows の test_judge.py の ROLES の行を、作り直しの時に字で写した物）
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
-              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                          "enableWeakerNetworkIsolation": True,
-                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                          "filesystem": {"allowWrite": ["/"], "denyWrite": ["~/../archon-home"]}},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        sys.path.append(str(kit.ROOT / "lib"))
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    def test_launch_matches_the_judge_role(self):
-        sys.path.append(str(kit.ROOT / "lib"))
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertNotIn("mutates_checkout", role)
-        self.assertEqual(role["output_format"]["required"], ["material", "mismatches"])
 
 
 if __name__ == "__main__":

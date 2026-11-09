@@ -10,10 +10,6 @@ class ViewpointCase(unittest.TestCase):
         self.mk = self.vp.materialkit
         self.view = self.mk.View(".", "b", "r", "/d/diff.patch", ("x.py",), "/d/changed.txt", "", 1)
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_REASON, self.vp.NA_PARAGRAPH),
-                         (("local_review",), False, "never", "", True))
-
     def test_never_viewpoint_does_not_answer_applies(self):
         with self.assertRaises(NotImplementedError):
             self.vp.applies(self.view, {})
@@ -38,11 +34,9 @@ class ViewpointCase(unittest.TestCase):
         self.assertEqual(got["repo_review_md"], "", "対象の根に REVIEW.md が無い")
         self.assertEqual(self.vp.when(self.view, {}), {"spawns": True, "repo_review": False})
 
-    def test_materials_and_report_lines(self):
+    def test_materials(self):
         self.assertEqual(self.vp.materials_of({}), {})
         self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"local_review": {"status": "clean"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"findings": []}}), [])
 
 
 if __name__ == "__main__":

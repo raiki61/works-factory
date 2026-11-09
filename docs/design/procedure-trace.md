@@ -265,7 +265,6 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 - standalone の fixture（`workflows/procedure-trace/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: "HEAD~1"`・`entry: ""`・`lang: ""`。fixture の木（`tests/archon.py` の `blocks_tree` が置く木）は、対象の入口のファイル（`README.md`・`AGENTS.md`）を 2 つ目の commit に置くので、`HEAD~1` から作業ツリーまでの差分に手順のファイル（`README.md`）が入る。`intake` の `due` が真になり、AI の node `procedure-trace` を起こす道を通り（`reached` に `procedure-trace-prep`・`procedure-trace`・`procedure-trace-accept`・`finish`）、役の返答は差し替えで `clean`。指示が md から組まれたことを md の決まった文で照らす。回さない道（`status: skipped`）は `tests/blocks/procedure_trace` の試験が見る。
   - `skipped.stubs.yaml` は置かない（`standalone.stubs.yaml` がその道。materials.md の 8 節の「回す条件を持つ観点は skipped」を満たす）。
-  - `gave-up.stubs.yaml`: 入力は standalone と同じ（`base: "HEAD~1"`）。役の返答が受け付けを通らない（手順のファイルに触れる run で `not_applicable`）道。筋書きでは輪が 1 周で終わるので、3 回で諦めて `status: gave_up` を返す数えは、下の子のプロセスの試験が見る。
 - `tests/blocks/procedure_trace/test_procedure_trace.py`: materials.md の 8 節の block の試験（使い捨ての `ARTIFACTS_DIR` と git のリポジトリ、port の値だけ）。
   - 写す元 `test_judge_accept.py::MaterialCase.test_procedure_trace_reply_is_taken_or_refused`: 作業ツリーに `run.sh` を足した木で回し、`not_applicable` の返答は拒まれる（`cond_true`）。見た返答（`clean`）は受け、`material.json` の `materials` が `{"procedure_trace": <返答の material>}`。今の試験の「条件が偽なら not_applicable を受ける」の枝は、block では役が起きないので、`intake` が `due` 偽で `not_applicable` を機械が書く照らしに替える。
   - 写す元 `DueCase.test_procedure_trace_needs_procedure_files`: 変更ファイルが `src/a.txt` だけなら `due` が偽で、`finish` の `status` が `skipped`・素材の `reason` が `fill_na` の字。
@@ -279,6 +278,12 @@ materials.md の 4 節の順のまま。観点の前の照らしと後の照ら�
 - 指示の比べ（README の 11.4）: tests/blocks/procedure_trace の `test_prompts.py`。prior-decisions.md の 2.9 と同じ 2 つの commit の形。1 つ目の commit の値の口は `lang_line`・`reason`・`brief_file`・`review_md`・`repo_review_md`（今の md が `$procedure-trace-prep.output.<欄>` で読む 5 つ）。値は 2.5 の仮の値（例の run の値に `README.md` を足した物）で、今の `material_prep` が同じ値で描く材料のファイルと `oldbrief.brief` の字が同じことを照らす（本物の run の材料のファイルが無いので、今のコードで描いた字と比べる。自分で決めた。7 節）。
 - 守る keep-essence の番号: 無い。守るのは「手順のファイルに触れない run で役を起こさず、理由つきの `not_applicable` を書く」と「計器を動かした役の作業ツリーの変化を拒む」で、上の試験が見る。
 - 終わりの条件の命令: materials.md の 8 節の 4 行の `<観点の package の名>` を `procedure_trace` にした物。
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/procedure_trace/test_procedure_trace.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run と手順のファイルの無い run で役を起こさない決めは `tests/blocks/procedure_trace/test_viewpoint.py` の `test_due` と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（手順のファイルの無い道は `FlowCase.test_no_procedure_file_does_not_start_the_role` も残す）。
+- `tests/blocks/procedure_trace/test_procedure_trace.py` の `FlowCase` から: 判定から入る run の飛ばしの 2 本・指示の字の 2 本（対象の REVIEW.md の段落・言語）・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。輪の役が prep だけを待つ（会話を続ける）ことは `tests/layers/test_block_loop_sessions.py` が見る。
+- `tests/blocks/procedure_trace/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
 
 ## 3 script の node
 

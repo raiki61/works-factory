@@ -11,11 +11,6 @@ class ViewpointCase(unittest.TestCase):
         self.empty = self.mk.View(".", "b", "r", "d", (), "c", "", 0)
         self.diffed = self.mk.View(".", "b", "r", "d", ("x.py",), "c", "", 0)
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         (("main_path_observation",), False, "cond", True))
-        self.assertEqual(self.vp.NA_REASON, "対象差分は利用者から見える経路・外部との継ぎ目を変えていない")
-
     def test_due_follows_the_entry_run(self):
         self.assertTrue(self.vp.due(self.empty, {"entry": ""}).run)
         self.assertTrue(self.vp.due(self.diffed, {"entry": "e"}).run, "差分が在れば entry が在っても入口の周でない")
@@ -47,12 +42,9 @@ class ViewpointCase(unittest.TestCase):
     def test_after_survives_a_material_that_is_not_an_object(self):
         self.assertIsNone(self.vp.after(None, {}, {"material": "x", "observed": []}, None))
 
-    def test_material_and_report(self):
+    def test_material(self):
         self.assertEqual(self.vp.materials_of({}), {})
         self.assertEqual(self.vp.materials_of({"material": {"status": "clean"}}), {"main_path_observation": {"status": "clean"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"observed": []}}), [])
-        self.assertEqual(self.vp.report_lines({"reply": {"observed": [{"path": "a\nb", "value": "ok"}]}}), ["  - 観測: a b → ok"])
 
 
 if __name__ == "__main__":

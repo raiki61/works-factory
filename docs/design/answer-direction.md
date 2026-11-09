@@ -44,7 +44,7 @@
 ### 1.4 コードの置き場
 
 - `src/direction.py`: `due`（起こすかと入力の読み）・`read_reply`・`outcome`・`failed`・place のファイルの名 `REPLY`・向きの語 `VERDICTS`（YAML の enum と同じ。試験が突き合わせる）。向きの語と `aligned` の真偽の決めはここ 1 か所。line に写さない。
-- `scripts/`: `direction_prep.py`・`direction_save.py`・`finish.py`。`prompts/direction.md`。`schemas/shown.schema.json`（入力 `asked`・`plan` の形）。`fixtures/`: `standalone.stubs.yaml`・`failed.stubs.yaml`。
+- `scripts/`: `direction_prep.py`・`direction_save.py`・`finish.py`。`prompts/direction.md`。`schemas/shown.schema.json`（入力 `asked`・`plan` の形）。`fixtures/`: `standalone.stubs.yaml`。
 
 ## 2 呼ぶ形
 
@@ -76,4 +76,8 @@ block は呼ばれた答えを照らすだけで、どの答えを照らすか�
 
 ## 6 試験
 
-`tests/blocks/answer_direction/test_answer_direction.py`: `redirected`・`unclear`・同じ向き・空の一言・返答の欠け・読めない答え・読めない計画・指示の文に計画と一言と見せた項目が載ること。筋書きは `fixtures/`（`standalone`: 逆向きの一言で `aligned` が偽。`failed`: 役が落ちて `aligned` が偽）。line 側の縛りは `tests/blocks/line/test_gates.py`（`DirectionStopCase`・`ScriptCase`）・`test_scenarios.py`（`DirectionStopTest`）・`test_wiring.py`。
+`tests/blocks/answer_direction/test_answer_direction.py`: `redirected`・`unclear`・同じ向き・空の一言・返答の欠け・読めない答え・読めない計画。筋書きは `fixtures/`（`standalone`: 逆向きの一言で `aligned` が偽）。line 側の縛りは `tests/blocks/line/test_gates.py`（`DirectionStopCase`・`ScriptCase`）・`test_scenarios.py`（`DirectionStopTest`）・`test_wiring.py`。
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない物を落とした。
+- 筋書き `failed.stubs.yaml`（役が落ちても返す node が走り `aligned` が偽）: 返す node `finish` が `trigger_rule: all_done` で落ちた役の後にも走ることは pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、返答の控えが無い時に `failed`・`aligned` 偽で返すことは `test_a_missing_reply_fails_closed` が見る。
+- `test_prompt_carries_the_plan_approach_and_the_note`（指示に計画と一言と見せた項目が載る・言語の 1 文・一言の中の `{name}` が残る・include の中の place）: 指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で、値の中の波括弧が残ることは `tests/blocks/shared/test_prompt.py` の `test_values_fill_slots_and_braces_stay`、include の place は `tests/blocks/shared/test_ports.py` の `PlaceCase` が見る。

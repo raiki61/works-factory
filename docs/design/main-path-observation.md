@@ -251,8 +251,6 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 
 - standalone の fixture（`workflows/main-path-observation/fixtures/`）:
   - `standalone.stubs.yaml`: `fixture.inputs` は `base: ""`・`entry: ""`・`lang: ""`。AI の node だけを台本の返答（`material.status: clean`・`checked` 1 文・`observed` 1 行）で差し替える。`reached` に `finish`。`finish` の `status` が `ran`。
-  - `gave-up.stubs.yaml`: 台本の返答が 3 回とも `material.status: clean`・`observed: []`（後の照らしで拒まれる）。`finish` の `status` が `gave_up`、run は `completed`。
-  - `skipped.stubs.yaml`: `entry: "人の依頼（standalone）"`。AI の node に届かず、`finish` の `status` が `skipped`。
 - `tests/blocks/main_path_observation/test_main_path_observation.py`: materials.md の 8 節の block の試験。
   - 写す元 `test_judge_accept.py::MaterialCase.test_accept_writes_material_file`: `clean` と `observed` 1 行の返答が通り、`material.json` の `role` が `main-path-observation`、`materials` が `{"main_path_observation": <返答の material>}`。
   - 写す元 `MaterialCase.test_accept_rules` の main-path-observation の場合: `clean`・`observed: []` は拒まれ、`accepted.json` が書かれない。拒みの文が「main-path-observation: status=clean なのに観測した値（observed）が 1 つも無い」で始まる。
@@ -262,13 +260,19 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
   - 足す: `report` に `observed` の行ごとの「観測」の行が出る。
   - 足す（起こし方の照らし）: block の YAML の AI の node の起こし方の設定（model・effort・使える道具・sandbox・作業ツリーを変えないか）が、組み込みの前の試験 tests/workflows の `test_judge.py` の役の表 `ROLES` の main-path-observation の行と同じ値（`sonnet`・`medium`・道具は Read・Grep・Glob・Bash・WebSearch・WebFetch・sandbox は組み込みの前の試験の定数 `DELEGATE` の形〔外への通信を全部許し、作業ツリーの中への書き込みだけを禁じる〕）で、node に `mutates_checkout: false` の宣言を付けない点も同じである。
 - 指示の比べ（README の 11.4）: tests/blocks/main_path_observation の `test_prompts.py`。作り方は [test-double-fidelity.md](test-double-fidelity.md) の 2.9 と同じで、元の md は `material-main-path-observation.md`、元の材料のファイルは例の run の `judge/material-main-path-observation-brief.md`（末尾の節は `user_path_touched` が真の字）。
-- 守る keep-essence の番号: 無い（keep-essence は元の works が「作り替えで外さない」と決めた 12 の仕組み〔README の 10 節〕で、この観点はそのどれにも当たらない）。守るのは「動かしていない経路を見たと言わせない」（`main_path_observed`）で、上の受け付けの試験と `gave-up` の fixture が見る。
+- 守る keep-essence の番号: 無い（keep-essence は元の works が「作り替えで外さない」と決めた 12 の仕組み〔README の 10 節〕で、この観点はそのどれにも当たらない）。守るのは「動かしていない経路を見たと言わせない」（`main_path_observed`）で、上の受け付けの試験が見る。
 - 終わりの条件の命令（1 モジュールずつ）:
 
 ```sh
 uv run --isolated python3 -m unittest discover -s tests/blocks/main_path_observation -t .
 uv run --isolated python3 -m unittest tests.layers.test_block_shape
 ```
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/main_path_observation/test_main_path_observation.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/main_path_observation/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- `tests/blocks/main_path_observation/test_main_path_observation.py` の `FlowCase` から: 判定から入る run の飛ばしの 2 本・指示の字（パスと言語）・intake 無しの落ち・自分の place に書く。`test_not_applicable_is_refused` は拒みだけを残し、指示の段落の字を落とした。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
+- `ShapeCase`（YAML の写し）: 輪の上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `tests/blocks/main_path_observation/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
 
 ## 3 script の node
 

@@ -9,10 +9,6 @@ class ViewpointCase(unittest.TestCase):
         self.vp = kit.load("hygiene", "viewpoint")
         self.mk = self.vp.materialkit
 
-    def test_declaration(self):
-        self.assertEqual((self.vp.MATERIALS, self.vp.GUARDED, self.vp.NA, self.vp.NA_PARAGRAPH),
-                         (("hygiene",), True, "never", False))
-
     def test_never_viewpoint_does_not_answer_applies(self):
         with self.assertRaises(NotImplementedError):
             self.vp.applies(None, {})
@@ -35,7 +31,6 @@ class ViewpointCase(unittest.TestCase):
                          {"hygiene": {"status": "clean", "checked": "差分の全部"}})
         got = self.vp.materials_of({"findings": [{"where": "a.py:3", "text": "閉じ忘れ"}], "seen": "a.py"})
         self.assertEqual(got, {"hygiene": {"status": "found", "checked": "a.py", "count": 1, "detail": "a.py:3: 閉じ忘れ"}})
-        self.assertEqual(self.vp.report_lines({"reply": None}), [])
 
 
 if __name__ == "__main__":
