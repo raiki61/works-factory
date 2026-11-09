@@ -789,8 +789,8 @@ class MeansCase(_RepoCase):
         self.assertIn({"kind": "means", "what": "M1: 集計は 1 か所の関数にまとめる"}, given)
         self.assertTrue(any("means: M1: 集計は 1 か所の関数にまとめる" in n for n in done["notes"]))
 
-    def test_checked_row_becomes_a_question_with_the_push_tail(self):
-        """引用が合う行は、役の推しを欄 recommend に持つ問いの行になり（文に推しの尾は書かない）、判定は役の語のまま（pass）。報告の R2 の行にも並ぶ"""
+    def test_checked_row_becomes_a_question_with_the_push(self):
+        """引用が合う行は、役の推しを欄 recommend に持つ問いの行になり（文に推しは書かない）、判定は役の語のまま（pass）。報告の R2 の行にも並ぶ"""
         done = self.run_with(conflict())
         self.assertEqual(done["verdict"]["status"], "pass")
         self.assertEqual(len(done["questions"]), 1)
@@ -815,13 +815,14 @@ class MeansCase(_RepoCase):
         self.assertIn("引用を照らせなかった", self.run_with(conflict(diff_quote="a/old.txt"))["questions"][0]["text"])
 
     def test_unchecked_quote_drops_the_push(self):
-        """引用が独立設計か差分の字に無い行は、推しの尾を外して「引用を照らせなかった」を付ける（案 C。状態に数えない）"""
+        """引用が独立設計か差分の字に無い行は、推しの欄 recommend を持たせずに「引用を照らせなかった」を付ける（案 C。状態に数えない）"""
         for row, why in ((conflict(design_quote="設計に無い文"), "design_quote"), (conflict(diff_quote="差分に無い行"), "diff_quote")):
             with self.subTest(why):
                 done = self.run_with(row)
                 self.assertEqual(done["verdict"]["status"], "pass")
                 q = done["questions"][0]["text"]
                 self.assertNotIn("推し:", q)
+                self.assertNotIn("recommend", done["questions"][0])
                 self.assertIn("（引用を照らせなかった: ", q)
                 self.assertIn(why, q)
 
@@ -830,20 +831,24 @@ class MeansCase(_RepoCase):
         done = self.run_with(conflict(), means=None)
         q = done["questions"][0]["text"]
         self.assertNotIn("推し:", q)
+        self.assertNotIn("recommend", done["questions"][0])
         self.assertIn("M1 が頼みの解き方の番号の範囲の外", q)
 
     def test_bad_recommend_drops_the_push(self):
         done = self.run_with(conflict(recommend={"answer": "maybe", "note": "どちらでも", "why": "分からない"}))
         self.assertNotIn("推し:", done["questions"][0]["text"])
+        self.assertNotIn("recommend", done["questions"][0])
         self.assertIn("引用を照らせなかった", done["questions"][0]["text"])
 
     def test_path_in_the_words_drops_the_push(self):
-        """why か推しの文に run の中を指すパスを書いた行は、人に聞く文の決まり（lib/plainask.py）に外れるので推しの尾を外して聞く"""
+        """why か推しの文に run の中を指すパスを書いた行は、人に聞く文の決まり（lib/plainask.py）に外れるので推しの欄 recommend を持たせずに聞く"""
         for row, where in ((conflict(why="app.py:12 の集計を呼び手ごとに置く"), "why"),
                            (conflict(recommend={**REC, "note": "app.py:12 のまま通す"}), "recommend.note")):
             with self.subTest(where):
-                q = self.run_with(row)["questions"][0]["text"]
+                question = self.run_with(row)["questions"][0]
+                q = question["text"]
                 self.assertNotIn("推し:", q)
+                self.assertNotIn("recommend", question)
                 self.assertIn(f"{where}: ", q)
 
     def test_request_conflict_title_rides_on_the_question(self):
