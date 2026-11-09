@@ -107,6 +107,31 @@ class AcceptCase(unittest.TestCase):
         self.assertEqual(run.json(out["ripple"])["error"], "")
         self.assertEqual(out["owed"], [MEAN, CLAMP], "今の返りの depth の代わりに、直す義務の単位を判定の順に返す")
 
+    def test_dependent_items_stay_two_items_and_cycle_rejected(self):
+        """受け付けで、依存する 2 項目の案は 2 項目のまま受かり（後の項目の depends_on の unit は no で書いても単位の名に戻る）、
+        輪の案は依存の輪を名指して拒まれる。自分指し・案に無い単位・前の項目に無い受ける物も拒む"""
+        later = item(2, depends_on=[{"unit": 1, "receives": ["stats.py::clamp"]}])
+        run = PlanRun(self)
+        out, _ = go(run, {"plan": [item(1), later]})
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(reasons(run), [])
+        side = run.json(out["fix_plan"])
+        self.assertEqual([p["unit_keys"] for p in side["plan"]], [[MEAN], [CLAMP]], "2 項目のまま")
+        self.assertNotIn(planmarks.DEPENDS_KEY, side["plan"][1], "依存は works の欄として外れ、控えに置く")
+        fields = run.json(out["plan"])["fields"]
+        self.assertEqual(fields[1][planmarks.DEPENDS_KEY], [{"unit": MEAN, "receives": ["stats.py::clamp"]}], "no が単位の名に戻る")
+        loop = [item(1, depends_on=[{"unit": 2, "receives": ["stats.py"]}]), item(2, depends_on=[{"unit": 1, "receives": ["stats.py"]}])]
+        why = self.reject_once(PlanRun(self), {"plan": loop})
+        self.assertIn(planmarks.DEPENDS_REJECT, why)
+        self.assertIn("依存が循環している", why)
+        for label, bad, word in (("自分指し", item(2, depends_on=[{"unit": 2, "receives": ["stats.py"]}]), "自分の項目の単位"),
+                                 ("案に無い単位", item(2, depends_on=[{"unit": 7, "receives": ["stats.py"]}]), "どの項目の unit_keys にも無い"),
+                                 ("前の項目に無い受ける物", item(2, depends_on=[{"unit": 1, "receives": ["other.py::nope"]}]), "files に無い")):
+            with self.subTest(label):
+                why = self.reject_once(PlanRun(self), {"plan": [item(1), bad]})
+                self.assertIn(planmarks.DEPENDS_REJECT, why)
+                self.assertIn(word, why)
+
     def test_ripple_skips_the_runtime_copy(self):
         """作業ツリーの中の工程の写し（ports.RUNTIME_COPY の .archon/）の当たりは、項目ごとの波及にも単位の波及にも数えない"""
         run = PlanRun(self)
@@ -157,6 +182,42 @@ class AcceptCase(unittest.TestCase):
         self.assertIs(out["ok"], True)
         self.assertIn("narrows の行に狭めない案を探した結果", reasons(run)[0])
         self.assertEqual((run.status["plan-writer"], run.status["plan-writer-fix"]), ("skipped", "ok"))
+
+    def test_partial_resubmit_is_merged_into_the_one_shot_shape(self):
+        """#571: 出し直しの役は拒まれた項目だけを返し、受け付けが前の答えの控えと合わせてから照らす。合わせた答え（reply.json・
+        p2.fix_plan.json）は 1 回で書いた答えと同じ形"""
+        once = PlanRun(self)
+        whole = {"plan": [item(1), item(2)]}
+        self.assertIs(go(once, whole)[0]["ok"], True)
+        run = PlanRun(self)
+        out, _ = go(run, {"plan": [item(1), item(2, tests=[])]}, {"plan": [item(2)]})
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(len(reasons(run)), 1)
+        for name in (files.REPLY, files.FIX_PLAN):
+            with self.subTest(name):
+                self.assertEqual(run.read(f"r1/{name}"), once.read(f"r1/{name}"))
+        slot_list = run.read(f"r1/{files.SLOTS}")
+        self.assertEqual(json.loads(rolekit.candidate_path(run.round_dir(1), ROLE).read_text(encoding="utf-8")),
+                         steps.named(whole, slot_list), "控えは受け付けと同じく単位の名に戻した形")
+
+    def test_whole_plan_in_the_first_reply_is_refused(self):
+        """#832: whole_plan は出し直しの役だけが書く欄（型は 1 回目の役と同じなので型は拒まない）。1 回目の答えに在れば受け付けが拒み、
+        控えには残さない"""
+        run = PlanRun(self)
+        out, _ = go(run, {"plan": [item(1), item(2)], steps.WHOLE_PLAN: False}, {})
+        self.assertIs(out["ok"], True, out)
+        self.assertEqual(reasons(run), [rolekit.FIX_ONLY_FIELDS.format(keys=steps.WHOLE_PLAN)])
+        self.assertNotIn(steps.WHOLE_PLAN, json.loads(rolekit.candidate_path(run.round_dir(1), ROLE).read_text(encoding="utf-8")))
+
+    def test_whole_plan_resubmit_drops_items(self):
+        """項目を消す出し直しは whole_plan: true と案の全部（plan が丸ごと置き換わる。whole_plan は控えに残り、受けた案には残らない）"""
+        run = PlanRun(self)
+        out, _ = go(run, {"plan": [item(1, 2), item(2)]}, {"whole_plan": True, "plan": [item(1, 2)]})
+        self.assertIs(out["ok"], True, out)
+        slot_list = run.read(f"r1/{files.SLOTS}")
+        self.assertEqual(json.loads(rolekit.candidate_path(run.round_dir(1), ROLE).read_text(encoding="utf-8")),
+                         {**steps.named({"plan": [item(1, 2)]}, slot_list), steps.WHOLE_PLAN: True})
+        self.assertNotIn(steps.WHOLE_PLAN, run.read(f"r1/{files.REPLY}"))
 
     def test_malformed_recommend_rejected(self):
         run = PlanRun(self)

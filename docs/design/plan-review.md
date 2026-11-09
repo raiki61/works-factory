@@ -890,7 +890,7 @@ Return only JSON that matches the output schema.
 2026-11-09 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の一覧は写した時の記録で、今は次を持たない。
 - `test_material.py`: 材料と指示の字の照らしを落とし、形 replan の `ReplanCase` の 2 本（材料に申し出と裁定が載る＝keep-essence の 8 の読み手・独立設計の節が載る＝9 の読み手）だけを残す。値が md の印に渡ることは workflows/.shared/prompt.py の emit が全体に照らす。
 - `test_tree.py`: `BriefCase`（下請けの指示の字）と、`TreeCase` の指示と材料の字・前の往復の読んだファイルの覚えの行・木あり／木なしの対の片方（照らしごとに 1 本ずつ残す）。
-- `test_take.py`: 欄ごとの拒みの組み合わせ（速い単体の `PartsCase` と `test_text.py` の受け付けが見る）・出し直しの併合の 2 度目（流れは `test_plan_review.py` の `FlowCase`、欄の欠けは lib/tests の `test_rolekit.py`）・引用の出どころの言い換え・形 replan の言い換え（`FlowCase`・`ReplanIntakeCase`）・出力の幅の字。
+- `test_take.py`: 欄ごとの拒みの組み合わせ（速い単体の `PartsCase` と `test_text.py` の受け付けが見る。fences の同じ語の 2 度の拒みは唯一の守りなので `ReviewAcceptCase.test_fences_twice_rejected` を残す）・出し直しの併合の 2 度目（流れは `test_plan_review.py` の `FlowCase`、欄の欠けは lib/tests の `test_rolekit.py`）・引用の出どころの言い換え・形 replan の言い換え（`FlowCase`・`ReplanIntakeCase`）・出力の幅の字。
 - `test_plan_review.py`: `YamlCase` の YAML の形（返り・層の鎖・会話の鍵・書かない役・型の鍵・待ちは tests/layers と tests/workflows の全体の検査が見る）。残すのは輪の上限・推しと決め手の型の写し・穴の種類。`ReadsCase` の形ごとの名の言い換え。
 - `test_gate.py` の `SplitCase` の `FourAxesCase` と同じ分けの言い換え・`test_means.py` の指示の段の字と `TreeMeansCase`・`test_text.py` の `TextPromptCase`・`test_theme.py` の `ThemePromptCase`（指示の字）。
 - 筋書きは消さない。出し直しの役と束ね役（`review-fix`・`review-tree-fix`・`review-theme-fix`・`review-tree`）の指示を本当の prep で組んだ証は、tests/layers の `test_block_shape.py` の 3 がこの筋書きにだけ求める。

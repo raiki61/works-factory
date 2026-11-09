@@ -299,6 +299,16 @@ class ReviewAcceptCase(FlowCase):
         self.assertTrue(self.flow.accept(review(face("regression-case", kind="regression", severity="suggest",
                                                      undecided_because="③記録された方針の行を覆す")))["ok"])
 
+    def test_fences_twice_rejected(self):
+        """足す: fences に同じ語を 2 つ持つ穴は拒む（役の型の uniqueItems は外した。設計書の 14 節の 12）。重ならなければ受ける"""
+        f = self.flow
+        self.prepped()
+        twice = face("fenced-twice-row", kind="regression", severity="suggest", fences=["irreversible", "irreversible"])
+        got = f.accept(review(twice))
+        self.assertFalse(got["ok"], got)
+        self.assertIn("faces[0]（fenced-twice-row）: fences に同じ語が 2 つ（irreversible）", got["reason"])
+        self.assertTrue(f.accept(review({**twice, "fences": ["irreversible", "external_write"]}))["ok"])
+
     def test_stuck_recommend_rides_on_the_pass_row(self):
         """元 ReviewAcceptCase.test_stuck_recommend_rides_on_the_pass_row: 返答の一番上の止まった時の推し（stuck_recommend）は、形が
         崩れていれば推しの形の拒みになり、整っていれば通る。review.json には欄が無く、pass.json の push に同じ推しが在る（line が往復の
