@@ -1845,7 +1845,7 @@ nodes:
       got: "$eyes.output"
       names: &eyes_names "ok r1 r2 r3 r4 questions means_questions passes premise_check notes after dirty escalate after_ok findings route route_why report sections"
   # 21.5 独立の目から修正の段へ返す輪（docs/design/line.md の 1.3・5.4）。止めた Archon は loop_group の本体に子の run の節を置けず、修正は組を子の run で回すので、
-  # 周を LIMIT 周分並べる。周 k の頭 back-k は毎周走り（Archon は飛んだ node の出力を when: が読むと誤りにするので when: を置かない。2 周目以降の頭と周の合わせの節 back-k-fixed は one_success で待ち、前の周の修正の段の中の節が落ちて周の節が飛んでも走る。Archon の packages/workflows/src/dag/trigger-rule.ts は one_success を「待つ節のどれか 1 つが completed なら走る」、none_failed_min_one_success を「落ちた節か、落ちたせいで飛んだ節が 1 つでも在れば飛ぶ」と決めており、前の周の頭が飛べば待つ節が全部飛ぶので頭も飛ぶ）、目の route と findings を読んで返すかを決める。前の周の頭が返さなかった周は前の記録をそのまま運ぶ。返す周だけ修正・合わせ・最後の試験・独立の目が走る。
+  # 周を LIMIT 周分並べる。周 k の頭 back-k は毎周走り（Archon は飛んだ node の出力を when: が読むと誤りにするので when: を置かない。2 周目以降の頭と back-k-fixed は one_success。docs/design/line.md の 1.3 の 22 の後の段落）、目の route と findings を読んで返すかを決める。前の周の頭が返さなかった周は前の記録をそのまま運ぶ。返す周だけ修正・合わせ・最後の試験・独立の目が走る。
   # back-4 は上限の訳を記録するだけで返す節を持たない。集め eyes-back が最後に走った周の頭の状態を運ぶ
   - id: back-1
     script: eyes_back

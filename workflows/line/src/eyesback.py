@@ -63,7 +63,7 @@ NOTE_HEAD = "独立の目"
 FIELDS = ("go", "round", "only_items", "notes", "prior", "plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun", "more", "rows",
           "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims", "item_kinds", "checkpoint")
 RECORD = ("rows", "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims", "checkpoint")
-SEALED_FIXED = ("diff", "diffed", "changed", "units", "groups", "item_claims")   # 封じる差分を語る合わせの欄
+SEALED_FIXED = ("diff", "diffed", "changed", "units", "groups", "item_claims")
 FIX_ROUTE = "fix"
 UNFINISHED = "unfinished"   # 返す項目の種のうち作り残し（直す前の赤を求める側）。種の語の列挙の正本は独立の目の出力の形
 RESTORE_NO_TREE = "戻す先の木が記録に無い（返す周の頭が作業ツリーの木を取れなかった）ので、作業ツリーを返す前の姿に戻せなかった"
@@ -169,8 +169,7 @@ def _kinds(items: list, plan_fields, only: list) -> list:
 
 
 def _base(k, fixed, tests, eyes, rows, more) -> dict:
-    """どの抜け方でも運ぶ最後の状態の欄。sealable は最後の目の got が在る時だけ真（試験と合わせも欠けていないこと）。checkpoint は
-    返す前の状態を封じる時だけ _held が足す"""
+    """どの抜け方でも運ぶ最後の状態の欄。sealable は最後の目の got が在る時だけ真（試験と合わせも欠けていないこと）"""
     return {"go": False, "round": k, "only_items": [], "notes": "", "prior": None, "plan": None, "fix_plan": None, "ripple": None,
             "plan_review": None, "answers": None, "skip_rerun": [], "more": more, "rows": rows, "exit": "", "left": [],
             "fixed": fixed, "tests": tests, "eyes": eyes, "fingerprint": _d(tests).get("fingerprint") if isinstance(_d(tests).get("fingerprint"), dict) else None,
@@ -224,7 +223,6 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
         return {**out, **extra, "exit": why}
 
     def fall() -> dict:
-        """輪の節が落ちた。k が 2 以上は状態を持たず、封じない（1 周目は最初の状態のまま）"""
         return {**_base(k, None, None, None, rows, more), "exit": EXITS["fell"]} if k > 1 else leave(EXITS["fell"])
     if not isinstance(fixed, dict) or (k > 1 and not isinstance(prev, dict)):
         return fall()

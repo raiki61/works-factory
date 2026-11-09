@@ -49,13 +49,11 @@ def eyes(route="fix", items=ITEMS, **over) -> dict:
             "findings": items, "route": route, "route_why": "" if route == "fix" else "返す物が無い（どの目も通った）", **over}
 
 
-SEALED = ("diff", "diffed", "changed", "units", "groups", "item_claims")   # 封じる差分を語る合わせの欄
+SEALED = ("diff", "diffed", "changed", "units", "groups", "item_claims")
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 
 
 class Snaps:
-    """turn に渡す木の控え。呼ばれた数を数え、呼ばれるたびに同じ木の字を返す"""
-
     def __init__(self, tree="t1"):
         self.tree, self.calls = tree, 0
 
@@ -65,7 +63,6 @@ class Snaps:
 
 
 def before_fixed() -> dict:
-    """返す前（最後に試験と独立の目を通った周）の合わせ"""
     return fixed(diff="diff-before", diffed=True, changed=["a.py"], units=[{"key": "u1"}], groups=[{"group": 1}],
                  item_claims={"items": [1], "claims": ["claim-before"]})
 

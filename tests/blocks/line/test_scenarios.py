@@ -19,6 +19,7 @@ import unittest
 import yaml
 
 from tests.blocks import kit
+from tests.blocks.line.test_wiring import would_run
 
 BLOCK = "line"
 LINE = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
@@ -550,9 +551,9 @@ ROUND_NODE = re.compile(r"back-\d+(?:-.+)?|eyes-back")
 
 
 def settle(seed: dict, failing: set, go: dict) -> dict:
-    """返す輪の節（周の節と集め eyes-back）の trigger_rule・depends_on・when を、Archon の待ち方の決め（止めた Archon の
-    packages/workflows/src/dag/trigger-rule.ts）に当てて、各節の結末 "completed"・"failed"・"skipped"（前が落ちたので飛んだ節は
-    "skipped-failed"）を求める。seed は輪の外の節（eyes-out など）の結末、failing は走って誤りで落ちる節、go は when の `.go == true` が読む節の値"""
+    """返す輪の節（周の節と集め eyes-back）の結末を、depends_on と trigger_rule（待ち方の模型は test_wiring.would_run の 1 か所）と when で
+    求める。結末は would_run の状態の語。seed は輪の外の節（eyes-out など）の結末、failing は走って誤りで落ちる節、go は when の
+    `.go == true` が読む節の値"""
     top = nodes()
     state = dict(seed)
     todo = [n for n in top if ROUND_NODE.fullmatch(n)]
@@ -563,24 +564,11 @@ def settle(seed: dict, failing: set, go: dict) -> dict:
         for n in ready:
             todo.remove(n)
             deps = [state[d] for d in top[n].get("depends_on") or []]
-            rule = top[n].get("trigger_rule") or "all_success"
-            failed = [d for d in deps if d in ("failed", "skipped-failed")]
-            if rule == "all_success":
-                blocked = any(d != "completed" for d in deps)
-            elif rule == "one_success":
-                blocked = "completed" not in deps
-            elif rule == "none_failed_min_one_success":
-                blocked = bool(failed) or "completed" not in deps
-            else:
-                blocked = False
-            if blocked:
-                state[n] = "skipped-failed" if failed else "skipped"
+            if not would_run({**top[n], "depends_on": top[n].get("depends_on") or []}, state):
+                state[n] = "skipped_after_failure" if any(d in ("failed", "skipped_after_failure") for d in deps) else "skipped"
                 continue
             reads = re.findall(r"\$([\w-]+)\.output\.go == true", top[n].get("when") or "")
-            if not all(go.get(r, False) for r in reads):
-                state[n] = "skipped"
-            else:
-                state[n] = "failed" if n in failing else "completed"
+            state[n] = "skipped" if not all(go.get(r, False) for r in reads) else "failed" if n in failing else "completed"
     return state
 
 
