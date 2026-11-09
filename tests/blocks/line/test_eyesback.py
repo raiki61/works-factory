@@ -119,6 +119,21 @@ class TurnCase(_Case):
         self.assertIn("item_kinds", node["output_format"]["required"])
         self.assertLessEqual(set(node["output_format"]["required"]), {k.value for k in built.keys})
 
+    def test_no_prior_returns_without_kinds(self):
+        """前の段の修正が申し送り carry を null で返した段（持ち越す物が無い段。static の単位だけの段など）の後に返す時は、種を渡さず
+        item_kinds を空にして元の案の route で回す（修正の block の受け付けは prior の無い段への種を拒むので、渡すと輪の節が落ちて人に回る。
+        種を落としても元の route のままで、赤の義務は緩まない）。返すこと・only_items・notes は変えない。どの返す出力も『種が在れば prior が在る』"""
+        r1 = {"eye": "r1", "kind": "trim", "where": "src/a.py:12", "text": "写しが残っている"}
+        bare = fixed(stages=[{"stage": 1, "kind": "first", "fix": {"carry": None}, "lens": None, "delta": None}])
+        got = self.run_turn(fixed=bare, eyes=eyes(items=[r1]))
+        self.assertEqual((got["go"], got["prior"], got["only_items"], got["item_kinds"]), (True, None, [1], []))
+        self.assertEqual(got["notes"].splitlines(), ["独立の目 R1: src/a.py:12: 写しが残っている"])
+        self.assertEqual(self.run_turn(fixed=fixed(stages=[]), eyes=eyes(items=[r1]))["item_kinds"], [])
+        with_prior = self.run_turn(eyes=eyes(items=[r1]))
+        self.assertEqual((with_prior["prior"], with_prior["item_kinds"]), ({"loops": []}, [{"item": 1, "kind": "trim"}]))
+        for out in (got, with_prior):
+            self.assertTrue(not out["item_kinds"] or out["prior"] is not None)
+
     def test_stay_route_stop_word_or_fallen_round_does_not_return(self):
         """目の route が stay・前の段の修正が止めの語か異議を返した・前の周の返りが欠けた時は go が偽で、抜けた訳が route_why か EXITS の語になる"""
         stay = self.run_turn(eyes=eyes("stay"))

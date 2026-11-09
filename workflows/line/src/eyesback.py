@@ -12,7 +12,7 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕と、それぞ�
 - EXITS・CAP_WHY: 輪を抜けた訳の字（fell・stop・unchanged・no_fix・cap。目の route が stay の時は目の route_why が訳）
 - row(k, eyes, items)・count(rows)・capped(record)・left_text(left): 周の記録の行と数え方
 - turn(...) -> 周の頭の出力: 返すかを決め、返す時は修正の段への入力（only_items・item_kinds〔返した項目の種を修正案の項目の番号ごとに運ぶだけ。型の語は
-  修正の段が引く〕・notes・prior ほか）を組む
+  修正の段が引く。prior が null の段へは空〕・notes・prior ほか）を組む
 - last(heads) -> 集め eyes-back の出力・current(eyes_back, fixed, tests, eyes) -> (fixed, tests, eyes): 最後の周の状態の選びの 1 か所
 - lines(rows, exit_, left) -> 最後の承認ノードと報告が同じ行に読む返した周の行
 - broken(eyes_back, head) -> 集めが飛んだのに周の頭が走ったか（報告が BROKE の 1 行を出す）
@@ -202,8 +202,11 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     notes = [f"{NOTE_HEAD} {item_text(i)}" for i in items]
     stages = fixed.get("stages") if isinstance(fixed.get("stages"), list) else []
     prior = _d(_d(stages[-1] if stages else None).get("fix")).get("carry") if stages else None
-    return {**out, **plan, "go": True, "only_items": only, "item_kinds": _kinds(items, plan_fields, only), "notes": "\n".join([*notes, *([] if only else [UNTIED])]),
-            "prior": prior if isinstance(prior, (dict, list)) else None, "rows": [*rows, row(k, eyes, items)]}
+    prior = prior if isinstance(prior, (dict, list)) else None
+    # 前の段が申し送りを持たない（carry が null）段へは種を渡さず元の案の route で回す（修正の block は prior の無い段への種を拒む）
+    kinds = _kinds(items, plan_fields, only) if prior is not None else []
+    return {**out, **plan, "go": True, "only_items": only, "item_kinds": kinds, "notes": "\n".join([*notes, *([] if only else [UNTIED])]),
+            "prior": prior, "rows": [*rows, row(k, eyes, items)]}
 
 
 def _first_plan(fixed: dict, fix_in, replan, answer_replan) -> dict | None:
