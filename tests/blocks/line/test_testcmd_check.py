@@ -284,6 +284,73 @@ class TestCmdCheck(unittest.TestCase):
             with self.subTest(cwd=str(cwd)):
                 self.assertEqual(sorted(os.path.realpath(t) for t in testcmd_check.checkouts(cwd)), sorted(map(str, others)))
 
+    def test_activated_virtualenv_with_editable_pth_is_named(self):
+        venv = self.repo / ".venv"
+        (self._site(venv) / "_editable_impl_stats.pth").write_text(f"{self.repo}\n")
+        path = f"{venv}/bin{os.pathsep}{os.environ.get('PATH', '')}"
+        self.assertEqual(len(self.stops("python3 -m pytest -q", VIRTUAL_ENV=str(venv), PATH=path)), 1)
+
+    def test_activated_virtualenv_looks_at_every_segment(self):
+        """立てた環境の判定は、cd だけの段と動かさない組み込み（echo・export など）を除く全部の段の頭を見る: 頭が uv（pip でなく
+        --active でもない）の段だけなら止めず、ほかの段（後ろの pytest・uv run --active・uv pip）が 1 つでも在れば止める"""
+        venv = self.repo.parent / "venvs" / "proj"
+        info = self._site(venv) / "stats-0.1.dist-info"
+        info.mkdir()
+        (info / "direct_url.json").write_text(json.dumps({"url": self.repo.as_uri(), "dir_info": {"editable": True}}))
+        env = dict(VIRTUAL_ENV=str(venv), PATH=f"{venv}/bin{os.pathsep}{os.environ.get('PATH', '')}")
+        for cmd in ("uv sync && uv run pytest -q", "uv sync --frozen; uv run pytest", "uv --directory sub run pytest",
+                    "export CI=1 && uv run pytest", "uv run pytest -q && echo ok", "cd sub && uv sync && uv run pytest"):
+            with self.subTest(cmd):
+                self.assertEqual(self.check(cmd, **env), [])
+        for cmd in ("uv run pytest && pytest", "uv run --active pytest", "uv pip install -e . && uv run pytest",
+                    "uv sync && python3 -m pytest", "uv sync && sh -c 'pytest -q'"):
+            with self.subTest(cmd):
+                self.assertEqual(len(self.stops(cmd, **env)), 1)
+
+    def test_newline_separates_segments(self):
+        """改行は ; と同じ段の区切り（空白に数えると、echo start の段に後ろの pytest が混ざり、組み込みの段として立てた環境を見逃す）。
+        行の注（# の後）は改行で閉じる"""
+        venv = self.repo.parent / "venvs" / "proj"
+        self._editable_venv(venv)
+        env = dict(VIRTUAL_ENV=str(venv), PATH=f"{venv}/bin{os.pathsep}{os.environ.get('PATH', '')}")
+        for cmd in ("echo start\npytest -q", "export CI=1\npytest", "uv run true # note\npytest", "cd sub\n\npytest",
+                    "bash -c 'echo start\npytest -q'"):
+            with self.subTest(cmd):
+                self.assertEqual(len(self.stops(cmd, **env)), 1)
+        for cmd in ("uv sync\nuv run pytest -q", "echo start &&\n  uv run pytest"):
+            with self.subTest(cmd):
+                self.assertEqual(self.check(cmd, **env), [])
+        sub = self.repo / "sub" / ".venv" / "bin"
+        sub.mkdir(parents=True)
+        (sub / "pytest").write_text("#!/bin/sh\n")
+        lines = self.after_cd("cd sub\n.venv/bin/pytest -q")   # 改行の前の cd だけの段は所を変える
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(f"{self.repo}/sub/.venv/bin/pytest", lines[0])
+
+    def test_shell_c_with_end_of_options_and_option_values(self):
+        """殻の -c の前後の旗を飛ばして中を読む: -- （旗の終わり）・-o/+o/-O/+O とその値（-eo pipefail も）・--norc などの長い旗"""
+        r = self.repo
+        for cmd in (f"bash -c -- 'cd {r} && uv run pytest'", f"bash -o pipefail -c 'cd {r} && uv run pytest'",
+                    f"bash -eo pipefail -c 'cd {r} && uv run pytest'", f"bash +o posix -c 'cd {r} && uv run pytest'",
+                    f"bash -O extglob -c 'cd {r} && uv run pytest'", f"bash --norc -c 'cd {r} && uv run pytest'",
+                    f"bash --rcfile /dev/null -c 'cd {r} && uv run pytest'", f"sh -e -c -- 'cd {r} && uv run pytest'"):
+            with self.subTest(cmd):
+                self.stops(cmd)
+        sub = self.repo / "sub" / ".venv" / "bin"
+        sub.mkdir(parents=True)
+        (sub / "pytest").write_text("#!/bin/sh\n")
+        for cmd in ("bash -o pipefail -c 'cd sub && .venv/bin/pytest'", "bash -c -- 'cd sub && .venv/bin/pytest'"):
+            with self.subTest(cmd):
+                lines = self.after_cd(cmd)
+                self.assertEqual(len(lines), 1, lines)
+                self.assertIn(f"{self.repo}/sub/.venv/bin/pytest", lines[0])
+        venv = self.repo.parent / "venvs" / "proj"
+        self._editable_venv(venv)
+        env = dict(VIRTUAL_ENV=str(venv), PATH=f"{venv}/bin{os.pathsep}{os.environ.get('PATH', '')}")
+        for cmd in ("bash -c -- 'uv run pytest'", "bash -o pipefail -c 'uv sync && uv run pytest'"):
+            with self.subTest(cmd):
+                self.assertEqual(self.check(cmd, **env), [])
+
 
 if __name__ == "__main__":
     unittest.main()
