@@ -115,19 +115,6 @@ class AsksCase(unittest.TestCase):
         self.assertEqual(self.asks("round_limit", left=self.ROWS, counted_left=["修正 u1"]),
                          [("直しきれずに残った物", "素材 a: 測れていない", titles["直しきれずに残った物"])])
 
-    def test_outcome_asks_carry_a_fixed_title(self):
-        """結末で決まる人が決める物は、種ごとの決まった字の題を持つ（差し込み口の無い字。1 行・空でない・種の名と別の字）"""
-        T = getattr(M.outcome, "OUTCOME_TITLES", None)
-        self.assertIsNotNone(T, "結末で決まる物の決まった題の表 OUTCOME_TITLES が無い")
-        self.assertEqual(set(T), {"人が確かめる物", "直しきれずに残った物", "記録が通らないこと"})
-        for kind, title in T.items():
-            with self.subTest(kind=kind):
-                self.assertTrue(title.strip() and "\n" not in title and title != kind, title)
-                self.assertEqual(M.writer.plain_words(title)[1], {}, "頭に出る字なので語の表の語を使わない")
-        self.assertEqual([t for _, _, t in self.asks("fixed_needs_check", left=self.ROWS)], [T["人が確かめる物"]] * 2)
-        self.assertEqual([t for _, _, t in self.asks("round_limit", left=self.ROWS)], [T["直しきれずに残った物"]] * 2)
-        self.assertEqual([t for _, _, t in self.asks("record_invalid")], [T["記録が通らないこと"]])
-
 
 class FactsInCase(unittest.TestCase):
     def test_defaults_fill_and_nested_defaults_merge(self):

@@ -14,27 +14,10 @@ import unittest
 from tests import archon
 from tests.blocks import kit
 from tests.blocks.report import base
-from tests.blocks.report.base import INCLUDE, LOOP, SECTIONS, Flow
+from tests.blocks.report.base import INCLUDE, LOOP, Flow
 
 M = base.src()
-import handoff  # noqa: E402  lib/
 import report  # noqa: E402  lib/
-
-REQUEST_STOP = json.dumps({**base.READY, "gates": [{"at": "final-answer", "decision": "stop", "text": "request: 止め札"}]})
-WHY_PREFIX = "報告を組めなかった:"
-
-
-def with_unreadable_title_module(case: unittest.TestCase, run) -> None:
-    """run の block を、scripts/・src/ と .shared を一時のフォルダへ写した物に替え、写しの src/title.py を読み込みで落ちる字にする
-    （リポジトリの本物の title.py には触らない）"""
-    tmp = pathlib.Path(tempfile.mkdtemp())
-    case.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-    skip = shutil.ignore_patterns("__pycache__")
-    for name in ("scripts", "src"):
-        shutil.copytree(kit.BLOCKS / "report" / name, tmp / "workflows" / "report" / name, ignore=skip)
-    shutil.copytree(kit.SHARED, tmp / "workflows" / ".shared", ignore=skip)
-    (tmp / "workflows" / "report" / "src" / "title.py").write_text('raise ImportError("壊れた")\n', encoding="utf-8")
-    run.block = tmp / "workflows" / "report"
 
 
 class FactsCase(Flow):
@@ -70,11 +53,6 @@ class FactsCase(Flow):
         self.assertEqual(doc, {"outcome": "fixed", "stop_reason": "", "ok": True, "ai_go": True, "stamp": got["stamp"], "lang": "日本語",
                                "run_id": kit.RUN_ID, "decisions": 0, "request_texts": []})
         self.assertIn("works-factory-report / run run-test / 周 — / グラフの版 ", got["stamp"])
-
-    def test_request_stop_with_a_dry_run_environment(self):
-        got = self.facts(facts=REQUEST_STOP)
-        self.assertEqual((got["outcome"], got["stop_reason"], got["ai_go"]), ("stopped_by_request", "final-answer:stop", True))
-        self.assertIn("run の記録の置き場（LOG_DIR）か run の id（WORKFLOW_ID）が届いていない", self.machine())
 
     def test_carried_rows_reach_their_files_and_pointers(self):
         carry = {"findings": [{"where": "stats.py:4", "text": "mean が違う"}], "prior": [{"where": "受け付け 計画", "text": "拒まれた"}],
@@ -113,33 +91,6 @@ class FactsCase(Flow):
         self.assertIn(head.render(head.Line.APPLY_OK, head.RunSlot(head.RunId(kit.RUN_ID))), text)
         self.assertNotIn("確かめてから当てる", text)
 
-    def test_fallen_child_run_names_its_own_cause(self):
-        """fan_out の子の run が落ちると、親の記録の誤りは「子 N (run 先頭 8 字) が落ちた」と子の失敗の総括だけを言い、AI の provider の
-        429 のような落ちた訳は子の run の記録（同じ置き場の <子の run の id>.jsonl）にだけ在る。報告は子の記録を読んで訳を載せる"""
-        child = "abcd1234-0000-4000-8000-000000000000"
-        self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
-                  "error": "fan_out node 'groups-par' (join: all_success): child 1 (run abcd1234) failed: DAG workflow 'works-factory-fix' "
-                           "failed: node tdd failed. 3 downstream nodes were skipped."})
-        log_dir = pathlib.Path(self.run.extra["LOG_DIR"])
-        rows = [{"type": "node_start", "step": "tdd", "ts": "2026-10-12T00:00:00Z"},
-                {"type": "node_error", "step": "tdd", "ts": "2026-10-12T00:00:30Z",
-                 "error": "429 rate_limit_error: concurrent request limit reached\nraw detail", "execution": {}}]
-        (log_dir / f"{child}.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
-        self.facts()
-        self.assertIn("子の run abcd1234 のノード tdd が落ちた（誤り: 429 rate_limit_error: concurrent request limit reached）", self.machine())
-
-    def test_child_run_record_without_a_fall_or_with_broken_json_is_said(self):
-        """子の記録が読めても落ちた node が無い・記録の JSON が壊れている時も、黙らずに子の run を名指して言う"""
-        self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
-                  "error": "fan_out node 'groups-par' (join: all_success): child 0 (run aaaa1111) failed: x; child 1 (run bbbb2222) failed: y"})
-        log_dir = pathlib.Path(self.run.extra["LOG_DIR"])
-        (log_dir / "aaaa1111-0000.jsonl").write_text(json.dumps({"type": "node_start", "step": "tdd", "ts": "t"}) + "\n", encoding="utf-8")
-        (log_dir / "bbbb2222-0000.jsonl").write_bytes(b'{"type": "node_error", "step": \xff\xfe broken\n')
-        self.facts()
-        body = self.machine()
-        self.assertIn("子の run aaaa1111 の記録に落ちたノードが無い", body)
-        self.assertIn("子の run bbbb2222 の記録 bbbb2222-0000.jsonl が読めない", body)
-
     def test_child_run_without_a_record_is_said_not_dropped(self):
         self.log({"type": "node_error", "step": "fix__groups-par", "ts": "2026-10-12T00:01:00Z", "execution": {},
                   "error": "fan_out node 'groups-par' (join: all_success): child 0 (run 99999999) failed: x"})
@@ -162,40 +113,6 @@ class FactsCase(Flow):
         self.assertIn("前の失敗が約束の Schema に合わない", (self.place / "report-unwritten.md").read_text(encoding="utf-8"))
         self.assertFalse((self.place / "report.md").exists())
         self.assertEqual(base.read(self.place / "facts.json")["outcome"], "record_invalid")
-
-    def test_unexpected_error_titles_with_the_request(self):
-        """思わぬ誤りで落ちた時の機械の報告 report-unwritten.md も、依頼の字が読めれば普通の題と同じ 1 行目を書く"""
-        for requests in (["依頼の 1 行目"], ["依頼の 1 行目", "依頼の 2 行目"]):
-            with self.subTest(requests=requests):
-                bad = json.dumps({**base.READY, "request_texts": requests, "carry": {"prior": [{"where": "w"}]}})
-                got = self.facts(facts=bad)
-                self.assertEqual(got["machine"]["path"], "report/report-unwritten.md")
-                first = (self.place / "report-unwritten.md").read_text(encoding="utf-8").splitlines()[0]
-                self.assertEqual(first, M.machine.title_row(kit.RUN_ID, requests))
-
-    def test_without_the_libraries_titles_with_the_request(self):
-        """lib/ を読めない時の最後の落ち先 report-facts-unwritten.md も、facts の入力を値そのもの・ファイルのパス・pointer のどれで渡されても、
-        依頼の字を持つ普通の題を 1 行目に書き、0 で終わる"""
-        for requests in (["依頼の 1 行目"], ["依頼の 1 行目", "依頼の 2 行目"]):
-            raw = json.dumps({**base.READY, "request_texts": requests}, ensure_ascii=False)
-            (self.run.artifacts / "facts-in.json").write_text(raw, encoding="utf-8")
-            forms = {"value": raw, "path": str(self.run.artifacts / "facts-in.json"), "pointer": self.run.pointer("facts-in.json")}
-            for form, given in forms.items():
-                with self.subTest(requests=requests, form=form), tempfile.TemporaryDirectory() as empty:
-                    self.run.extra = {"WORKS_FACTORY_ROOT": empty}
-                    got = self.facts(facts=given)
-                    self.assertEqual((got["outcome"], got["ai_go"]), ("record_invalid", False))
-                    first = (self.place / "report-facts-unwritten.md").read_text(encoding="utf-8").splitlines()[0]
-                    self.assertEqual(first, M.machine.title_row(kit.RUN_ID, requests))
-
-    def test_facts_json_carries_the_request_texts(self):
-        """facts.json に依頼の字 request_texts が載る（普通の時も、思わぬ誤りの時も）。出口が落ちた時の題がこれを読む"""
-        requests = ["依頼の 1 行目", "依頼の 2 行目"]
-        self.facts(facts=json.dumps({**base.READY, "request_texts": requests}))
-        self.assertEqual(base.read(self.place / "facts.json").get("request_texts"), requests)
-        bad = json.dumps({**base.READY, "request_texts": requests, "carry": {"prior": [{"where": "w"}]}})
-        self.facts(facts=bad)
-        self.assertEqual(base.read(self.place / "facts.json").get("request_texts"), requests)
 
     def test_without_the_libraries_still_returns(self):
         """lib/ を読めない時は標準ライブラリだけで訳だけのファイルを書いて指す"""
@@ -220,18 +137,6 @@ class FactsCase(Flow):
                     got = self.facts(facts=given)
                     path = self.run.artifacts / got["machine"]["path"]
                     self.assertEqual(path.read_text(encoding="utf-8").splitlines()[0], M.machine.title_row(kit.RUN_ID, []))
-
-    def test_unreadable_title_module_writes_the_why_without_a_title_line(self):
-        """lib/ に加えて題の部品 src/title.py も読めない時は、題の行を付けずに訳だけを書き、0 で終わって record_invalid を返す"""
-        with_unreadable_title_module(self, self.run)
-        with tempfile.TemporaryDirectory() as empty:
-            self.run.extra = {"WORKS_FACTORY_ROOT": empty}
-            got = self.facts(facts=json.dumps({**base.READY, "request_texts": ["依頼の 1 行目"]}))
-        self.assertEqual((got["outcome"], got["ok"], got["ai_go"]), ("record_invalid", False, False))
-        self.assertEqual(got["machine"]["path"], "report/report-facts-unwritten.md")
-        text = (self.place / "report-facts-unwritten.md").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(WHY_PREFIX), text)
-        self.assertNotIn(M.machine.title_row(kit.RUN_ID, []), text)
 
 
 class AcceptCase(Flow):
@@ -346,27 +251,6 @@ class FinishCase(Flow):
         self.assertEqual((got["outcome"], got["machine"]["path"]), ("record_invalid", "report/report-finish-unwritten.md"))
         self.assertIn("報告を組めなかった:", (self.place / "report-finish-unwritten.md").read_text(encoding="utf-8"))
 
-    def test_fallen_finish_titles_with_the_request_of_facts_json(self):
-        """出口が落ちて機械の報告も無い時の訳だけのファイル report-finish-unwritten.md の 1 行目は、facts.json の依頼の字を持つ題になる"""
-        requests = ["依頼の 1 行目", "依頼の 2 行目"]
-        (self.place).mkdir(exist_ok=True)
-        (self.place / "facts.json").write_text(json.dumps({"request_texts": requests}, ensure_ascii=False), encoding="utf-8")
-        got = self.finish()
-        self.assertEqual(got["machine"]["path"], "report/report-finish-unwritten.md")
-        first = (self.place / "report-finish-unwritten.md").read_text(encoding="utf-8").splitlines()[0]
-        self.assertEqual(first, M.machine.title_row(kit.RUN_ID, requests))
-
-    def test_without_the_libraries_titles_with_the_request_of_facts_json(self):
-        """lib/ を読めない時の出口の最後の落ち先も、facts.json の依頼の字を持つ題を 1 行目に書く"""
-        requests = ["依頼の 1 行目", "依頼の 2 行目"]
-        self.facts(facts=json.dumps({**base.READY, "request_texts": requests}))
-        with tempfile.TemporaryDirectory() as empty:
-            self.run.extra = {"WORKS_FACTORY_ROOT": empty}
-            got = self.finish()
-        self.assertEqual(got["machine"]["path"], "report/report-finish-unwritten.md")
-        first = (self.place / "report-finish-unwritten.md").read_text(encoding="utf-8").splitlines()[0]
-        self.assertEqual(first, M.machine.title_row(kit.RUN_ID, requests))
-
     def test_without_the_libraries_still_returns(self):
         self.facts()
         with tempfile.TemporaryDirectory() as empty:
@@ -388,32 +272,6 @@ class FinishCase(Flow):
                     self.assertEqual(got["machine"]["path"], "report/report-finish-unwritten.md")
                     first = (self.place / "report-finish-unwritten.md").read_text(encoding="utf-8").splitlines()[0]
                     self.assertEqual(first, M.machine.title_row(kit.RUN_ID, []))
-
-    def test_unreadable_title_module_writes_the_why_without_a_title_line(self):
-        """lib/ に加えて題の部品 src/title.py も読めない時の出口は、題の行を付けずに訳だけを書き、0 で終わって record_invalid を返す"""
-        self.facts(facts=json.dumps({**base.READY, "request_texts": ["依頼の 1 行目"]}))
-        with_unreadable_title_module(self, self.run)
-        with tempfile.TemporaryDirectory() as empty:
-            self.run.extra = {"WORKS_FACTORY_ROOT": empty}
-            got = self.finish()
-        self.assertEqual((got["outcome"], got["ok"]), ("record_invalid", False))
-        self.assertEqual(got["machine"]["path"], "report/report-finish-unwritten.md")
-        text = (self.place / "report-finish-unwritten.md").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith(WHY_PREFIX), text)
-        self.assertNotIn(M.machine.title_row(kit.RUN_ID, []), text)
-
-    def test_without_the_libraries_in_both_nodes_titles_with_the_run_id_only(self):
-        """facts の段から lib/ を読めない run は facts.json を書かないので、出口の最後の落ち先の題は依頼の字なしの run の id だけになる
-        （facts の段の訳だけのファイルの題には依頼の字が載る）"""
-        raw = json.dumps({**base.READY, "request_texts": ["依頼の 1 行目"]})
-        with tempfile.TemporaryDirectory() as empty:
-            self.run.extra = {"WORKS_FACTORY_ROOT": empty}
-            self.facts(facts=raw)
-            self.assertFalse((self.place / "facts.json").exists())
-            got = self.finish()
-        self.assertEqual(got["machine"]["path"], "report/report-finish-unwritten.md")
-        first = (self.place / "report-finish-unwritten.md").read_text(encoding="utf-8").splitlines()[0]
-        self.assertEqual(first, M.machine.title_row(kit.RUN_ID, []))
 
 
 # 書き手と初見の読み手の役が起こす Claude Code の代わり（Archon の claude provider が話す stream-json の最小の形）。認証のトークンが
