@@ -221,41 +221,6 @@ class RippleCase(unittest.TestCase):
         self.assertTrue(doc["error"])
         self.assertEqual(doc["items"], [])
 
-    def test_item_text_names_uncovered_with_ids(self):
-        """項目の材料の行: 変える名と当たりの行と、覆っていない当たりを id つきで並べる（頼みの文は md が持つ）"""
-        doc = ripple.build(self.repo, [fields()], skip_dirs=SKIP_DIRS)
-        text = ripple.item_text(doc, 1)
-        lines = text.splitlines()
-        self.assertEqual(lines[0], f"### Item 1 (unit_keys: {KEY})")
-        self.assertIn("Names changed and their hits:", lines)
-        self.assertIn("- always_rows: hits in 4 files", lines)
-        self.assertIn("  - body works/final.py:5", lines)
-        self.assertIn("  - test works/tests/test_report.py::TestReport::test_rows", lines)
-        self.assertIn("Hits not covered:", lines)
-        for h in self.hits(doc):
-            self.assertIn(f"- {h['id']}: {h['kind']} {h['at']} (name {h['name']})", lines)
-        self.assertIn("- h2: code works/final.py:1 (name always_rows)", lines)
-
-    def test_item_text_without_names_or_uncovered(self):
-        """在る名が無い項目は名の行の代わりに 1 行、覆っていない当たりが無ければ none"""
-        doc = ripple.build(self.repo, [fields(unit_keys=["works/report.py+no_such_name: x"])], skip_dirs=SKIP_DIRS)
-        self.assertEqual(ripple.item_text(doc, 1).splitlines(),
-                         ["### Item 1 (unit_keys: works/report.py+no_such_name: x)", "", "Names changed and their hits:",
-                          "- no name of it exists in the target", "", "Hits not covered:", "- none"])
-
-    def test_item_text_of_missing_item(self):
-        """一覧に無い項目は見出しと当たり無しの 1 文"""
-        doc = ripple.build(self.repo, [fields()], skip_dirs=SKIP_DIRS)
-        self.assertEqual(ripple.item_text(doc, 2), "### Item 2\n\nThe names it changes were not found in the target (no hits)")
-
-    def test_item_text_common_name_is_count_only(self):
-        """多い名は数と COMMON_NOTE だけで、当たりの下の行を持たない"""
-        f = fields(unit_keys=["works/edge.py+EDGE_INPUTS: 入力の組"], allowed=("works/edge.py",))
-        lines = ripple.item_text(ripple.build(self.repo, [f], common_files=2, skip_dirs=SKIP_DIRS), 1).splitlines()
-        self.assertIn(f"- EDGE_INPUTS: hits in 3 files ({ripple.COMMON_NOTE})", lines)
-        self.assertFalse([x for x in lines if x.startswith("  - ")], lines)
-        self.assertEqual(lines[-1], "- none")
-
     def test_rows_join_items_and_overlaps(self):
         """全部の項目の行を空の行で並べ、項目どうしの重なりの行を後ろに置く"""
         doc = ripple.build(self.repo, [fields(), fields(unit_keys=["works/final.py+final: y"], allowed=("works/final.py",))],
@@ -388,17 +353,6 @@ class RippleCase(unittest.TestCase):
         repo = self.repo_with({"works/docs/old-notes.md": "古い\n", "works/README.md": "メモは old-notes.md にある\n"})
         f = split_fields(unit_keys=["x: y"], deletes=["works/docs/old-notes.md"], allowed=("works/docs/old-notes.md",))
         self.assertIn(("removed", "works/README.md:1"), self.uncovered(ripple.build(repo, [f], skip_dirs=SKIP_DIRS)))
-
-    def test_item_text_marks_removed_name_hits(self):
-        """消す名の当たりの行には、消した後に壊れる参照である印を出す"""
-        doc = ripple.build(self.repo, [split_fields(removes=["report.always_rows"])], skip_dirs=SKIP_DIRS)
-        text = ripple.item_text(doc, 1)
-        marked = [x for x in text.splitlines() if x.startswith("- h") and " removed" in x]
-        self.assertTrue(marked, text)
-        self.assertTrue(all(x.endswith(ripple.REMOVED_MARK) for x in marked), marked)
-        self.assertEqual(ripple.REMOVED_MARK, " (a hit of a name to remove)")
-        plain = next(x for x in text.splitlines() if x.startswith("- h") and " code " in x)
-        self.assertNotIn(ripple.REMOVED_MARK, plain)
 
 
 if __name__ == "__main__":

@@ -4,8 +4,8 @@
 SchemaCase の 2 本（推しの欄の型と、照らし・尾・下書きが欄の名を 1 か所から読む）・GapsCase の 5 本・IntakeCase の 4 本。
 元は test_plan_gate の偽の盤面の行（TP.NARROW・TP.FACE）を借りたが、その試験は組み込みで消えたので、行はここに置く。
 移った先の在る物: SchemaCase の test_rule_text_asks_for_recommend と test_shape_text_is_built_from_the_keys（役の頭の文
-gatemarks.HEAD は plan の block の指示書へ、拒みの文 planblk.RECOMMEND_REJECT は plan の src/steps.py へ）は
-tests/blocks/plan/test_shape.py の RecommendShapeCase。無人の run が推しで修正前の承認ノードを抜けるかは
+gatemarks.HEAD は plan の block の指示書へ、拒みの文 planblk.RECOMMEND_REJECT は plan の src/steps.py へ）は、指示の字の照らしとして
+消した（形の外れた推しを拒むことは tests/blocks/plan/test_accept.py の test_malformed_recommend_rejected）。無人の run が推しで修正前の承認ノードを抜けるかは
 tests/blocks/line/test_gate_drafts.py。
 """
 import json
