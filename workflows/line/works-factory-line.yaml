@@ -1871,7 +1871,7 @@ nodes:
         go: {type: boolean, description: '修正の段へ返すか（偽は返す周のループを抜ける。抜けた訳は exit）'}
         round: {type: integer}
         only_items: {type: array, description: '返す項目を結んだ修正案の項目の番号。空は全部', items: {type: integer}}
-        item_kinds: {type: array, description: '返した項目の種を修正案の項目の番号ごとに並べた行。空は元の案の route のまま', items: {type: object, properties: {item: {type: integer}, kind: {type: string}}}}
+        item_kinds: {type: array, description: '返した項目の種を修正案の項目の番号ごとに並べた行。空は元の案の route のまま', items: {type: object, additionalProperties: false, required: [item, kind], properties: {item: {type: integer}, kind: {type: string}}}}
         notes: {type: string, description: '修正役に渡す独立の目の指摘（1 行ずつ）'}
         prior: {type: [object, 'null'], description: 'json(shared:carry.schema.json): 前の修正の段の申し送り'}
         plan: {<<: *pointer_or_null, description: 'json(shared:plan-fields.schema.json): 返しの修正が使う修正案の欄の控え'}
