@@ -3,10 +3,9 @@
 
 元の関数は盤面の置き場から判定・往復の記録・修正前の版を読んでいた。ここでは入口（steps.intake）を port の値で本当に回して周のフォルダ
 r<k>/ と intake.json を作り、その上で src の関数をこの過程で、script と同じ環境（kit.Run.env）で呼ぶ:
-直す義務の単位と入れてよい単位（OwedCase・SlotsCase・CoversCase）・案の直しの返答の誤り（ReplanErrorsCase）・判定の処方（PrescriptionCase）・
-リポジトリの行の値（RepoLineCase）・修正前の版のテストの中身（BaseTestsCase）・往復の記録の読み口（ConvergeCase。記録を組むのは line に
-移ったので、記録は converge.add_pass と plan_rows で試験が組む）・材料の行（UnitsSectionCase・WorldRowsCase・PriorFailuresCase・
-VerifyNeighborCase・HeadDepthNeighborCase）・受け付け（TakePlanCase・WholePlanTakeCase・RevisedFieldsCase・ReplanModuleCase・
+直す義務の単位と入れてよい単位（OwedCase・SlotsCase・CoversCase）・案の直しの返答の誤り（ReplanErrorsCase）・
+修正前の版のテストの中身（BaseTestsCase）・往復の記録の読み口（ConvergeCase。記録を組むのは line に
+移ったので、記録は converge.add_pass と plan_rows で試験が組む）・材料の読み（WorldRowsCase・PriorFailuresCase）・受け付け（TakePlanCase・WholePlanTakeCase・RevisedFieldsCase・ReplanModuleCase・
 ResubmitMergeCase）・波及の一覧（RippleItemsCase）・周の番号とファイルの名（RoundCase・FilesCase）・入れ子の値・出口（FinishCase）。
 種の git は gitkit の型の写し（FAST）。
 """
@@ -34,7 +33,6 @@ import conflict  # noqa: E402
 import converge  # noqa: E402
 import handoff  # noqa: E402
 import judgmark  # noqa: E402
-import headdepth  # noqa: E402
 import planmarks  # noqa: E402
 import replan  # noqa: E402
 import rolekit  # noqa: E402
@@ -415,32 +413,6 @@ class ReplanErrorsCase(PlaceCase):
             take.exists_at(self.repo, "no-such-rev")
 
 
-class PrescriptionCase(PlaceCase):
-    """brief.prescription_rows の行と、判定の記録のパスの値（見出しと頼みの文は md が持つ）"""
-
-    def test_rows_list_units_that_may_be_in_the_plan_only(self):
-        """処方の行は案に入れてよい単位（必ず入れる物を含む）の物だけ。開いていない単位の処方は貼らない"""
-        doc = judgment()
-        doc["units"][2]["prescriptions"] = ["変数名を長くする"]   # NIT（開いていない）
-        got = brief.prescription_rows(doc)
-        self.assertEqual(got, f"### {MEAN}\n\n1. 分母を len(xs) にする")
-        self.assertNotIn(NIT, got)
-        self.assertNotIn(f"### {CLAMP}", got)
-        self.assertEqual(brief.prescription_rows({"units": [unit(CLAMP)], "questions": []}), "")
-
-    def test_values_name_the_judgment_file(self):
-        """処方を決め手に引く先（判定の記録の絶対パス）を名指す: 値で受けた判定は周のフォルダの写し、pointer で受けた判定はその先"""
-        folder, ctx = self.opened()
-        v, w = brief.values(self.place, self.repo)
-        self.assertEqual(v["judgment_file"], str(folder / files.JUDGMENT_COPY))
-        self.assertEqual(self.read(v["judgment_file"]), judgment())
-        self.assertTrue(w["prescriptions"])
-        self.assertIn(f"### {MEAN}", v["prescriptions"])
-        self.opened(judgment=self.artifact("judge/judgment.json", judgment()))
-        v, _ = brief.values(self.place, self.repo)
-        self.assertEqual(v["judgment_file"], str(self.place / "judge" / "judgment.json"))
-
-
 class RecordedRowsCase(unittest.TestCase):
     """記録された方針の行の値（brief.recorded_rows）。テーマの run が推しで降りた依頼の answers の行（source push。承認された設計の
     在りかを含む）も、推しと分かる札で並べる（落とすと、計画の役は承認された設計の在りかを知る口を持たない）"""
@@ -455,29 +427,6 @@ class RecordedRowsCase(unittest.TestCase):
         head, _, pushed = text.partition("as its push (not a person's answer):")
         self.assertIn("  - name `承認された設計`: 承認された設計の md: /x/approved.md", pushed)
         self.assertNotIn("承認された設計", head)
-
-
-class RepoLineCase(PlaceCase):
-    """P035 のリポジトリの行の値（修正役の md の `Repository: {repo} (version read: {read_rev}) BASE: {diff_base}`）。読む版は review_rev、
-    空なら base、それも空なら HEAD。BASE は diff_base、空なら base、それも空なら読む版"""
-
-    def values(self, **inputs):
-        self.opened(**inputs)
-        v, _ = brief.values(self.place, self.repo)
-        return v["repo"], v["read_rev"], v["diff_base"], v["review_md"]
-
-    def test_blank_base_falls_back_to_review_rev(self):
-        repo, read_rev, diff_base, review_md = self.values(review_rev="abc")
-        self.assertEqual((repo, read_rev, diff_base), (str(self.repo), "abc", "abc"))
-        self.assertEqual(self.values(review_rev="abc", base="def")[1:3], ("abc", "def"))
-        self.assertEqual(self.values(review_rev="abc", base="def", diff_base="ghi")[1:3], ("abc", "ghi"))
-        self.assertEqual(self.values(base="def")[1:3], ("def", "def"))
-        self.assertEqual(self.values()[1:3], ("HEAD", "HEAD"))
-
-    def test_review_md_is_the_shared_viewpoint_file(self):
-        review_md = pathlib.Path(self.values()[3])
-        self.assertEqual(review_md, ports.SHARED / "prompts" / "REVIEW.md")
-        self.assertTrue(review_md.is_file())
 
 
 class BaseTestsCase(PlaceCase):
@@ -638,31 +587,6 @@ class ConvergeCase(unittest.TestCase):
             self.assertEqual(set(got["values"].values()), {""})
 
 
-class UnitsSectionCase(unittest.TestCase):
-    """材料の単位の行: 前の往復の案の項目の単位は、開いた項目も『必ず案に入れる』でなく、機械が差し込む行に分ける（splice が返答に無い
-    項目を全部差し込むので、md の「変えない項目は書かなくてよい」と食い違わない。#571）"""
-
-    def test_filled_units_are_not_owed_in_the_brief(self):
-        doc = record(plan_step([item(MEAN), item(CLAMP)]), review_step([face("key-a1", [MEAN])]))
-        filled = converge.filled_units(doc)
-        self.assertEqual(filled, [MEAN, CLAMP])
-        text, nos, _ = brief.units_rows(judgment(), [], filled)
-        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・{brief.DUTY_FILLED}", text)
-        self.assertIn(f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{brief.DUTY_FILLED}", text)
-        self.assertNotIn(brief.DUTY_OWED, text)
-        self.assertEqual(nos, [1, 2])
-        self.assertEqual(brief.units_rows(judgment(), [], [])[1], [])
-
-    def test_rows_name_duty_catalog_and_shut_units(self):
-        catalog = base.catalog()
-        text, _, shut = brief.units_rows(judgment(), catalog, [])
-        self.assertEqual(text.splitlines()[:3], [f"- no 1 `{MEAN}`: label=block・disposition=do-now・{brief.DUTY_OWED}",
-                                                 "  - paths: stats.py", "  - summary: mean の分母"])
-        self.assertIn(f"- no 3 `{ASKED}`: label=suggest・disposition=do-now・{brief.DUTY_MAY}", text)
-        self.assertEqual(shut, f"`{NIT}` (label=nit・disposition=none), `{DEFER}` (label=suggest・disposition=defer)")
-        self.assertEqual(brief.units_rows({"units": [unit(MEAN)], "questions": []}, "目録でない", [])[2], "none")
-
-
 class ReplanInputsCase(unittest.TestCase):
     """案の直しの材料: 裁定の種類で絞った申し出の行（steps.conflict_rows）と裁定の文（ruling_text）"""
 
@@ -714,28 +638,6 @@ class WorldRowsCase(PlaceCase):
         self.assertFalse(got["go"])
         self.assertIn("world_rows が読めない", got["reason"])
 
-    def test_same_row_lines(self):
-        self.assertEqual(brief.world_lines([base.WORLD_ROW]).splitlines(), [
-            "- Class mean-denominator (request line 1・stats.py): 平均の分母の取り違え (activity: 算術)",
-            f"  - Practice: 算術平均は要素の数で割る ({brief.NOT_WEB})",
-            "  - Applies: mean の分母",
-            "  - The request's way 「分母を直す」 is the same as the practice"])
-
-    def test_differs_row_lines_carry_sources_challenge_and_not_applies(self):
-        row = {**base.WORLD_ROW, "basis": worldmark.WEB, "not_applies": "空の列",
-               "sources": [{"id": "s1", "url": "https://example.org/mean", "excerpt": "divide by n"}, "壊れ"],
-               "versus": {"proposed": "分母を直す", "verdict": worldmark.DIFFERS, "challenge": "n で割る"}}
-        self.assertEqual(brief.world_lines([row]).splitlines()[1:], [
-            "  - Practice: 算術平均は要素の数で割る",
-            "  - Source s1: https://example.org/mean「divide by n」",
-            "  - Applies: mean の分母／Does not apply: 空の列",
-            "  - The request's way 「分母を直す」 is different from the practice——n で割る"])
-
-    def test_row_without_a_way_or_applies(self):
-        row = {**base.WORLD_ROW, "applies": "", "versus": {"proposed": "", "verdict": worldmark.NONE, "challenge": ""}}
-        self.assertEqual(brief.world_lines([row]).splitlines()[-2:], [
-            "  - Applies: none (a row that needs no answer)", "  - the request shows no way to solve it"])
-
 
 class PriorFailuresCase(PlaceCase):
     """前の run で最後まで通らなかった物（元 planblk.prior_part の carry.prior_section）: 入口が周のフォルダに写しを置き、
@@ -764,83 +666,6 @@ class PriorFailuresCase(PlaceCase):
                 self.assertEqual(ctx["prior_failures"], [])
                 self.assertTrue(any(u.startswith("prior_failures: ") for u in ctx["unread"]), ctx["unread"])
                 self.assertEqual(self.read(folder / files.PRIOR_FAILURES_IN), [])
-
-
-class VerifyNeighborCase(PlaceCase):
-    """L-W10: 判定の単位の裏取りの申し送り（判定の出力の欄 verify の先）を修正案の役の材料に貼る（元 planblk.verify_part。今は
-    brief.verify_rows の英語の札の行）"""
-
-    DOC = {"units": [{"n": 1, "key": "a.py 分母", "state": "checked", "verdict": "root", "evidence_found": True, "evidence": "a.py:3",
-                      "location_ok": True, "location": "a.py:3", "why": "確か"}], "synergy": {}}
-
-    def test_verify_rows(self):
-        self.assertEqual(brief.verify_rows(self.DOC).splitlines(), [
-            "- Unit 1 `a.py 分母`: the root・evidence found (a.py:3)・place matches (a.py:3). 確か", "",
-            "Synergy between units: could not be checked ()"])
-
-    def test_unchecked_unit_and_synergy(self):
-        doc = {"units": [{"n": 2, "key": "b", "state": "failed", "errors": ["読めない"]},
-                         {"n": 3, "key": "c", "state": "checked", "verdict": "not_root", "real_root": "d.py", "evidence_found": False,
-                          "evidence": "", "location_ok": False, "location": "c.py:1", "why": "違う"}, "行でない"],
-               "synergy": {"state": "checked", "why": "同じ枝", "duplicates": [{"units": ["b", "c"], "why": "同じ穴"}],
-                           "relations": [{"units": ["b"], "place": "apart", "why": "別の所"}],
-                           "order": [{"first": "b", "then": "c", "why": "受けが先"}]}}
-        self.assertEqual(brief.verify_rows(doc).splitlines(), [
-            "- Unit 2 `b`: could not be checked (読めない)",
-            "- Unit 3 `c`: not the root (real root: d.py)・evidence missing ()・place differs (c.py:1). 違う", "",
-            "Synergy between units: 同じ枝",
-            "- duplicate: `b`・`c` (同じ穴)",
-            "- related (different place): `b` (別の所)",
-            "- order: `b` first, then `c` (受けが先)"])
-
-    def test_verify_notes_reach_the_values(self):
-        self.opened(verify=self.artifact("judge/judge-verify.json", self.DOC))
-        v, w = brief.values(self.place, self.repo)
-        self.assertTrue(w["verify"])
-        self.assertFalse(w["verify_unreadable"])
-        self.assertIn("- Unit 1 `a.py 分母`: ", v["verify_rows"])
-
-    def test_unreadable_verify_names_the_file(self):
-        """形の違う申し送りは入口が読めなかった入力として名指す（役に渡すパスにしない）"""
-        ptr = self.artifact("judge/judge-verify.json", ["申し送りでない"])
-        _, ctx = self.opened(verify=ptr)
-        v, w = brief.values(self.place, self.repo)
-        self.assertFalse(w["verify"])
-        self.assertEqual(ctx["verify"], "")
-        self.assertTrue(any(u.startswith("verify: ") and "verify.schema.json" in u for u in ctx["unread"]), ctx["unread"])
-
-
-class HeadDepthNeighborCase(PlaceCase):
-    """判定の出力の欄 depth_record の先の頭の深さの控えの行ごとの未知の種類を、形 plan の修正案の役の材料に貼る（brief.unknown_rows。
-    種類ごとの指示の文は md の断片 unknown-asks が持つ）"""
-
-    ITEMS = [{"item": 1, "unknown": "範囲", "cause_quote": "設定の鍵に響く", "where": "a.py:3", "code_quote": "KEY = 1"},
-             {"item": 2, "unknown": "形", "cause_quote": "二通りの直し方", "where": "a.py:5", "code_quote": "def pick():"},
-             {"item": 3, "unknown": "原因", "cause_quote": "落ちる訳", "where": "", "code_quote": ""},
-             {"item": 4, "unknown": "表に無い種類", "cause_quote": "x"}]
-
-    def test_head_depth_kinds_reach_the_rows(self):
-        """控えが在れば種類・番地の行、控えが無ければ行が無く訳だけ"""
-        self.assertEqual(brief.unknown_rows(""), ("", headdepth.NO_RECORD))
-        jdir = self.place / "judge"
-        path = headdepth.write(jdir, headdepth.record(headdepth.tier_of(self.ITEMS), "設計の選び", items=self.ITEMS))
-        rows, why = brief.unknown_rows(str(path))
-        self.assertEqual(why, "設計の選び")
-        self.assertEqual(rows.splitlines(), [
-            "- line 1 (範囲): request text 「設定の鍵に響く」・place a.py:3「KEY = 1」",
-            "- line 2 (形): request text 「二通りの直し方」・place a.py:5「def pick():」",
-            "- line 3 (原因): request text 「落ちる訳」・place: none (the cause is not visible in code)"])
-
-    def test_values_switch_between_rows_and_none(self):
-        self.opened()
-        v, w = brief.values(self.place, self.repo)
-        self.assertEqual((w["unknown_rows"], w["unknown_none"], v["unknown_why"]), (False, True, headdepth.NO_RECORD))
-        path = headdepth.write(self.place / "judge", headdepth.record(headdepth.tier_of(self.ITEMS), "設計の選び", items=self.ITEMS))
-        self.opened(depth_record=self.run.pointer(path.relative_to(self.place).as_posix()))
-        v, w = brief.values(self.place, self.repo)
-        self.assertEqual((w["unknown_rows"], w["unknown_none"]), (True, False))
-        self.assertEqual((v["kind_none"], v["kind_cause"], v["kind_shape"], v["kind_scope"]),
-                         (headdepth.NONE, headdepth.CAUSE, headdepth.SHAPE, headdepth.SCOPE))
 
 
 class RevisedFieldsCase(PlaceCase):

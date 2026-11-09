@@ -15,50 +15,23 @@ import unittest
 
 from tests.blocks import kit
 from tests.blocks.plan import base
-from tests.blocks.plan.base import (CLAMP, DIRTY_ROW, HANDOFF_NOTE, LOOSE, MEAN, NIT, RUN_ID, PlanRun, catalog, item, judgment, narrow,
+from tests.blocks.plan.base import (CLAMP, DIRTY_ROW, HANDOFF_NOTE, MEAN, NIT, RUN_ID, PlanRun, catalog, item, judgment, narrow,
                                     unit, writer_of)
 
 rounds = kit.load("line", "rounds")   # 往復の記録の書き手（line）。plan の src より先に読む（kit.load は前の src を外す）
 steps = kit.load("plan", "steps")
 take = importlib.import_module("src.take")   # kit.load が置いた src の package から
-brief = kit.load("plan", "brief")
 files = kit.load("plan", "files")
 
 import converge  # noqa: E402  （lib/。base が sys.path に足す）
 import gatemarks  # noqa: E402
-import libdocs  # noqa: E402
 import planmarks  # noqa: E402
 import rolekit  # noqa: E402
-import structmark  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 
-FORK = "f0" * 20   # 差分の run の差分の根（読む版と違う版）
-
 # md の札（prompts/plan-writer.md と workflows/.shared/prompts/ の断片の見出しと頼みの頭）
-ROLE_HEAD = "You are the planning role, and you only read."
-PRIOR_HEAD = "## The previous round's plan and the review's findings"
-NO_REVIEW = "- Review findings: not received"
-HANDOFF_ASK = "In the answer field `handoff`"
-HANDOFF_ROUNDS = "Notes that earlier rounds of you wrote"
-UNITS_HEAD = "## Units to fix in this round"
-FILLED = "- The machine fills in these numbers (items of the previous pass's plan; you need not write items you do not change; do not write closed items): "
 RIPPLE_HEAD = "## Ripple list (looked up by the machine with git grep: the callers and tests of the names that the items change)"
-UNITS_RIPPLE_HEAD = "## Ripple list before the plan"
-STRUCT_HEAD = "## Rows of the structure eye"
-STRUCT_ASK = "For an item that has the unit of a row seen as dirtying, write per row"
-STRUCT_NONE = "No row was seen as dirtying the structure"
-STRUCT_CLEAN_HEAD = "### Rows seen as not dirtying"
-POLICY_HEAD = "## The person's policy"
-PRIOR_FAILURES_HEAD = "## What did not pass to the end in the previous run"
-MAP_HEAD = "## Map of where concepts live"
-RECORDED_HEAD = "## Recorded policy"
-PRESCRIPTION_HEAD = "## Prescriptions of the judgment"
-EXCLUDED = "Range of parallel pull requests. Do not touch it, and do not put it in a unit: "
-SPEC_HEAD = "## Spec (requirements and acceptance tests."
 UNREAD_HEAD = "## Inputs that could not be read"
-ROUTES_SPEC_HEAD = "## Route of each item (decided by the spec)"
-LANG_LINE = "Write the fields that people read ("
-LAST_LINE = "Return only JSON that matches the output schema."
 
 FACE_MEAN = {"key": "key-a1-mean", "kind": "regression", "where": "stats.py", "why": "空の列が落ちる", "severity": "block",
              "unit_keys": [MEAN]}
@@ -228,28 +201,6 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(out["status"], "ok")
         self.assertEqual(run.json(out["ripple"])["error"], steps.RIPPLE_LOST)
 
-    def test_first_round_reads_empty_prior_and_null_review_alike(self):
-        """空の prior は 1 周目（前の周の節も写しも無い）。2 周目の review が null でも欄が無くても、受けていない 1 文になる"""
-        run = PlanRun(self)
-        out = run.include(prior="")
-        self.assertEqual((out["round"], out["status"]), (1, "ok"))
-        self.assertNotIn(PRIOR_HEAD, writer_prompts(run)[0])
-        self.assertFalse([n for n in files.PRIOR_COPIES.values() if (run.art / "r1" / n).exists()])
-        for form in ("null", "absent"):
-            with self.subTest(review=form):
-                run = PlanRun(self)
-                line = Line(run)
-                line.round()
-                prior = line.prior(None)
-                if form == "absent":
-                    del prior["review"]
-                out = run.include(prior=prior)
-                self.assertEqual((out["round"], out["status"]), (2, "ok"), out)
-                prompt = writer_prompts(run)[-1]
-                self.assertIn(PRIOR_HEAD, prompt)
-                self.assertIn(NO_REVIEW, prompt)
-                self.assertFalse((run.art / "r2" / files.PRIOR_COPIES["review"]).exists())
-
     def test_rounds_count_and_second_round_gets_review(self):
         run = PlanRun(self)
         line = Line(run)
@@ -260,14 +211,6 @@ class CollectCase(unittest.TestCase):
         self.assertEqual((out["round"], out["status"]), (2, "ok"), out)
         rnd = run.art / "r2"
         self.assertEqual(json.loads((rnd / files.PRIOR_COPIES["review"]).read_text(encoding="utf-8")), review)
-        prompt = writer_prompts(run)[-1]
-        self.assertIn(PRIOR_HEAD, prompt)
-        self.assertIn(f"- Review findings: {rnd / files.PRIOR_COPIES['review']}", prompt)
-        self.assertIn("### key-a1-mean", prompt)
-        self.assertIn(f"- no 1 `{MEAN}`: label=block・disposition=do-now・{brief.DUTY_FILLED}", prompt)
-        self.assertIn(f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{brief.DUTY_FILLED}", prompt)
-        self.assertIn(FILLED + "[1, 2]", prompt)
-        self.assertIn(RIPPLE_HEAD, prompt, "前の周の項目ごとの波及の一覧")
         self.assertTrue((run.art / "r1" / files.REPLY).is_file(), "前の周のフォルダは消えない")
         self.assertIn("block の key key-a1-mean への答えが無い", rolekit.rejected(rnd, "plan")[0])
         side = json.loads((rnd / files.FIX_PLAN).read_text(encoding="utf-8"))
@@ -276,61 +219,6 @@ class CollectCase(unittest.TestCase):
         trace = [json.loads(x) for x in (rnd / planmarks.TRACE_FILE).read_text(encoding="utf-8").splitlines()]
         self.assertEqual([(r["op"], r.get("id")) for r in trace if r["op"] == converge.DROPPED_OP],
                          [(converge.DROPPED_OP, converge.item_id([CLAMP]))], "前のまま書いた閉じた項目の行は捨てて trace に残す")
-
-    def test_second_round_prompt_names_the_prior_handoff(self):
-        """1 往復目の役が引き継ぎのメモつきで返した案が受かると、メモは周のフォルダに置かれ、2 往復目の指示が前の周のメモのパスを名指す
-        （中身は貼らない）。メモを書けという頼みは 1 往復目の指示にも載る"""
-        run = PlanRun(self)
-        line = Line(run)
-        self.assertIs(line.round(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ok"], True)
-        first = run.art / "r1"
-        self.assertEqual(json.loads((first / files.HANDOFF).read_text(encoding="utf-8")), HANDOFF_NOTE)
-        self.assertIn(HANDOFF_ASK, writer_prompts(run)[0])
-        line.round({"faces": []})
-        prompt = writer_prompts(run)[-1]
-        self.assertIn(HANDOFF_ROUNDS, prompt, "前の周のメモの使い方の案内も届く")
-        self.assertIn(f"- r1: {first / files.HANDOFF} (Read it)", prompt)
-        self.assertNotIn(HANDOFF_NOTE["kept"][0], prompt)
-
-    def test_third_round_prompt_names_every_prior_handoff_oldest_first(self):
-        run = PlanRun(self)
-        line = Line(run)
-        again = {**HANDOFF_NOTE, "kept": ["二往復目で決めた訳"]}
-        self.assertIs(line.round(writer=writer_of({"plan": [item(1, 2)], "handoff": HANDOFF_NOTE}))["ok"], True)
-        self.assertIs(line.round({"faces": []}, writer=writer_of({"plan": [item(1, 2)], "handoff": again}))["ok"], True)
-        line.round({"faces": []})
-        first, second = (str(run.art / f"r{n}" / files.HANDOFF) for n in (1, 2))
-        prompt = writer_prompts(run)[-1]
-        self.assertIn(f"- r1: {first} (Read it)", prompt)
-        self.assertIn(f"- r2: {second} (Read it)", prompt)
-        self.assertLess(prompt.index(first), prompt.index(second))
-        self.assertLess(prompt.index(HANDOFF_ROUNDS), prompt.index(first))
-        for note in (HANDOFF_NOTE, again):
-            self.assertNotIn(note["kept"][0], prompt)
-
-    def test_second_round_prompt_says_when_the_prior_round_left_no_handoff(self):
-        """前の周の役がメモを書かなかった時は、2 往復目の指示がメモの無いことを名指す（黙って落とさない）。前の周そのものが無い
-        1 往復目の指示には、前の周のメモの段落を出さない（書かなかった事実が無い）"""
-        run = PlanRun(self)
-        line = Line(run)
-        line.round()
-        self.assertNotIn(HANDOFF_ROUNDS, writer_prompts(run)[0])
-        line.round({"faces": []})
-        prompt = writer_prompts(run)[-1]
-        self.assertIn(HANDOFF_ROUNDS, prompt)
-        self.assertIn("- r1: (no notes)", prompt)
-        self.assertNotIn(str(run.art / "r1" / files.HANDOFF), prompt)
-
-    def test_resubmit_without_handoff_keeps_the_first_handoff(self):
-        """1 回目の返答がメモつきで拒まれ、出し直しがメモを返さずに受かると、周のメモは 1 回目の物になる"""
-        run = PlanRun(self)
-        role = seq({"plan": [item(1)], "handoff": HANDOFF_NOTE}, {"plan": [item(1, 2)]})
-        out = run.include(writer=role, fixer=role)
-        self.assertIs(out["ok"], True, out)
-        rnd = run.art / "r1"
-        self.assertEqual(len(rolekit.rejected(rnd, "plan")), 1)
-        self.assertEqual(json.loads((rnd / files.HANDOFF).read_text(encoding="utf-8")), HANDOFF_NOTE)
-        self.assertEqual(run.json(out["handoff"]), HANDOFF_NOTE)
 
     def test_accepted_reply_without_handoff_removes_a_stale_handoff(self):
         """メモを返さずに受かった周は、周のフォルダに前から残るメモを消す（使い回した周の古いメモを次の周に前の周の物として載せない）"""
@@ -345,17 +233,6 @@ class CollectCase(unittest.TestCase):
         self.assertIs(out["ok"], True)
         self.assertFalse((rnd / files.HANDOFF).exists())
         self.assertIsNone(out["handoff"])
-
-    def test_second_round_prompt_opens_with_the_role_head(self):
-        """元 tests/test_blk_plan.py の test_revise_prompt_names_blocks_and_keys: 2 周目の指示も役の頭から始まり、独立設計の節は無い"""
-        run = PlanRun(self)
-        line = Line(run)
-        line.round()
-        line.round({"faces": []})
-        prompt = writer_prompts(run)[-1]
-        self.assertIn(PRIOR_HEAD, prompt)
-        self.assertTrue(prompt.startswith(ROLE_HEAD), prompt[:200])
-        self.assertNotIn("independent design", prompt.lower())
 
     def test_second_round_changing_a_closed_item_is_rejected(self):
         run = PlanRun(self)
@@ -386,33 +263,6 @@ class CollectCase(unittest.TestCase):
         self.assertEqual(len(writer_prompts(run)), 2, "1 周目と 2 周目の 1 回ずつ。2 周目の役に出し直させない")
         self.assertEqual(rolekit.rejected(run.art / "r2", "plan"), [], "役の拒否に数えない")
         self.assertTrue(run.read("r2/round.json")["halt"])
-
-    def test_closed_row_with_run_refs_neither_halts_nor_rejects(self):
-        """機械が差し込んだ閉じた項目の行は、人に聞く文の照らし（gatemarks.plain_gaps）に当てない。照らしを足す前の往復の記録の行が
-        plan[0] のような字を持っていても、再開した run の役に直せない拒否を返さず、止めもしない"""
-        run = PlanRun(self)
-        line = Line(run)
-        self.assertIs(line.round(writer=writer_of({"plan": [item(1), item(2)]}))["ok"], True)
-        prior = line.prior({"faces": [FACE_MEAN]})
-        prior["record"]["plan"][1]["row"]["narrows"] = [narrow(no_narrow=NO_NARROW + "（plan[0] と同じ形も当たった）", undecided_because=MARKED["undecided_because"])]
-        role = seq({"plan": [item(1, approach=CHANGED_APPROACH)], "block_answers": [FIXED_MEAN]})
-        out = run.include(prior=prior, writer=role, fixer=role)
-        self.assertIs(out["ok"], True, out)
-        self.assertEqual(rolekit.rejected(run.art / "r2", "plan"), [])
-
-    def test_role_row_with_a_closed_items_units_is_still_checked(self):
-        """照らしを外すのは記録から差し込んだ行だけで、位置で見分ける。役が閉じた項目を前のまま書き、同じ単位の行をもう 1 本書いた時、
-        2 本目は役の書いた行なので run の中の参照を拒む"""
-        run = PlanRun(self)
-        line = Line(run)
-        self.assertIs(line.round(writer=writer_of({"plan": [item(1), item(2)]}))["ok"], True)
-        extra = item(2, narrows=[narrow(no_narrow=NO_NARROW + "（plan[0] と同じ形も当たった）", undecided_because=MARKED["undecided_because"])])
-        role = seq({"plan": [item(1, approach=CHANGED_APPROACH), item(2), extra], "block_answers": [FIXED_MEAN]},
-                   {"whole_plan": True, "plan": [item(1, approach=CHANGED_APPROACH)]})
-        line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role)
-        why = rolekit.rejected(run.art / "r2", "plan")[0]
-        self.assertIn(steps.PLAIN_REJECT, why)
-        self.assertIn("plan[2].narrows[0].no_narrow", why)
 
     def test_closed_row_without_an_ask_case_neither_halts_nor_rejects(self):
         """機械が差し込んだ閉じた項目の行は、人に聞く場合の印の照らし（gatemarks.ask_gaps）にも当てない。照らしを足す前の往復の記録の
@@ -502,29 +352,6 @@ class CollectCase(unittest.TestCase):
         self.assertEqual([it["row"] for it in got], want)
         self.assertEqual([it["hash"] for it in got], [converge.item_hash(r) for r in want])
 
-    def test_closed_item_with_marked_narrows_is_not_rejected(self):
-        """#849: 閉じた項目の narrows の行の決め手の欄（no_narrow など）は、往復の記録から差し込んでも、前のまま書いても欠けず、
-        欠けを理由に拒まない。受けた案の閉じた項目は役の書いた形のまま。役が自分で書いた項目の no_narrow の欠けは今と同じに拒む"""
-        two = item(2, rewrite_tests=[REWRITE], narrows=[MARKED])
-        for name, closed in (("差し込む", []), ("前のまま書く", [two])):
-            with self.subTest(name):
-                run = PlanRun(self)
-                line = Line(run)
-                first = line.round(writer=writer_of({"plan": [item(1, narrows=[MARKED]), two]}))
-                self.assertIs(first["ok"], True, first)
-                bare = narrow(undecided_because=MARKED["undecided_because"])   # 役が no_narrow を書かなかった行
-                role = seq({"plan": [item(1, approach=CHANGED_APPROACH, narrows=[bare]), *closed], "block_answers": [FIXED_MEAN]},
-                           {"plan": [item(1, approach=CHANGED_APPROACH, narrows=[MARKED]), *closed]})
-                out = line.round({"faces": [FACE_MEAN]}, writer=role, fixer=role, typed=False)   # 欠けを受け付けまで通す
-                self.assertIs(out["ok"], True, out)
-                why = rolekit.rejected(run.art / "r2", "plan")
-                self.assertEqual(len(why), 1, why)
-                self.assertIn(steps.NO_NARROW_REJECT, why[0])
-                self.assertIn("plan[0].narrows[0]", why[0], "役の書いた行の no_narrow の欠けは拒む")
-                self.assertNotIn("plan[1]", why[0])
-                self.assertNotIn(steps.CLOSED_REJECT, why[0])
-                self.assertEqual(run.json(out["reply"])["plan"][1], run.json(first["reply"])["plan"][1], "閉じた項目は役の書いた形のまま")
-
     def test_second_round_returns_only_changed_items(self):
         """#571: 2 往復目の修正案の役は変えた項目だけを返す。返さない開いた項目は機械が前の往復の行を差し込み、受けた案は全部の
         項目を持つ。fixed と答えた block の項目を変えていない答えは拒む"""
@@ -569,15 +396,6 @@ class CollectCase(unittest.TestCase):
                           writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
         self.assertIs(out["ok"], True, out)
         self.assertEqual(out["status"], "ok")
-
-    def test_failed_structure_note_reaches_the_prompt(self):
-        """元 tests/test_structure_eye.py の test_block_reason_reaches_the_mark: 構造の目の失敗は役を止めず、行なしで計画する"""
-        run = PlanRun(self)
-        reason = "構造の目の返答が 3 回とも受け付けで拒まれた"
-        out = run.include(structure=structure(run, status="failed", reason=reason))
-        self.assertEqual(run.status["plan-loop"], "ok")
-        self.assertIs(out["ok"], True, out)
-        self.assertIn(f"{structmark.MISSING}（理由: {reason}", writer_prompts(run)[0])
 
     def test_finish_returns_the_fix_plan_rejects_and_status(self):
         """#681: 出口は、ほかの block が読む周のフォルダの控えを欄で返す: 修正案の役の返答の pointer fix_plan（周の p2.fix_plan.json）・
@@ -703,36 +521,11 @@ class SurvivesCase(unittest.TestCase):
 
 
 class BriefCase(unittest.TestCase):
-    """修正案の役の指示に元の works が渡していた節（方針の文書・考えの住処の地図・前の run で通らなかった物ほか）"""
+    """修正案の役の指示の材料の代表 1 本: 方針は line が固めた写しを渡す（指示の字の残りは workflows/.shared/prompt.py の emit が
+    印と値の対で照らす）"""
 
     def prompt(self, run, n=0):
         return writer_prompts(run)[n]
-
-    def test_head_asks_no_narrow_first(self):
-        """修正案の役の指示は、narrows を書く前に狭めない案を探し、無い時だけ no_narrow に結果を書けと言う"""
-        text = (base.BLOCK / "prompts" / "plan-writer.md").read_text(encoding="utf-8")
-        self.assertIn("Look first for a plan that does not narrow", text)
-        self.assertIn(gatemarks.NO_NARROW, text)
-
-    def test_plan_head_has_concept_rule(self):
-        """判断の 1 軸と考えの住処の観点が修正案の役の指示に載り、事前審査の頼みは載らない"""
-        text = (base.BLOCK / "prompts" / "plan-writer.md").read_text(encoding="utf-8")
-        self.assertIn("One axis of judgment", text)
-        self.assertIn("Use the homes of concepts", text)
-        self.assertIn("{shared:concept-map}", text)
-
-    def test_prompt_carries_policy_concept_map_and_prior_failures(self):
-        run = PlanRun(self)
-        (run.art / "start").mkdir()
-        (run.art / "start" / "policy.md").write_text("方針: 試験を先に書く\n", encoding="utf-8")
-        out = run.include(policy=pointer_to("start/policy.md"), prior_failures=[{"where": "修正案の受け付け", "text": "単位の網羅が 3 回とも欠けた"}])
-        self.assertIs(out["ok"], True)
-        prompt = self.prompt(run)
-        self.assertIn(POLICY_HEAD, prompt)
-        self.assertIn("方針: 試験を先に書く", prompt.split(POLICY_HEAD, 1)[1])
-        self.assertIn(PRIOR_FAILURES_HEAD, prompt)
-        self.assertIn("- 修正案の受け付け: 単位の網羅が 3 回とも欠けた", prompt)
-        self.assertIn(MAP_HEAD, prompt)
 
     def test_policy_is_the_frozen_copy_the_line_passes(self):
         """修正案の指示が貼り名指す方針は、port policy の写し（対象のリポジトリの生の文書ではない）"""
@@ -746,216 +539,6 @@ class BriefCase(unittest.TestCase):
         self.assertIn("固めた方針の文", prompt)
         self.assertIn(f"- Policy document: name `{frozen}:<line>`", prompt)
         self.assertNotIn("生の方針の文", prompt)
-
-    def test_prep_passes_state_dir_cache_root(self):
-        """修正案の指示のライブラリの文書の節は、STATE_DIR の下 works-factory/ の run をまたぐ控えを読む（網に出ない）"""
-        from lib.tests.test_libdocs import FakeBoard, ok_http
-        from tests.bin.gitkit import git
-        run = PlanRun(self, judge=judgment(unit("app.py の requests の使い方")))
-        (run.repo / "app.py").write_text("import requests\n", encoding="utf-8")
-        (run.repo / "requirements.txt").write_text("requests==2.32.3\n", encoding="utf-8")
-        git(run.repo, "add", "app.py", "requirements.txt")
-        git(run.repo, "commit", "-q", "-m", "app")
-        state = run.tmp / "state"
-        libdocs.section(FakeBoard(run.tmp / "earlier").work(""), run.repo, ["app.py"], get=ok_http(), env={},
-                        shared=state / "works-factory")
-        run.env_extra = {"STATE_DIR": str(state), "WORKS_LIBDOCS_WEB": "", "https_proxy": "http://127.0.0.1:9",
-                         "HTTPS_PROXY": "http://127.0.0.1:9"}
-        run.include(writer=writer_of({"plan": [item(1, 2, 3)]}))
-        self.assertIn("ほかの run 1 本", self.prompt(run))
-
-    def test_without_policy_or_prior_failures_neither_section(self):
-        run = PlanRun(self)
-        run.include()
-        prompt = self.prompt(run)
-        self.assertNotIn(POLICY_HEAD, prompt)
-        self.assertNotIn(PRIOR_FAILURES_HEAD, prompt)
-
-    def test_dirty_structure_rows_reach_the_prompt(self):
-        run = PlanRun(self)
-        out = run.include(structure=structure(run, dirty_rows()),
-                          writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
-        self.assertIs(out["ok"], True)
-        prompt = self.prompt(run)
-        for word in (STRUCT_HEAD, STRUCT_ASK, DIRTY_ROW["chosen"]):
-            self.assertIn(word, prompt)
-        self.assertNotIn(structmark.MISSING, prompt)
-
-    def test_prompt_carries_structure_rows(self):
-        """元 structmark.plan_section の行の形: 判定・形・根拠・避け方（札は英語、判定の語は字のまま）"""
-        run = PlanRun(self)
-        run.include(structure=structure(run, dirty_rows()),
-                    writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
-        prompt = self.prompt(run)
-        self.assertIn(f"- {MEAN}: 汚れる (forms 5・grounds /units/0/id)", prompt)
-        self.assertIn(f"Way to avoid: {DIRTY_ROW['chosen']}", prompt)
-
-    def test_failed_structure_marks_the_prompt(self):
-        run = PlanRun(self)
-        out = run.include(structure=structure(run, status="failed", reason="構造の目の返答が 3 回とも受け付けで拒まれた"))
-        self.assertIs(out["ok"], True, out)
-        prompt = self.prompt(run)
-        self.assertIn(f"{structmark.MISSING}（理由: 構造の目の返答が 3 回とも受け付けで拒まれた", prompt)
-        self.assertNotIn(STRUCT_ASK, prompt)
-        self.assertEqual(rolekit.rejected(run.art / "r1", "plan"), [], "構造の行への答えを求めない")
-
-    def test_clean_only_structure_rows_need_no_answer(self):
-        run = PlanRun(self)
-        self.assertIs(run.include(structure=structure(run, clean_rows()))["ok"], True)
-        prompt = self.prompt(run)
-        self.assertIn(STRUCT_HEAD, prompt)
-        self.assertNotIn(STRUCT_ASK, prompt)
-        self.assertIn(STRUCT_NONE, prompt)
-        self.assertIn(STRUCT_CLEAN_HEAD, prompt)
-        self.assertIn(f"- {MEAN}: 汚れない (", prompt.split(STRUCT_CLEAN_HEAD, 1)[1])
-        self.assertEqual(rolekit.rejected(run.art / "r1", "plan"), [], "structure を書かない案は通る")
-
-    def test_clean_structure_rows_sit_outside_the_ask(self):
-        run = PlanRun(self)
-        run.include(structure=structure(run, dirty_rows()),
-                    writer=writer_of({"plan": [item(1, 2, structure=[{"row": MEAN, "follows": True}])]}))
-        prompt = self.prompt(run)
-        self.assertIn(STRUCT_ASK, prompt)
-        self.assertNotIn(STRUCT_NONE, prompt)
-        head, tail = prompt.split(STRUCT_CLEAN_HEAD, 1)
-        asked = head.split(STRUCT_ASK, 1)[1]
-        self.assertIn(f"- {MEAN}: 汚れる (", asked)
-        self.assertNotIn(": 汚れない (", asked)
-        self.assertIn(": 汚れない (", tail)
-        self.assertNotIn(": 汚れる (", tail)
-
-    def test_prescriptions_reach_the_prompt(self):
-        judge = judgment()
-        judge["units"][0]["prescriptions"] = ["分母を len(xs) にする"]
-        run = PlanRun(self, judge=judge)
-        self.assertIs(run.include()["ok"], True)
-        prompt = self.prompt(run)
-        self.assertIn(PRESCRIPTION_HEAD, prompt)
-        self.assertIn(f"### {MEAN}\n\n1. 分母を len(xs) にする", prompt)
-        self.assertNotIn(f"### {CLAMP}", prompt)
-        self.assertIn(f"Judgment record: {run.art / 'judge' / 'judgment.json'}", prompt)
-
-    def test_prompt_opens_with_the_role_head(self):
-        run = PlanRun(self)
-        run.include()
-        prompt = self.prompt(run)
-        self.assertTrue(prompt.startswith(ROLE_HEAD), prompt[:200])
-        for word in ("**Why this step exists**", "How to group items:", "Look for what already exists first:",
-                     "Code comments, docstrings, and test descriptions (the target's text)", "Works fields of a plan item:",
-                     "The deciding source of each approval item:", "Look first for a plan that does not narrow:",
-                     RECORDED_HEAD, "Recorded policy: none", "- Answers a person gave at approval nodes: not given to this role"):
-            self.assertIn(word, prompt)
-        self.assertNotIn("## Why your previous answer was rejected", prompt, "拒まれていない回に却下の段落は無い")
-
-    def test_units_section_carries_catalog_ledger_and_view(self):
-        judge = judgment(unit(NIT, "nit", None))
-        judge["questions"] = [{"key": "q-mean", "kind": "fork", "status": "held", "origin": CLAMP, "depends": []}]
-        judge["precedents"] = [{"source": "https://example.org/mean", "verdict": "adopt"}]
-        run = PlanRun(self, judge=judge)
-        self.assertIs(run.include()["ok"], True)
-        prompt = self.prompt(run)
-        for word in (UNITS_HEAD, "  - paths: stats.py", "  - summary: mean の分母",
-                     f"- Units you must not put in (the check rejects them): `{NIT}` (label=nit", "Question ledger (", '"key": "q-mean"',
-                     "The judge's view: ", '"framing": "算術平均と上限の枝の取り違え"', "The judge's precedents (world solution): ",
-                     "https://example.org/mean",
-                     f"- no 1 `{MEAN}`: label=block・disposition=do-now・{brief.DUTY_OWED}",
-                     f"- no 2 `{CLAMP}`: label=block・disposition=do-now・{brief.DUTY_MAY}"):
-            self.assertIn(word, prompt)
-
-    def test_repo_line_names_base_and_review_md(self):
-        """P035: 差分の run（入口の差分の根 diff_base が読む版 review_rev と違う）では、読む版と BASE を別の値で描く"""
-        run = PlanRun(self, diff_base=FORK)
-        run.include()
-        self.assertIn(f"Repository: {run.repo.resolve()} (version read: `{run.base}`)  BASE: `{FORK}`  "
-                      f"Viewpoint source: {kit.SHARED / 'prompts' / 'REVIEW.md'}", self.prompt(run))
-
-    def test_excluded_range_named(self):
-        run = PlanRun(self)
-        run.include()
-        self.assertNotIn(EXCLUDED, self.prompt(run))
-        run = PlanRun(self)
-        run.include(excluded=run.file("judge/pr-excluded.json", {"paths": ["other.py"]}))
-        self.assertIn(f"{EXCLUDED}{run.art / 'judge' / 'pr-excluded.json'}", self.prompt(run))
-
-    def test_prompt_carries_lib_docs_section(self):
-        run = PlanRun(self)
-        run.include()
-        prompt = self.prompt(run)
-        self.assertIn("## Library documents (installed version and official)", prompt)
-        self.assertIn("fetch the official documents yourself with WebSearch and WebFetch", prompt)
-        self.assertIn("ライブラリの文書を取る物は無い（0 本）", prompt)
-
-    def test_prompt_ends_with_language_rule(self):
-        for lang, want in (("日本語", "日本語"), ("", "the language of the request (the user's language)")):
-            with self.subTest(lang=lang):
-                run = PlanRun(self, lang=lang)
-                run.include()
-                lines = [x for x in self.prompt(run).splitlines() if x.strip()]
-                self.assertEqual(lines[-1], LAST_LINE)
-                self.assertTrue(lines[-2].startswith(LANG_LINE), lines[-2])
-                self.assertIn(f") in {want}. Keep keys", lines[-2])
-
-    def test_spec_reaches_the_prompt(self):
-        run = PlanRun(self)
-        run.include()
-        self.assertNotIn(SPEC_HEAD, self.prompt(run))
-        run = PlanRun(self)
-        run.include(spec=run.file("judge/spec.json", {   # 仕様の block が固めた spec.json の形（shared:spec.schema.json）
-            "requirements": [{"key": "r1", "text": "空の列の平均は 0"}],
-            "acceptance": [{"key": "a1", "requirement": "r1", "file": "test_stats.py", "name": "TestStats::test_mean_of_empty",
-                            "run": "python -m unittest test_stats", "sha256": "0" * 64, "exit_at_approval": 1}]}))
-        prompt = self.prompt(run)
-        self.assertIn(SPEC_HEAD, prompt)
-        self.assertIn("TestStats::test_mean_of_empty", prompt.split(SPEC_HEAD, 1)[1])
-        run = PlanRun(self)
-        doc = run.art / "spec-driven" / "spec.md"
-        doc.parent.mkdir(parents=True)
-        doc.write_text("# 人と固めた仕様\n\n空の列の平均は 0\n", encoding="utf-8")
-        run.include(spec_doc=str(doc))
-        self.assertIn("空の列の平均は 0", self.prompt(run).split(SPEC_HEAD, 1)[1], "人と固めた仕様の本文は字のまま")
-
-    def test_routes_spec_puts_the_route_paragraph(self):
-        """入力 routes（docs/design/spec-driven.md の 7 章の 2）: spec の時だけ、固めた仕様の「TDD で直す所」が名指す行だけを tdd にする
-        段落が出る。既定の auto は今の指示のまま"""
-        run = PlanRun(self)
-        run.include()
-        self.assertNotIn(ROUTES_SPEC_HEAD, self.prompt(run))
-        run = PlanRun(self)
-        run.include(routes="spec")
-        self.assertIn(ROUTES_SPEC_HEAD, self.prompt(run))
-
-    def test_unknown_routes_word_is_an_unread_input(self):
-        run = PlanRun(self)
-        run.include(routes="tdd")
-        prompt = self.prompt(run)
-        self.assertNotIn(ROUTES_SPEC_HEAD, prompt)
-        self.assertIn("routes:", prompt.split(UNREAD_HEAD, 1)[1])
-
-    def test_units_ripple_reaches_the_prompt(self):
-        """元 tests/test_blk_plan.py の test_units_ripple_reaches_plan_prompt"""
-        run = PlanRun(self)
-        run.include()
-        prompt = self.prompt(run)
-        self.assertIn(UNITS_RIPPLE_HEAD, prompt)
-        self.assertIn(f"### Unit {MEAN}", prompt)
-        self.assertIn(f"### Unit {CLAMP}", prompt)
-        self.assertTrue((run.art / "r1" / files.RIPPLE_UNITS).is_file())
-
-    def test_unit_without_paths_is_skipped_and_named(self):
-        """構造の目が paths の空の単位を見なかった控え（skipped）は、その単位を名指す"""
-        run = PlanRun(self, units=[*catalog(), {"id": LOOSE, "paths": [], "summary": "書き方の全体"}], judge=judgment(unit(LOOSE)))
-        out = run.include(structure=structure(run, clean_rows(), skipped=[LOOSE]), writer=writer_of({"plan": [item(1, 2, 3)]}))
-        self.assertIs(out["ok"], True, out)
-        self.assertIn(f"- Units the structure eye did not look at (their paths were empty, so nothing was measured): `{LOOSE}`",
-                      self.prompt(run))
-
-    def test_prior_failures_of_wrong_shape_are_named_unread(self):
-        run = PlanRun(self)
-        self.assertIs(run.include(prior_failures=run.file("start/prior-failures-in.json", {"where": "x"}))["ok"], True)
-        prompt = self.prompt(run)
-        self.assertIn(UNREAD_HEAD, prompt)
-        self.assertIn("- prior_failures: ", prompt.split(UNREAD_HEAD, 1)[1])
-        self.assertNotIn(PRIOR_FAILURES_HEAD, prompt)
 
 
 class PlaceCase(unittest.TestCase):

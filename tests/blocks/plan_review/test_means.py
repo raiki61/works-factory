@@ -4,7 +4,6 @@ means_drifts を照らし、往復をまたいで積み、外れの行 deviation
 - means_departs: 計画の外れの行ごとに推しの行が要る（今の返答と往復の記録に積んだ行を合わせて数える）。外れを指さない行は拒む
 - means_drifts: 項目 item が follows: true で答えた番号だけ・引用は字のまま・同じ食い違いを穴にも書いた行は拒む。2 往復目の返答に
   無くても積んだ行が残り、plan_quote が今の案の項目から消えれば落ちる
-- 指示: means_drifts の段（従うという答えの確かめも）は形 plan だけ、means_departs の段（means-ask）は両方の形と項目の下請けの指示
 """
 import json
 import tempfile
@@ -97,16 +96,6 @@ class PrescriptionCase(unittest.TestCase):
     def depart(n=1, **kw):
         return {"item": n, "prescription": UNIT_MEAN, "why": "決まりに合うので計画のまま進めてよい", "recommend": REC, **kw}
 
-    def test_the_prompt_asks_for_prescription_departs_only_when_the_plan_departs(self):
-        heading = "## Departures from the judgment's prescription"
-        self.assertIn(heading, self.flow.prompt())
-        f = self.flow
-        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2)],
-               field_rows=[fields(UNIT_MEAN, structure=[{"prescription": UNIT_MEAN, "follows": True}]),
-                           fields(UNIT_CLAMP, structure=[{"prescription": UNIT_MEAN, "follows": True}])])
-        f.intake()
-        self.assertNotIn(heading, f.prompt())
-
     def test_prescription_departure_needs_a_recommendation_and_becomes_a_prescription_row(self):
         f = self.flow
         got = f.accept(review())
@@ -129,17 +118,6 @@ class PrescriptionCase(unittest.TestCase):
                     if n["id"] == "finish")
         self.assertEqual(validate_schema(done, kit._gate()._expanded(node["output_format"], kit.BLOCKS / BLOCK)), [])
 
-    def test_the_material_lists_the_departure_with_the_unit_key_set_apart(self):
-        """材料の節「The judgment's prescriptions and the plan's answers」は頼みの解き方の節と同じ型で、外れた単位の key を札
-        prescription_key で区切って頭に置き（key は空白と「: 」を含む）、処方の文と項目ごとの答えを続ける。指示の md がその節と区切りを名指す"""
-        material = kit.load(BLOCK, "material")
-        head = material.MAT_HEADS["prescriptions"]
-        row = (f"- `{UNIT_MEAN}`: {' / '.join(self.PRESCRIBED)} — plan: departs (item 1) — {WHY}; follows (item 2)")
-        self.assertIn(f"{head}\n\n{row}\n", self.flow.text("review-material-1.md"))
-        prompt = self.flow.prompt()
-        self.assertIn(f'"{head[3:]}"', prompt)
-        self.assertIn("between backquotes", prompt)
-
     def test_a_recommendation_of_an_earlier_pass_is_kept(self):
         """2 往復目に差分だけを見る審査役が前の往復の推しを書き直さなくても、往復の記録（line の rounds.record_pass が写す行）に積んだ推しで
         受け付けが通り、finish の行に推しが載る"""
@@ -154,7 +132,7 @@ class PrescriptionCase(unittest.TestCase):
         self.assertEqual([(r["item"], r["mark"]["recommend"]) for r in rows], [(1, REC)], rows)
 
     def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
-        """木の往復（TreeMeansCase と同じ場面）: 項目の材料のファイルの末尾に処方の節が在り、項目の下請けの答えの prescription_departs が
+        """木の往復: 項目の材料のファイルの末尾に処方の節が在り、項目の下請けの答えの prescription_departs が
         tree_merge で返答に並び、受け付けを通り、finish の deviations の source prescription の行に推しが載る"""
         tree = kit.load(BLOCK, "tree")
         f = self.flow
@@ -232,30 +210,11 @@ class DriftCase(DriftBase):
         rows = self.means_rows(f.finish())
         self.assertFalse([r for r in rows if "独立設計と食い違う" in r["text"]], rows)
 
-    def test_prompts_carry_the_steps_by_form(self):
-        f = self.flow
-        f.intake()
-        text = f.prompt()
-        self.assertIn("## The request's means against the independent design", text)
-        self.assertIn("Check each follows answer", text)
-        self.assertIn("`means_departs`", text)
-        self.assertIn("## The request's means and the plan's answers", f.text("review-material-1.md"))
-
-    def test_replan_form_has_the_departs_step_but_not_the_drift_step(self):
-        """形 replan（案の直しの事前審査）は means_departs の段だけ（3.4 の 2）。独立設計が立っても means_drifts の段は立たない"""
-        import types
-        material = kit.load(BLOCK, "material")
-        for form, drift_ in (("plan", True), ("replan", False)):
-            c = types.SimpleNamespace(intake={"form": form, "means": MEANS}, stands=lambda: "stands")
-            with self.subTest(form=form):
-                self.assertTrue(material.WHEN["means_ask"](c))
-                self.assertEqual(material.WHEN["means_drift"](c), drift_)
-        c = types.SimpleNamespace(intake={"form": "plan", "means": []}, stands=lambda: "stands")
-        self.assertFalse(material.WHEN["means_ask"](c) or material.WHEN["means_drift"](c))
-
 
 class TreeMeansCase(DriftBase):
-    """木の形: 項目の下請けの means_drifts・means_departs が item_schema を通り、tree_merge の後の返答に在る。ほかの項目の行は拒む"""
+    """木の形: 項目の下請けの means_drifts・means_departs が item_schema を通り、ほかの項目の行は拒む。tree_merge が推しの行を返答に並べる
+    ことは、同じ並び（converge.MEANS_AND_PRESCRIPTION_ROWS）を通る PrescriptionCase.test_tree_merge_carries_the_item_departs_to_the_deviations
+    が照らす"""
 
     def test_item_answers_carry_means_rows(self):
         tree = kit.load(BLOCK, "tree")
@@ -268,29 +227,6 @@ class TreeMeansCase(DriftBase):
         self.assertIn("means_departs", schema["properties"])
         self.assertEqual(tree._means_item_gaps(2, {"means_drifts": [drift()], "means_departs": [depart(1)]}),
                          ["$.means_departs[0].item: 2 でない（1。項目の下請けは自分の項目の行だけを書く）"])
-        brief = f.text("items/brief.md")
-        self.assertIn("`means_departs`", brief)
-        self.assertIn("## The request's means and the plan's answers", f.text("items/item-1.md"))
-
-    def test_tree_merge_carries_the_item_departs_to_the_deviations(self):
-        """木の往復: 項目の下請けの答えの means_departs が tree_merge で返答に並び、受け付けを通り、finish の deviations の source means の
-        行に推しが載る（tree_merge が converge.MEANS_AND_PRESCRIPTION_ROWS を並べないと、推しの行が無いと拒まれる）"""
-        tree = kit.load(BLOCK, "tree")
-        f = self.flow
-        f.intake(tree="on")
-        f.prep()
-        b = f.view()
-        maps = {n: [r for r in full_map() if r["item"] == n] for n in (1, 2)}
-        rows = {1: answer(1, means_departs=[depart()], design_map=maps[1]), 2: answer(2, design_map=maps[2])}
-        for n, row in rows.items():
-            path = tree.answer_file(b, n)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(dump(row), encoding="utf-8")
-        tree.synergy_file(b).write_text(dump(synergy()), encoding="utf-8")
-        got = f.accept(tree=summary({1: [], 2: []}))
-        self.assertTrue(got["ok"], got)
-        rows = self.means_rows(f.finish())
-        self.assertEqual([(r["item"], r["mark"].get("recommend")) for r in rows], [(1, REC)], rows)
 
 
 class LatestWinsCase(unittest.TestCase):

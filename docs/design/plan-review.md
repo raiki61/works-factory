@@ -887,6 +887,14 @@ Return only JSON that matches the output schema.
 
 `values.py` に例の run から取った値（df5e111f の案の項目 1 と欄・判定の単位 1 つと見立てと先行例・独立設計の返答・世界の解の行・2 往復目の往復の記録）と、4bcd3c2e の 3 項目の案を、パスを使い捨ての木に置き換えて置く。
 
+2026-11-09 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の一覧は写した時の記録で、今は次を持たない。
+- `test_material.py`: 材料と指示の字の照らしを落とし、形 replan の `ReplanCase` の 2 本（材料に申し出と裁定が載る＝keep-essence の 8 の読み手・独立設計の節が載る＝9 の読み手）だけを残す。値が md の印に渡ることは workflows/.shared/prompt.py の emit が全体に照らす。
+- `test_tree.py`: `BriefCase`（下請けの指示の字）と、`TreeCase` の指示と材料の字・前の往復の読んだファイルの覚えの行・木あり／木なしの対の片方（照らしごとに 1 本ずつ残す）。
+- `test_take.py`: 欄ごとの拒みの組み合わせ（速い単体の `PartsCase` と `test_text.py` の受け付けが見る。fences の同じ語の 2 度の拒みは唯一の守りなので `ReviewAcceptCase.test_fences_twice_rejected` を残す）・出し直しの併合の 2 度目（流れは `test_plan_review.py` の `FlowCase`、欄の欠けは lib/tests の `test_rolekit.py`）・引用の出どころの言い換え・形 replan の言い換え（`FlowCase`・`ReplanIntakeCase`）・出力の幅の字。
+- `test_plan_review.py`: `YamlCase` の YAML の形（返り・層の鎖・会話の鍵・書かない役・型の鍵・待ちは tests/layers と tests/workflows の全体の検査が見る）。残すのは輪の上限・推しと決め手の型の写し・穴の種類。`ReadsCase` の形ごとの名の言い換え。
+- `test_gate.py` の `SplitCase` の `FourAxesCase` と同じ分けの言い換え・`test_means.py` の指示の段の字と `TreeMeansCase`・`test_text.py` の `TextPromptCase`・`test_theme.py` の `ThemePromptCase`（指示の字）。
+- 筋書きは消さない。出し直しの役と束ね役（`review-fix`・`review-tree-fix`・`review-theme-fix`・`review-tree`）の指示を本当の prep で組んだ証は、tests/layers の `test_block_shape.py` の 3 がこの筋書きにだけ求める。
+
 - `test_plan_review.py`（筋）:
   - 形 plan の 1 往復: `intake` → `review_prep` → 台本の返答 → `review_accept` → `finish`。`holes` の先が今の `review.json` の形・`pass` の先が 9.3 の形で、`converge.add_pass` に渡すと往復の行が立つ（line の側の使い方の見本）。
   - 2 往復目: 1 往復目の `pass` を `add_pass` した記録を `prior` に渡すと、材料に前の往復の節と差分が在り、`round` が 2。
@@ -1018,6 +1026,7 @@ bin/works-factory workflow run works-factory-plan-review --cwd <対象> \
 - `tests/blocks/plan_review/test_theme.py`: 入口（形の決め・写し・往復の番号・空の案）・指示（在りか・観点・独立設計・世界の解〔冒頭の語。port `world_rows` の行〕が指示に入る・前の往復・出し直し）・受け付け（形 text と同じ照らし・作業ツリー・出し直しの合わせ・網での諦め〔拒否の回数では諦めず、受け付けの網 `rolekit.NET_AFTER` 回目で諦める〕）・往復（行き先の欠け〔前の往復の答えの要る穴には、消えたとして `resolved` に鍵を書くか、今の返答の穴の行に挙げ直すかの行き先が要る（19.4 の受け付けの 4）。そのどちらも無い〕・`resolved` と挙げ直し・迷子〔挙げていない穴の鍵を `resolved` に書く〕と両方〔同じ鍵を `resolved` と block の穴の両方に書く〕）・読んだ証拠の役の名（形 theme の読んだ証拠が役の名 `plan-review-theme` で残り、渡したパスが設計の案の写しであること）。
 - `tests/blocks/plan_review/test_plan_review.py` の YAML の照らしに形 theme のループを足した（網の数〔輪の `max_iterations` が `rolekit.NET_AFTER`〕・層の鎖〔輪の本体の層ごとに node が 1 つ〕・会話の鍵〔1 回目の役は `context: fresh`、出し直しの役は会話の続き〕・型の同じ〔役の型は形 text の型に `resolved` を足した物〕・待ち〔出口 `finish` が形 theme の輪を待つ〕）。
 - 筋書き `fixtures/theme.stubs.yaml`（1 往復目の通り）と `fixtures/theme-resubmit.stubs.yaml`（出し直しの役の指示を本当の prep で組む）。
+- 上の 2 つのうち、指示の字（`ThemePromptCase`）と YAML の形の照らし（輪の上限を除く）は 2026-11-09 に落とした（15.3 の削りの記録）。
 
 ## 20 頼みの解き方と独立の目の食い違い（持ち主の決め `means-ask`。元の計画 means-answers）
 

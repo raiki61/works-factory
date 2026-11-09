@@ -7,14 +7,12 @@ test_boardview.py の RulesCase.test_unattended_and_tree_words の木の語の�
 （pass-<k>/）は無い。頭の深さから木を引く 2 本（test_heavy_head_depth_makes_the_tree・
 test_light_head_depth_keeps_one_reviewer_unless_named）は段 → on・off・auto の引きが line に移るので line の試験へ。
 """
-import copy
 import json
-import re
 import unittest
 
 from tests.blocks import kit
 from tests.blocks.plan_review.test_take import (
-    BLOCK, DESIGN_OK, NO_EFFECT, PLAN_MARK, PRECEDENTS as BARE_PRECEDENTS, RIPPLE, UNIT_CLAMP, UNIT_MEAN, Flow, answer, dump, face, fields,
+    BLOCK, DESIGN_OK, NO_EFFECT, PLAN_MARK, PRECEDENTS as BARE_PRECEDENTS, RIPPLE, UNIT_CLAMP, UNIT_MEAN, Flow, answer, dump, face,
     frow, item, review, summary, synergy)
 
 # 人に回る regression の穴が名乗る、人に聞く場合の印つきの訳（持ち主の決め settle-by-standard。受け付けが印の無い行を拒む）
@@ -25,22 +23,15 @@ STUCK_NOTE = "{key} を項目 1 の修正の中で直す範囲で通す"
 STUCK_REC = {"answer": "continue", "note": STUCK_NOTE.format(key=MEAN_BLOCK["key"]), "why": "穴は案の項目 1 の直しで閉じられる"}
 # 判定の先行例（共通の port の形 judgment.schema.json は problem を求める）
 PRECEDENTS = [{**p, "problem": "空の列と上限の値の扱い"} for p in BARE_PRECEDENTS]
-NARROW = {"what": "空の列の mean", "why": "空の列の平均は 0 割りの例外のまま"}
 FIXED = [{"key": CLAMP_BLOCK["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}]
 # md の決まった字（試験が指示の字と突き合わせる）
 BUNDLE_HEAD = "## Bundling the sub-reviews"
-ONE_TYPE = "Use `subagent_type` general-purpose for every sub-agent"
 DONE_HEAD = "Sub-agents already done"
 REDO_HEAD = "Sub-agents to start again"
-OPEN_HEAD = "Files of the open items' sub-agents:"
 REREVIEW_ASK = "Answers to earlier passes:"
 ORIGIN_ASK = "Origins of new blocks:"
 DIFF_ASK = "How to read the diffs:"
-LATER_ITEM_ASK = 'When the item file has "#### Diff since the previous pass"'
 DESIGN_DIFF_ASK = "From the second pass on, compare with the design only the sentences the diffs added and removed"
-SPAWNS = "If you start a sub-agent, put this whole block of rules"
-READ_BEFORE_HEAD = "### Files read in a previous pass"
-UNCHANGED = "（unchanged since pass {k}）"
 
 
 def fetch_ids(text: str) -> list:
@@ -123,63 +114,9 @@ class TreeBase(unittest.TestCase):
 
 
 class TreeCase(TreeBase):
-    def test_aggregator_spawns_item_subagents_and_synergy(self):
-        """元 test_aggregator_spawns_item_subagents_and_synergy（元 test_review_prompt_spawns_item_subagents_and_synergy・
-        test_aggregator_names_one_subagent_type）"""
-        text = self.prepped()
-        b = self.b()
-        self.assertIn(BUNDLE_HEAD, text)
-        self.assertIn(ONE_TYPE, text)
-        folder = self.flow.place / "items"
-        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["brief.md", "item-1.md", "item-2.md", "synergy.md"])
-        for name in ("brief.md", "item-1.md", "item-2.md", "synergy.md"):
-            self.assertIn(str(folder / name), text)
-        for n in (1, 2):
-            self.assertIn(str(self.tree.answer_file(b, n)), self.item_text(n))
-            self.assertFalse(str(self.tree.answer_file(b, n)).startswith(str(self.flow.repo)), "作業ツリーの外")
-        syn = self.flow.text("items/synergy.md")
-        self.assertIn(str(self.tree.synergy_file(b)), syn)
-        self.assertIn("test_clamp_above_range", self.item_text(2))
-        cite = self.converge.ITEM_CITE.format
-        self.assertIn(f"stats.py: {cite(n=1)}, {cite(n=2)}", syn)
-        self.assertIn(f"- {cite(n=1)}（open）: ", syn)
-        for n in (1, 2):   # 材料の項目の字は converge.ITEM_CITE（止まった時の推しの note が写す字。英語の item に番号が続く字を残さない）
-            self.assertEqual(re.findall(r"(?i)\bitems? \d", self.item_text(n)), [], n)
-        self.assertEqual(re.findall(r"(?i)\bitems? \d", syn), [])
-
-    def test_brief_carries_only_its_item_inline(self):
-        """元 test_brief_carries_only_its_item_inline: 下請けの指示（items/brief.md）は審査の決まり・独立設計の節・Repository の行と、
-        根拠を読む版で取れの頼み（元 planblk.brief_head が貼った plan-review.md の :63）を持ち、項目の材料のファイルは自分の項目だけを
-        持つ（全部の項目で同じ指示は 1 本のファイル）"""
-        self.prepped()
-        brief = self.brief()
-        for part in ("## What to look at", "## How to write the holes", self.material.MAT_HEADS["design"],
-                     f"Repository: {self.flow.repo}", "**Take your evidence from the read version**"):
-            self.assertIn(part, brief)
-        one = self.item_text(1)
-        self.assertTrue(one.startswith(self.heads["item"].format(n=1)), one[:80])
-        self.assertIn("分母が 1 少ない", one)
-        self.assertNotIn("上限で lo を返す", one)
-        self.assertNotIn("test_clamp_above_range", one)
-
-    def test_item_brief_lists_only_its_wanted_keys(self):
-        """元 test_item_brief_lists_only_its_wanted_keys: 独立設計が立つ木の往復: item-1.md には項目 1 の鍵（helper_1）だけが、item-2.md には
-        項目 2 の鍵（clamp）だけが design_map の鍵の一覧として載る。一覧は項目の見出しと単位の節の後に在り、下請けの指示には鍵が無い"""
-        self.flow.design()
-        self.prepped()
-        one, two = self.item_text(1), self.item_text(2)
-        head = self.material.MAT_HEADS["map_items"]
-        key1 = '{"item": 1, "path": "stats.py", "symbol": "helper_1"}'
-        key2 = '{"item": 2, "path": "stats.py", "symbol": "clamp"}'
-        for text, mine, other, n in ((one, key1, key2, 1), (two, key2, key1, 2)):
-            self.assertEqual(text.count(head), 1)
-            self.assertEqual(text.count(mine), 1)
-            self.assertNotIn(other, text)
-            self.assertGreater(text.index(head), text.index(self.heads["units"].format(n=n)))
-            self.assertGreater(text.index(head), text.index(self.heads["item"].format(n=n)))
-            self.assertGreater(text.index(mine), text.index(head))
-        for key in (key1, key2):
-            self.assertNotIn(key, self.brief())
+    """木の往復の受け付けと往復の数え。指示と材料の字は照らさない（値が md の印に渡ることは workflows/.shared/prompt.py の emit が
+    全体に照らす）。木あり・木なしで同じ照らしの対は片方だけを残した（独立設計の要素の網羅は木の側、鍵の外の design_map の行は
+    木なしの側）"""
 
     def test_machine_merges_item_answers_into_review(self):
         """元 test_machine_merges_item_answers_into_review"""
@@ -315,27 +252,6 @@ class TreeCase(TreeBase):
         paths = sorted(self.flow.place.glob("review-material-*.md"))
         return paths[-1].read_text(encoding="utf-8")
 
-    def test_tree_off_second_pass_names_the_design_map_items(self):
-        """元 test_tree_off_second_pass_names_the_design_map_items: 独立設計が立つ run の 1 往復目（木）に項目 1 が閉じ、項目 2 に block が
-        残った後の 2 往復目（開いた項目 1 つで木にしない）: 材料の design_map を書く項目の節が項目 2 だけを名指し、項目 1 が前の往復で
-        受けた要素 D1 を数え済みと言う。項目 2 の行と設計→案の行だけの design_map も、閉じた項目 1 の行を足した design_map も 1 回目で受かる
-        （#687）"""
-        f = self.flow
-        self.designed_two_elements()
-        f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, approach=f"{PLAN_MARK} 直した項目 2", files=[frow("stats.py", "clamp")])],
-               rnd=2, answers=FIXED)
-        self.assertFalse(f.intake()["tree"])
-        f.prep()
-        text = self.material_text()
-        body = text[text.index(self.material.MAT_HEADS["map_items"]):].split("\n\n")[1]
-        self.assertIn("Items: 2 ", body)
-        self.assertNotIn("Items: 1", body)
-        self.assertIn("closed or held items", body)
-        self.assertIn("(already counted): D1", body)
-        mine = [map_row(2, "clamp"), {"item": None, "path": None, "symbol": None, "design_ref": "D2", "design_quote": None,
-                                      "why": "設計の丸めの口は案のどの行にも対が無い"}]
-        self.ok(f.accept(review(design_map=[*mine, map_row(1, "helper_1", "D1")], resolved=[CLAMP_BLOCK["key"]])))
-
     def test_tree_off_second_pass_asks_map_only_for_new_keys(self):
         """元 test_tree_off_second_pass_asks_map_only_for_new_keys: 2 往復目（木にしない）の design_map は、前の往復の行にも在った鍵（clamp）を
         求めず、足した鍵（clamp_guard）だけを鍵の一覧に貼って求める。書き直さなかった鍵の行が前の往復で受けた要素（D2）は網羅に引き継ぎ、
@@ -358,18 +274,6 @@ class TreeCase(TreeBase):
         self.ok(f.accept(review(design_map=[map_row(2, "clamp_guard")], resolved=fixed)))
         self.assertEqual(f.carry()["items"][1]["refs"], ["D2"])
 
-    def test_tree_item_answer_rows_off_its_keys_pass_first_time(self):
-        """元 test_tree_item_answer_rows_off_its_keys_pass_first_time（#687）: 項目 1 の答えが自分の鍵に無い行と、項目の番号を取り違えた
-        自分の鍵の行を持っても 1 回目で通る。取り違えた行は項目 1 に結び直し、その design_ref は項目 1 の refs に残る"""
-        f = self.flow
-        f.design()
-        self.prepped()
-        self.write_answers({1: {**answer(1), "design_map": [map_row(2, "helper_1", "D1"), map_row(2, "clamp"),
-                                                            map_row(1, "not_in_files")]},
-                            2: {**answer(2), "design_map": [map_row(2, "clamp")]}}, syn=synergy())
-        self.ok(f.accept(tree=summary({1: [], 2: []})))
-        self.assertEqual(f.carry()["items"][0]["refs"], ["D1"])
-
     def test_untree_design_map_rows_off_the_keys_pass_first_time(self):
         """元 test_untree_design_map_rows_off_the_keys_pass_first_time（#687）: 木にしない往復の design_map で、項目の番号を取り違えた行は
         鍵の項目に結び直し、要る鍵に無い行は余りとして照らさない。要る鍵の行が無い時は今どおり拒む"""
@@ -385,19 +289,6 @@ class TreeCase(TreeBase):
         self.assertIn("helper_1", got["reason"])
         self.ok(f.accept(review(design_map=[map_row(2, "helper_1", "D1"), map_row(2, "clamp"), map_row(1, "not_in_files"), stray])))
         self.assertEqual(f.carry()["items"][0]["refs"], ["D1"])
-
-    def test_untree_design_ref_only_on_a_row_off_the_keys_is_not_coverage(self):
-        """元 test_untree_design_ref_only_on_a_row_off_the_keys_is_not_coverage（#687）"""
-        f = self.flow
-        f.inputs["tree"] = "off"
-        f.design()
-        self.assertFalse(f.intake()["tree"])
-        f.prep()
-        notes = {"item": 1, "path": "docs/notes.md", "symbol": None, "design_ref": "D1", "design_quote": None,
-                 "why": "設計の上限の入口を文書に書く"}
-        got = f.accept(review(design_map=[map_row(1, "helper_1"), map_row(2, "clamp"), notes]))
-        self.assertFalse(got["ok"], got)
-        self.assertIn("独立設計の要素 D1", got["reason"])
 
     def test_tree_design_ref_only_on_a_row_off_the_keys_is_not_coverage(self):
         """元 test_tree_design_ref_only_on_a_row_off_the_keys_is_not_coverage（#687）"""
@@ -453,26 +344,6 @@ class TreeCase(TreeBase):
         self.assertIn(f"「{self.converge.ITEM_CITE.format(n='n')}」 with n replaced by the item's number", para)
         self.assertIn("whatever language the rest of the note is in", para)
         self.assertNotIn('"item n"', para)
-
-    def test_tree_lists_and_stuck_quote_cite_items_in_the_machines_characters(self):
-        """束ね役が推しの note を書く時に読む物も、項目を converge.ITEM_CITE（line の照らし rounds.uncited と同じ字）で書く: 2 往復目から
-        貼る断片 stuck-quote の段落（差し込み口 {item_cite}）と、木の形の一覧（開く・済んだ・閉じた項目の行）。役がどちらかの別の字
-        （前は "item n"・"the numbers of those items"）を写すと、推しが引用の欠けで捨てられる"""
-        f = self.flow
-        cite = self.converge.ITEM_CITE
-        f.inputs["tree"] = "on"
-        self.first_pass_blocks_item_2()
-        two = item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す")
-        f.plan([item(UNIT_MEAN, 1), two], rnd=2, answers=FIXED)
-        text = self.prepped()
-        para = text[text.index("What to quote in the note of"):]
-        para = para[:para.index("\n")]
-        self.assertIn(f"「{cite.format(n='n')}」 with n replaced by the item's number", para)
-        self.assertIn(f"- {cite.format(n=2)}: {f.place / 'items' / 'item-2.md'}", text)
-        self.assertIn(f"- {cite.format(n=1)}（{self.converge.CLOSED}）", text)
-        self.write_answers({2: {**answer(2, resolved=[CLAMP_BLOCK["key"]]), "hits": []}})
-        again = f.prompt()
-        self.assertIn(f"- {cite.format(n=2)}: {f.place / 'items' / 'item-2.md'}", again[again.index(DONE_HEAD):])
 
     def test_bundler_stuck_push_rides_on_the_pass_row(self):
         """元 test_bundler_stuck_push_rides_on_the_pass_row: 束ね役の指示はまとめの返し方で、一番上の止まった時の推しの欄の名
@@ -581,84 +452,6 @@ class TreeCase(TreeBase):
         self.assertEqual(row["outcome"], self.converge.CLEAN)
         self.assertEqual([(h["id"], h.get("carried")) for h in row["items"][1]["hits"]], [("h1", 1)])
 
-    # ---- 前の往復で読んだファイルの覚え（file_notes）。項目 2 だけが毎往復 block を挙げて開いたままになる
-    def plan_pass(self, k) -> str:
-        """k 往復目の支度（k が 2 以上なら、前の往復の block を直した案を入れる）。返りは支度の指示の字"""
-        f = self.flow
-        f.inputs["tree"] = "on"
-        if k > 1:
-            f.plan([item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
-                                             approach=f"clamp の直しその {k}: 上限の枝で hi を返し、境の値はそのまま返す")],
-                   rnd=k, answers=[{"key": f"item2-clamp-pass-{k - 1}", "handled": "fixed", "how": "上限の枝を直し、境の値の扱いを書いた"}])
-        return self.prepped()
-
-    def answer_pass(self, k, notes):
-        """k 往復目の項目 2 の下請けの答え（notes を file_notes に書く）を受け、往復の記録に足す。項目 2 は新しい block を挙げて開いたまま"""
-        f = self.flow
-        block = face(f"item2-clamp-pass-{k}", UNIT_CLAMP)
-        if k == 1:
-            rows = {1: answer(1, file_notes=[]), 2: answer(2, faces=[block], file_notes=list(notes))}
-            said = {1: [], 2: [block["key"]]}
-        else:
-            rows = {2: {**answer(2, faces=[block], resolved=[f"item2-clamp-pass-{k - 1}"], file_notes=list(notes)), "hits": []}}
-            said = {2: [block["key"]]}
-        self.write_answers(rows)
-        self.ok(f.accept(tree=summary(said)))
-        return f.carry()
-
-    def listed_notes(self, text) -> list:
-        """項目の材料の字の『前の往復で読んだファイル』の節の行（見出しが無ければ空）"""
-        if READ_BEFORE_HEAD not in text:
-            return []
-        part = text[text.index(READ_BEFORE_HEAD) + len(READ_BEFORE_HEAD):].split("\n\n### ", 1)[0]
-        return [line for line in part.splitlines() if line.startswith("- ")]
-
-    def test_second_pass_item_file_lists_unchanged_files_read_before(self):
-        """1 往復目の下請けの答えに file_notes（stats.py と分かった事）を書いて受け付け、line の書き手で記録に足した後、2 往復目の
-        開いた項目の材料に見出しと『- stats.py（unchanged since pass 1）: <分かった事>』の行が載る"""
-        learned = "clamp の上限の枝だけが hi でなく lo を返し、mean の分母は別の関数に在る"
-        self.plan_pass(1)
-        self.answer_pass(1, [{"path": "stats.py", "learned": learned}])
-        self.plan_pass(2)
-        text = self.item_text(2)
-        self.assertIn(READ_BEFORE_HEAD, text)
-        self.assertEqual(self.listed_notes(text), [f"- stats.py{UNCHANGED.format(k=1)}: {learned}"])
-
-    def test_changed_file_read_before_is_not_listed(self):
-        """1 往復目に file_notes に書いたファイルの中身を 2 往復目の前に変えると、2 往復目の材料にそのファイルの行が載らない
-        （中身の変わらない別のファイルの行は載る）"""
-        f = self.flow
-        edited = "clamp の上限の枝だけが hi でなく lo を返すと stats.py の 12 行で分かった"
-        kept = "clamp の試験は上限を超えた値の期待だけを断言している"
-        self.plan_pass(1)
-        self.answer_pass(1, [{"path": "stats.py", "learned": edited}, {"path": "test_stats.py", "learned": kept}])
-        path = f.repo / "stats.py"
-        path.write_text(path.read_text(encoding="utf-8") + "\n# 往復の間に足した行\n", encoding="utf-8")
-        self.plan_pass(2)
-        self.assertEqual(self.listed_notes(self.item_text(2)), [f"- test_stats.py{UNCHANGED.format(k=1)}: {kept}"])
-
-    def test_files_read_before_follow_the_item_id(self):
-        """2 往復目に案の項目の並びを入れ替えても、前の往復で読んだファイルの行は項目の id で引かれ、同じ単位の項目の材料に載る
-        （別の項目の材料には載らない）"""
-        f = self.flow
-        mean_block = face("item1-mean-pass-1", UNIT_MEAN)
-        clamp_block = face("item2-clamp-pass-1", UNIT_CLAMP)
-        mean_learned = "mean は合計を len(xs) - 1 で割っていて、空の列の扱いは書かれていない"
-        clamp_learned = "clamp の下限の枝は正しく、上限の枝だけが lo を返している"
-        self.prepped()
-        self.write_answers({1: answer(1, faces=[mean_block], file_notes=[{"path": "stats.py", "learned": mean_learned}]),
-                            2: answer(2, faces=[clamp_block], file_notes=[{"path": "test_stats.py", "learned": clamp_learned}])})
-        self.ok(f.accept(tree=summary({1: [mean_block["key"]], 2: [clamp_block["key"]]})))
-        f.carry()
-        swapped = RIPPLE["items"][::-1]
-        f.ripple({**RIPPLE, "items": [{**swapped[0], "item": 1}, {**swapped[1], "item": 2}]})
-        f.plan([item(UNIT_CLAMP, 1, files=[frow("stats.py", "clamp")], approach="clamp の上限の枝で hi を返す"),
-                item(UNIT_MEAN, 2, approach="mean の分母を len(xs) にする")], rnd=2,
-               answers=[{"key": x["key"], "handled": "fixed", "how": "枝を直した"} for x in (mean_block, clamp_block)])
-        self.prepped()
-        self.assertEqual(self.listed_notes(self.item_text(1)), [f"- test_stats.py{UNCHANGED.format(k=1)}: {clamp_learned}"])
-        self.assertEqual(self.listed_notes(self.item_text(2)), [f"- stats.py{UNCHANGED.format(k=1)}: {mean_learned}"])
-
     def test_item_answer_without_file_notes_is_refused(self):
         """file_notes の欄を持たない項目の答えは受け付けが拒み、その項目の答えのファイルを名指す拒否の理由に file_notes の欠けが出る"""
         f = self.flow
@@ -670,39 +463,6 @@ class TreeCase(TreeBase):
         self.assertTrue(got["reason"].startswith(self.take.TREE_REJECT), got["reason"])
         self.assertIn(f"項目 1（{self.tree.answer_file(self.b(), 1)}）: $: 必須の欄 'file_notes' が無い", got["reason"])
         self.assertIn(f"項目 2（{self.tree.answer_file(self.b(), 2)}）: $: 必須の欄 'file_notes' が無い", got["reason"])
-
-    def test_absolute_and_relative_paths_carry_as_one_root_relative_row(self):
-        """1 往復目の答えの file_notes に作業ツリーの絶対パスの stats.py と作業ツリーの外の絶対パスを書いて受け付け carry すると、
-        2 往復目の材料に『- stats.py（unchanged since pass 1）』がちょうど 1 行あり外のパスの行は無い。2 往復目に同じファイルを
-        相対パス stats.py で書くと、3 往復目の材料の stats.py の行は根からの相対パスの 1 つの形でだけ出る"""
-        f = self.flow
-        first = "絶対パスで書いた覚え: clamp の上限の枝だけが lo を返している"
-        second = "相対パスで書いた覚え: clamp の下限の枝は正しく動いている"
-        outside = f.place / "items" / "brief.md"
-        self.plan_pass(1)
-        self.answer_pass(1, [{"path": str(f.repo / "stats.py"), "learned": first},
-                             {"path": str(outside), "learned": "作業ツリーの外の指示のファイルを読んだ覚え"}])
-        self.plan_pass(2)
-        lines = self.listed_notes(self.item_text(2))
-        self.assertEqual(lines, [f"- stats.py{UNCHANGED.format(k=1)}: {first}"])
-        self.answer_pass(2, [{"path": "stats.py", "learned": second}])
-        self.plan_pass(3)
-        lines = self.listed_notes(self.item_text(2))
-        self.assertEqual(lines, [f"- stats.py{UNCHANGED.format(k=1)}: {first}", f"- stats.py{UNCHANGED.format(k=2)}: {second}"])
-        self.assertNotIn(str(f.repo), "\n".join(lines))
-
-    def test_notes_from_every_pass_with_same_content_are_listed(self):
-        """1 往復目に stats.py の learned を A、2 往復目に中身の同じ stats.py の learned を B で受け付けて carry した後、3 往復目の
-        項目の材料に A と B の両方の覚えが stats.py の行として往復の順に載る"""
-        a = "1 往復目の覚え: clamp の上限の枝だけが hi でなく lo を返している"
-        b = "2 往復目の覚え: 下限の枝の docstring は境の値の扱いを言っていない"
-        self.plan_pass(1)
-        self.answer_pass(1, [{"path": "stats.py", "learned": a}])
-        self.plan_pass(2)
-        self.answer_pass(2, [{"path": "stats.py", "learned": b}])
-        self.plan_pass(3)
-        self.assertEqual(self.listed_notes(self.item_text(2)),
-                         [f"- stats.py{UNCHANGED.format(k=1)}: {a}", f"- stats.py{UNCHANGED.format(k=2)}: {b}"])
 
     def test_design_elements_count_all_item_answers_and_closed_item_refs(self):
         """元 test_design_elements_count_all_item_answers_and_closed_item_refs: 独立設計の要素の網羅は、今の往復の全部の項目の答えの
@@ -843,86 +603,6 @@ class TreeCase(TreeBase):
         self.assertNotIn(mean_note["key"], "\n".join(cv.resolved_gaps(self.b(), [], [*owed, mean_note["key"]])))
         self.ok(tried(note["key"]))
 
-    def second_pass_item(self, first=None, edit=None, edit_fields=None, notes=()) -> str:
-        """2 項目の案（first。既定は setUp の案）の 1 往復目は項目 2 だけ block（notes は項目 2 に付けた suggest の穴）。項目 2 の行を
-        edit が、項目 2 の works の欄を edit_fields が直した後の 2 往復目の項目 2 の材料のファイル"""
-        f = self.flow
-        f.inputs["tree"] = "on"
-        rows = first or [item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")])]
-        self.first_pass_blocks_item_2(notes=notes, rows=rows)
-        fixed = copy.deepcopy(rows)
-        field_rows = [fields(x["unit_keys"][0]) for x in fixed]
-        if edit is not None:
-            edit(fixed[1])
-        if edit_fields is not None:
-            edit_fields(field_rows[1])
-        f.plan(fixed, rnd=2, field_rows=field_rows,
-               answers=[{"key": x["key"], "handled": "fixed", "how": "上限の枝を hi に直し、境の値の扱いを書いた"}
-                        for x in (CLAMP_BLOCK, *notes)])
-        self.prepped()
-        return self.item_text(2)
-
-    def test_item_history_names_owed_suggest(self):
-        """元 test_item_history_names_owed_suggest: 1 往復目に開いた項目 2 へ block と suggest s を挙げた後、2 往復目の項目 2 の材料のファイルは
-        前の往復の答えの要る穴の見出しの下に block の行と suggest s の行と、それぞれへの修正案の役の答えを持つ"""
-        note = face("item2-clamp-docstring-note", UNIT_CLAMP, severity="suggest",
-                    why="clamp の docstring が上限ちょうどの値の扱いを言っていないので、直した後に読み手が取り違えうる")
-        text = self.second_pass_item(notes=[note])
-        history = text[text.index(self.heads["history"]):]
-        self.assertIn(f"- pass 1 block {CLAMP_BLOCK['key']}: ", history)
-        self.assertIn(f"- pass 1 suggest {note['key']}: {note['why']}（{note['where']}）", history)
-        self.assertIn(f"  - plan role's answer {note['key']}: fixed（", history)
-
-    def test_tree_item_contract_change_names_fields_without_the_whole(self):
-        """元 test_tree_item_contract_change_names_fields_without_the_whole（#662）: 2 往復目、約束の欄（allowed_paths）に 1 行足しただけの
-        開いた項目の材料のファイルは、変わった欄の名を言い、足した行を差分に載せる。項目の案の全体は貼らない"""
-        text = self.second_pass_item(edit_fields=lambda row: row["allowed_paths"].append("README.md"))
-        self.assertIn(self.material.LABELS["contract"].format(fields="allowed_paths"), text)
-        self.assertIn("+ allowed_paths: README.md", text[text.index(self.material.LABELS["diff"]):])
-        self.assertNotIn(self.material.LABELS["item_plan"].format(n=2), text)
-
-    def test_second_pass_item_brief_has_only_changed_sentences(self):
-        """元 test_second_pass_item_brief_has_only_changed_sentences: 開いた項目の approach の 1 文を書き換え、files の頭に行を 1 つ足した
-        2 往復目の材料のファイルは、足した文と消した文を場所つきで持ち、変わっていない文と閉じた項目の案を持たない。頼み（元
-        SUB_ITEM_DIFF_ASK）は下請けの指示の 2 往復目の段落に在る"""
-        kept, gone, came = "clamp は lo より小さい値を lo に寄せる。", "上限の枝はそのまま。", "上限の枝で hi を返す。"
-
-        def edit(row):
-            row["approach"] = kept + came
-            row["files"] = [frow("stats.py", "clamp_guard"), *row["files"]]
-        text = self.second_pass_item(first=[item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")],
-                                                                     approach=kept + gone)], edit=edit)
-        diff = text[text.index(self.material.LABELS["diff"]):]
-        self.assertIn(f"- approach: {gone}", diff)
-        self.assertIn(f"+ approach: {came}", diff)
-        self.assertIn("clamp_guard", diff)
-        self.assertIn(LATER_ITEM_ASK, self.brief())
-        for unchanged in (kept, "1 行の直しで済む", f"{PLAN_MARK} 項目 1 の直し"):
-            self.assertNotIn(unchanged, text, unchanged)
-        self.assertNotIn(self.material.LABELS["item_plan"].format(n=2), text)
-
-    def test_narrows_gate_marks_only_change_stays_diff(self):
-        """元 test_narrows_gate_marks_only_change_stays_diff: narrows の行の決め手の欄（world・recommend）の長い文を丸ごと書き直しただけの
-        直しは、約束の欄の変更に数えず差分のまま（決め手の欄は差分に載らない）"""
-        narrow = {**NARROW, "no_narrow": "空の列で例外を投げる今の動きを残すと直したい呼び手が成り立たない",
-                  "decided_by": "", "undecided_because": "", "fences": [],
-                  "world": "Python 公式の statistics.mean は空の列で例外を投げる",
-                  "recommend": {"answer": "continue", "why": "空の列の例外は前から同じで、能力は減らない", "note": "今の動きのまま通す"}}
-        first = [item(UNIT_MEAN, 1), item(UNIT_CLAMP, 2, files=[frow("stats.py", "clamp")], narrows=[narrow])]
-        long_world = "".join(f"事例 {i}: {c} の標準の平均は空の列で StatisticsError を投げ、呼び手が捕まえて 0 を返す慣習が広い。"
-                             for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
-        long_why = "".join(f"理由 {i}: {c} の呼び手は例外の型を前から同じに受けるので、通しても能力は減らず、利用者の経路も変わらない。"
-                           for i, c in enumerate("甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥", 1))
-
-        def reword(row):
-            row["narrows"][0]["world"] = long_world
-            row["narrows"][0]["recommend"] = {"answer": "continue", "why": long_why, "note": "今の動きのまま通してよい"}
-
-        text = self.second_pass_item(first=first, edit=reword)
-        self.assertIn(self.material.LABELS["diff"], text)
-        self.assertNotIn("contract fields changed", text)
-        self.assertNotIn(long_world[:30], text, "決め手の欄は差分に載らない")
-
     def test_precedent_sources_are_fetched_once_per_run(self):
         """元 test_precedent_sources_are_fetched_once_per_run: 出典は run の中で 1 度だけ開く（控えは pass.json の precedent_checks で line が
         port prior に運ぶ）"""
@@ -995,37 +675,6 @@ class TreeCase(TreeBase):
         for schema in (self.tree.item_schema(b), self.tree.synergy_schema(b)):
             self.assertEqual(schema["properties"][self.converge.ORIGINS], self.converge.ORIGIN_SCHEMA)
             self.assertNotIn(self.converge.ORIGINS, schema["required"])
-
-    def test_origin_ask_only_where_writers_are(self):
-        """元 test_origin_ask_only_where_writers_are: 出自の頼みは書き手の居る層にだけ置く: 1 往復目はどの指示にも頼みが無く、2 往復目の
-        束ね役の指示は出自の頼みを持たない。下請けの指示は 2 往復目の頼みと出自の頼みを、相乗りのファイルは出自の頼みを持つ。往復の行の
-        origins は下請けの答えのファイルの申告（束ね役の型の外の origins が受け付けまで届いても使わない）"""
-        f = self.flow
-        cv = self.converge
-        main = self.prepped()
-        for text in (main, *(p.read_text(encoding="utf-8") for p in sorted((f.place / "items").glob("*.md")))):
-            self.assertNotIn(ORIGIN_ASK, text)
-            self.assertNotIn(REREVIEW_ASK, text)
-        self.write_answers({1: answer(1, faces=[MEAN_BLOCK]), 2: answer(2, faces=[CLAMP_BLOCK])})
-        self.ok(f.accept(tree=summary({1: [MEAN_BLOCK["key"]], 2: [CLAMP_BLOCK["key"]]})))
-        f.carry()
-        f.plan([item(UNIT_MEAN, 1, approach="mean は空の列を先に弾き、分母を len(xs) に直す"),
-                item(UNIT_CLAMP, 2, approach="clamp の上限の枝で hi を返す", files=[frow("stats.py", "clamp")])],
-               rnd=2, answers=[{"key": x["key"], "handled": "fixed", "how": "項目の手順を書き直して確かめた"} for x in (MEAN_BLOCK, CLAMP_BLOCK)])
-        main = self.prepped()
-        self.assertNotIn(ORIGIN_ASK, main, "束ね役の指示に書き手の居ない頼みを貼らない")
-        self.assertIn(REREVIEW_ASK, self.brief())
-        self.assertIn(ORIGIN_ASK, self.brief())
-        self.assertIn(ORIGIN_ASK, f.text("items/synergy.md"))
-        again = face("item1-mean-new-hole-0")
-        claim = [{"key": again["key"], "origin": cv.ORIGIN_INTRODUCED}]
-        self.write_answers({1: {**answer(1, faces=[again], resolved=[MEAN_BLOCK["key"]]), cv.ORIGINS: claim},
-                            2: answer(2, resolved=[CLAMP_BLOCK["key"]])})
-        wrong = [{"key": again["key"], "origin": cv.ORIGIN_MISSED}]
-        self.ok(f.accept(tree={**summary({1: [again["key"]], 2: []}), cv.ORIGINS: wrong}))
-        row = f.carry()
-        self.assertEqual((row["outcome"], row["origins"], row["origins_claimed"]),
-                         (cv.AGAIN, {again["key"]: cv.ORIGIN_INTRODUCED}, []))
 
     def test_review_tree_off_second_pass_takes_checked_origins(self):
         """元 test_review_tree_off_second_pass_takes_checked_origins: 審査役 1 つの 2 往復目: 指示に出自の頼みが在る（1 往復目には無い）。
@@ -1152,77 +801,6 @@ class TreeCase(TreeBase):
         got = f.run.script("intake", **{**f.inputs, "tree": "重厚"})
         self.assertFalse(got["due"], got)
         self.assertIn("tree", got["reason"])
-
-
-class BriefCase(TreeBase):
-    """下請けの指示のファイル（items/brief.md）と項目の材料のファイル（items/item-<n>.md）の分け（設計書 5.3・5.6 で足した試験）"""
-
-    def test_brief_is_one_file_for_every_item_and_heads_the_synergy_file(self):
-        """下請けの指示は全部の項目で同じバイトの 1 本のファイル（今の brief_head の「プロンプトのキャッシュのため同じバイト」）。束ね役は
-        その 1 本を名指し、相乗りのファイルは同じバイトの指示で始まる"""
-        text = self.prepped()
-        brief = self.brief()
-        self.assertIn(f"Read {self.flow.place / 'items' / 'brief.md'} and <the item's file> with Read", text)
-        self.assertTrue(self.flow.text("items/synergy.md").startswith(brief))
-        for n in (1, 2):
-            self.assertNotIn(brief[:200], self.item_text(n))
-
-    def test_brief_names_reading_start_points_and_file_notes_why(self):
-        """下請けの指示は読む起点の 3 つ（項目の案〔2 往復目からは差分〕の files・波及の一覧・材料が名指すパス）、行の範囲から始めて要れば
-        ファイルの全体を読んでよいこと、起点の外か全体を読んだ時に file_notes の why を書くことを名指し、古い括弧の字を持たない"""
-        self.prepped()
-        brief = self.brief()
-        self.assertNotIn("do read the code you need as evidence", brief)
-        for phrase in ("Where to start reading: the files in `files` of your item's plan (or, from the second pass on, its diff)",
-                       f'the places of the hits in "{self.material.LABELS["ripple"].format(n="n").split(" (")[0]}"', "the paths the material names",
-                       "use Grep and Glob first", "(`offset` and `limit`)", "you may Read the whole file",
-                       "outside these start points is not forbidden", "also write in `why` of that file's row"):
-            self.assertIn(phrase, brief)
-        self.assertEqual(brief.count("`file_notes`"), 2)   # 書き方の決まりの段落 1 つ（書く義務と why）と、相乗りの答えに無いこと
-        # 前の往復で読んだファイルの節の行は、その節の段落の読み方が先に立つ（読み方の段落は節の見出しを名指し、節の段落は file_notes の書き方を持たない）
-        self.assertIn('The files listed under "### Files read in a previous pass" are read as the paragraph about that section says', brief)
-        note_para = next(p for p in brief.split("\n\n") if p.startswith('Lines under "### Files read in a previous pass"'))
-        self.assertIn("do not Read a whole file again", note_para)
-        self.assertNotIn("file_notes", note_para)
-
-    def test_item_files_carry_no_instruction_text(self):
-        """項目の材料のファイルは指示の文を持たない: 見出しは ITEM_HEADS と材料の札だけで、下請けの指示の文（読み方・答え方・先行例の
-        札の読み方）は下請けの指示のファイルにだけ在る"""
-        self.flow.design()
-        self.prepped()
-        brief = self.brief()
-        paras = [p for p in brief.split("\n\n") if len(p) > 60 and not p.startswith(("```", "{", "Repository:"))]
-        self.assertGreater(len(paras), 10)
-        for n in (1, 2):
-            text = self.item_text(n)
-            with self.subTest(item=n):
-                for p in paras:
-                    self.assertNotIn(p, text)
-                for word in ("Read ", "Write ", "do not", "Do not"):
-                    self.assertNotIn(word, text)
-                heads = [line for line in text.splitlines() if line.startswith("#")]
-                labels = [self.heads["item"].format(n=n), self.heads["units"].format(n=n), self.heads["precedents"],
-                          self.material.LABELS["item_plan"].format(n=n), self.material.MAT_HEADS["map_items"],
-                          self.material.LABELS["ripple"].format(n=n)]
-                self.assertEqual([h for h in heads if h not in labels], [], heads)
-        for label in ("How each sub-agent answers", "### Precedent sources of this item", "### Errors in the previous answer",
-                      "### Hits answered in a previous pass", "`fetch`", "`by item <m>`"):
-            self.assertIn(label, brief)
-        for label in ("item_plan", "ripple"):   # 下請けの指示が名指す材料の見出しは、材料の札と同じ字（項目は converge.ITEM_CITE）
-            self.assertIn(f'"{self.material.LABELS[label].format(n="n").split(" (")[0]}"', brief, label)
-        for head in ("item", "units"):   # 項目の材料のファイルの見出しも同じ（受付 20261104-235145-99fe87 の「ついでに」）
-            self.assertIn(f'"{self.heads[head].format(n="n")}"', brief, head)
-
-    def test_brief_carries_the_query_rule_without_spawns(self):
-        """下請けの指示に外への検索の決まり（共通の断片 query-rule）が在る。下請けは下請けを起こさないので段落 spawns は無い。束ね役の
-        指示も spawns を持たない（決まりは下請けの指示に在る）"""
-        text = self.prepped()
-        brief = self.brief()
-        rule = (kit.SHARED / "prompts" / "query-rule.md").read_text(encoding="utf-8").split("\n", 1)[1]   # 1 行目は道具の印（指示には出ない）
-        head = rule.split("\n<!-- if spawns -->", 1)[0].rstrip("\n")
-        self.assertIn(head, brief)
-        self.assertNotIn(SPAWNS, brief)
-        self.assertNotIn(SPAWNS, text)
 
 
 if __name__ == "__main__":
