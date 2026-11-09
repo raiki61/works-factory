@@ -5,9 +5,9 @@
 だけを読むので、頭の行に出る内側の名前（ノードの id・止めの語・記録の欄の名・審査役の印）は、頭の中で人の言葉に訳されている形だけを許す。
 訳なしの名前を 1 つずつ足して直すのでなく、頭の行の作り方（人の言葉を先に出し、名前と長い文は頭の外の節に置く）で縛る。
 """
-import importlib.util
 import json
 import re
+import sys
 import unittest
 from unittest import mock
 
@@ -27,11 +27,15 @@ INNER = (r"works:[a-z]", r"\bR[1-4]\b", r"\b(?:fix-needed|redesign-needed)\b", r
 
 
 def head_table():
-    """報告の block の頭の文面表（workflows/report/src/head.py）。表は lib だけを import するので、src の入れ替えに触れず単独で読む"""
-    spec = importlib.util.spec_from_file_location("report_head_table", kit.BLOCKS / "report" / "src" / "head.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    """報告の block の頭の文面表（workflows/report/src/head.py）。表は同じ block の src.title を読むので report の src で読み、
+    読んだ後は前の src のモジュールを戻す（この試験のほかの所が line の src を使う）"""
+    saved = {n: m for n, m in sys.modules.items() if n == "src" or n.startswith("src.")}
+    try:
+        return kit.load("report", "head")
+    finally:
+        for name in [n for n in sys.modules if n == "src" or n.startswith("src.")]:
+            del sys.modules[name]
+        sys.modules.update(saved)
 
 
 def head_strings(facts: dict) -> list:
