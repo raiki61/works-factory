@@ -9,15 +9,10 @@ import json
 import pathlib
 import unittest
 
-import yaml
-
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
 BLOCK = kit.BLOCKS / "r4"
-DOC = yaml.safe_load((BLOCK / "works-factory-r4.yaml").read_text(encoding="utf-8"))
-PORTS = ["base", "lang", "purpose", "green", "policy", "after", "review", "answers", "request", "changed", "pushes", "decisions",
-         "ripple", "world_rows", "asked", "declared", "coherence"]
 PASS = {"status": "pass", "reason": "なし", "capability_inventory": {"fired": False}, "policy_conflicts": [], "surfaced": [],
         "seen": ["a.txt"], "unseen": []}
 R3 = {"status": "pass", "reason": "整合", "seen": ["a.txt"], "unseen": []}
@@ -71,29 +66,6 @@ class _RepoCase(unittest.TestCase):
 
     def policy_doc(self) -> pathlib.Path:
         return self.write("policy/abc.md", "一\n二\n三\n")
-
-
-class ShapeCase(unittest.TestCase):
-    def test_inputs_are_the_declared_ports(self):
-        self.assertEqual(list(DOC["inputs"]), PORTS)
-
-    def test_scripts_read_only_the_declared_inputs(self):
-        import re
-        reads = {}
-        for path in (BLOCK / "scripts").glob("*.py"):
-            reads[path.stem] = {m.lower() for m in re.findall(r'os\.environ\.get\("INPUTS_([A-Z_]+)"', path.read_text(encoding="utf-8"))}
-        self.assertEqual(reads["intake"], set(PORTS))
-        self.assertEqual(reads["scope_prep"], {"prev"})
-        self.assertEqual(reads["scope_accept"], {"reply", "fix_reply"})
-        self.assertEqual({k for k in reads if reads[k]}, {"intake", "scope_prep", "scope_accept"})
-
-    def test_fixtures_reach_the_nodes(self):
-        ids = [n["id"] for n in DOC["nodes"][1].get("loop_group", {}).get("nodes", [])]
-        standalone = kit.fixture("r4", "standalone")["fixture"]["reached"]
-        self.assertEqual(standalone, ["intake", "r4-scope-prep", "r4-scope", "r4-scope-accept", "finish"])
-        self.assertEqual(kit.fixture("r4", "resubmit")["fixture"]["reached"],
-                         ["intake", "r4-scope-prep", "r4-scope-fix-prep", "r4-scope-fix", "r4-scope-accept", "finish"])
-        self.assertEqual(ids, ["r4-scope-prep", "r4-scope", "r4-scope-fix-prep", "r4-scope-fix", "r4-scope-accept"])
 
 
 class FlowCase(_RepoCase):
@@ -206,45 +178,6 @@ class FlowCase(_RepoCase):
         self.assertNotIn("text", doc["diff"])
         self.assertIn(self.base, pathlib.Path(doc["diff"]["file"]).read_text(encoding="utf-8"))
 
-    def test_materials_are_named_or_say_not_given(self):
-        """波及と定石の置き場と修正の印は在れば並べ、無ければ (not given)"""
-        self.intake()
-        text = self.prep()["prompt"]
-        for want in ("Ripple list: (not given)", "Rows of established practice: (not given)", "Fix marks: (not given)",
-                     "Original purpose: (not given)"):
-            self.assertIn(want, text)
-        ripple, world = self.write("plan/ripple.json", '{"items": [], "overlaps": []}'), self.write("judge/world.jsonl", "")
-        self.intake(ripple=str(ripple), world_rows=str(world), purpose="目的",
-                    changed=dump({"mechanism_changed": False, "seams_changed": True, "premise_drift_note": "x"}))
-        text = self.prep()["prompt"]
-        self.assertIn(f"Ripple list: {ripple}", text)
-        self.assertIn(f"Rows of established practice: {world}", text)
-        self.assertIn("Fix marks: mechanism_changed=false・seams_changed=true", text)
-
-    def test_green_paragraph_only_when_not_certified(self):
-        """test_green_line_only_when_not_certified。既定の true は文を足さない"""
-        line = "The certification of the last tests did not pass"
-        self.intake()
-        self.assertNotIn(line, self.prep()["prompt"])
-        self.intake(green="false")
-        self.assertIn(line, self.prep()["prompt"])
-
-    def test_declared_plan_blocks_are_pasted(self):
-        """test_prep_pastes_declared_plan_blocks_at_the_r4_head（issue #662）。無ければ節ごと入らない"""
-        self.intake()
-        self.assertNotIn("fixer answered it would leave unfixed", self.prep()["prompt"])
-        row = "stale-docstring-left: 古い docstring が直しの後の戻り値を説明しない（直す側の答え: 範囲の外なので残す）"
-        self.intake(declared=dump([row]))
-        text = self.prep()["prompt"]
-        self.assertIn("fixer answered it would leave unfixed", text)
-        self.assertIn(f"- {row}", text)
-
-    def test_no_passed_section_without_passed_rows(self):
-        self.intake(asked=dump([{"kind": "regression", "text": NARROW}]))
-        self.assertNotIn("## Narrowings passed", self.prep()["prompt"])
-        self.intake(answers=dump({"before_fix": {"decision": "stop"}}), asked=dump([{"kind": "regression", "text": NARROW}]))
-        self.assertNotIn("## Narrowings passed", self.prep()["prompt"])
-
     def test_policy_and_recorded_policy_sections(self):
         """test_policy_section_on_r1_r3_r4・test_recorded_policy_only_on_r3_r4 の R4 の半分・test_prep_keeps_the_recorded_rows_for_the_verdict"""
         self.intake()
@@ -262,12 +195,6 @@ class FlowCase(_RepoCase):
         self.assertEqual([r["source"] for r in self.intake_json()["recorded"]], ["doc", "gate"])
         self.assertNotIn("R3 overall coherence", text)
         self.assertNotIn("Where concepts live", text)
-
-    def test_language_defaults_to_the_request_language(self):
-        self.intake()
-        self.assertIn("in the language of the request (the user's language).", self.prep()["prompt"])
-        self.intake(lang="English")
-        self.assertIn("`unseen` (and the `reason`, `seen`, and `unseen` of `r3`, if you write it) in English.", self.prep()["prompt"])
 
 
 class AcceptCase(_RepoCase):

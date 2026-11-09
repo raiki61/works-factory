@@ -1,4 +1,4 @@
-"""審査役の返答の受け付けと 2 判定（docs/design/delta-review.md の 2.8・4 節・10.2 の ReviewAcceptCase・VerdictsCase）。"""
+"""審査役の返答の受け付けと 2 判定（docs/design/delta-review.md の 2.8・4 節・10.2 の ReviewAcceptCase・ReviewPromptCase・VerdictsCase）。"""
 import json
 
 from tests.blocks import kit
@@ -172,6 +172,20 @@ class ReviewAcceptCase(s.Case):
     def test_input_n_must_be_one_or_two(self):
         self.start()
         self.assertIn("入力 n", self.run.failing("review_accept", n="3", reply="{}"))
+
+
+class ReviewPromptCase(s.Flow):
+    def test_a_rejected_round_brings_the_reasons_and_the_keep_the_holes_paragraph(self):
+        """拒まれた周の次の審査の指示は、拒否の理由を頭に置く（prep が rolekit の控えを読む配線。理由を落としても、ほかの試験は赤に
+        ならない）"""
+        self.write("a.py", "alpha = 1\nbeta = 22\n")
+        self.assertTrue(self.intake(fix_reply=json.dumps(s.CLAIMED))["due"])
+        self.step("review_prep", 1)
+        self.review(1, s.review_reply(checks=[]))
+        again = self.step("review_prep", 1)["prompt"]
+        self.assertTrue(again.startswith("## Why your previous answer was rejected"))
+        self.assertIn("検算が無い", again)
+        self.assertIn("Do not silently drop a hole that was rejected", again)
 
 
 class VerdictsCase(s.Case):

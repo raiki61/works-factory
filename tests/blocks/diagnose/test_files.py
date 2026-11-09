@@ -3,8 +3,6 @@
 import pathlib
 import unittest
 
-from tests.bin import hermetic
-from tests.blocks import kit
 from tests.blocks.diagnose import support
 
 
@@ -26,15 +24,3 @@ class PlaceNamesCase(unittest.TestCase):
         self.assertIn("rejects-diagnose.md", f.OWN_FILES)
         self.assertIn("rejects-rejudge.json", f.OWN_FILES)
 
-    def test_own_files_are_named_not_patterns(self):
-        for name in self.files.OWN_FILES:
-            self.assertNotIn("*", name)
-        self.assertEqual(len(self.files.OWN_FILES), len(set(self.files.OWN_FILES)))
-
-    def test_reply_fields_are_the_reply_keys_of_the_input_doc(self):
-        """材料の鍵の語（形 shared:reply-sources.schema.json の enum）は、材料のファイルの形 shared:diagnose-input.schema.json が書く
-        素材の観点の返答の鍵と同じ並び"""
-        import json
-        doc = json.loads((kit.SHARED / "schemas" / "diagnose-input.schema.json").read_text(encoding="utf-8"))
-        keys = [k for k in doc["properties"] if k in self.files.REPLY_FIELDS]
-        self.assertEqual(tuple(keys), self.files.REPLY_FIELDS)

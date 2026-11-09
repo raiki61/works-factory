@@ -538,10 +538,16 @@ bin/works-factory workflow run works-factory-delta-review --cwd <対象> \
 
 - `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, review-1-prep, review-1, review-1-accept, owed-1, finish]`。`resolved-text-contains` の `review-1` は `You are the inspector for the diff of this round's fix.`。審査役の返答: `faces: []`・`faces_none`（20 字以上）・`checks: [{key: claimed-closed-hole, closed: true, why: (20 字以上)}]`・`compliance: {verdict: not_applicable, items: [], read: (20 字以上)}`・`quality: {verdict: pass, why: (20 字以上)}`。
 - `two-rounds.stubs.yaml`: 4 つの役に届く。審査役 1 回目は同じ key を `closed: false` で返し（義務 1）、手直しの役 1 回目は `handled: [{key: claimed-closed-hole, handled: fixed, how: (20 字以上), files: [README.md]}]`、審査役 2 回目は `checks: [{key: claimed-closed-hole, closed: false, why}]`・`faces: []`・`faces_none`、手直しの役 2 回目は declared。`reached` に `review-1`・`refix-1`・`cut-2`・`review-2`・`refix-2`・`finish`。`resolved-text-contains` は 4 つの役の md の頭の 1 文（2.3・3.3・4 節の 3・5 節の 3）。
-- `gave-up.stubs.yaml`: 審査役 1 回目が `where` に変わっていないファイルを書いた穴を返す。dry-run の輪は 1 周なので拒否は 1 回で、`finish` が `status: gave_up`（6 節の 9 の 3）を返し、run は `completed`。3 回で諦める数えは `ReviewAcceptCase` が見る。
+- `gave-up.stubs.yaml`（2026-11-10 の削りで消した。10.2 の段落）: 審査役 1 回目が `where` に変わっていないファイルを書いた穴を返す。dry-run の輪は 1 周なので拒否は 1 回で、`finish` が `status: gave_up`（6 節の 9 の 3）を返し、run は `completed`。3 回で諦める数えは `ReviewAcceptCase` が見る。
 - 筋書きは完了・`reached`・指示の字だけを見る（`workflows/AGENTS.md`）。
 
 ### 10.2 `tests/blocks/delta_review/`（`kit.Run` で script を子のプロセスで回す。始めの記録は置かない）
+
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の一覧は写した時の記録で、今は次を持たない。
+- `test_shape.py`（YAML の形・語と長さの写し・道具・配線・返りの形）: 輪の上限は `tests/layers/test_loop_bounds.py`、道具と印と返りの形は tests/layers の E5・E7・E19 の検査、輪の when と `trigger_rule` の配線は筋書き `standalone`・`two-rounds` を回す `ArchonCase`。凍結の印 `seal` が `with:` で 4 つの受け付けへ渡る配線は `test_refix.py` の `SealCase.test_the_seal_reaches_every_accept_through_with_outside_the_roles` に移した（`with:` の `seal` を空にする壊しで赤）。`PortsCase` は `test_intake.py` に移した（`fix_reply` を形で照らさずに読む壊しで、ほかの試験は赤にならない）。
+- `test_prompts.py`（審査の指示の字・借りた座の字・書き手の決まりの段落の名。字だけ）。拒まれた周の次の審査の指示が拒否の理由を頭に置く配線は `test_review.py` の `ReviewPromptCase` に移した（理由を空にする壊しで、ほかの試験は赤にならない）。
+- `test_refix.py` の `WritesLogNameCase`（記録の名の写し。keep-essence の 5 は `RefixAcceptCase.test_the_write_record_file_is_read_when_it_exists` が守り、穴は名の既定が変わる時だけ）と `RefixPromptCase` の指示の字。輪の拒否の全部が次の手直しの指示に入る `RefixPromptCase.test_the_whole_rejection_history_comes_first_on_the_third_round` は残す（拒否を最後の 1 件にする壊しで、ほかの試験は赤にならない）。
+- 筋書き `gave-up`（受け付けを通らず諦めても run を止めない道）: 3 回で諦めるのは `test_review.py` の `ReviewAcceptCase` と `RefixAcceptCase.test_gives_up_on_the_third_rejection_and_keeps_the_work_tree`、出口の `status` は `test_rounds.py`。
 
 使い捨ての git のリポジトリに数本のファイルを commit し、`base` にその commit を渡して、作業ツリーのファイルを書き換えてから回す。
 

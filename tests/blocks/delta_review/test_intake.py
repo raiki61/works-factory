@@ -1,7 +1,9 @@
-"""入口と 1 回目の差分・材料（docs/design/delta-review.md の 6 節の 1・10.2 の IntakeCase）。"""
+"""入口と 1 回目の差分・材料（docs/design/delta-review.md の 6 節の 1・10.2 の IntakeCase・PortsCase）。"""
 import json
+import unittest
 
 from tests.bin.gitkit import git
+from tests.blocks import kit
 from tests.blocks.delta_review import support as s
 
 
@@ -197,3 +199,22 @@ class IntakeCase(s.Case):
                         plan_review="null", policy="", request="[]", lang="")
         self.assertTrue((self.run.artifacts / "delta-review" / "cut-1.json").is_file())
         self.assertFalse(self.exists("cut-1.json"))
+
+
+class PortsCase(unittest.TestCase):
+    def test_the_shapes_accept_null_where_the_design_says_null(self):
+        """port の読み: fix_reply・plan_review の null は「無い run」、permits の行からパスの字が取れなければ拒む（許しの行を黙って
+        落とさない。keep-essence の 3 の許しの道）"""
+        materials = kit.load("delta-review", "materials")
+        with kit.Run(self, "delta-review").env():
+            self.assertIsNone(materials.fix_reply("null"))
+            self.assertIsNone(materials.plan_review("null"))
+            self.assertEqual(materials.permit_paths("[]"), [])
+            with self.assertRaises(ValueError):
+                materials.fix_reply('{"plan_faces": [{"key": "only-a-key"}]}')
+            with self.assertRaises(ValueError):
+                materials.permit_paths('{"a": 1}')
+            with self.assertRaises(ValueError):
+                materials.plan_review("[1]")
+            with self.assertRaises(ValueError):
+                materials.permit_paths("[1]")

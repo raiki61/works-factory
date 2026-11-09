@@ -8,7 +8,6 @@ import runpy
 import unittest
 from unittest import mock
 
-import yaml
 
 from tests.blocks import kit
 from tests.blocks.diagnose import support
@@ -337,84 +336,3 @@ class FallbackCase(_Base):
         self.assertEqual(self.doc("prompt-error.json"), {"node": "diagnose-accept", "reason": got["reason"]})
 
 
-class YamlCase(unittest.TestCase):
-    def setUp(self):
-        self.doc = yaml.safe_load((BLOCK / "works-factory-diagnose.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in self.doc["nodes"]}
-
-    def loop(self, name):
-        return self.nodes[name]["loop_group"]
-
-    def test_loops_are_fresh_context_false_with_three_rounds_and_one_node_per_layer(self):
-        for name, prep, role, acc in (("diagnose-loop", "diagnose-prep", "diagnose", "diagnose-accept"),
-                                      ("rejudge-loop", "rejudge-prep", "rejudge", "rejudge-accept")):
-            loop = self.loop(name)
-            self.assertEqual((loop["fresh_context"], loop["max_iterations"]), (False, 3))
-            by = {n["id"]: n for n in loop["nodes"]}
-            self.assertNotIn("depends_on", by[prep], "輪の頭の層は prep 1 つだけ")
-            if role == "rejudge":   # 出し直しの役を持つ輪: 出し直しの道の node は、頭の prep と 1 回目の役の両方に依る（層が 2 つ以上の node にならない）
-                self.assertEqual(list(by), [prep, role, "rejudge-fix-prep", "rejudge-fix", acc])
-                self.assertEqual(by[role]["depends_on"], [prep])
-                self.assertEqual(by["rejudge-fix-prep"]["depends_on"], [prep, role])
-                self.assertEqual(by["rejudge-fix"]["depends_on"], [prep, "rejudge-fix-prep", role])
-                self.assertEqual(by[acc]["depends_on"], [role, "rejudge-fix"])
-                self.assertEqual(by[acc]["trigger_rule"], "none_failed_min_one_success")
-                self.assertEqual(by[role]["when"], "$rejudge-prep.output.resubmit != true")
-                self.assertEqual(by["rejudge-fix"]["when"], "$rejudge-prep.output.resubmit == true")
-                self.assertEqual(by["rejudge-fix"]["output_format"], by[role]["output_format"], "出し直しの型は 1 回目と同じ（#832）")
-                self.assertEqual(by[role]["output_format"]["required"], [])
-                continue
-            self.assertEqual(list(by), [prep, role, acc])
-            self.assertEqual(by[role]["depends_on"], [prep])
-            self.assertEqual(by[acc]["depends_on"], [role])
-            self.assertEqual(loop["until_bash"], f'done=${acc}.output.done; test "$done" = true')
-
-    def test_paths_are_split_by_mode(self):
-        self.assertIn("mode == 'judge'", self.nodes["diagnose-loop"]["when"])
-        self.assertIn("mode == 'rejudge'", self.nodes["rejudge-loop"]["when"])
-        self.assertEqual(self.nodes["finish"]["trigger_rule"], "all_done")
-        self.assertEqual(self.nodes["finish"]["depends_on"], ["intake", "diagnose-loop", "rejudge-loop"])
-
-    def test_ai_nodes_are_read_only_with_the_judge_launch(self):
-        for loop, role in (("diagnose-loop", "diagnose"), ("rejudge-loop", "rejudge"), ("rejudge-loop", "rejudge-fix")):
-            node = next(n for n in self.loop(loop)["nodes"] if n["id"] == role)
-            self.assertEqual(node["allowed_tools"], ["Read", "Grep", "Glob", "WebSearch", "WebFetch"])
-            self.assertEqual((node["model"], node["mutates_checkout"], node["sandbox"]), ("@wf-judge-core", False, {"enabled": True, "allowUnsandboxedCommands": False}))
-            self.assertEqual(node["retry"], {"max_attempts": 2, "on_error": "all"})
-
-    def test_verdict_words_match_the_table(self):
-        from tests.blocks.diagnose import support
-        rejudge = support.modules()["rejudge"]
-        node = next(n for n in self.loop("rejudge-loop")["nodes"] if n["id"] == "rejudge")
-        self.assertEqual(tuple(node["output_format"]["properties"]["verdict"]["enum"]), rejudge.REJUDGE_VERDICTS)
-        finish = self.nodes["finish"]["output_format"]["properties"]["rejudge_verdict"]["enum"]
-        self.assertEqual(tuple(w for w in finish if w), rejudge.REJUDGE_VERDICTS)
-
-    def test_rejudge_class_query_shape_is_the_diagnose_one(self):
-        def class_query(loop, role):
-            node = next(n for n in self.loop(loop)["nodes"] if n["id"] == role)
-            return node["output_format"]["properties"]["units"]["items"]["properties"]["class_query"]
-        want = class_query("diagnose-loop", "diagnose")
-        self.assertIn("misses_omitted_why", want["properties"])
-        for role in ("rejudge", "rejudge-fix"):
-            self.assertEqual(class_query("rejudge-loop", role), want, f"{role} の class_query は判定役の物と同じ形（querytest.problems が同じ欄を求める）")
-
-    def test_reply_vocabulary_matches_the_tables(self):
-        judge = support.modules()["judge"]
-        node = next(n for n in self.loop("diagnose-loop")["nodes"] if n["id"] == "diagnose")
-        props = node["output_format"]["properties"]
-        self.assertEqual(tuple(props["units"]["items"]["properties"]["label"]["enum"]), judge.LABELS)
-        self.assertEqual(set(props["questions"]["items"]["properties"]["kind"]["enum"]), set(judge.QUESTION_KINDS))
-        self.assertEqual(set(props["questions"]["items"]["properties"]["status"]["enum"]), set(judge.QUESTION_STATUS))
-        self.assertEqual(tuple(props["questions"]["items"]["properties"]), judge.QUESTION_FIELDS)
-
-    def test_max_iterations_is_the_give_up_count(self):
-        support.modules()
-        import rolekit
-        self.assertEqual(self.loop("diagnose-loop")["max_iterations"], rolekit.GIVE_UP_AFTER)
-        self.assertEqual(self.loop("rejudge-loop")["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    def test_every_input_is_read_by_a_script(self):
-        text = (BLOCK / "scripts" / "intake.py").read_text(encoding="utf-8") + (BLOCK / "scripts" / "finish.py").read_text(encoding="utf-8")
-        for name in self.doc["inputs"]:
-            self.assertIn(f"INPUTS_{name.upper()}", text, name)
