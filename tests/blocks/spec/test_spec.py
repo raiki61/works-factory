@@ -2,7 +2,7 @@
 
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、intake → prep → 台本の返答（テストのファイルも
 試験が書く）→ take（write）→ prep → take（review）→ prep → take（revise）→ ask → 答え → freeze → finish と回す。受け付け・承認ノード・
-固め・照らしの決まりは src の関数をこの過程で呼んで確かめる。YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは
+固め・照らしの決まりは src の関数をこの過程で呼んで確かめる。YAML は受け付けの配線だけを見る。筋書きを Archon の workflow test で回すのは
 tests/layers/test_block_shape.py。
 """
 import hashlib
@@ -430,15 +430,6 @@ class ResubmitCase(_Case):
             with self.subTest(prev=prev):
                 self.assertFalse(self.prep("write", prev=prev)["resubmit"], "resume で輪が 1 周目から回し直した時は新しい会話")
 
-    def test_fix_prompt_carries_the_last_reject_and_the_candidate(self):
-        self.rejected_once()
-        text = self.fix_prep("write")["prompt"]
-        reason = self.read("rejects-spec-write.json")[-1]["reason"]
-        self.assertIn(reason, text)
-        self.assertIn(str(self.place / "candidate-spec-write.json"), text)
-        self.assertNotRegex(text, r"\{[a-z0-9_]+\}")
-        self.assertTrue((self.place / "spec-write-fix-prompt-1.md").is_file())
-
     def test_fix_reply_is_merged_with_the_candidate(self):
         """出し直しの返答は直す欄だけ。前の答えの控えと合わせて照らす（返さない欄は前のまま）"""
         self.rejected_once()
@@ -469,14 +460,6 @@ class ResubmitCase(_Case):
         self.write_tests()
         got = self.run.script("take", role="write", status_guarded="false", reply="null", fix_reply="{}")
         self.assertTrue(got["ok"], got)
-
-    def test_third_fresh_role_reads_every_reject_of_the_loop(self):
-        self.intake()
-        for i in range(2):
-            self.take("write", write_reply(f"missing{i}.txt"))
-        text = self.prep("write")["prompt"]
-        self.assertIn("missing0.txt", text)
-        self.assertIn("missing1.txt", text)
 
     def test_unreadable_fix_reply_without_a_candidate_is_a_reject(self):
         self.intake()
@@ -673,123 +656,9 @@ class CheckCase(_Case):
         self.assertIn("照らしが落ちた", done["questions"][0])
 
 
-class PromptCase(_Case):
-    """prep が md から組む指示（決まった文は md が持ち、prep は材料と値だけを渡す）"""
-
-    RULE = "Rules for queries to outside services"
-
-    def text(self, role, **intake):
-        self.intake(**intake)
-        if role != "write":
-            self.write_tests()
-            self.assertTrue(self.take("write", write_reply())["ok"])
-        if role == "revise":
-            self.assertTrue(self.take("review", review_reply())["ok"])
-        return self.prep(role)["prompt"]
-
-    def test_first_round_prompts_have_no_rejection_and_no_open_slot(self):
-        heads = {"write": "You are the spec writer.", "review": "You are the spec reviewer.", "revise": "You are the spec reviser."}
-        for role, head in heads.items():
-            with self.subTest(role=role):
-                self.setUp()
-                text = self.text(role)
-                self.assertIn(head, text)
-                self.assertNotIn("## Why your previous answer was rejected", text)
-                self.assertNotIn("If the rejection says", text)
-                self.assertNotIn("sub-agent", text, "この block の役は下請けを起こさない（段落 spawns は入れない）")
-                self.assertEqual(text.count(self.RULE), 1, "検索の決まりは 1 度だけ")
-                self.assertNotRegex(text, r"\{[a-z0-9_]+\}")
-                self.assertIn("the language of the request (the user's language)", text, "lang が空なら既定の言語の文")
-                self.assertIn(str(self.place / "request.json"), text)
-
-    def test_language_is_the_port_value(self):
-        self.assertIn("in Japanese", self.text("write", lang="Japanese"))
-
-    def test_rejections_come_first_and_the_file_hint_is_the_writers_only(self):
-        for role in ("write", "revise"):
-            with self.subTest(role=role):
-                self.setUp()
-                self.text(role)
-                bad = write_reply("missing.txt") if role == "write" else {**revise_reply(), "handled": []}
-                self.assertFalse(self.take(role, bad)["ok"])
-                again = self.prep(role)["prompt"]
-                self.assertTrue(again.startswith("## Why your previous answer was rejected"), again[:80])
-                self.assertIn(self.read(f"rejects-spec-{role}.json")[0]["reason"], again)
-                self.assertEqual("fix the test file in the target repository first" in again, role == "write")
-
-    def test_pr_text_reaches_the_three_roles_and_only_when_given(self):
-        """PR の題と本文だけで仕様の段を選んだ run でも、役は PR の文を読める（無ければ節ごと入らない）"""
-        pr = "#7 題 T\n\n本文X {not_a_slot} $LOOP"
-        for role in ("write", "review", "revise"):
-            with self.subTest(role=role):
-                self.setUp()
-                text = self.text(role, pr_text=pr)
-                self.assertIn("## Pull request", text)
-                self.assertIn(pr, text, "入れた値の中の字は読み直さない")
-                self.setUp()
-                self.assertNotIn("## Pull request", self.text(role))
-                self.assertNotIn("## Pull request", self.text(role, pr_text="  \n"), "空白だけは PR が無い")
-
-    def test_revise_prompt_tells_the_minimum_length_of_how(self):
-        self.assertIn(f"`how` is at least {self.steps.files.MIN_HOW} characters", self.text("revise"))
-
-    def test_review_prompt_takes_the_words_the_answer_form_checks(self):
-        text = self.text("review")
-        for word in self.steps.files.FACE_KINDS:
-            self.assertIn(f"`{word}`", text)
-        self.assertIn(f"at least {self.steps.files.MIN_WHY} characters", text)
-        self.assertIn(f"at least {self.steps.files.MIN_REASON} characters", text)
-        self.assertIn(str(self.place / "spec-write.json"), text)
-        self.assertIn("You are the judge", text, "役の定義の断片")
-
-    def test_revise_prompt_takes_the_answer_words_and_both_files(self):
-        text = self.text("revise")
-        for word in self.steps.files.HANDLED:
-            self.assertIn(f"`{word}`", text)
-        self.assertIn(str(self.place / "spec-write.json"), text)
-        self.assertIn(str(self.place / "spec-review.json"), text)
-
-    def test_fix_prompt_is_the_shared_paragraph(self):
-        self.intake()
-        self.take("write", write_reply("missing.txt"))
-        text = self.fix_prep("write")["prompt"]
-        self.assertTrue(text.startswith("Your previous answer was rejected by the machine's check."), text[:60])
-        self.assertIn("return `{}`", text, "二重の波括弧は字の {} になる")
-        self.assertEqual((BLOCK / "prompts" / "spec-review-fix.md").read_text(encoding="utf-8"), "{shared:resubmit}\n\n{shared:query-rule}\n\n{shared:plain-ask}\n")
-        for role in ("revise", "write"):   # sandbox の中で Bash を打つ役は sandbox-shell の断片も読む
-            self.assertEqual((BLOCK / "prompts" / f"spec-{role}-fix.md").read_text(encoding="utf-8"),
-                             "{shared:resubmit}\n\n{shared:query-rule}\n\n{shared:sandbox-shell}\n\n{shared:plain-ask}\n")
-
-
 class ShapeCase(unittest.TestCase):
-    """YAML と block の揃い"""
-
-    def test_gate_is_an_approval_with_the_four_words(self):
-        gate = nodes()["spec-gate"]
-        self.assertEqual([o["id"] for o in gate["wait"]["options"]], ["approve", "continue", "stop", "reject"])
-        self.assertEqual(gate["wait"]["form"], "select")
-
-    def test_freeze_may_change_the_checkout(self):
-        """受け入れ条件のコマンドを走らせる node は作業ツリーを変えうる。mutates_checkout: false を書かない"""
-        self.assertNotIn("mutates_checkout", nodes()["spec-freeze"])
-
-    def test_loops_give_up_where_the_accept_does(self):
-        rolekit = kit.load("spec", "steps").rolekit
-        for role in ("write", "review", "revise"):
-            loop = nodes()[f"spec-{role}-loop"]["loop_group"]
-            self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
-            self.assertEqual(loop["until_bash"], f'done=$spec-{role}-accept.output.done; test "$done" = true')
-
-    def test_read_only_roles_cannot_write(self):
-        ns = nodes()
-        for name in ("spec-review", "spec-review-fix"):
-            self.assertEqual(ns[name]["mutates_checkout"], False)
-            self.assertFalse({"Edit", "Write", "Bash"} & set(ns[name]["allowed_tools"]), name)
-            self.assertEqual(ns[name]["model"], "@wf-judge-core")
-        for name in ("spec-write", "spec-write-fix", "spec-revise", "spec-revise-fix"):
-            self.assertLessEqual({"Edit", "Write", "Bash"}, set(ns[name]["allowed_tools"]), name)
-            self.assertNotIn("mutates_checkout", ns[name], "Edit・Write・Bash を持つ役は印を書かない")
-            self.assertEqual(ns[name]["model"], "@wf-judge-spec")
+    """受け付けの配線: 作業ツリーを変えた返答を拒む印 status_guarded が審査の役（読むだけ）の受け付けにだけ渡る。受け付けの試験は
+    印を自分で渡すので、YAML の with: の取り違えはここだけが見る"""
 
     def test_accept_settings(self):
         ns = nodes()
@@ -799,62 +668,6 @@ class ShapeCase(unittest.TestCase):
             self.assertEqual((with_["role"], str(with_["status_guarded"]).lower()), (role, guarded))
             self.assertEqual(ns[f"spec-{role}-prep"]["with"]["role"], role)
             self.assertEqual(ns[f"spec-{role}-fix-prep"]["with"]["role"], role)
-
-    def test_output_enums_match_the_words_the_md_takes(self):
-        files = kit.load("spec", "files")
-        props = nodes()["spec-review"]["output_format"]["properties"]["faces"]["items"]["properties"]
-        self.assertEqual(tuple(props["kind"]["enum"]), files.FACE_KINDS)
-        self.assertEqual(props["why"]["minLength"], files.MIN_WHY)
-        self.assertEqual(nodes()["spec-review"]["output_format"]["properties"]["reason"]["minLength"], files.MIN_REASON)
-        handled = nodes()["spec-revise"]["output_format"]["properties"]["handled"]["items"]["properties"]
-        self.assertEqual(tuple(handled["handled"]["enum"]), files.HANDLED)
-        self.assertEqual(handled["how"]["minLength"], files.MIN_HOW)
-
-    def test_fix_roles_share_the_first_role_shape(self):
-        """#832: 出し直しの役の型は 1 回目の役と同じで根の欄を要ると書かず、要る根の欄は受け付けの表 REPLY_REQUIRED が持つ"""
-        ns, files = nodes(), kit.load("spec", "files")
-        for role in ("write", "review", "revise"):
-            with self.subTest(role):
-                shape = ns[f"spec-{role}"]["output_format"]
-                self.assertEqual(ns[f"spec-{role}-fix"]["output_format"], shape)
-                self.assertEqual(shape["required"], [])
-                self.assertTrue(files.REPLY_REQUIRED[role])
-                self.assertLessEqual(set(files.REPLY_REQUIRED[role]), set(shape["properties"]))
-        self.assertEqual(ns["spec-revise"]["output_format"]["properties"]["spec"]["required"], list(files.REPLY_REQUIRED["write"]),
-                         "直しの役の spec は書きの役の要る欄を型で要る（spec は丸ごと置き換える欄）")
-
-    def test_no_parallel_layer_before_a_conversation_continuing_role(self):
-        """出し直しの役の前に並んだ層が在ると会話が切れる（#571）"""
-        from tests.workflows.test_loop_sessions import layers, parallel_before_role
-        for role in ("write", "review", "revise"):
-            group = nodes()[f"spec-{role}-loop"]
-            with self.subTest(role=role):
-                self.assertEqual(parallel_before_role(group), [])
-                self.assertEqual([len(x) for x in layers(group["loop_group"]["nodes"])], [1] * 5)
-
-    def test_md_per_ai_node(self):
-        ai = {n for n, node in nodes().items() if "prompt" in node}
-        self.assertEqual(ai, {f"spec-{r}{fix}" for r in ("write", "review", "revise") for fix in ("", "-fix")})
-        self.assertEqual({p.stem for p in (BLOCK / "prompts").glob("*.md")}, ai)
-
-    def test_inputs_are_the_ports_of_the_sheet(self):
-        self.assertEqual(list(doc()["inputs"]), ["mode", "request", "pr_text", "spec", "user_env_dir", "lang"])
-        self.assertEqual(doc()["outcome_field"], "ok")
-
-
-class ReportCase(unittest.TestCase):
-    def test_lines(self):
-        report = kit.load("spec", "report")
-        spec = {"requirements": [{"key": "R1"}], "acceptance": [
-            {"key": "A1", "requirement": "R1", "file": "t.py", "name": "n1", "exit_at_approval": 0},
-            {"key": "A2", "requirement": "R1", "file": "t.py", "name": "n2", "exit_at_approval": None, "run_error": "OSError: x"},
-            {"key": "A3", "requirement": "R1", "file": "t.py", "name": "n3", "exit_at_approval": 2}], "approval": {"note": ""}}
-        self.assertEqual(report.approved(spec), [
-            "仕様: 要件 1 件・受け入れ条件 3 件を人が承認した",
-            "- A1（要件 R1）: t.py の n1——承認の時 既に緑（赤を見ていない）",
-            "- A2（要件 R1）: t.py の n2——承認の時 走らない（OSError: x）",
-            "- A3（要件 R1）: t.py の n3——承認の時 exit 2"])
-        self.assertEqual(report.stopped("要らない"), ["仕様: 人が承認ノードで止めた: 要らない"])
 
 
 if __name__ == "__main__":

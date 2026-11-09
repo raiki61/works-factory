@@ -342,6 +342,10 @@ bin/works-factory workflow run works-factory-parallel-pr \
 - 読み手の側の試験はそれぞれの block と line に残す（diagnose の素材の読み・plan と fix の外す hunk の照らし・report の行）。段を渡す配線は、judge の `tests/blocks/judge/test_judge.py` の `test_parallel_pr_runs_before_the_fix`（`stage: before`）と line の `tests/blocks/line/test_wiring.py` の `test_parallel_pr_after_runs_for_judged_entries_with_a_diff`（`stage: after`）が照らす。
 - keep-essence の 12 の仕組みのうち、この block が担う物は無い（README の 10 節の割り当てに並行 PR は無い）。守るのは、外す hunk の控えの形を崩さないこと（plan・plan-review・再審の材料が読む）: `pr-excluded.json` の形（`{node, head, excluded: [{pr, file, start, end, why, text, sha256}]}`）を今と同じに保つ試験（`test_handover_draft_accepted_with_anchor` の写し）で縛る。e2e の `tests/e2e/evidence.json` の J33・J36・R80 は、node の id と place のパス（`judge/parallel-pr/…`）を新しい物に合わせる。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `test_parallel_pr.py` の `WiringCase.test_pr_check_reply_outside_the_type_is_rejected`（役の型が拒む形。Archon の型の照らし）。読んだ証拠の node が役の輪の後に走る配線の 1 本は残す。
+- 筋書き `gave-up`（担当の PR へ投稿したと名乗る返答を拒む。`test_machine.py` の `TakeCase.test_handed_over_true_rejected`・`test_check_no_post` と `test_parallel_pr.py` の `FlowCase.test_third_rejection_gives_up_with_works_pr` が見る。handed_over の照らしを消す壊しで 4 本が赤）・`machine`（forge が無ければ機械が条件外と決めて役を起こさない。`FlowCase.test_local_remote_is_not_applicable_and_wakes_no_role` と `ScanCase.test_no_forge_is_not_applicable` が見る。forge の照らしを消す壊しで赤）。
+
 ## 8 報告の行（`src/report.py`）
 
 - 頭の 1 行: `並行 PR: <status の語>（<reason か detail か checked の 1 行>）`。`status` が `failed` なら `並行 PR: 確かめが終わらなかった（<reason>）`。

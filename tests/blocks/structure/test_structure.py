@@ -1,14 +1,11 @@
 """構造の目の block を、script を子のプロセスで回して確かめる（docs/design/structure.md の 7 節）。
 
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、survey → prep → 台本の返答 → take → finish と回す。
-YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
+筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
-import pathlib
 import shutil
 import unittest
-
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
@@ -77,20 +74,6 @@ class _RepoCase(unittest.TestCase):
 
 
 class FlowCase(_RepoCase):
-    def test_port_values_alone_reach_the_state(self):
-        got = self.walk([{"rows": [clean(MEAN), clean(CLAMP, "/units/1/id")]}])
-        self.assertEqual(got["survey"], {"eye": True, "sketch": True, "reason": ""})
-        self.assertEqual((got["prep"]["attempt"], got["take"]["ok"], got["take"]["done"]), (1, True, True))
-        fin = got["finish"]
-        self.assertEqual((fin["ok"], fin["status"], fin["dirty"], fin["escalate"]), (True, "ok", 0, 0))
-        self.assertEqual(fin["structure"], {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "structure-state.json"})
-        state = self.read("structure-state.json")
-        self.assertEqual((state["status"], state["skipped"]), ("ok", []))
-        self.assertEqual(len([line for line in self.place("design.jsonl").read_text(encoding="utf-8").splitlines() if line]), 2)
-        self.assertTrue(self.place("structure-eye-prompt-1.md").is_file())
-        self.assertEqual(fin["optional"][0], {"node": "measure", "bare": False})
-        self.assertTrue(any("構造の実測と目で増えた時間" in line for line in fin["report"]), fin["report"])
-
     def test_dirty_rows_are_counted_and_route_up_reaches_the_state(self):
         """人に上げる行は設計の行に残り（承認ノードの問いになる）、出口が数を返す"""
         got = self.walk([{"rows": [dirty(MEAN, **UP), clean(CLAMP, "/units/1/id")]}])
@@ -121,26 +104,11 @@ class FlowCase(_RepoCase):
         self.assertEqual((fin["ok"], fin["status"]), (False, "failed"))
         self.assertEqual(fin["reason"], f"構造の目の返答が 3 回とも受け付けで拒まれた: {got[-1]['reason']}")
 
-    def test_lang_reaches_the_prompt(self):
-        self.survey()
-        self.assertIn("in the language of the request", self.run.script("prep", lang="")["prompt"], "lang が空なら共通の既定の言語の文")
-        self.assertIn("in Japanese", self.run.script("prep", lang="Japanese")["prompt"])
-
     def test_unreadable_reply_is_a_rejection_not_a_crash(self):
         self.survey()
         self.run.script("prep")
         got = self.run.script("take", reply="{壊れた")
         self.assertEqual((got["ok"], got["done"]), (False, False))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.survey(include="structure__measure")
-        prep = self.run.script("prep", "structure__structure-eye-loop.structure-eye-prep")
-        self.assertEqual(prep["attempt"], 1)
-        self.assertTrue((self.place("structure") / "structure-eye-prompt-1.md").is_file())
-        self.assertFalse(self.place("structure.json").exists())
-        fin = self.finish("structure__finish")
-        self.assertEqual(fin["structure"]["path"], "structure/structure-state.json")
-        self.assertEqual(fin["status"], "failed", "目の受け付けが済んでいない")
 
     def test_measure_failure_and_unreadable_units_do_not_stop(self):
         shutil.rmtree(self.run.repo / ".git")   # git の無い対象では実測が落ちる
@@ -186,14 +154,8 @@ class FlowCase(_RepoCase):
         self.assertFalse(self.place("structure-eye-prompt-2.md").exists())
         self.assertEqual(self.place("design.jsonl").read_bytes(), b"")
         self.assertEqual(self.run.script("prep")["attempt"], 1, "測り直しは 1 回目から数える")
+        self.assertFalse(self.place("rejects-structure-eye.json").exists(), "前の拒否の控えを消す（残すと次の run が早く諦める）")
         self.assertTrue(self.place("other.json").is_file() and self.place("rejects-other.json").is_file(), "ほかの物は消さない")
-
-    def test_measure_records_timing(self):
-        self.survey()
-        timing = self.read("structure.json")["timing"]
-        self.assertIsInstance(timing["wall_s"], float)
-        for key in ("started_at", "finished_at"):
-            self.assertRegex(timing[key], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00$", key)
 
     def test_unwritable_state_returns_null_in_the_place(self):
         """控えを place に書けない run も出口は落ちず、structure: null と理由を返す（place の外には書かない）"""
@@ -358,13 +320,9 @@ class IntentCase(_RepoCase):
         self.assertEqual([(d["path"], d["rev"]) for d in self.read("intent.json") if "pointed_by" not in d],
                          [("AGENTS.md", head), ("pkg/AGENTS.md", head)])
 
-    def test_prompt_carries_the_documents_and_the_dirty_row_is_checked_against_them(self):
+    def test_dirty_row_is_checked_against_the_written_intent(self):
         self.survey(self.unit)
-        prompt = self.run.script("prep")["prompt"]
-        self.assertIn("## Written intent", prompt)
-        self.assertLess(prompt.index("### AGENTS.md ("), prompt.index("### pkg/AGENTS.md ("))
-        self.assertNotIn("other/AGENTS.md", prompt)
-        self.assertIn("lines 1-3", prompt)
+        self.run.script("prep")
         got = self.take(self.reply(cites("u1", chosen="語を pkg/names.py に置く")))
         self.assertTrue(got["ok"], got)
         fin = self.finish()
@@ -396,16 +354,14 @@ class IntentCase(_RepoCase):
         self.run.script("prep")
         self.assertTrue(self.take(self.reply({**clean("u1"), "intent": [{"path": "AGENTS.md", "quote": "層は下へだけ依存する。結末の語は src/report.py だけが持つ。"}]}))["ok"])
 
-    def test_no_written_intent_means_no_section_and_no_quotes(self):
+    def test_no_written_intent_means_no_quotes(self):
         run = kit.Run(self, "structure")
         for rel, text in {"a.py": "x = 1\n"}.items():
             (run.repo / rel).write_text(text, encoding="utf-8")
         git(run.repo, "add", "-A")
         git(run.repo, "commit", "-q", "-m", "t")
         run.script("survey", units=json.dumps([{"id": "u1", "paths": ["a.py"], "summary": "s"}]))
-        prompt = run.script("prep")["prompt"]
-        self.assertNotIn("## Written intent", prompt)
-        self.assertIn("No written intent document of the target could be read", prompt)
+        run.script("prep")
         got = run.script("take", reply=json.dumps({"rows": [{**clean("u1"), "intent": [{"path": "x", "quote": "y" * 30}]}]}))
         self.assertIn("書いた意図の文書は見せていない", got["reason"])
         self.assertTrue(run.script("take", reply=json.dumps({"rows": [clean("u1")]}))["ok"])
@@ -437,7 +393,6 @@ class IntentCase(_RepoCase):
         doc = self.read("intent.json")[0]
         self.assertEqual(doc["text"], "")
         self.assertTrue(doc["reason"])
-        self.assertIn("### NO-SUCH.md (could not be read:", self.run.script("prep")["prompt"])
 
     def test_before_reads_the_committed_version_not_the_working_tree(self):
         (self.run.repo / "pkg" / "AGENTS.md").write_text("# 書き換えた\n\n全然違う本文である。\n", encoding="utf-8")
@@ -604,94 +559,10 @@ class ConceptsCase(_RepoCase):
         self.assertEqual(self.read("structure.json")["units"][0]["concepts"], {"rows": [], "places": []})
         self.assertFalse((self.run.repo / "docs").exists())
 
-    def test_cut_policy_is_the_last_written_intent(self):
-        """長い方針の文書は切りの印つきで、書いた意図の最後の 1 本として載る"""
-        text = "決まり: 結末の語は report.py だけが持つ\n" + "あ" * 6100
-        self.target({"src/edge.py": 'x = 1\n', "POLICY.md": text, "AGENTS.md": "# 対象の決まり\n\n層は下へだけ依存する\n"})
-        self.survey([{"id": MEAN, "paths": ["src/edge.py"], "summary": "境"}], policy="POLICY.md")
-        prompt = self.run.script("prep")["prompt"]
-        self.assertIn("層は下へだけ依存する", prompt)
-        self.assertIn("結末の語は report.py だけが持つ", prompt)
-        self.assertIn(f"(cut: the first 6000 characters are shown; {len(text) - 6000} more were left out)", prompt)
-        self.assertLess(prompt.index("### AGENTS.md"), prompt.index("### POLICY.md (policy,"))
-
     def test_unreadable_policy_stops_the_eye_and_names_the_port(self):
         got = self.survey(policy="NO-SUCH.md")
         self.assertFalse(got["eye"])
         self.assertIn("入力 policy", self.read("structure.json")["reason"])
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML と筋書きの揃い（block の形の検査は tests/layers/test_block_shape.py。ここは structure だけの揃い）"""
-
-    def setUp(self):
-        self.doc = yaml.safe_load((BLOCK / "works-factory-structure.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in self.doc["nodes"]}
-        self.body = {n["id"]: n for node in self.doc["nodes"] if "loop_group" in node for n in node["loop_group"]["nodes"]}
-
-    def test_contract(self):
-        self.assertEqual((self.doc["name"], self.doc["returns"], self.doc["outcome_field"]), ("works-factory-structure", "finish", "ok"))
-        fmt = self.nodes["finish"]["output_format"]
-        self.assertEqual(sorted(fmt["required"]), sorted(["ok", "status", "reason", "structure", "after", "dirty", "escalate", "optional", "report"]))
-        self.assertEqual(fmt["properties"]["structure"]["type"], ["object", "null"])
-        self.assertEqual(fmt["properties"]["after"]["type"], ["object", "null"])
-        self.assertEqual(self.nodes["finish"]["trigger_rule"], "all_done")
-
-    def test_loop_gives_up_in_the_body_before_max_iterations(self):
-        rolekit = kit.load("structure", "eye").rolekit
-        loop = self.nodes["structure-eye-loop"]["loop_group"]
-        self.assertEqual(loop["max_iterations"], rolekit.GIVE_UP_AFTER)
-        self.assertIs(loop["fresh_context"], False)
-        self.assertEqual(loop["until_bash"], 'done=$structure-eye-accept.output.done; test "$done" = true')
-
-    def test_eye_is_a_toolless_isolated_role(self):
-        eye = self.body["structure-eye"]
-        self.assertEqual(eye["allowed_tools"], [])
-        self.assertIs(eye["mutates_checkout"], False)
-        self.assertEqual(eye["settingSources"], ["user"])
-        self.assertEqual(eye["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False})
-        self.assertEqual(eye["model"], "@wf-plan-structure")
-        self.assertEqual(eye["prompt"], "$structure-eye-prep.output.prompt")
-
-    def test_sketcher_reads_and_the_general_eye_is_blind(self):
-        """構造を描く役は読むだけの道具を持ち、一般の構造を描く目は道具も既定の system prompt（作業ツリーの cwd と git status）も持たない"""
-        sketcher, general = self.body["system-sketch"], self.body["general-structure"]
-        self.assertEqual(sketcher["allowed_tools"], ["Read", "Grep", "Glob"])
-        self.assertEqual(general["allowed_tools"], [])
-        self.assertEqual(general["systemPrompt"], "$general-structure-prep.output.system")
-        for role in (sketcher, general):
-            self.assertIs(role["mutates_checkout"], False)
-            self.assertEqual(role["model"], "@wf-plan-structure")
-        self.assertEqual(self.nodes["system-sketch-loop"]["when"], "$measure.output.sketch == true")
-        self.assertEqual(self.nodes["general-structure-loop"]["when"], "$sketched.output.general == true")
-        self.assertEqual(self.nodes["structure-eye-loop"]["trigger_rule"], "all_done", "描く役が飛んでも落ちても構造の目は回る")
-
-    def test_scripts_are_read_only_uv_scripts(self):
-        for node in [*self.nodes.values(), *self.body.values()]:
-            if "script" in node:
-                self.assertIs(node.get("mutates_checkout"), False, node["id"])
-
-    def test_script_names_differ_from_lib_modules(self):
-        lib = {p.stem for p in (kit.ROOT / "lib").glob("*.py")}
-        mine = {p.stem for p in (BLOCK / "scripts").glob("*.py")}
-        self.assertEqual(mine & lib, set())
-        self.assertEqual(mine, {n["script"] for n in [*self.nodes.values(), *self.body.values()] if "script" in n})
-
-    def test_declared_optional_matches_the_nodes(self):
-        files = kit.load("structure", "files")
-        ids = set(self.nodes) | set(self.body)
-        for row in files.OPTIONAL:
-            node = row["node"]
-            self.assertTrue(node in ids or any(i.startswith(node) for i in ids), node)
-
-    def test_own_file_names_match_the_rejection_ledger(self):
-        files = kit.load("structure", "files")
-        eye = kit.load("structure", "eye")
-        self.assertIn(eye.rolekit.rejects_path(pathlib.Path(), files.NAME).name, files.OWN_FILES)
-
-    def test_fixtures_are_the_expected_set(self):
-        names = sorted(p.name.removesuffix(".stubs.yaml") for p in (BLOCK / "fixtures").glob("*.stubs.yaml"))
-        self.assertEqual(names, ["after", "eye-gave-up", "eye-skipped", "standalone"])
 
 
 if __name__ == "__main__":

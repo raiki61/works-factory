@@ -2,41 +2,18 @@
 
 始めの記録の無い使い捨ての run directory と git のリポジトリ（AGENTS.md と作り変える docs/rules.md を commit した物）で、port の値だけを
 渡し、intake → write_prep → 台本の返答 → write_accept → finish と回す。受け付けの照らし（4.4 と 6.2）はどれも、全部通る設計の案を 1 か所
-だけ崩して拒まれることで縛る。YAML と形のファイルの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
+だけ崩して拒まれることで縛る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
-import copy
 import json
 import unittest
-
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 from tests.blocks.theme import values
 
-BLOCK = kit.BLOCKS / "theme"
-PORTS = ["theme", "prior", "prior_design", "answers", "world_rows", "policy", "recorded", "base", "lang"]
-
 
 def dump(value) -> str:
     return json.dumps(value, ensure_ascii=False)
-
-
-def nodes(doc) -> dict:
-    out, stack = {}, list(doc["nodes"])
-    while stack:
-        node = stack.pop()
-        out[node["id"]] = node
-        stack += (node.get("loop_group") or {}).get("nodes") or []
-    return out
-
-
-def strip(shape):
-    if isinstance(shape, dict):
-        return {k: strip(v) for k, v in shape.items() if k != "description"}
-    if isinstance(shape, list):
-        return [strip(v) for v in shape]
-    return shape
 
 
 class _Case(unittest.TestCase):
@@ -218,32 +195,6 @@ class AcceptTest(_Case):
     def test_9_owner_premises_point_at_what_a_person_said(self):
         self.check(lambda r: r["premises"][0].update(**{"from": "theme:2"}), "テーマの md の空でない行に当たらない")
         self.check(lambda r: r["premises"][1].update(**{"from": "H4"}), "人の答えの id（H<n>）でもテーマの md の行")
-
-
-class ShapeTest(unittest.TestCase):
-    def setUp(self):
-        self.steps = kit.load("theme", "steps")
-        self.doc = yaml.safe_load((BLOCK / "works-factory-theme.yaml").read_text(encoding="utf-8"))
-        self.nodes = nodes(self.doc)
-
-    def test_inputs_are_the_ports_of_the_design(self):
-        self.assertEqual(list(self.doc["inputs"]), PORTS)
-
-    def test_the_writer_schema_is_the_shared_shape(self):
-        """書き手と出し直しの役の型は同じ物で、形 shared:theme-design の写し（根の required だけ空。#832）"""
-        shared = json.loads((kit.SHARED / "schemas" / "theme-design.schema.json").read_text(encoding="utf-8"))
-        writer, fixer = self.nodes["theme-writer"]["output_format"], self.nodes["theme-writer-fix"]["output_format"]
-        self.assertEqual(writer, fixer)
-        self.assertEqual(writer["required"], [])
-        self.assertEqual(strip(writer["properties"]), strip(shared["properties"]))
-        self.assertEqual(tuple(shared["required"]), kit.load("theme", "files").REQUIRED)
-
-    def test_the_loop_gives_up_in_the_body(self):
-        self.assertEqual(self.nodes["write-loop"]["loop_group"]["max_iterations"], self.steps.rolekit.GIVE_UP_AFTER)
-
-    def test_no_node_is_named_like_the_include(self):
-        """line は この block を include の id theme で取り込む（docs/design/README.md の 7.1 の 13）"""
-        self.assertNotIn("theme", self.nodes)
 
 
 if __name__ == "__main__":

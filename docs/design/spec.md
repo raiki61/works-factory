@@ -606,6 +606,11 @@ bin/works-factory workflow run works-factory-spec \
 - 読み手の側の試験はそれぞれの block と line に残す: diagnose の受け入れ条件のバッチ（`request_batches` の写し）・plan の `SPEC_HEAD`・line の `spec-changed.stubs.yaml`・report の `answer_drafts`・`bin/apply` の注（`tests/bin/`）。
 - keep-essence の 12 の仕組みのうち、この block が担う物は無い（README の 10 節の割り当てに仕様は無い）。受け入れテストは後で TDD の赤いテストとして使われうる（keep-essence の 1「赤緑の機械の判定」の材料）が、判じるのは fix。この block が守るのは、承認の時の終了コード `exit_at_approval` と sha256 を `spec.json` に残す形（`test_approval_freezes_hashes_and_exit_codes`）。e2e の `tests/e2e/evidence.json` の J92 と L-E27 は、node の id と place のパスを新しい物に合わせる。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `test_spec.py`: `PromptCase`（3 つの役と出し直しの指示の字。印と値の対は workflows/.shared/prompt.py の emit が照らし、出し直しの役の md は筋書き `resubmit-*` が照らす）・`ReportCase`（報告の行の字）・`ResubmitCase` の指示に貼る字の 2 本（最後の拒否と前の答えのパス・3 回目の役が全部の拒否を読む）。
+- `test_spec.py` の `ShapeCase`: 承認ノードの 4 語は tests/layers の `test_gates.py`（`reject` を抜く壊しで赤）、輪の上限は `tests/layers/test_loop_bounds.py`、会話を続ける輪の層は `tests/layers/test_block_loop_sessions.py`、md と AI の node の対は `tests/layers/test_block_shape.py`、`spec-freeze` の印は E7 の表 `CHANGE_CHECKOUT` が見る。役の型の enum と下限の写し・出し直しの役の型・入力の鍵の並びは落とした（食い違えば受け付けが拒み続けて `works:spec` で止まる）。残すのは `test_accept_settings`（作業ツリーを変えた返答を拒む印 `status_guarded` が審査の役の受け付けにだけ渡る配線。受け付けの試験は印を自分で渡すので、ここだけが見る）。
+- 筋書きは消していない（`resubmit-write`・`resubmit-review`・`resubmit-revise` は出し直しの役の指示を組んだ証で、消すと `tests/layers/test_block_shape.py` の `check_standalone_renders` が赤）。
+
 ## 11 自分で決めた事
 
 1. line の `spec-check` を、この block の `mode: check` に入れた（README の 8.1 は入力 `request` と出力 `spec`・`added_rows` だけ）。根拠: 照らしは `spec.json` の形（`acceptance[].file`・`sha256`）を知る計算で、README の 2 の憲法の 1 と 1.3 の形の直し 7（観点の計算は graph に置かない）から line の `src/` には置けない。読み手を作り手の block の中に置けば、仕様の形の知る場所は 1 つで済む（structure の before|after・test-gate の base|final と同じ形）。

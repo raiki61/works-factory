@@ -262,7 +262,7 @@ class ReadsCase(FlowBase):
 
 
 class WiringCase(unittest.TestCase):
-    """YAML の配線と、役の返答の形（元 tests/workflows の test_judge.py の同名の試験の写し）"""
+    """YAML の配線（元 tests/workflows の test_judge.py の同名の試験の写し）。読んだ証拠の node が役の輪の後に、役を起こした回だけ走る"""
 
     def setUp(self):
         doc = yaml.safe_load((kit.BLOCKS / NAME / "works-factory-parallel-pr.yaml").read_text(encoding="utf-8"))
@@ -272,23 +272,12 @@ class WiringCase(unittest.TestCase):
             for inner in (node.get("loop_group") or {}).get("nodes", []):
                 self.nodes[inner["id"]] = inner
 
-    def rejected(self, reply):
-        kit.load(NAME, "files")   # lib/graphloops を sys.path に足す
-        from engine.schema import validate_schema
-        return validate_schema(reply, self.nodes["pr-check"]["output_format"])
-
     def test_pr_check_reads_runs_after_the_role_on_the_roles_rounds(self):
         """役の輪の後に走り（先に走ると読む前の記録で欠けと言う）、輪が落ちた回も走り、役を起こした回だけ走る"""
         node, role = self.nodes["pr-check-reads"], self.nodes[LOOP]
         self.assertIn(LOOP, node["depends_on"])
         self.assertEqual(node["trigger_rule"], "one_success")
         self.assertEqual(node["when"], role["when"])
-
-    def test_pr_check_reply_outside_the_type_is_rejected(self):
-        """excluded が無い・行の番号が 1 より小さい返答を、output_format が拒む"""
-        self.assertEqual(self.rejected(OK_REPLY), [])
-        self.assertTrue(self.rejected({k: v for k, v in OK_REPLY.items() if k != "excluded"}))
-        self.assertTrue(self.rejected(dict(OK_REPLY, excluded=[dict(OK_REPLY["excluded"][0], start=0)])))
 
 
 if __name__ == "__main__":

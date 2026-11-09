@@ -286,6 +286,10 @@ PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置�
 
 最後に、4 節の命令で本物の単独の run を 1 回回す（小さな対象に変更を 1 つ入れ、pr-review-toolkit の入った設定で）。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `test_lens.py`: `PromptCase` の指示の字の 3 本（指示が組めない時に node が落ちる 1 本は `PrepCase` に残す）・`ShapeCase`（レンズの表の行ごとの 3 つの node・役の鍵・script の写しの表・出口の `trigger_rule`。レンズは今 1 つで、その配線は筋書き `standalone` が見る。役の鍵は E7・E12・E19 の tests/layers の試験）。
+- 筋書き `not-routed`（差分が空ならレンズを起こさず not_routed の行で ok。`IntakeCase.test_no_changed_file_is_not_routed`・`FinishCase.test_not_routed_row_is_counted_and_reported` が見る。差分が空でも振り分ける壊しで 2 本が赤）。
+
 ## 9 根拠を書いて自分で決めた事
 
 1. レンズは表の行ごとに YAML の node を置き、1 つの輪で回さない。根拠: 持ち主の決め `lens-per-node`（観点ごとに node を分け、どれを起こすかは振り分けの node で決める）と、元の works の `blk-lens` の「節ごとに model を持てる」。輪にすると node が 1 つになり、レンズごとの群を持てない。README の port `lenses` json は、表のどれを当てるかと、定義の引き先・本文を選ぶ値にした。

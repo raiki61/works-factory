@@ -2,10 +2,8 @@
 script を回す通しの試験は test_structure.py"""
 import json
 import pathlib
-import re
 import unittest
 
-from tests.bin import trimmed
 from tests.blocks import kit
 
 SHOWN_UNIT = {"id": "u-1", "summary": "直す所", "measure": {"churn": 3}}
@@ -133,13 +131,9 @@ class UnreadableRowsCase(_Case):
         self.assertEqual((doc["status"], doc["reason"]), ("failed", "設計の行が読めない: 設計の行 1 が JSON でない"))
 
 
-class NamesCase(_Case):
-    def test_after_file_name_is_the_one_the_readers_know(self):
-        self.assertEqual(self.files.AFTER_FILE, self.eye.structmark.AFTER_FILE)
-
-
 class VocabularyCase(unittest.TestCase):
-    """受け付けと指示が使う語と形の数は、目の node の output_format の enum と faces の範囲と同じ"""
+    """受け付けが使う語は、目の node の output_format の enum と同じ（enum から「人に上げる」が落ちると、役は人に上げる行を書けず、
+    承認ノードに問いが届かない）"""
 
     @classmethod
     def setUpClass(cls):
@@ -154,22 +148,6 @@ class VocabularyCase(unittest.TestCase):
         self.assertEqual(row["verdict"]["enum"], list(self.eye.VERDICTS))
         self.assertEqual(row["route"]["enum"], list(self.eye.ROUTES))
         self.assertEqual((row["faces"]["items"]["minimum"], row["faces"]["items"]["maximum"]), (1, 6))
-
-    def test_trimmed_min_length_kept_by_pattern(self):
-        self.assertEqual(trimmed.missing_patterns(self.fmt), [])
-
-    def test_rows_outside_the_type_are_rejected(self):
-        from engine.schema import validate_schema
-        self.assertEqual(validate_schema({"rows": [CLEAN]}, self.fmt), [])
-        for name, row in (("知らない行き先", {**CLEAN, "route": "後で"}), ("形の外の欄", {**CLEAN, "note": "x"}),
-                          ("真偽を形の番号に", {**CLEAN, "faces": [True]}), ("形の番号の外", {**CLEAN, "faces": [7]})):
-            with self.subTest(name):
-                self.assertTrue(validate_schema({"rows": [row]}, self.fmt))
-
-    def test_numbered_forms_in_the_md_match_the_count(self):
-        md = (kit.BLOCKS / "structure" / "prompts" / "structure-eye.md").read_text(encoding="utf-8")
-        numbers = [int(n) for n in re.findall(r"^(\d)\. ", md, re.M)]
-        self.assertEqual(numbers, list(range(1, self.eye.FORM_COUNT + 1)))
 
 
 class ViewCase(_Case):
