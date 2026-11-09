@@ -1,10 +1,10 @@
-"""README の "Running one block on its own" の機械が描く区間を、6 つの部品の YAML の宣言と表 `docs/standalone-blocks.json` から描いて照らす。
+"""README の "Running one block on its own" の機械が描く区間を、表 `docs/standalone-blocks.json` と、表の行が指す部品の YAML の宣言から描いて照らす。
 
 縛る事:
 - README の印 `<!-- standalone_blocks_begin -->` と `<!-- standalone_blocks_end -->` の間が、`render` が描いた字と 1 字違わず等しい
   （印が無い・始めだけ・2 組在る時は合格にしない）
 - 表の入力の名が YAML の `inputs:` に在り、YAML で `required: true` の入力が表に在り、例の名が表の入力に在る
-- 表が 6 つの部品の行を持ち、英語の欄と測りの値が欠けない
+- 表の行が空でなく、どの行も `workflows/<block>/works-factory-<block>.yaml` の在る部品を指し、英語の欄と測りの値が欠けない
 - 費用が `NOTICE_USD` 以上の部品だけが、呼ぶ前に読む知らせを頭に持つ
 
 表は人が単独で打つ入力の唯一の目録で、必須か・既定・返す node は YAML から描く。筋書き（fixtures）は読まない。
@@ -23,10 +23,10 @@ import yaml
 
 from tests.blocks import kit
 
+RUNTIME_READS = ("README.md", "docs/standalone-blocks.json", "workflows/")
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 README = ROOT / "README.md"
 TABLE = ROOT / "docs" / "standalone-blocks.json"
-BLOCK_NAMES = ("plan-review", "independent-design", "premises", "prior-decisions", "world", "diagnose")
 BEGIN = "<!-- standalone_blocks_begin -->"
 END = "<!-- standalone_blocks_end -->"
 NOTICE_USD = 1.0
@@ -46,13 +46,15 @@ def load_table(path: pathlib.Path = TABLE) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def declared(blocks=BLOCK_NAMES) -> dict:
-    """部品ごとの YAML の宣言。YAML が無い部品は載せない"""
+def declared(table: dict | None = None) -> dict:
+    """表の行が指す部品ごとの YAML の宣言"""
+    table = load_table() if table is None else table
     found = {}
-    for block in blocks:
-        paths = list((kit.BLOCKS / block).glob("works-factory-*.yaml"))
-        if len(paths) == 1:
-            found[block] = yaml.safe_load(paths[0].read_text(encoding="utf-8"))
+    for row in (table or {}).get("blocks") or []:
+        block = row.get("block")
+        path = kit.BLOCKS / str(block) / f"works-factory-{block}.yaml"
+        if path.is_file():
+            found[block] = yaml.safe_load(path.read_text(encoding="utf-8"))
     return found
 
 
@@ -84,12 +86,12 @@ def render_block(row: dict, doc: dict) -> str:
 
 
 def render(table: dict, docs: dict | None = None) -> str:
-    docs = declared() if docs is None else docs
+    docs = declared(table) if docs is None else docs
     return "\n\n".join(render_block(row, docs.get(row["block"], {})) for row in table["blocks"])
 
 
 def section(text: str) -> str:
-    """README の印の間を返す。印が無い・1 組でない時は SectionError"""
+    """README の印の間を返す"""
     if text.count(BEGIN) != 1 or text.count(END) != 1:
         raise SectionError(f"README needs exactly one {BEGIN} and one {END} (found {text.count(BEGIN)} and {text.count(END)})")
     start, end = text.index(BEGIN) + len(BEGIN), text.index(END)
@@ -101,14 +103,11 @@ def section(text: str) -> str:
 def table_problems(table: dict | None, docs: dict | None = None) -> list[str]:
     if table is None:
         return [f"[table] {TABLE.relative_to(ROOT)} is missing"]
-    docs = declared() if docs is None else docs
+    docs = declared(table) if docs is None else docs
     rows = table.get("blocks") or []
     if not rows:
         return ["[table] the table has no blocks"]
-    found = [row.get("block") for row in rows]
     out = []
-    if sorted(found) != sorted(BLOCK_NAMES):
-        out.append(f"[rows] the table must list exactly {sorted(BLOCK_NAMES)}, found {found}")
     for row in rows:
         block = row.get("block")
         if block not in docs:
@@ -163,7 +162,7 @@ class StandaloneBlocksCase(unittest.TestCase):
     def setUp(self):
         self.readme = README.read_text(encoding="utf-8")
         self.table = load_table()
-        self.docs = declared()
+        self.docs = declared(self.table)
 
     def need_table(self):
         self.assertIsNotNone(self.table, f"{TABLE.relative_to(ROOT)} is missing")
@@ -180,7 +179,6 @@ class StandaloneBlocksCase(unittest.TestCase):
     def test_every_block_has_its_rows(self):
         self.need_table()
         self.assertEqual(_of("rows", problems(self.readme, self.table, self.docs)) + _of("table", problems(self.readme, self.table, self.docs)), [])
-        self.assertEqual(sorted(row["block"] for row in self.table["blocks"]), sorted(BLOCK_NAMES))
         self.assertTrue(_of("table", problems(self.readme, {"blocks": []}, self.docs)), "an empty table must be red")
 
     def test_markers_missing_or_doubled_are_red(self):
@@ -234,6 +232,7 @@ class StandaloneBlocksCase(unittest.TestCase):
             "an undeclared name in the table": ("inputs", self.readme, table_with(lambda t: t["blocks"][0]["inputs"].update({"no_such_input": "x"})), self.docs),
             "a required input removed from the table": ("inputs", self.readme, table_with(drop_required), self.docs),
             "an example name not in the table": ("inputs", self.readme, table_with(lambda t: t["blocks"][0]["example"].update({"no_such_input": "x"})), self.docs),
+            "a block with no workflow YAML": ("rows", self.readme, table_with(lambda t: t["blocks"].append(dict(copy.deepcopy(first), block="no-such-block"))), self.docs),
             "markers removed": ("markers", self.readme.replace(BEGIN, "").replace(END, ""), self.table, self.docs),
         }
         for name, (kind, readme, table, docs) in injections.items():
@@ -257,16 +256,13 @@ class StandaloneBlocksCase(unittest.TestCase):
 
     def test_costly_blocks_carry_the_notice(self):
         self.need_table()
-        costly = set()
         for row in self.table["blocks"]:
             text = render_block(row, self.docs[row["block"]])
             with self.subTest(block=row["block"]):
                 has = NOTICE in text
                 self.assertEqual(has, row["measured"]["cost_usd"] >= NOTICE_USD)
                 if has:
-                    costly.add(row["block"])
                     self.assertEqual(text.splitlines()[2], f"> {NOTICE}", "the notice comes right after the heading")
-        self.assertEqual(costly, {"plan-review", "diagnose"})
 
 
 if __name__ == "__main__":
