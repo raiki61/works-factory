@@ -639,6 +639,7 @@ eyes__r4__finish:
 eyes__verdict:
   findings:
   - eye: r1
+    kind: trim
     where: app.py:3
     text: 同じ内容の写しが残っている
   route: fix
