@@ -205,7 +205,7 @@ class TurnCase(_Case):
 
     def test_the_fix_stage_why_reaches_the_exit_line(self):
         """合わせが止めた訳 stop_why を持つ時、止めの語の有無によらず抜けた訳に載り、輪を抜けた訳の行（最後の承認ノードと報告が読む）に出る。
-        差分が変わらなかった時は、その字を修正の段の訳で包んで残す。stop_why が無ければ今の字のまま"""
+        差分が変わらなかった時は、その字を修正の段の訳で包んで残し、包んでも返す前と同じ状態だと言う。stop_why が無ければ今の字のまま"""
         why = "直しが入った木では落ちる試験を書けない"
         first = self.run_turn()
         stopped = self.run_turn(k=2, prev=first, fixed=fixed(go=False, stop_reason="works:no-suite", stop_why=why))
@@ -216,6 +216,7 @@ class TurnCase(_Case):
         undone = self.run_turn(k=2, prev=first, fixed=fixed(stop_why=why), tests=gate_got("h1"))
         self.assertEqual(undone["exit"], f"{self.e.EXITS['unchanged']}（修正の段が直さなかった訳: {why}）")
         self.assertIn(f"輪を抜けた訳: {undone['exit']}", self.e.lines(first["rows"], undone["exit"]))
+        self.assertIn(self.e.SAME_AS_BEFORE, self.e.lines(first["rows"], undone["exit"]))
         bare = self.run_turn(k=2, prev=first, fixed=fixed(stop_reason="works:unrestored"))
         self.assertEqual(bare["exit"], f"{self.e.EXITS['stop']}（works:unrestored）")
         self.assertEqual(self.run_turn(k=2, prev=first, tests=gate_got("h1"))["exit"], self.e.EXITS["unchanged"])
