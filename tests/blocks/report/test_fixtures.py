@@ -56,6 +56,20 @@ class FixtureCase(unittest.TestCase):
                 if name == "cold-gave-up":
                     self.assertIn("write-accept", trace)
 
+    def test_the_report_title_is_drawn_by_the_title_part(self):
+        """筋書きを回した報告の 1 行目（機械の報告の頭。初見の読み手に貼る M1 の行で、人に向けた報告の頭と同じ物）が、筋書きの facts の
+        依頼の字から題の部品 title.render が描く字と同じ。依頼の字が在る場面（standalone）と無い場面（cold-head-only）の両方を回す"""
+        has_request = {"standalone": True, "cold-head-only": False}
+        traces = kit.dry_run_traces("report", list(has_request))
+        for name, has in has_request.items():
+            with self.subTest(name):
+                requests = json.loads(kit.fixture("report", name)["fixture"]["inputs"]["facts"]).get("request_texts") or []
+                self.assertEqual(bool(requests), has, "筋書きの facts の依頼の字の有無")
+                trace = traces[name]
+                run_id = json.loads(trace["finish"]["output"])["machine"]["run_id"]
+                first = next(line for line in trace["cold"]["resolvedText"].splitlines() if line.startswith("M1 | "))
+                self.assertEqual(first, f"M1 | {M.title.render(run_id, requests)}")
+
     def test_every_scenario_stubs_only_ai_nodes(self):
         ai = {"write", "cold"}
         for path in (BLOCK / "fixtures").glob("*.stubs.yaml"):

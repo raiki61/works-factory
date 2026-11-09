@@ -1,9 +1,9 @@
-"""報告の block の place のファイルの名と、機械の報告の節の見出しの字（頭の行の題は head.py の表。docs/design/report.md の 1.4・1.5。名はこのモジュールだけが持つ）。
+"""報告の block の place のファイルの名と、機械の報告の節の見出しの字（頭の行の題の型の字は title.py。docs/design/report.md の 1.4・1.5。名はこのモジュールだけが持つ）。
 
 place（ports.place()）の下:
-- facts.json: facts が決めた値 {outcome, stop_reason, ok, ai_go, stamp, lang, run_id, decisions}
+- facts.json: facts が決めた値 {outcome, stop_reason, ok, ai_go, stamp, lang, run_id, decisions, request_texts}
 - report.md: 機械の報告。report-unwritten.md: 組めなかった時の機械の報告。report-facts-unwritten.md・report-finish-unwritten.md: ライブラリを
-  読めない時の訳だけのファイル（題の行は頭の表 head.py の行。scripts/ の最後の落ち先だけは標準ライブラリで書くので字を持つ）
+  読めない時の訳だけのファイル（題の行は title.py から描き、scripts/ の最後の落ち先が字で持つのはファイル名と訳の頭だけ）
 - next-request.json・prior-failures.json: 次の run の依頼の下書きと前の失敗（名は lib/carry が持つ。周の鎖と次の run の入口が読む）
 - write-prompt-<n>.md・cold-prompt-<n>.md（prompt.emit が書く）
 - rejects-report.json・rejects-report.md・candidate-report.json（lib/rolekit の控え。受け付けの名は ROLE）

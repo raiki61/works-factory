@@ -16,6 +16,7 @@ from tests.blocks.report import base
 M = base.src()
 import report    # noqa: E402  lib/
 import userenv   # noqa: E402  lib/
+import oneline   # noqa: E402  lib/
 
 RUN_ID = "run-test"
 SECTIONS = [{"title": "直した所", "lines": ["単位 u1: 直した", "  内訳 a"]}, {"title": "空の節", "lines": []}]
@@ -404,6 +405,65 @@ class HeadTableCase(Base):
             _, text = self.build()
             M.writer.note_writer_fell(self.place / "report.md", {"error": "Loop-group node failed: x", "quota": quota}, run_id=RUN_ID)
             yield M.writer.machine_head((self.place / "report.md").read_text(encoding="utf-8"))
+
+    def title_module(self):
+        """題の型の字の部品。無い版では、読み込みでなく試験の中の検査で落とす"""
+        title = getattr(M, "title", None)
+        self.assertIsNotNone(title, "題の型の字の部品 workflows/report/src/title.py が無い")
+        return title
+
+    REQUEST_SETS = ([], ["依頼の 1 行目"], ["依頼の 1 行目\n改行を含む", "依頼の 2 行目", "依頼の 3 行目"], ["  ", "\n\t"], ["  ", "依頼 A", ""],
+                    ["  A \t B  ", "C"])
+
+    def test_title_writers_outside_build_match_the_title_row(self):
+        """build の外で題を書く所（予備の機械の報告・訳だけのファイル・題の部品の render）の 1 行目は、依頼の字が 0 件・1 件・2 件以上・空白だけの
+        どれでも machine.title_row と同じ字で、head.parse で題の行に読み戻せる。畳み方は lib の one_line と同じ字にする"""
+        title = self.title_module()
+        H = self.head()
+        titles = {H.Line.RUN_TITLE, H.Line.REQUEST_TITLE, H.Line.REQUEST_TITLE_MORE}
+        for n, requests in enumerate(self.REQUEST_SETS):
+            want = M.machine.title_row(RUN_ID, requests)
+            with self.subTest(requests=requests):
+                self.assertIn(H.parse(want).kind, titles)
+                made = {"render": title.render(RUN_ID, requests)}
+                (self.place / f"fb{n}").mkdir()
+                with self.run.env():
+                    made["fallback_report"] = M.machine.fallback_report(self.place / f"fb{n}", "訳", RUN_ID, requests).read_text(encoding="utf-8").splitlines()[0]
+                    made["unwritten"] = M.steps.unwritten(self.place / f"un{n}", "u.md", "訳", RUN_ID, requests).read_text(encoding="utf-8").splitlines()[0]
+                for writer, got in made.items():
+                    self.assertEqual(got, want, writer)
+                    self.assertEqual(H.parse(got), H.parse(want), writer)
+        for text in ("  A \t B\n C ", "", "   ", "改行\r\n入り", "全角\u3000空白"):
+            self.assertEqual(title.fold(text), oneline.one_line(text), repr(text))
+
+    def test_no_title_text_outside_the_title_module(self):
+        """題の型の字「報告（run」を持つのは title.py だけ（scripts と src の .py）"""
+        found = sorted(str(p.relative_to(base.BLOCK)) for folder in ("scripts", "src") for p in (base.BLOCK / folder).glob("*.py")
+                       if "報告（run" in p.read_text(encoding="utf-8"))
+        self.assertEqual(found, ["src/title.py"])
+
+    def test_unreadable_request_input_falls_to_the_run_id_title(self):
+        """依頼の字が読めない入力（壊れた JSON・別の run を指す pointer・無いファイルのパス・字の配列でない request_texts）では、
+        requests_in は誤りを上げずに空を返し、題は run の id だけの行になる"""
+        title = self.title_module()
+        place = self.run.artifacts
+        (place / "broken.json").write_text("{壊れた", encoding="utf-8")
+        (place / "notlist.json").write_text(json.dumps({"request_texts": "文字列"}), encoding="utf-8")
+        (place / "mixed.json").write_text(json.dumps({"request_texts": ["a", 3]}), encoding="utf-8")
+        (place / "scalar.json").write_text("3", encoding="utf-8")
+        other = json.dumps({"type": "archon_artifact", "run_id": "other-run", "path": "broken.json"})
+        inputs = {"broken file": str(place / "broken.json"), "broken value": "{壊れた", "other run pointer": other,
+                  "missing path": str(place / "nothing.json"), "request_texts not a list": json.dumps({"request_texts": "文字列"}),
+                  "request_texts mixed": json.dumps({"request_texts": ["a", 3]}), "not an object": "[1]", "scalar file": str(place / "scalar.json"),
+                  "string file": str(place / "notlist.json"), "mixed file": str(place / "mixed.json"), "empty": "", "none": None}
+        with self.run.env():
+            for name, raw in inputs.items():
+                with self.subTest(name):
+                    got = title.requests_in(raw)
+                    self.assertEqual(tuple(got), ())
+                    self.assertEqual(title.render(RUN_ID, got), M.machine.title_row(RUN_ID, []))
+            readable = title.requests_in(json.dumps({"request_texts": ["依頼 A"]}))
+            self.assertEqual(tuple(readable), ("依頼 A",), "読める入力は読む")
 
     def test_pr_stopped_keeps_the_apply_answer(self):
         """出口の語 pr の道で PR を作らずに止めた・PR を作ったと確かめられなかった run の「差分を当ててよいか」の行は、PR の道でない同じ場面の答え

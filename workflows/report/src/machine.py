@@ -6,7 +6,8 @@ _bullets・fallback_report と lib/gatemarks.py の draft_line を、graph が�
   ai_go, decisions}: 機械の報告・次の依頼・前の失敗を place に書く。次の依頼と前の失敗は約束の Schema に合うことを照らしてから書く。
   頭の行は事実から head.Line と差し込み口の値を決めて head.render で描くだけ（文は head.py の表の 1 か所）。知らせの本文 text は notice_lines が
   節「2. 止めたか」の頭に並べる
-- fallback_report(place, why) -> パス: 思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を UNWRITTEN_FILE に書く
+- fallback_report(place, why, run_id="", requests=()) -> パス: 思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行。題は run の id と
+  依頼の字から描く）を UNWRITTEN_FILE に書く
 """
 import json
 import pathlib
@@ -16,7 +17,7 @@ import oneline   # lib/
 import report    # lib/
 
 import ports
-from src import facts_in, files, head, outcome as outcomelib, transcript, writer
+from src import facts_in, files, head, outcome as outcomelib, title, transcript, writer
 
 STOP_OUTCOMES = ("stopped_by_request", "stopped_by_human", "stopped_by_line", "needs_human")   # 止まった run の結末
 APPLY_HEAD = "差分を対象に当てる"
@@ -159,12 +160,12 @@ def title_row(run_id: str, requests: list) -> str:
     """題の行。依頼の字（1 行に畳み、空の物は除く）が無ければ run の id だけの行、1 つなら id に依頼の字を添えた行、2 つ以上なら 1 つ目の字に
     ほかの行の数を添えた行（1 つ目だけを見せると、run がその 1 行だけを直したと読まれる）"""
     run = head.RunId(run_id)
-    folded = [x for x in (head.OneLine(r) for r in requests) if x]
-    if not folded:
+    key, request, more = title.choose(requests)
+    if key == title.RUN:
         return head.render(head.Line.RUN_TITLE, head.RunSlot(run))
-    if len(folded) == 1:
-        return head.render(head.Line.REQUEST_TITLE, head.RequestTitleSlot(run, folded[0]))
-    return head.render(head.Line.REQUEST_TITLE_MORE, head.RequestMoreTitleSlot(run, folded[0], len(folded) - 1))
+    if key == title.REQUEST:
+        return head.render(head.Line.REQUEST_TITLE, head.RequestTitleSlot(run, head.OneLine(request)))
+    return head.render(head.Line.REQUEST_TITLE_MORE, head.RequestMoreTitleSlot(run, head.OneLine(request), more))
 
 
 def head_lines(run_id: str, outcome: str, apply: dict, run: dict, counts: dict, n_carried: int, notices: list, rows: list, requests: list) -> list:
@@ -330,8 +331,8 @@ def build(sections: list, facts: dict, outcome: str, stop_reason: str, run: dict
     return {**paths, "ai_go": outcome != "record_invalid", "decisions": decisions}
 
 
-def fallback_report(place, why: str) -> pathlib.Path:
+def fallback_report(place, why: str, run_id: str = "", requests=()) -> pathlib.Path:
     """思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行）を UNWRITTEN_FILE に書く（facts の report.md を上書きしない）。
-    組めなければ誤りが上がり、呼び手がライブラリに頼らない訳だけのファイルに落ちる"""
-    return build([], facts_in.read({"problems": [why]}), "record_invalid", f"report:{why}", transcript.facts(None), place=place,
-                 report_name=files.UNWRITTEN_FILE)["report"]
+    題は run の id と依頼の字から普通の報告と同じ字で描く。組めなければ誤りが上がり、呼び手がライブラリに頼らない訳だけのファイルに落ちる"""
+    return build([], facts_in.read({"problems": [why], "request_texts": list(requests)}), "record_invalid", f"report:{why}",
+                 transcript.facts(None), place=place, run_id=run_id, report_name=files.UNWRITTEN_FILE)["report"]
