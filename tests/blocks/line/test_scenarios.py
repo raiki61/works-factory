@@ -279,6 +279,18 @@ class DirectionStopTest(unittest.TestCase):
         self.assertFalse(ran(trace, "fix__finish"), "修正の節は走らない")
         self.assertTrue(ran(trace, "collect") and ran(trace, "result"))
 
+    def test_fixture_redirected_note_stops_before_the_fix(self):
+        """写しの道（fixture-direction）: 答えの node が go 偽を返し、fix-in が修正へ進むかに読む値（with: の fixture_before_fix_go）が
+        その go を結ぶ。筋書きは fix-in を stub で差すので、fix-in の with: を trace の値で結んで照らす（読めば go 偽で進まないことは
+        tests/blocks/line/test_fix_in.py が見る）"""
+        trace = line_traces(("fixture-direction",))["fixture-direction"]
+        for node in ("fixture-ask-before-fix", "fixture-gate-before-fix", "fixture-direction-out", "fixture-answer-before-fix"):
+            self.assertTrue(ran(trace, node), node)
+        answered = out(trace, "fixture-answer-before-fix")
+        self.assertEqual((answered["go"], answered["stop_reason"]), (False, "works:answer-redirected"), answered)
+        self.assertIn("例外を投げる形にして", answered["reason"])
+        self.assertIs(bound(trace, nodes()["fix-in"]["with"]["fixture_before_fix_go"]), False, "fix-in は人の答えの go を読む")
+
 
 class EyesBackTest(unittest.TestCase):
     """独立の目から修正の段へ返す輪（筋書き eyes-back）: R1 が最初の目で直しが要ると言い、1 度返した後の目で通る"""

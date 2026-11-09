@@ -9,7 +9,7 @@ fixture:
 exec-code: true
 gate-start: {decision: approve, text: ''}
 fixture-gate-before-fix: {decision: continue, text: '問いの答え: 推しのとおりに通す'}
-# 答えの一言は計画に沿う向きと判定される（include の中の返す node を aligned の返りで差す）。逆向きの一言で止まる結末は筋書き spec-direction
+# 答えの一言は計画に沿う向きと判定される（include の中の返す node を aligned の返りで差す）。逆向きの一言で止まる筋書きは fixture-direction
 fixture-direction__finish: {ok: true, status: ok, reason: '', direction: aligned, aligned: true, why: 一言は計画の向きのとおり, report: []}
 fixture-ask-before-fix:
   open: true

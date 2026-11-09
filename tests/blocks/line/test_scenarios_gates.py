@@ -13,12 +13,12 @@ import unittest
 from tests.blocks.line.test_scenarios import line_traces, out, ran
 
 class GateCase(unittest.TestCase):
-    """承認ノードの止めの答え（policy-stop・final-stop）。通す答えで修正へ進み差分を当てる結末は筋書き standard（test_scenarios.py の
+    """承認ノードの止めの答え（policy-stop・final-stop・replan-stop）。通す答えで修正へ進み差分を当てる結末は筋書き standard（test_scenarios.py の
     LineReturnsTest）が見る"""
 
     @classmethod
     def setUpClass(cls):
-        cls.t = line_traces(("policy-stop", "final-stop"))
+        cls.t = line_traces(("policy-stop", "final-stop", "replan-stop"))
 
     def test_policy_stop_never_reaches_fix_or_the_seal(self):
         trace = self.t["policy-stop"]
@@ -38,6 +38,15 @@ class GateCase(unittest.TestCase):
         self.assertIs(got["sealed"]["ok"], True)
         self.assertEqual(got["final_answer"]["decision"], "stop")
 
+
+    def test_replan_stop_never_runs_the_second_fix(self):
+        """案の直しの承認ノードの stop: 2 度目の修正（refix-run の when）から後ろの書き込みの段が走らない"""
+        trace = self.t["replan-stop"]
+        self.assertEqual(out(trace, "answer-replan")["go"], False)
+        for node in ("refix-run__finish", "lens-2__finish", "test-gate-final__result", "eyes__verdict", "merge-seal__merge", "merge-apply__merge"):
+            self.assertFalse(ran(trace, node), node)
+        self.assertTrue(ran(trace, "raise"))
+        self.assertTrue(ran(trace, "report__finish"))
 
 
 class ReplanCase(unittest.TestCase):
@@ -136,8 +145,8 @@ class NoApplyCase(unittest.TestCase):
     when: の句の取り違え（止まった run で後ろの書き込みの段が走る）を、当てない結末の筋書きの全部で照らす（消した YAML の形の試験
     WhenCase・FlowCase の代わり。持ち主の決め mechanism-over-tests）"""
 
-    NEVER_APPLY = ("policy-stop", "final-stop", "eyes-failed", "seal-protected-unattended", "unattended-push-stop", "unattended-needs-human")
-    NEVER_SEAL = ("policy-stop", "eyes-failed", "unattended-push-stop")
+    NEVER_APPLY = ("policy-stop", "replan-stop", "final-stop", "eyes-failed", "seal-protected-unattended", "unattended-push-stop", "unattended-needs-human")
+    NEVER_SEAL = ("policy-stop", "replan-stop", "eyes-failed", "unattended-push-stop")
 
     def test_no_write_after_a_stop(self):
         traces = line_traces(self.NEVER_APPLY)

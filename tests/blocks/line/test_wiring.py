@@ -247,5 +247,17 @@ class DirectionWiringCase(unittest.TestCase):
                 self.assertEqual(TOP[f"{head}-direction"]["with"]["answer"], f"${head}-gate-before-fix.output")
 
 
+class ExcludedWiringCase(unittest.TestCase):
+    """8.2（対象への書き込みの守り）: 並行 PR が外した hunk（判定のまとめの excluded を fix-in が運ぶ）を、修正の段の全部（1 回目・2 度目・
+    独立の目から返す周）が受ける。外した hunk に触れた修正を拒むのは fix の受け付けで、fix-in が運ぶことは test_fix_in.py が見る"""
+
+    def test_every_fix_stage_reads_the_exclusion_through_fix_in(self):
+        stages = [k for k, n in TOP.items() if n.get("include") == "works-factory-fix"]
+        self.assertEqual(len(stages), 2 + LIMIT, stages)
+        for key in stages:
+            with self.subTest(key):
+                self.assertEqual(TOP[key]["with"]["excluded"], "$fix-in.output.excluded")
+
+
 if __name__ == "__main__":
     unittest.main()
