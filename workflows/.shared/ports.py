@@ -14,7 +14,7 @@
   ファイルは拒む（JSON は形を名指して運ぶ）
 - located(raw) -> Path | None: raw がこの run の pointer かファイルのパスならそのパス、値そのものなら None。形を照らさない在りかの読み
   （pointer の run の id と置き場は照らすが、中身の形は照らさず、ファイルの在るかも見ない）。ここから先を値として使う読みは json・file を通し、
-  located と json.loads で形の照らしを飛ばさない。呼んでよいのは、lib を読めずに形を照らせない落ちない口の予備の道だけ
+  located と json.loads で形の照らしを飛ばさない。呼んでよいのは、落ちない口の予備の道だけ
 - carried_file(row) -> Path | None: form を値と一緒に運ぶ行 {ref, form}（報告の節の files のように、種類の違うファイルを 1 つの欄で
   中継する値）の ref を、行の form で file と同じに照らしてパスを返す。form は書き手が出どころの宣言の form を字で書く
 - 形の名: block の schemas/ のファイル名・shared:<名>（pack の .shared/schemas/）・lib:<名>（lib/ の下。lib に住処の在る形）・
