@@ -25,7 +25,7 @@ NO_OUTPUT = "出力が無い"
 NO_COHERENCE = "まとめた R3 の行（coherence）が無い"
 RAN_R4 = "まま R4 を回した"
 WAITED_BY_R4 = ("r1", "r2")   # R4 が待つ目（E8）。この目が落ちても R4 は回るので、落ちた訳に尾を足す
-KINDS = {"r1": "trim", "r2": "unfinished"}   # 返す項目の種: R1 の指摘は削れる物（trim）・R2 の指摘は作り残し（unfinished）
+KINDS = {"r1": "trim", "r2": "unfinished"}
 ROUTE_FIX, ROUTE_STAY = "fix", "stay"
 NOTHING_TO_RETURN = "返す物が無い"
 

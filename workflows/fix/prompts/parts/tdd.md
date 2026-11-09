@@ -82,7 +82,7 @@ When you read a borrowed skill (superpowers), follow the reading rules below. Th
 <!-- if phase_refactor -->
 - **refactor**: comes only for a unit declared in the fix phase or declared in the brief. Tidy what was declared while staying green. Do not change the test files
 <!-- end phase_refactor -->
-- If these instructions have the section "Units to fix together with the current unit", those units (later units on the same fix plan item, sharing one brief and one approach) are included in the current unit and handled together in every phase (the test phase names all of the item's acceptance tests and makes them red, and the fix phase makes them green including those units' fixes. Once green is reached, the machine closes those units; a test the handoff lists as already verified in an earlier stage is not named for them either). Do not count them among "the later units" below
+- If these instructions have the section "Units to fix together with the current unit", those units (later units on the same fix plan item, sharing one brief and one approach) are included in the current unit and handled together in every phase (the test phase names all of the item's acceptance tests and makes them red, and the fix phase makes them green including those units' fixes. Once green is reached, the machine closes those units). Do not count them among "the later units" below
 - Do not touch the later units or the direct units in the current phase (the direct units are fixed by a separate start after the loop)
 
 ## What to do in this phase

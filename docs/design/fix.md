@@ -52,7 +52,7 @@
 - `prior`: `json(shared:carry.schema.json): 前の修正の段の申し送り（前の段の出力 carry の先 {conflicts, loops}）。2 回目の修正の段だけに渡す。null は 1 回目の段`。既定 `null`。
 - `notes`: `text: 機械の申し送りの文（案の直しの後の 2 回目の修正の段だけ。採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes に足す。空は無い`。既定 `""`。
 - `only_items`: `json(only-items.schema.json): 2 回目の修正の段で直す修正案の項目の番号の配列。空の配列は直す義務の単位の全部`。既定 `[]`。
-- `item_kinds`: `json(item-kinds.schema.json): 返した項目の種を修正案の項目の番号ごとに並べた配列 [{item, kind}]（kind は trim か unfinished）。独立の目から返した段だけが渡す。空の配列は元の案の route のまま`。既定 `[]`。`prior` の無い段に空でない値を渡したら入力の誤りとして拒む。種は独立の目のまとめが付け（R1 の指摘は trim・R2 の指摘は unfinished）、返す輪の周の頭が項目の番号へ結んで運ぶだけで、型の語は 22.1 の表がここで引く。
+- `item_kinds`: `json(item-kinds.schema.json): 返した項目の種を修正案の項目の番号ごとに並べた配列 [{item, kind}]。独立の目から返した段だけが渡す。空の配列は元の案の route のまま`。既定 `[]`。`prior` の無い段に空でない値を渡したら入力の誤りとして拒む。種は独立の目のまとめが付け（R1 の指摘は trim・R2 の指摘は unfinished）、返す輪の周の頭が項目の番号へ結んで運ぶだけで、型の語は 22.1 の表がここで引く。
 - `baseline`: `json(lib:baseline.schema.json): 直す前の結末（試験の関門の base の出力 baseline の先）。空は実行器の無い run`。既定 `""`。
 - `test_cmd`: `text: 人が渡したテストのコマンド（対象の根で走らせる 1 行）。空は無い`。既定 `""`。
 - `tdd_suite`: `text: TDD の実行器のパス（第 1 引数の書き先に JUnit XML を書く物）。空は TDD の loop を回さない`。既定 `""`。

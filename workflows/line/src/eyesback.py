@@ -36,7 +36,7 @@ EXITS = {
     "no_fix": "直す物が無い run は返さない",
     "cap": CAP_WHY,
 }
-UNDONE = "返しの修正で差分が変わらなかった（修正の段が直さなかった訳: {why}）"
+UNDONE = EXITS["unchanged"] + "（修正の段が直さなかった訳: {why}）"
 NOT_REVIEWED = "返した段の差分は、段ごとの差分の審査・並行 PR との重なりの確かめ直し・仕様の照らし・異議の再審を通っていない"
 NOTHING = "返す物が無い"
 BROKE = "返す輪が途中で落ちた（下の状態は返す前の物）"   # 集めが飛んだのに周の頭が走った run の報告の 1 行（broken）
@@ -114,7 +114,6 @@ def _ties(items: list, plan_fields) -> list:
 
 
 def _tied(items: list, plan_fields) -> list:
-    """返す項目を結んだ修正案の項目の番号の並び（小さい順・重なりは 1 つ）"""
     return sorted({n for _, n in _ties(items, plan_fields)})
 
 
