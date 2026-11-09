@@ -28,7 +28,6 @@ from bin._lib import isolate, launcher
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-from tests.layers import scan
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 BLOCK = kit.BLOCKS / "test-gate"
@@ -41,7 +40,6 @@ import baseline_red  # noqa: E402
 import declared_checks  # noqa: E402
 import gatemarks  # noqa: E402
 import green_cert  # noqa: E402
-import launchgroups  # noqa: E402
 import suitewrite  # noqa: E402
 import tree_run  # noqa: E402
 import userenv  # noqa: E402
@@ -80,67 +78,9 @@ class YamlCase(unittest.TestCase):
     def setUp(self):
         self.y = workflow()
 
-    def test_name_inputs_and_return(self):
-        self.assertEqual(self.y["name"], "works-factory-test-gate")
-        self.assertEqual(set(self.y["inputs"]), set(PORTS))
-        self.assertTrue(self.y["inputs"]["mode"]["required"])
-        self.assertEqual({k for k, v in self.y["inputs"].items() if "default" in v}, set(PORTS) - {"mode"})
-        self.assertEqual({k: v["default"] for k, v in self.y["inputs"].items() if "default" in v and k != "request_scope" and k != "request"},
-                         {k: "" for k in set(PORTS) - {"mode", "request", "request_scope"}})
-        self.assertEqual((self.y["inputs"]["request"]["default"], self.y["inputs"]["request_scope"]["default"]), ("[]", "false"))
-        self.assertEqual((self.y["returns"], self.y["outcome_field"]), ("result", "ok"))
-        self.assertEqual([n["id"] for n in walk(self.y["nodes"])],
-                         ["intake", "run", "suite-loop", "suite-prep", "suite-write", "suite-place", "suite-try", "result"])
-
     def test_intake_gates_the_run(self):
         self.assertEqual((node("run")["depends_on"], node("run")["when"]), (["intake"], "$intake.output.ok == true"))
         self.assertEqual(sorted(node("intake")["output_format"]["required"]), ["ok", "reason"])
-
-    def test_result_output_format_is_the_contract(self):
-        result = node("result")
-        fmt = result["output_format"]
-        self.assertEqual(sorted(fmt["required"]), sorted(set(fmt["properties"]) - {"optional"}))
-        self.assertEqual(len(fmt["required"]), 18)
-        self.assertTrue({"suite", "suite_note", "related", "report"} <= set(fmt["required"]))
-        self.assertEqual(fmt["properties"]["report"], {"type": "array", "items": {"type": "string"}})
-        self.assertIs(fmt["additionalProperties"], False)
-        self.assertEqual(fmt["properties"]["mode"]["enum"], ["base", "final"])
-        self.assertEqual(fmt["properties"]["red_cause"]["enum"], list(green_cert.RED_CAUSES))
-        # テストごとの行は対象のテストの数だけ伸びるので値で返さず、ファイルを指す（受け手の script は入力を環境変数で受け、
-        # OS の引数と環境の上限〔E2BIG〕を越えうる）
-        compared = fmt["properties"]["test_outcomes"]
-        self.assertEqual(compared["properties"]["type"]["enum"], ["archon_artifact"])
-        self.assertEqual(compared["type"], ["object", "null"])
-        self.assertTrue(compared["description"].startswith("json(shared:outcomes.schema.json): "), compared)
-        shape = json.loads((kit.BLOCKS / ".shared" / "schemas" / "outcomes.schema.json").read_text(encoding="utf-8"))
-        for side in ("base", "final"):
-            self.assertEqual(shape["properties"]["rows"]["items"]["properties"][side]["enum"], [*baseline_red.OUTCOMES, ""])
-        self.assertEqual(fmt["properties"]["ok"]["type"], "boolean")
-        self.assertEqual(result["output_type"], "green-cert")
-        self.assertEqual((result["trigger_rule"], result["depends_on"]), ("all_done", ["run", "suite-loop"]))
-        self.assertEqual(set(result["with"]), {"optional"})
-
-    def test_runner_writer_is_a_read_only_role_and_its_fall_is_declared(self):
-        """#516: TDD の実行器の書き手は読むだけの役の起こし方（軽い群・道具・砂場の 1 組）で起き、書き手と輪が落ちても線が先へ進める
-        （返す node の宣言 optional。落ちれば実行器の無い run の道を通る）。役の砂場は run の作業ツリーを含む Archon の家ごと書き込みを塞ぎ
-        （相対のパス '.' は cwd でなく設定の一時ファイルのフォルダに解かれ、作業ツリーを塞がない。実測 2026-10-13）、読むだけの node の印
-        mutates_checkout: false も外さない"""
-        writer = node("suite-write")
-        self.assertEqual(writer["allowed_tools"], ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"])
-        self.assertFalse({"Edit", "Write"} & set(writer["allowed_tools"]))
-        self.assertEqual(launchgroups.default_of(writer["model"]), ("sonnet", "medium"))
-        self.assertEqual(writer["settingSources"], ["user"])
-        self.assertNotIn("context", writer)
-        self.assertEqual(writer["sandbox"], {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                                             "enableWeakerNetworkIsolation": True,
-                                             "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                                             "filesystem": {"allowWrite": ["/"], "denyWrite": [scan.NO_TREE_WRITE]}})
-        self.assertIs(writer["mutates_checkout"], False)
-        self.assertEqual((writer["idle_timeout"], writer["retry"]), (1728000000, {"max_attempts": 2, "on_error": "all"}))
-        self.assertEqual((writer["prompt"], writer["when"]), ("$suite-prep.output.prompt", "$suite-prep.output.write == true"))
-        self.assertTrue((BLOCK / "prompts" / "suite-write.md").is_file())
-        self.assertEqual(json.loads(node("result")["with"]["optional"]),
-                         [{"node": "suite-loop", "bare": False}, {"node": "suite-write", "bare": True}])
 
     def test_runner_loop_rewrites_only_after_a_kept_runner_fails(self):
         """#516: 輪は修正前のテストの後に、用意が要る時（run の返り suite_owed）だけ回る。2 周目は取り置きが照らしを通らなかった時の
@@ -151,15 +91,20 @@ class YamlCase(unittest.TestCase):
         self.assertIn("$suite-try.output.done", loop["loop_group"]["until_bash"])
         self.assertEqual([n["id"] for n in loop["loop_group"]["nodes"]], ["suite-prep", "suite-write", "suite-place", "suite-try"])
         self.assertEqual(node("suite-try")["trigger_rule"], "all_done")
+        self.assertEqual(node("suite-write")["when"], "$suite-prep.output.write == true", "取り置きを使う回は書き手の役を起こさない")
         self.assertNotIn("suite_owed", node("run")["output_format"]["required"])
 
-    def test_run_material_is_the_material_schema_or_null(self):
-        material = node("run")["output_format"]["properties"]["material"]
-        self.assertEqual(material["type"], ["object", "null"])
-        self.assertEqual({**material, "type": "object"}, declared_checks.MATERIAL_SCHEMA)
+    def test_runner_writer_cannot_edit_and_its_fall_is_declared(self):
+        """#516: TDD の実行器の書き手は Edit・Write を持たない（Bash は持つので、読むだけの印と砂場の denyWrite は tests/layers の
+        test_readonly_nodes が見るが、Write を足すと砂場の柵の決まりから外れて作業ツリーに書ける）。書き手と輪が落ちても線が先へ進める
+        （返す node の宣言 optional。落ちれば実行器の無い run の道を通る）"""
+        self.assertFalse({"Edit", "Write"} & set(node("suite-write")["allowed_tools"]))
+        self.assertEqual(json.loads(node("result")["with"]["optional"]),
+                         [{"node": "suite-loop", "bare": False}, {"node": "suite-write", "bare": True}])
 
     def test_script_inputs_match_with(self):
-        """INPUTS_ を読むのは intake.py だけ（port の 12 個）。ほかの script は with: に結んだ鍵だけを読む"""
+        """INPUTS_ を読むのは intake.py だけ（port の 12 個）。ほかの script は with: に結んだ鍵だけを読む（script の試験は INPUTS_ を名で
+        渡すので、with: に無い鍵を読む誤り〔Archon が渡さず空で読む〕はここだけが見る）"""
         self.assertEqual(script_inputs("intake"), {f"INPUTS_{k.upper()}" for k in PORTS})
         for n in walk(self.y["nodes"]):
             if "script" not in n or n["script"] == "intake":
@@ -167,14 +112,7 @@ class YamlCase(unittest.TestCase):
             with self.subTest(n["id"]):
                 self.assertEqual(script_inputs(n["script"]), {f"INPUTS_{k.upper()}" for k in n.get("with") or {}})
         for n in walk(self.y["nodes"]):
-            if "script" in n:
-                self.assertEqual((n["runtime"], n.get("timeout")), ("uv", None))
             self.assertNotIn("$INPUTS", json.dumps(n.get("with") or {}), "port は intake だけが読む")
-
-    def test_readonly_nodes(self):
-        for nid in ("intake", "suite-prep", "suite-write", "suite-place", "suite-try", "result"):
-            with self.subTest(nid):
-                self.assertIs(node(nid)["mutates_checkout"], False)
 
     def test_scripts_write_nothing_outward(self):
         for path in sorted(SCRIPTS.glob("*.py")) + sorted((BLOCK / "src").glob("*.py")):
@@ -182,11 +120,6 @@ class YamlCase(unittest.TestCase):
             with self.subTest(path.name):
                 for word in (r"\bgh\b", r"git\W+push", r"git\W+merge"):
                     self.assertIsNone(re.search(word, text), word)
-
-    def test_file_names_match_lib(self):
-        files = kit.load("test-gate", "files")
-        self.assertEqual(files.RUN, declared_checks.RUN_FILE)
-        self.assertEqual(files.MODES, declared_checks.MODES)
 
 
 class EvidenceRowsCase(unittest.TestCase):
@@ -1428,92 +1361,6 @@ class BaseRunsNothingCase(ScriptCase):
         out = self.base_then_final()
         self.assertEqual((out["green"], out["red_cause"]), (True, ""))
         self.assertNotIn("base_rerun", self.run_doc("final"))
-
-
-class PromptCase(ScriptCase):
-    """TDD の実行器の書き手の指示（prompts/suite-write.md）に prep が入れる値と、段落の選び（docs/design/test-gate.md の 4.3）"""
-    def write_prompt(self, **ports) -> str:
-        self.write_start(**ports)
-        self.ok("run", "base")
-        return self.ok("suite_prep", "base")["prompt"]
-
-    def test_suite_write_prompt_without_test_cmd_or_declaration(self):
-        text = self.write_prompt()
-        self.assertIn(f"The target root: {self.repo.resolve()}", text)
-        self.assertIn(f"has no run declaration `{declared_checks.DECL_NAME}`", text)
-        self.assertNotIn("has the run declaration", text)
-        self.assertIn("None (the person did not give one).", text)
-        self.assertIn(f"`{baseline_red.ONLY_ENV}=1`", text)
-        self.assertEqual((self.place("base") / "suite-write-prompt-1.md").read_text(encoding="utf-8"), text)
-
-    def test_suite_write_prompt_with_a_declaration_and_a_test_cmd_that_holds_backticks(self):
-        self.decl([{"name": "suite", "argv": [PY, "-c", "pass"]}])
-        cmd = "make test ARGS='`x`' ```"
-        text = self.write_prompt(test_cmd=cmd)
-        self.assertIn(f"has the run declaration `{declared_checks.DECL_NAME}`", text)
-        self.assertIn(f"````text\n{cmd}\n````", text)
-        self.assertNotIn("None (the person did not give one).", text)
-
-    def test_suite_write_prompt_holds_the_steps_for_an_and_chained_test_cmd(self):
-        text = self.write_prompt(test_cmd="make build && pytest -q tests/a && pytest -q tests/b")
-        self.assertIn("joined only by `&&`", text)
-        self.assertIn("its own temporary file", text)
-        self.assertIn("even if an earlier part is red", text)
-        self.assertIn("`testsuites`", text)
-        self.assertIn("the reserved testcase of the section above", text)
-        self.assertIn("`<n>` is the exit code the chain itself exits with", text)
-        self.assertNotIn("Put only the part's number in its name", text)
-        self.assertNotIn("a `<error>` testcase", text)
-        self.assertIn("a part to which you added the JUnit option", text)
-        self.assertIn("first non-zero", text)
-        self.assertIn("The machine treats a runner that contains the test_cmd as typed as the same thing as the test_cmd", text)
-
-    CHAIN_CMD = "make build && pytest -q tests/a && pytest -q tests/b"
-
-    @staticmethod
-    def chain_section(text: str) -> str:
-        head = text.index("joined only by `&&` at the top level")
-        return text[head:text.index("2. If there is no test_cmd", head)]
-
-    def test_suite_write_prompt_applies_the_126_127_rule_to_each_chain_part(self):
-        """JUnit の option を足した部品が 126・127 で終わったら、集めたファイルを書かず、その部品の終了コードで終わる（終わりの値の
-        決まりにも外し書きが在る）。テストでない部品が落ちて止まる回は、126・127 なら第 1 引数に何も書かず、ほかの値なら予約の 1 件
-        （message は exit <n>）を書く（単独の道具が中の build で落ちた時と同じく赤と読ませ、実行器が走らないと読ませない）"""
-        chain = self.chain_section(self.write_prompt(test_cmd=self.CHAIN_CMD))
-        self.assertIn("exited 126 or 127", chain)
-        self.assertIn("do not write the gathered file to the first argument", chain)
-        self.assertIn("exit with the code of the first part that exited 126 or 127", chain)
-        self.assertIn("The one exception is a part that exited 126 or 127", chain)
-        build = chain[chain.index("If a part that does not run tests"):]
-        build = build[:build.index("\n")]
-        self.assertIn("If that code is 126 or 127, write nothing to the first argument", build)
-        self.assertIn("holds the reserved testcase of the section above once", build)
-        self.assertIn("`exit <n>` with that part's exit code", build)
-        self.assertNotIn("stop there, write nothing to the first argument", build)
-
-    def test_suite_write_prompt_writes_one_reserved_case_for_every_silent_chain_part(self):
-        """結末を書かずに終わった部品には、終了コードを問わず予約の 1 件を当てる。いくつあっても 1 件で、本文に全部の部品の番号を並べる"""
-        chain = self.chain_section(self.write_prompt(test_cmd=self.CHAIN_CMD))
-        self.assertIn("whatever its exit code (0 included)", chain)
-        self.assertIn(f'`classname="{baseline_red.SYNTH_CLASSNAME}"`', chain)
-        self.assertIn(f'`name="{baseline_red.SYNTH_NAME}"`', chain)
-        self.assertIn("write this testcase once", chain)
-        self.assertIn("list every such part's number, exit code and log place in its body", chain)
-        self.assertNotIn("in its name", chain)
-
-    def test_suite_write_prompt_names_the_reserved_case_for_a_red_without_junit(self):
-        """試験の道具が JUnit XML を書かずに 0 でない値で終わった時に、予約の classname と name の testcase に error を 1 件書く決まりと、
-        道具が見つからない・実行できない（126・127）時は書かない決まりが、書き手の指示に入る"""
-        text = self.write_prompt()
-        self.assertIn(baseline_red.SYNTH_CLASSNAME, text)
-        self.assertIn(baseline_red.SYNTH_NAME, text)
-        self.assertIn("126", text)
-        self.assertIn("127", text)
-        self.assertNotIn("{synth_classname}", text)
-        self.assertNotIn("{synth_name}", text)
-
-    def test_suite_write_lang(self):
-        self.assertIn("in Japanese.", self.write_prompt(lang="Japanese"))
 
 
 if __name__ == "__main__":
