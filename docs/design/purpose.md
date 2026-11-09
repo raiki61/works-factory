@@ -321,7 +321,7 @@ null を許す欄の書き方は、今の `workflows/chain/works-factory-chain.y
 - `workflows/purpose/scripts/intake.py`・`purpose_prep.py`・`purpose_accept.py`・`finish.py`（どれも uv の頭の宣言 `# /// script` を持つ）
 - `workflows/purpose/src/__init__.py`・`src/steps.py`・`src/sourcefiles.py`
 - `workflows/.shared/schemas/constraints.schema.json`（共通の形。`.shared/AGENTS.md` の一覧にも足す）
-- `workflows/purpose/fixtures/standalone.stubs.yaml`・`frozen.stubs.yaml`・`gave-up.stubs.yaml`
+- `workflows/purpose/fixtures/standalone.stubs.yaml`
 - `tests/blocks/purpose/__init__.py`・`test_purpose.py`
 - `docs/design/purpose.md`（この文書。直す時）
 
@@ -352,12 +352,16 @@ bin/works-factory workflow run works-factory-purpose \
 
 ## 7 試験と、済んだと言える条件
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。下の 7.1・7.2 は写した時の記録で、今は次を持たない。
+- 筋書き `frozen`（固めた目的で輪を通らずに出口へ届く道）と `gave-up`（拒まれても run を止めない道）。`gave-up` は standalone と同じ YAML の道（輪は受け付けの `done` で抜け、`finish` は `trigger_rule: all_done` で `when:` を持たない）で、違うのは差し替えの値だけ。`frozen` の輪を飛ばす `when:` が壊れても、役が走って受け付けが固めた目的の書き直しを拒むだけで、固めた目的は変わらない。固めた目的を読む道は `IntakeCase.test_frozen_purpose_skips_the_role_and_keeps_files`・`FinishCase.test_frozen_purpose_is_returned`、固めた目的を書き直さないのは `AcceptCase.test_frozen_purpose_is_not_overwritten`、3 回で諦めるのは `FinishCase.test_three_rejections_give_up` が見る。
+- `PromptCase` の指示の字（PR の文・前提の実測の行・検索の断片・前の拒否が次の指示に入る・intake 無しの落ち）。残すのは前の run の判断を見せない `test_role_does_not_see_the_prior_run`（持ち主の決め `premises-purpose`）だけ。印に値が無い・値に印が無いのは workflows/.shared/prompt.py の emit が全体に照らす。
+- `FinishCase.test_included_block_writes_in_its_own_place`: include の道で place が分かれるのは tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、block が自前に place を組まないのは tests/layers の `test_block_shape.py`（7.1 の 7）が見る。
+- `ShapeCase` の YAML と定数の写し（`source` の enum・輪の上限・AI の node の鍵）。輪の上限は tests/layers の `test_loop_bounds.py`、AI の node の鍵は tests/layers の E7・E12・E19 の検査が見る。残すのは、受け付けが作業ツリーを比べる欄の `test_tree_keys_leave_out_porcelain`（比べる欄を全部にする壊しで、ほかの試験は赤にならない）。
+
 ### 7.1 standalone の fixture（`workflows/purpose/fixtures/`）
 
 - 形は README の 13 章のとおり、`exec-code: true` で script を本当に走らせ、AI の node の返答だけを差し替える。入力はどれも `request: '[{"where": "stats.py:4", "text": "mean は 2 でなく 3 を返す。分母を len(xs) にする"}]'` だけ。
 - `standalone.stubs.yaml`: `expect: completed`・`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`。prep は差し替えない。`resolved-text-contains` の `purpose` は md の決まった文（`You are the purpose role.`）。役の返答は `{purpose_text: 平均の関数が正しい値を返す, source: ②計画・タスク記述, known_weaknesses: [], source_files: [], means: [分母を len(xs) にする]}`。
-- `frozen.stubs.yaml`: 筋書きの place は空なので、`intake: {due: false, reason: 目的は既に固めてある（purpose.json）}` と `finish`（`status: ok`）の返りを差し替えて、輪を通らずに出口へ届く配線だけを見る。`reached: [intake, finish]`。固めた目的を読む道は `FinishCase` が見る。
-- `gave-up.stubs.yaml`: 役の返答だけを差し替え、`source_files` に版に無いファイルを返させる。`reached: [intake, purpose-prep, purpose, purpose-accept, finish]`・`expect: completed`。筋書きは輪を 1 周で終えるので、3 回で諦める数えは `FinishCase` が見る。
 
 ### 7.2 `tests/blocks/purpose/test_purpose.py`
 
@@ -386,7 +390,7 @@ script を子のプロセスで回す（今の tests/workflows の `test_judge.p
 PYTEST_XDIST_AUTO_NUM_WORKERS=4 WORKS_FACTORY_ARCHON_CACHE=<Archon の源の置き場> nice -n 19 python3 -m pytest -q tests/blocks tests/layers
 ```
 
-`tests/blocks/purpose/test_purpose.py` が block の振る舞いを、`tests/layers/test_block_shape.py` が形の検査と、`ArchonCase` で 3 本の筋書きが Archon の `workflow test` で全部通ることと `archon validate` が警告なしで通ることを照らす（源と bun が無ければ見送る。CI は赤）。最後に、6 節の命令で本物の単独の run を 1 回回す。
+`tests/blocks/purpose/test_purpose.py` が block の振る舞いを、`tests/layers/test_block_shape.py` が形の検査と、`ArchonCase` で筋書きが Archon の `workflow test` で全部通ることと `archon validate` が警告なしで通ることを照らす（源と bun が無ければ見送る。CI は赤）。最後に、6 節の命令で本物の単独の run を 1 回回す。
 
 ## 8 根拠を書いて自分で決めた事
 

@@ -1,17 +1,14 @@
 """初見の読み手の block を、script を子のプロセスで回して確かめる（docs/design/cold-read.md の 11 節）。
 
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、cold_prep → 台本の返答 → finish と回す。
-YAML と筋書きの揃いも見る。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
+筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 """
 import json
 import unittest
 
-import yaml
-
 from tests.blocks import kit
 from tests.blocks.cold_read import values
 
-BLOCK = kit.BLOCKS / "cold-read"
 BAD_REPLY = "初見の読み手の返答を読めない（判定の語が無い）"
 EMPTY = "（止まった所・推測の欄が空）"
 
@@ -38,28 +35,6 @@ class _Case(unittest.TestCase):
 
 
 class PrepCase(_Case):
-    def test_prompt_carries_the_text_and_no_report_head_rules(self):
-        got = self.prep()
-        self.assertEqual((got["due"], got["reason"]), (True, ""))
-        self.assertIn(values.BODY.rstrip("\n"), got["prompt"])
-        role = (kit.SHARED / "prompts" / "role-cold-reader.md").read_text(encoding="utf-8").strip()
-        self.assertTrue(got["prompt"].startswith(role), "役の定義は共通の断片 role-cold-reader から入る")
-        for word in ("頭の後ろ", "機械が組んだ事実", "report heading", "the head of the report"):
-            self.assertNotIn(word, got["prompt"], "報告の頭の決まりは report の block の物")
-        self.assertIn("`verdict` is `redesign-needed`; if there is none, `pass`.", got["prompt"])
-        self.assertEqual((self.run.artifacts / "cold-prompt-1.md").read_text(encoding="utf-8"), got["prompt"])
-
-    def test_lang_default_and_given(self):
-        self.assertIn("Write `stops` and `guessed` in the language of the text.", self.prep()["prompt"])
-        got = self.run.script("cold_prep", text=self.put("d.md", "x"), lang="Japanese")
-        self.assertIn("Write `stops` and `guessed` in Japanese.", got["prompt"])
-
-    def test_text_goes_in_verbatim(self):
-        """本文の中の $x.output.y と {name} は置き換わらずに残る（値の中の字は読み直さない）"""
-        text = "Use $cold-prep.output.body and {text} and {lang} here.\n\n\n\nLast line\n\n"
-        got = self.prep(text)
-        self.assertIn("Use $cold-prep.output.body and {text} and {lang} here.\n\n\n\nLast line\n", got["prompt"])
-
     def test_missing_file_is_not_due(self):
         got = self.run.script("cold_prep", text="absent.md", lang="")
         self.assertFalse(got["due"])
@@ -89,10 +64,6 @@ class PrepCase(_Case):
         self.assertTrue((self.run.artifacts / "other-block.json").is_file())
         self.assertFalse((self.run.artifacts / "read.json").exists())
         self.assertNotEqual((self.run.artifacts / "cold-prompt-1.md").read_text(encoding="utf-8"), "old")
-
-    def test_include_path_splits_the_place(self):
-        self.run.script("cold_prep", "cold-read__cold-prep", text=self.put("d.md", "x"), lang="")
-        self.assertTrue((self.run.artifacts / "cold-read" / "cold-prompt-1.md").is_file())
 
 
 class FinishCase(_Case):
@@ -149,35 +120,6 @@ class FinishCase(_Case):
         prep = self.prep()
         got = self.finish(prep, values.REDESIGN)
         self.assertEqual(got["status"], "ok")
-
-
-class ShapeCase(unittest.TestCase):
-    def setUp(self):
-        self.doc = yaml.safe_load((BLOCK / "works-factory-cold-read.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in self.doc["nodes"]}
-
-    def test_verdict_words_match_the_output_format(self):
-        reply = kit.load("cold-read", "reply")
-        enum = self.nodes["cold"]["output_format"]["properties"]["verdict"]["enum"]
-        self.assertEqual(list(reply.VERDICTS), enum)
-        self.assertEqual(self.nodes["finish"]["output_format"]["properties"]["verdict"]["enum"], [*enum, ""])
-
-    def test_reader_has_no_tools_and_reads_once(self):
-        cold = self.nodes["cold"]
-        self.assertEqual(cold["allowed_tools"], [])
-        self.assertEqual(cold["context"], "fresh")
-        self.assertEqual(cold["when"], "$cold-prep.output.due == true")
-        self.assertNotIn("loop_group", cold)
-
-    def test_finish_survives_every_stage(self):
-        self.assertEqual(self.nodes["finish"]["trigger_rule"], "all_done")
-        self.assertNotIn("cold", self.nodes["finish"]["depends_on"], "出口は落ちうる役を結ばず、受け皿 cold-save の写しで読む")
-        self.assertEqual(self.nodes["cold-save"]["with"], {"reply": "$cold.output"})
-        self.assertNotIn("trigger_rule", self.nodes["cold-save"], "役が落ちたら受け皿は飛ぶ")
-
-    def test_fixtures_exist(self):
-        for name in ("standalone", "redesign", "unreadable"):
-            self.assertEqual(kit.fixture("cold-read", name)["fixture"]["expect"], "completed")
 
 
 if __name__ == "__main__":

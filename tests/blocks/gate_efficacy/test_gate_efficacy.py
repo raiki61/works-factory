@@ -5,16 +5,11 @@ role_accept → finish と回し、material.json と出力の 5 欄を照らす�
 tests/layers/test_block_shape.py。
 """
 import json
-import sys
 import unittest
-
-import yaml
 
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
-sys.path.append(str(kit.ROOT / "lib"))
-BLOCK = kit.BLOCKS / "gate-efficacy"
 NAME = "gate-efficacy"
 LOOP = f"{NAME}-loop"
 ARM = {"gate": "tests/test_app.py", "arm": "the fence on a pinned value", "red_confirmed": True, "control_green": True,
@@ -135,73 +130,6 @@ class FlowCase(unittest.TestCase):
                     self.assertIn("条件が真で走ったのに not_applicable", got["reason"])
 
     # ---- 変異の宣言（写す元 test_gate_prep_shows_the_declared_mutation_stage。照らすのは段落の真偽と値）
-    def test_declared_mutation_stage_reaches_the_instruction(self):
-        self.change("tests/test_app.py")
-        (self.run.repo / "arms.txt").write_text("arm-1\n", encoding="utf-8")
-        decl = {"suite": [{"name": "t", "argv": ["true"]}], "mutation": {"argv": ["mutate", "--fast"], "arms": "arms.txt"}}
-        undeclared = "has no mutation stage"
-        cases = (
-            (json.dumps(decl), ['["mutate", "--fast"]', "arms.txt"], [undeclared, "its mutation stage cannot be read"]),
-            (json.dumps({"suite": decl["suite"]}), [undeclared], ["mutate", "its mutation stage cannot be read"]),
-            (json.dumps({**decl, "mutation": {"argv": []}}), [undeclared, "its mutation stage cannot be read"], ["mutate"]),
-            ("{", [undeclared, "its mutation stage cannot be read"], ["mutate"]),
-            (json.dumps({**decl, "suite": []}), [undeclared, "its mutation stage cannot be read"], ["mutate"]),
-        )
-        for text, said, unsaid in cases:
-            with self.subTest(text=text):
-                (self.run.repo / ".review-checks.json").write_text(text, encoding="utf-8")
-                git(self.run.repo, "add", "-A")
-                git(self.run.repo, "commit", "-q", "-m", "decl")
-                self.intake()
-                got = self.instruction()
-                for s in said:
-                    self.assertIn(s, got)
-                for s in unsaid:
-                    self.assertNotIn(s, got)
-
-    def test_unreadable_gates_input_cannot_happen_but_missing_intake_fails_prep(self):
-        self.assertIn("intake.json", self.run.failing("role_prep", f"{LOOP}.{NAME}-prep"))
-
-    def test_included_block_writes_in_its_own_place(self):
-        self.run.script("intake", "judge__gate-efficacy__intake", base="", gates="", entry="", lang="")
-        self.run.script("role_prep", f"judge__gate-efficacy__{LOOP}.{NAME}-prep")
-        self.assertTrue((self.run.artifacts / "judge" / "gate-efficacy" / f"{NAME}-prompt-1.md").is_file())
-        fin = self.run.script("finish", "judge__gate-efficacy__finish")
-        self.assertEqual(fin["material"]["path"], "judge/gate-efficacy/material.json")
-
-
-class ShapeCase(unittest.TestCase):
-    """YAML の揃い（block の形の検査は tests/layers/test_block_shape.py）"""
-
-    # 今の判定のゲートの検算の役の起こし方（tests/workflows の test_judge.py の ROLES["gate-efficacy"] の行と、
-    # workflows/judge/works-factory-judge.yaml の錨 test_run_launch を、作り直しの時に字で写した物）
-    LAUNCH = {"model": "@wf-judge-materials", "settingSources": ["user"],
-              "allowed_tools": ["Read", "Grep", "Glob", "Bash", "WebSearch", "WebFetch"],
-              "sandbox": {"enabled": True, "allowUnsandboxedCommands": False, "failIfUnavailable": True,
-                          "enableWeakerNetworkIsolation": True,
-                          "network": {"allowedDomains": ["*"], "allowLocalBinding": True},
-                          "filesystem": {"allowWrite": ["/"], "denyWrite": ["~/../archon-home"]}},
-              "idle_timeout": 1728000000, "retry": {"max_attempts": 2, "on_error": "all"}}
-
-    def setUp(self):
-        doc = yaml.safe_load((BLOCK / f"works-factory-{NAME}.yaml").read_text(encoding="utf-8"))
-        self.nodes = {n["id"]: n for n in doc["nodes"]}
-        self.body = {n["id"]: n for n in self.nodes[LOOP]["loop_group"]["nodes"]}
-
-    def test_loop_bound_matches_the_give_up_count(self):
-        import rolekit
-        self.assertEqual(self.nodes[LOOP]["loop_group"]["max_iterations"], rolekit.GIVE_UP_AFTER)
-
-    def test_launch_matches_the_judge_role(self):
-        """起こし方は今の判定のゲートの検算の役と同じ（群の既定は sonnet・medium。役の node は mutates_checkout を持たない）"""
-        import launchgroups
-        role = self.body[NAME]
-        self.assertEqual({k: role.get(k) for k in self.LAUNCH}, self.LAUNCH)
-        self.assertEqual(launchgroups.default_of(role["model"]), ("sonnet", "medium"))
-        self.assertNotIn("mutates_checkout", role)
-        self.assertEqual(role["output_format"]["required"], ["material", "arms"])
-        self.assertEqual(role["output_format"]["properties"]["arms"]["items"]["required"],
-                         ["gate", "arm", "red_confirmed", "control_green", "hit_evidence"])
 
 
 if __name__ == "__main__":
