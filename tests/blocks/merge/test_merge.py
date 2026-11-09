@@ -108,6 +108,7 @@ class ShapeTest(unittest.TestCase):
         """照らしの節は、承認の答え・緑・目・R2・封じた hash を同じ名の入力から受ける（筋書きは節 place を stub で差すので、別の入力を
         結ぶ誤りはここだけが見る）"""
         self.assertEqual(self.node["with"], {name: f"$INPUTS.{name}" for name in PLACE_INPUTS})
+        self.assertIs(self.doc["inputs"]["mode"].get("required"), True, "mode に既定の値を置かない（空の mode で走らせない）")
 
 
 class ScriptCase(unittest.TestCase):
@@ -836,6 +837,11 @@ class NeverFailsTest(ScriptCase):
         self.assertBroken(got, "seal")
         self.assertIn("merge", got["reason"])
         self.assertFalse(self.artifact("sealed.diff").exists())
+
+    def test_empty_mode(self):
+        """空の mode は封じ（seal）の形で ok: false に倒し、照らしの check や置く apply に倒さない（承認を照らさずに apply.diff を置かない）"""
+        self.assertBroken(self.seal(mode=""), "seal")
+        self.assertFalse(self.artifact("apply.diff").exists())
 
     def test_unknown_deliver_word(self):
         got = self.apply("0" * 64, deliver="merge")

@@ -97,8 +97,10 @@ class YamlCase(unittest.TestCase):
     def test_runner_writer_cannot_edit_and_its_fall_is_declared(self):
         """#516: TDD の実行器の書き手は Edit・Write を持たない（Bash は持つので、読むだけの印と砂場の denyWrite は tests/layers の
         test_readonly_nodes が見るが、Write を足すと砂場の柵の決まりから外れて作業ツリーに書ける）。書き手と輪が落ちても線が先へ進める
-        （返す node の宣言 optional。落ちれば実行器の無い run の道を通る）"""
+        （返す node の宣言 optional。落ちれば実行器の無い run の道を通る）。砂場を立てられない時は起こさない（failIfUnavailable）"""
         self.assertFalse({"Edit", "Write"} & set(node("suite-write")["allowed_tools"]))
+        self.assertIs(node("suite-write")["sandbox"]["failIfUnavailable"], True,
+                      "砂場を立てられない機械で、砂場なしに走らせない（作業ツリーへの書き込みは砂場の denyWrite だけが塞ぐ）")
         self.assertEqual(json.loads(node("result")["with"]["optional"]),
                          [{"node": "suite-loop", "bare": False}, {"node": "suite-write", "bare": True}])
 
