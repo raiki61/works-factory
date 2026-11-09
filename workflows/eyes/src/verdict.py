@@ -4,7 +4,8 @@
 
 - TITLES: include の id → 報告の節の見出し
 - rows(received, merge) -> {r1..r4: 判定の行か null}: run が真の時の目の行
-- back_items(received, got_rows) -> 修正の段へ返す項目 [{eye, where, text}]: 判定が fix-needed の R1・R2 の findings を目の名を付けて順に並べる
+- KINDS: 目の名 → 返す項目の種（r1 は trim・r2 は unfinished）
+- back_items(received, got_rows) -> 修正の段へ返す項目 [{eye, kind, where, text}]: 判定が fix-needed の R1・R2 の findings を目の名と種を付けて順に並べる
 - route_of(got_rows, premise, items) -> (route, route_why): 修正の段へ返すか（ROUTE_FIX）返さないか（ROUTE_STAY）を判定の語から決める。
   判定の語の意味を知る場所は ok を決める build とここだけで、line は route と findings を読むだけ
 - build(received, *, run, merge, skip_why) -> まとめの出力
@@ -24,6 +25,7 @@ NO_OUTPUT = "出力が無い"
 NO_COHERENCE = "まとめた R3 の行（coherence）が無い"
 RAN_R4 = "まま R4 を回した"
 WAITED_BY_R4 = ("r1", "r2")   # R4 が待つ目（E8）。この目が落ちても R4 は回るので、落ちた訳に尾を足す
+KINDS = {"r1": "trim", "r2": "unfinished"}   # 返す項目の種: R1 の指摘は削れる物（trim）・R2 の指摘は作り残し（unfinished）
 ROUTE_FIX, ROUTE_STAY = "fix", "stay"
 NOTHING_TO_RETURN = "返す物が無い"
 
@@ -71,7 +73,7 @@ def back_items(received: dict, got_rows: dict) -> list:
             continue
         for item in (_got(received, eye) or {}).get("findings") or []:
             if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"]:
-                out.append({"eye": eye, "where": str(item.get("where") or ""), "text": item["text"]})
+                out.append({"eye": eye, "kind": KINDS[eye], "where": str(item.get("where") or ""), "text": item["text"]})
     return out
 
 

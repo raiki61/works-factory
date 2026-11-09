@@ -1,0 +1,1 @@
+{"description": "独立の目から返した段で、返した項目の種を修正案の項目の番号ごとに並べた物（種は trim〔削れる物〕か unfinished〔作り残し〕）", "type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["item", "kind"], "properties": {"item": {"type": "integer"}, "kind": {"type": "string", "enum": ["trim", "unfinished"]}}}}

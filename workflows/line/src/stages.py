@@ -13,6 +13,7 @@ block が自分の出力の report・carry で返すので写さない（delta-r
   修正の段へ返した段の fix の got の並び（MORE。返した順。段が落ちて got が無い段は None）で、stages の 3 段目以降に積み、最後の段・単位・組・
   項目の申告・異議・TDD の記録・変更の印をそこまで含めて合わせる。返した段は lens と delta-review を回さないので、go・done はその段の分を
   段の修正の ok と変更の確かめだけで決める
+- nodes(rows) -> 段の行ごとの段の node の名（fix・refix-run・back-<k>-fix）。出力の stop_why は止めの語と組の止めた訳（_stop_why）
 - held_of(values) -> (held か, 訳)・go_done(values, held) -> (go, done)
 """
 from __future__ import annotations
@@ -108,6 +109,17 @@ def names(rows) -> list:
     for kind in kinds(rows):
         returned += kind == report.RETURNED
         out.append(report.stage_name(kind, returned))
+    return out
+
+
+def nodes(rows) -> list:
+    """fixed の stages の行ごとの段の node の名（kinds の種類で引く）: first は fix、refix は refix-run、返した段は何回目かを返した段の中で
+    数えた back-<k>-fix。報告の止めの行が段の止めの語を名指す node に使う"""
+    import report
+    out, returned = [], 0
+    for kind in kinds(rows):
+        returned += kind == report.RETURNED
+        out.append("fix" if kind == report.FIRST else "refix-run" if kind == report.REFIX else f"back-{returned}-fix")
     return out
 
 
@@ -447,6 +459,30 @@ def go_done(values: dict, held: bool) -> tuple[bool, bool]:
     return go, done
 
 
+def _left_units(fix: dict) -> list:
+    """段の fix の単位のうち直し終えなかった（fixboard.UNIT_LEFT の）単位の訳の行『単位 <unit_id>: <訳>』（訳が空の単位は名指さない）"""
+    import fixboard
+    import oneline
+    rows = [(u.get("unit_id"), oneline.one_line(u.get("reason") or "")) for u in fix.get("units") or []
+            if isinstance(u, dict) and u.get("status") in fixboard.UNIT_LEFT]
+    return [f"単位 {unit}: {why}" for unit, why in rows if why]
+
+
+def _stop_why(fixes: list, own: str, held_why: str, last: dict) -> str:
+    """run の止めの語 own と組の止めた訳（頂の欄 stop_why）。own が在れば、その語を返した最初の段の reason（own と違う字の時）と直し終えな
+    かった単位の訳。無ければ、held の訳（止めの語の訳は own なので HELD_STOP は除く）・最後の段の fix の ok が偽の reason・最後の段の直し終えなかった
+    単位の訳。1 つずつ 1 行にして『／』でつなぐ。訳が無ければ空"""
+    import oneline
+    if own:
+        stage = next(f for f in fixes if f.get("stop_reason") == own)
+        reason = oneline.one_line(stage.get("reason") or "")
+        parts = [*([reason] if reason and reason != own else []), *_left_units(stage)]
+    else:
+        reason = oneline.one_line(last.get("reason") or "") if last.get("ok") is False else ""
+        parts = [*([held_why] if held_why and held_why != HELD_STOP else []), *([reason] if reason else []), *_left_units(last)]
+    return "／".join(dict.fromkeys(parts))
+
+
 def left_rows(values: dict) -> list:
     """止めずに残りに数える行（7.2 の left）: 差分の審査が通らなかった・諦めた段と、案の直しを諦めた項目"""
     import report
@@ -477,7 +513,7 @@ def empty() -> dict:
             "skip_why": "", "rejudge": False, "refixed": False, "stages": [], "carry": [], "tdd": [], "units": [], "groups": [],
             "conflicts": [], "replan_items": [], "objection": "", "diff": None, "item_claims": None, "allowed_test_changes": [],
             "changed": None, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
-            MORE: [], "left": [], "stop_reason": ""}
+            MORE: [], "left": [], "stop_reason": "", "stop_why": ""}
 
 
 def tdd_slots(stages: list) -> list:
@@ -494,7 +530,8 @@ def tdd_slots(stages: list) -> list:
 
 
 def fixed(values: dict) -> dict:
-    """2 つの修正の段と段ごとの差分の審査を合わせる（docs/design/line.md の 4.3。今の fixed.py の決まりのまま）。values の鍵は
+    """2 つの修正の段と段ごとの差分の審査を合わせる（docs/design/line.md の 4.3。今の fixed.py の決まりのまま）。止めの語（stop_reason）と
+    組の止めた訳を stop_why に上げる（_stop_why）。values の鍵は
     fixed.py の入力の名（fix_in・fix・after_fix・raise・lens・delta・replan・refix・lens_2・delta_2。走らなかった物は None）"""
     import itemcommits
     import report
@@ -505,7 +542,7 @@ def fixed(values: dict) -> dict:
     more = list(values.get(MORE) or [])
     if fix is None and fix_in.get("go") is not True:
         return {**empty(), "plan": fix_in.get("plan"), "ripple": fix_in.get("ripple")}   # 承認ノードで止めた・計画ができなかった
-    held, _ = held_of(values)
+    held, held_why = held_of(values)
     go, done = go_done(values, held) if fix is not None else (False, False)
     fix = _d(fix)
     raise_ = values.get("raise")
@@ -561,6 +598,7 @@ def fixed(values: dict) -> dict:
         "ripple": (again or fix_in).get("ripple"),
         "left": left_rows(values),
         "stop_reason": _spec_objection() if spec_stop else own,
+        "stop_why": _stop_why(fixes, "" if spec_stop else own, held_why, last),
     }
 
 

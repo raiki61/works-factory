@@ -969,6 +969,43 @@ class ContractCase(LoopCase):
 
 
 class TestPlanContract(ContractCase):
+    def set_earlier(self, ids):
+        """返した段の輪の状態: 前の段が赤→緑を確かめた試験の id を状態の欄 earlier に置く（open_state(..., earlier=ids) が作る形と同じ）"""
+        st = self.st()
+        st["earlier"] = list(ids)
+        common._save(self.state, st)
+
+    def test_earlier_green_tests_are_not_forced_in_a_returned_stage(self):
+        """前の段が赤→緑を確かめた約束の試験 A が earlier に在れば、test の段は A を名指さず、新しい試験 B だけを名指して今の木で
+        failure にすれば通る。earlier が空なら今どおり A の名指しを求めて拒む"""
+        self.route()
+        self.add_test(NEW_TEST.replace("test_mean_of_two", "test_mean_of_two_again"))
+        again = "test_stats.py::TestStats::test_mean_of_two_again"
+        reply = {"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"], "tests": [again]}
+        refused = self.step(reply)
+        self.assertFalse(refused["ok"], "earlier が空なら約束の試験の名指しを求める")
+        self.assertIn(MEAN_ID, refused["reason"])
+        self.set_earlier([MEAN_ID])
+        got = self.step(reply)
+        self.assertTrue(got["ok"], got)
+        self.assertNotIn("受け入れのテストを名指していない", got["reason"])
+        self.assertEqual(self.st()["units"][MEAN]["red"], "ok")
+
+    def test_handoff_tells_not_to_name_the_earlier_tests(self):
+        """earlier が [A] の時、引き継ぎの行に A の id と『名指すな』の行が前の単位の行の後・今の段の行の前に載り、test の段の約束に
+        前の段で確かめ済みの試験は名指さない文が在る。前の単位の行の有無（段落 handoff の真偽）は earlier で変わらない。earlier が空なら行は無い"""
+        self.route()
+        plain, plain_when = self.values()
+        self.assertNotIn(MEAN_ID, plain["handoff_rows"])
+        self.set_earlier([MEAN_ID])
+        vals, when = self.values()
+        rows = vals["handoff_rows"].splitlines()
+        line = next((r for r in rows if MEAN_ID in r), "")
+        self.assertIn("名指すな", line)
+        self.assertLess(rows.index(line), next(i for i, r in enumerate(rows) if r.startswith("- 今の段:")))
+        self.assertEqual(when["handoff"], plain_when["handoff"])
+        self.assertIn("already verified in an earlier stage", self.prompt())
+
     def test_contract_lands_in_state(self):
         self.assertEqual(self.st()["contract"], self.CONTRACT)
 
@@ -2018,6 +2055,26 @@ class TestOneItemTwoUnits(ContractCase):
         text = "\n".join(common.frozen_problems(self.record, self.repo))
         self.assertIn(MEAN, text)
         self.assertNotIn(CLAMP, text, "一緒に閉じた単位は赤の段で申告していない")
+
+    def test_later_unit_is_closed_when_its_tests_were_verified_earlier(self):
+        """同じ項目の約束の受け入れの試験が全部 earlier に在れば、MEAN の段で新しい試験 B だけを名指して緑にした時、CLAMP は
+        covered_by が MEAN・赤も緑も ok で閉じ、輪は CLAMP の test の段に入らない"""
+        self.route_both()
+        st = self.st()
+        st["earlier"] = [t["id"] for t in SAME_ITEM_TESTS]
+        common._save(self.state, st)
+        self.add_test(NEW_TEST.replace("test_mean_of_two", "test_mean_of_two_again"))
+        got = self.step({"phase": "test", "unit_key": MEAN, "test_files": ["test_stats.py"],
+                         "tests": ["test_stats.py::TestStats::test_mean_of_two_again"]})
+        self.assertTrue(got["ok"], got)
+        self.edit("stats.py", "return sum(xs) / (len(xs) - 1)", "return sum(xs) / len(xs)")
+        self.edit("stats.py", "    if x > hi:\n        return lo", "    if x > hi:\n        return hi")
+        got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["stats.py"], "what": "分母と上限の枝を項目どおりに直した"})
+        self.assertTrue(got["ok"], got)
+        st = self.st()
+        c = st["units"][CLAMP]
+        self.assertEqual((c.get("covered_by"), c.get("red"), c.get("green")), ([MEAN], "ok", "ok"))
+        self.assertEqual([x["unit_key"] for x in st["calls"] if x["phase"] != "route"], [MEAN, MEAN], "CLAMP の段は回らない")
 
     def test_later_unit_is_not_closed_when_its_tests_are_not_verified(self):
         """前の単位が申し出で止まれば（受け入れのテストを確かめていない）、後の単位は今どおり自分の段を回す"""

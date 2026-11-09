@@ -6,7 +6,8 @@
 置き、輪の状態は注文の node orders が route.json を読んで tdd.open_state で初めて作る（振り分けが数えた周の数・呼びの控え・渡した
 証拠の種類は注文の型ごとの欄 orders.tdd で輪へ渡り、輪はそこから数え始める。回数の上限 MAX_ITERATIONS と申し出の数えは今と同じ）。
 
-- plan_words(place, keys) -> {単位: 計画の語}・plan_removes(place, keys) -> {単位: 消す名やパス}: 凍結した計画の欄から機械が引く
+- plan_words(place, keys) -> {単位: 計画の語}・plan_removes(place, keys) -> {単位: 消す名やパス}: 凍結した計画の欄から機械が引く。
+  返した段（values.json の item_kinds が空でない）は、返した項目に結ばれた単位の語を種と表 KIND_WORDS で引き直す（pin と消す名で remove に引く単位は引き直さない）
 - weapon_of(p, a, removes) -> 型の名: route から型を引く表（計画の語が先・AI の振りが後。上から順に最初に当たる行）
 - route_keys(keys, words, removes) -> 振り分けの AI に渡す単位の並び（語の在る単位と、語が tdd でなく消す名の在る単位を除く）
 - path(place)・read(place) -> 振り分けの状態 route.json のパス・中身（無ければ {}）・open_route(place, repo, base_file, keys, ...) -> route.json を置く
@@ -24,9 +25,16 @@ import planmarks  # lib/
 import writelog   # lib/
 import writes     # lib/
 
-from src import common, files
+from src import common, files, runvals
 
 WORDS = ("static", "tidy", "pin")   # 計画の語のうち、項目がどんな直しかの見分けの語（その語の型を引き、振り分けの AI に渡さない）
+# 返した項目の種と計画の語から、返した段で使う計画の語を引く表（種 → 計画の語 → 計画の語）。trim（削れる物）は振る舞いを変えない
+# 整えなので tdd・direct・語無しを tidy にし（赤を求めない）、unfinished（作り残し）は tdd・direct を tdd にして今の作業ツリーで新しい赤を
+# 書かせる。static・tidy・pin は種を問わずその語のまま
+KIND_WORDS = {(kind, word): word for kind in ("trim", "unfinished") for word in WORDS}
+KIND_WORDS.update({("trim", "tdd"): "tidy", ("trim", "direct"): "tidy", ("trim", ""): "tidy",
+                   ("unfinished", "tdd"): "tdd", ("unfinished", "direct"): "tdd", ("unfinished", ""): ""})
+RETURNED_WHY = "独立の目から返された項目の種に合わせて直し方の型を引き直した"
 GAVE_UP = "振り分けの返答が {n} 回とも通らなかった: {why}"
 ROUTED = "routed"   # 振り分けを済ませた状態の段の語（注文の node が tdd の単位の並びを置き、段を test にする）
 
@@ -38,12 +46,10 @@ def _fields(place, round_: int) -> list:
         raise common.Broken(str(e)) from None
 
 
-def plan_words(place, keys, round_: int = 1) -> dict:
-    """単位 → 計画の語（単位を持つ項目の route。tdd > direct > pin > tidy > static の順で 1 つ。項目が無ければ載せない）。
-    計画の欄の控えの無い run は {}"""
+def _top_words(fields, keys) -> dict:
     rank = ("tdd", "direct", "pin", "tidy", "static")
     out: dict = {}
-    for f in _fields(place, round_):
+    for f in fields:
         if not isinstance(f, dict) or f.get("route") not in rank:
             continue
         for k in f.get("unit_keys") or []:
@@ -52,22 +58,69 @@ def plan_words(place, keys, round_: int = 1) -> dict:
     return out
 
 
-def plan_whys(place, keys, round_: int = 1) -> dict:
-    """単位 → 計画の route_why（route が tdd でない項目のうち最初の物。書いていなければ載せない）"""
+def _redrawn(place, fields, keys, words: dict) -> dict:
+    """返した段で、返した項目に結ばれた単位 → 表 KIND_WORDS で引き直した計画の語（元の語から変わった単位だけ。語無しのままの単位と、
+    消す名で remove に引く単位は載せない）。返した項目の種は values.json の item_kinds（空なら {}）。表に無い組は Broken"""
+    rows = runvals.read(place)["item_kinds"]
+    kinds: dict = {}
+    for row in rows:
+        n = row["item"]
+        f = fields[n - 1] if isinstance(n, int) and 1 <= n <= len(fields) else None
+        for k in (f.get("unit_keys") or []) if isinstance(f, dict) else []:
+            if k in keys:
+                kinds.setdefault(k, set()).add(row["kind"])
+    removes = _removes(fields, keys)
     out: dict = {}
-    for f in _fields(place, round_):
+    for k, found in kinds.items():
+        word = words.get(k, "")
+        if _removal(word, removes.get(k)):
+            continue
+        kind = "unfinished" if "unfinished" in found else next(iter(found))
+        drawn = KIND_WORDS.get((kind, word))
+        if drawn is None:
+            raise common.Broken(f"返した項目の種 {kind!r} と計画の語 {word!r} の組が表 KIND_WORDS に無い")
+        if drawn != word:
+            out[k] = drawn
+    return out
+
+
+def plan_words(place, keys, round_: int = 1) -> dict:
+    """単位 → 計画の語（単位を持つ項目の route。tdd > direct > pin > tidy > static の順で 1 つ。項目が無ければ載せない）。
+    計画の欄の控えの無い run は {}。返した段（values.json の item_kinds が空でない）では、返した項目に結ばれた単位だけを表 KIND_WORDS で
+    引き直す（pin と、消す名で remove に引く単位は引き直さない）"""
+    fields = _fields(place, round_)
+    out = _top_words(fields, keys)
+    out.update(_redrawn(place, fields, keys, out))
+    return out
+
+
+def plan_whys(place, keys, round_: int = 1) -> dict:
+    """単位 → 計画の route_why（route が tdd でない項目のうち最初の物。書いていなければ載せない）。返した段で語を引き直した単位は、
+    引き直した語が tdd なら載せず、ほかなら RETURNED_WHY"""
+    fields = _fields(place, round_)
+    out: dict = {}
+    for f in fields:
         why = str(f.get("route_why") or "").strip() if isinstance(f, dict) and f.get("route") not in (None, "tdd") else ""
         for k in (f.get("unit_keys") or []) if why else []:
             if k in keys:
                 out.setdefault(k, why)
+    for k, word in _redrawn(place, fields, keys, _top_words(fields, keys)).items():
+        if word == "tdd":
+            out.pop(k, None)
+        else:
+            out[k] = RETURNED_WHY
     return out
 
 
 def plan_removes(place, keys, round_: int = 1) -> dict:
     """単位 → 消す名やパスの並び（単位を持つ項目の files の change=remove の symbol の名・op=delete の path・op=rename の元のパス from。
     現れた順・重なりは 1 つ。無い単位は載せない）"""
+    return _removes(_fields(place, round_), keys)
+
+
+def _removes(fields, keys) -> dict:
     out: dict = {}
-    for f in _fields(place, round_):
+    for f in fields:
         if not isinstance(f, dict):
             continue
         names = [n for _, n in planmarks.file_symbols(f, "remove")] + planmarks.removed_paths(f)

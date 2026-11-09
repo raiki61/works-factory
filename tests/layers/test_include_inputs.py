@@ -29,6 +29,7 @@ NOT_PASSED = {
         ("fix", "notes"): "案の直しの後の 2 回目の修正の段だけ",
         ("fix", "only_items"): "2 回目の修正の段だけ（1 回目は直す義務の単位の全部）",
         ("fix", "prior"): "2 回目の修正の段だけ（1 回目の段の申し送り）",
+        ("fix", "item_kinds"): "独立の目から返した段だけが渡す（1 回目は元の案の route のまま）",
         ("lens", "lenses"): "block の既定の表（docs/design/line.md の 4.5）",
         ("lens-2", "lenses"): "block の既定の表",
         ("plan", "conflicts"): "形 replan だけが読む（往復の中は形 plan）",

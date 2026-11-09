@@ -623,6 +623,20 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual([(u["unit_id"], u["status"]) for u in result["units"]], [(MEAN, "given_up")])
         self.assertEqual([r["unit_key"] for r in result["conflicts"]], [MEAN])
 
+    def test_a_returned_stage_loop_gets_the_earlier_tests(self):
+        """親の values.json の item_kinds が空でなく、子の置き場に前の段の返しの控え returns/1.json（added: [A]）が在る組の子では、
+        振り分けの後に注文の node が置く輪の状態の欄 earlier が [A] になる（輪はここから A を名指させない）"""
+        earlier = "test_stats.py::TestStats::test_mean_of_two"
+        self.parent_inputs(str(self.suite), item_kinds=[{"item": 1, "kind": "unfinished"}])
+        self.start()
+        _write(self.place / "returns" / "1.json", {"stage": 1, "weapon": "tdd", "group": "g1", "tree": "", "units": [{"key": MEAN, "named": [earlier]}],
+                                                    "frozen": {}, "frozen_tree": "", "suite_made": [], "added": [earlier], "rewritten": []})
+        got = self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})
+        self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
+        started = json.loads((self.place / "tdd-start.json").read_text(encoding="utf-8"))
+        loop = json.loads(pathlib.Path(started["state_file"]).read_text(encoding="utf-8"))
+        self.assertEqual(loop.get("earlier"), [earlier])
+
     def test_orders_hand_the_route_counts_to_the_loop_and_the_loop_writes_its_record(self):
         """E1: 振り分けの状態は place の route.json（輪の置き場 tdd-<k>/ を持たない）。振り分けが使った周・呼びの控え・渡した証拠の種類は
         orders が注文の型ごとの欄 tdd（weapon-order の形）に書き、輪の状態はそこから数え始める。輪が抜けたら tdd-<k>/record.json を

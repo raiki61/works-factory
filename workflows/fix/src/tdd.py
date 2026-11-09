@@ -210,10 +210,11 @@ ROUTE_CARRY = ("open_units", "excused", "contract", "order", "units", "parked", 
 
 
 def new_state(board_dir, repo, base_file, open_units: list, work, *, owed=None, withheld_by=None, returned=(), round_: int = 1,
-              light=()) -> dict:
+              light=(), earlier=()) -> dict:
     """輪の状態の辞書を組む（ファイルを置かず、work の置き場も作らない。work は状態の欄にそのまま書く）。元の結末は組の頭が取った
     base_file（src/basecase.take）の欄を同じ名で写す（輪の頭で試験を走らせ直さない）。段は route。owed・withheld_by・returned は
-    直す義務の値（_duty）、round_ は凍結した欄の周（plan_contract）、light は緑の後の test_cmd を走らせない軽量の単位"""
+    直す義務の値（_duty）、round_ は凍結した欄の周（plan_contract）、light は緑の後の test_cmd を走らせない軽量の単位、earlier は前の段が
+    赤→緑を確かめたテストの id（欄 earlier。名指させず、同じ項目の単位を閉じる条件に数え、引き継ぎに書く。返した段の輪だけが持つ）"""
     from src import basecase
     base = basecase.read_file(base_file)
     if not base or not base.get("taken"):
@@ -229,15 +230,15 @@ def new_state(board_dir, repo, base_file, open_units: list, work, *, owed=None, 
             "excused": excused, "handoff": snapshot(repo), "phase": "route", "tries": 0, "reason": "", "iterations": 0,
             "runs": 1, "order": [], "units": {}, "queue": [], "cur": 0, "unit_head": "", "green_tree": "",
             "done": False, "note": "", "frozen": {}, "frozen_by": {}, "parked": [], "parked_why": {}, "contract": contract,
-            "light": sorted(set(light) & set(keys)), "calls": [], "kinds": []}
+            "light": sorted(set(light) & set(keys)), "calls": [], "kinds": [], "earlier": list(earlier)}
 
 
 def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withheld_by=None, returned=(), round_: int = 1,
-               light=(), routed: dict | None = None, counted: dict | None = None) -> str:
+               light=(), routed: dict | None = None, counted: dict | None = None, earlier=()) -> str:
     """輪の状態を置き、状態のファイルのパスを返す（組の子の node orders が、振り分けの後か振り分けを起こさない組で呼ぶ。輪の置き場
     tdd-<k>/ もここで初めて作る）。routed は振り分けの状態 route.json（src/route.py）の辞書で、あれば ROUTE_CARRY の欄を移し、段を
     振り分けが済んだ印のままにする。counted は注文の型ごとの欄 orders.tdd {iterations, calls, kinds}（route.start_counts）で、輪はそこから
-    数え始める（回数の上限 MAX_ITERATIONS・呼びの控え calls・渡した証拠の種類の控え kinds）。段が route のまま置くのは tdd.start
+    数え始める（回数の上限 MAX_ITERATIONS・呼びの控え calls・渡した証拠の種類の控え kinds）。earlier は new_state に渡す。段が route のまま置くのは tdd.start
     （routes が plan の手早い口）で、assign が tdd の単位の並びを置く"""
     board_dir = pathlib.Path(board_dir)
     k = 1
@@ -245,7 +246,7 @@ def open_state(board_dir, repo, base_file, open_units: list, *, owed=None, withh
         k += 1
     work = board_dir / f"tdd-{k}"
     st = new_state(board_dir, repo, base_file, open_units, work, owed=owed, withheld_by=withheld_by, returned=returned,
-                   round_=round_, light=light)
+                   round_=round_, light=light, earlier=earlier)
     if routed:
         st.update({f: routed[f] for f in ROUTE_CARRY if f in routed}, phase=routed["phase"])
     if counted:
@@ -390,7 +391,8 @@ def current_lines(st) -> list:
 
 def handoff_lines(st) -> list:
     """今の単位より前に済んだ単位の 1 行ずつ（単位の key・直したファイル・緑にしたテスト・整え・止めた理由・direct に回した理由）と、
-    今の周の段・今の単位・この単位の前の段の結果（current_lines）。周ごとに新しい会話で起きるので、節はいつも載せる"""
+    返した段の輪なら前の段が赤→緑を確かめたテスト（_earlier。名指すなの 1 行）と、今の周の段・今の単位・この単位の前の段の結果
+    （current_lines）。周ごとに新しい会話で起きるので、節はいつも載せる"""
     rows = []
     for k in st["queue"][:st["cur"]]:
         u = st["units"].get(k)
@@ -412,7 +414,9 @@ def handoff_lines(st) -> list:
             bits.append(f"整え {u['refactor']}")
         rows.append(f"- {k}: " + "・".join(bits))
     head = ["前の単位の直しは作業ツリーに在る（緑の木）。戻したり作り直したりするな。", ""] if rows else []
-    return [HANDOFF_HEAD, "", *head] + rows + ([""] if rows else []) + current_lines(st) + [""]
+    earlier = [f"- 前の段（返す前の修正の段）が赤→緑を確かめた受け入れのテスト（brief の tests に在っても名指すな。凍っている。返された指摘は"
+               f"新しいテストで赤にせよ）: {', '.join(st['earlier'])}", ""] if _earlier(st) else []
+    return [HANDOFF_HEAD, "", *head] + rows + ([""] if rows else []) + earlier + current_lines(st) + [""]
 
 
 def _items(st, k) -> set:
@@ -422,8 +426,8 @@ def _items(st, k) -> set:
 
 def together(st, k) -> list:
     """単位 k の段で一緒に直す単位: 順（queue）で k より後の tdd の単位のうち、約束の受け入れのテストを持ち、載る修正案の項目が
-    全部 k の項目にも在る物（順の並び）。k の段は項目の受け入れのテストを全部名指して緑にする（_test の want）ので、その単位の
-    直しも要る。k の段が緑に届けば、その単位は機械が閉じる（_close_covered。同じ条件）。k に無い項目にも載る単位・約束の無い
+    全部 k の項目にも在る物（順の並び）。k の段は項目の受け入れのテストを全部名指して緑にする（_test の want。前の段が確かめ済みの
+    試験 _earlier を除く）ので、その単位の直しも要る。k の段が緑に届けば、その単位は機械が閉じる（_close_covered。同じ条件）。k に無い項目にも載る単位・約束の無い
     単位・別の項目の単位は入らない（今どおり「この後の単位（今は手を付けるな）」。その単位は自分の段で赤を書く）"""
     mine = _items(st, k)
     if not mine or k not in st.get("queue", []):
@@ -520,13 +524,19 @@ def _cur(st) -> dict:
     return st["units"][st["queue"][st["cur"]]]
 
 
+def _earlier(st) -> set:
+    """返した段の輪で、前の段が赤→緑を確かめたテストの id の集まり（_norm_id。状態の欄 earlier。最初の段では空）。_test の名指しの外し・
+    _covered_by の確かめ済みの数え・handoff_lines の行が同じ集まりを読む"""
+    return {_norm_id(t) for t in st.get("earlier") or []}
+
+
 def _covered_by(st, k) -> list:
     """単位 k を一緒に直した、緑に届いた tdd の単位（順の並び）。k の約束の受け入れのテスト（と書き換えの名指し）が在って全部
-    輪が赤→緑を確かめ済み（_verified）で、k の修正案の項目を全部持つ緑の単位が在る時だけ（その単位の段が k を together に並べた
-    条件と同じ）。ほかは []"""
+    輪が赤→緑を確かめ済み（_verified）か前の段が確かめ済み（_earlier）で、k の修正案の項目を全部持つ緑の単位が在る時だけ（その単位の
+    段が k を together に並べた条件と同じ）。ほかは []"""
     ids = {_norm_id(t["id"]) for t in _plan_tests(st, k)} | {_norm_id(i) for i in _plan_rewrites(st, k)}
     mine = _items(st, k)
-    if not ids or not mine or not ids <= _verified(st):
+    if not ids or not mine or not ids <= _verified(st) | _earlier(st):
         return []
     return [g for g, u in st["units"].items() if g != k and u.get("route") == "tdd" and u.get("green") == "ok"
             and not u.get("covered_by") and mine <= _items(st, g)]
@@ -769,7 +779,7 @@ def _test(st, reply, repo) -> list:
     files, bad = _paths(reply.get("test_files"), "test_files")
     errs += bad
     # 約束の名指し（形が崩れていても、名指せた分で照らして同じ返答に並べる）
-    done = _verified(st)   # 前の単位で赤→緑を確かめた id は名指しを強いず、凍っている（同じ項目が 2 つの単位にまたがる時）
+    done = _verified(st) | _earlier(st)   # 前の単位（返した段では前の段）で赤→緑を確かめた id は名指しを強いず、凍っている（同じ項目が 2 つの単位にまたがる時）
     want = [t for t in _plan_tests(st, u["unit_key"]) if _norm_id(t["id"]) not in done]
     rws = [i for i in _plan_rewrites(st, u["unit_key"]) if _norm_id(i) not in done]
     named = {_norm_id(t) for t in tests if isinstance(t, str) and t.strip()} if isinstance(tests, list) else set()

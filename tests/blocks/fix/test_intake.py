@@ -180,7 +180,25 @@ class ValuesCase(IntakeCase):
             "tdd_suite": "/x/suite.py", "test_cmd": " python3 -m unittest ", "reuse_key": "run-first", "reuse_dir": "/x/reuse",
             "user_env_dir": "/x/env", "lang": "ja", "policy": str(self.policy), "request_file": str(self.request),
             "answers": [{"q": "分母は", "a": "len(xs)"}], "unattended": True, "parallel": False, "skip_rerun": ["A"],
-            "excluded": [], "routes": "auto", "suite_made": False})
+            "excluded": [], "routes": "auto", "suite_made": False, "item_kinds": []})
+
+    def test_item_kinds_reach_the_values(self):
+        """入力 item_kinds（独立の目から返した段だけが渡す項目の番号ごとの種）は intake.json と values.json に運ばれ、空は []。
+        種が列挙の外の行は item-kinds.schema.json の名で拒み、前の段の申し送り prior の無い段に渡した時も拒む"""
+        kinds = [{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}]
+        prior = _j({"loops": []})
+        self.intake(mode="whole", judgment=_j(JUDGMENT), prior=prior, item_kinds=_j(kinds))
+        self.assertEqual((self.read("intake.json").get("item_kinds"), self.read("values.json").get("item_kinds")), (kinds, kinds))
+        self.intake(mode="whole", judgment=_j(JUDGMENT))
+        self.assertEqual((self.read("intake.json").get("item_kinds"), self.read("values.json").get("item_kinds")), ([], []))
+        out = self.intake(mode="whole", judgment=_j(JUDGMENT), prior=prior, item_kinds=_j([{"item": 1, "kind": "other"}]))
+        self.assertFalse(out["ok"], out)
+        self.assertTrue(out["reason"].startswith("入力 item_kinds: "), out["reason"])
+        self.assertIn("item-kinds.schema.json", out["reason"])
+        out = self.intake(mode="whole", judgment=_j(JUDGMENT), item_kinds=_j(kinds))
+        self.assertFalse(out["ok"], out)
+        self.assertTrue(out["reason"].startswith("入力 item_kinds: "), out["reason"])
+        self.assertIn("prior", out["reason"])
 
     def test_routes_reach_the_values(self):
         """入力 routes（docs/design/spec-driven.md の 7 章の 1）: 空は auto、plan は values.json に運ばれ、組の子も同じ値を読む"""

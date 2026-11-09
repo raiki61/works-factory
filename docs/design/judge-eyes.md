@@ -171,7 +171,7 @@ line が段ごとに引いた真偽の表 `verify_by_tier` を、head-depth が�
 - `questions`: r4 の `questions`（人に回す問い）。要素は字か `{text, title}` の行で、`title` は役が書いた短い題。題は読む所（`lib/plainask.py` の `item_title`）が 1 行に畳み、題の無い行と字の要素は題なしとして読む。`passes`: r4 の `passes`（修正前に通したので問いから外した行）。
 - `premise_check`: r2 の `premise_check`（`{verdict, reason, key, resolution, facts}` か null）。`notes`: r2 の `notes`（R2 の入力の控えの行）。今の `notes`・`r4_passes`・`premise_reply` の pointer の先を、値で返す形（r1 の設計書の 0.11）。
 - `after`: structure（after）の `after` の pointer か null。`dirty`・`escalate`: 同じ出力の数（`dirty` は構造の目が汚れると見た行の数、`escalate` は人に上げる行の数。structure の設計書の 1.2）。`after_ok`: structure（after）の `ok`（測れなかった時は偽。line の最後の承認ノードと報告が「直した後の実測が無い」と言う）。
-- `findings`: `[{eye, where, text}]`（必須）。修正の段へ返す項目で、判定が `fix-needed` の R1・R2 の出口の `findings` に、目の名 `eye`（`r1`・`r2`）を付けて R1・R2 の順に並べた物。目の出口が運ぶ指摘の形は各設計書の 1.2（r1.md・r2.md）。
+- `findings`: `[{eye, kind, where, text}]`（必須）。修正の段へ返す項目で、判定が `fix-needed` の R1・R2 の出口の `findings` に、目の名 `eye`（`r1`・`r2`）と種 `kind`（`verdict.KINDS`: R1 の指摘は `trim`〔削れる物〕・R2 の指摘は `unfinished`〔作り残し〕）を付けて R1・R2 の順に並べた物。種は返した段が直し方の型を引く材料で、修正の block の入力 `item_kinds` の `kind` の列挙と同じ語。目の出口が運ぶ指摘の形は各設計書の 1.2（r1.md・r2.md）。
 - `route`（`fix`・`stay`）・`route_why`: 修正の段へ返すかと、その訳。判定の語からまとめの純な関数が決める（AI に書かせない）。2.4。
 - `report`・`sections`・`optional`（`structure-after__`。直した後の実測が落ちても先へ進む。E54）。
 

@@ -123,6 +123,37 @@ class FixedCase(unittest.TestCase):
         unchecked = self.s.fixed(values(more=[fix(checked={"ok": False, "reason": "変えていない"})]))
         self.assertEqual((unchecked["go"], unchecked["done"]), (True, False))
 
+    def test_stop_why_comes_from_the_stage_that_stopped(self):
+        """止めの語と組の止めた訳を頂の欄 stop_why に上げる。止めの語が在れば、その語を返した最初の段の単位のうち直し終えなかった物の訳。
+        止めの語が無ければ、fix が返らなかった訳・最後の段の fix の ok が偽の reason・最後の段の直し終えなかった単位の訳。複数行は 1 行に畳む。
+        訳が無ければ空"""
+        why = "直しが入った木では落ちる試験を書けない"
+        left = lambda unit, status, reason: {"unit_id": unit, "status": status, "reason": reason}   # noqa: E731
+        stopped = self.s.fixed(values(more=[fix(stop_reason="works:no-suite", ok=False, units=[left("u9", "not_done", why)])]))
+        self.assertEqual(stopped.get("stop_why"), f"単位 u9: {why}", "止めた段の単位の訳だけ。最初の段の単位 u1 は名指さない")
+        multi = self.s.fixed(values(more=[fix(stop_reason="works:no-suite", ok=False, reason="止めた\n訳",
+                                              units=[left("u9", "not_done", "一行目\n二行目")])]))
+        self.assertEqual(multi.get("stop_why"), "止めた 訳／単位 u9: 一行目 二行目")
+        self.assertEqual(self.s.fixed(values(more=[fix(stop_reason="works:no-suite", ok=False, reason="works:no-suite", units=[])])).get("stop_why"), "",
+                         "止めの語と同じ字の reason は訳にしない")
+        self.assertEqual(self.s.fixed(values(refix=fix(ok=False, reason="直せなかった\n訳", units=[]), after_fix={"replan": True, "prior": None, "stop_reason": ""}
+                                             )).get("stop_why"), "直せなかった 訳", "止めの語が無く、最後の段の ok が偽なら reason")
+        self.assertEqual(self.s.fixed(values(fix=None)).get("stop_why"), self.s.HELD_UNRETURNED, "fix が返らなかった訳")
+        given_up = self.s.fixed(values(more=[fix(units=[left("u3", "given_up", "諦めた訳")])]))
+        self.assertEqual(given_up.get("stop_why"), "単位 u3: 諦めた訳", "最後の段が諦めた単位の訳")
+        clean = self.s.fixed(values(fix=fix(units=[left("u1", "fixed", "")])))
+        self.assertEqual(clean.get("stop_why"), "", "止めも諦めも無ければ空")
+        self.assertEqual(self.s.empty().get("stop_why"), "")
+
+    def test_nodes_name_each_stage_by_its_kind(self):
+        """stages の行ごとの段の node の名: first は fix・refix は refix-run・返した段は back-<何回目か>-fix。kind の無い古い行は番号 stage から
+        kinds と同じく読む"""
+        self.assertTrue(hasattr(self.s, "nodes"), "stages に nodes が無い")
+        kinded = [{"stage": 1, "kind": "first"}, {"stage": 2, "kind": "refix"}, {"stage": 3, "kind": "returned"}, {"stage": 4, "kind": "returned"}]
+        self.assertEqual(self.s.nodes(kinded), ["fix", "refix-run", "back-1-fix", "back-2-fix"])
+        self.assertEqual(self.s.nodes([{"stage": 1, "kind": "first"}, {"stage": 2, "kind": "returned"}]), ["fix", "back-1-fix"])
+        self.assertEqual(self.s.nodes([{"stage": n} for n in (1, 2, 3, 4)]), ["fix", "refix-run", "back-1-fix", "back-2-fix"])
+
     def test_returned_stage_without_refix_is_named_by_kind(self):
         """案の直しが走らない run で 1 回返した段は、並びの 2 番目でも「独立の目から返した修正の段（1 回目）」と呼ぶ（段の名は stages の行の
         種類 kind で引く）。差分の審査の行は「回していない」の訳、TDD の記録は種類の席（first・refix・returned）に並び、R2 へ渡る名も同じ"""

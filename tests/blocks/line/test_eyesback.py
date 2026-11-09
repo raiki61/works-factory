@@ -3,9 +3,12 @@
 周の頭の script は薄い口で、決めは turn に在る。ここは turn・last・current・lines を値で回し、返す条件・抜ける訳の順・案の選び・上限・記録の形を
 確かめる（周の節の並びは test_wiring.py、筋書きは test_scenarios.py）。
 """
+import ast
 import json
 import re
 import unittest
+
+import yaml
 
 from tests.blocks import kit
 
@@ -82,6 +85,35 @@ class TurnCase(_Case):
         self.assertEqual((got["fingerprint"], got["green_ok"], got["eyes_ok"], got["sealable"], got["item_claims"]),
                          ({"head": "abc", "diff_hash": "h1"}, True, False, True, {"items": [], "claims": []}))
 
+    def test_returned_items_carry_their_kinds_by_item_number(self):
+        """返す項目の種を修正案の項目の番号ごとに item_kinds へ運ぶ。R1 の指摘だけが結ばれた項目は trim の 1 行・R1 と R2 が同じ項目に
+        結ばれれば 2 行・結べず全部を対象にした時は全部の項目に返した種を並べ・種の無い指摘は行を作らない。返さない抜け方と
+        script の落ちた時の形では空の配列になる"""
+        r1 = {"eye": "r1", "kind": "trim", "where": "src/a.py:12", "text": "写しが残っている"}
+        r2 = {"eye": "r2", "kind": "unfinished", "where": "", "text": "入口が足りない"}
+        r2_tied = {**r2, "where": "src/a.py:30"}
+        got = self.run_turn(eyes=eyes(items=[r1, r2]))
+        self.assertEqual(got.get("item_kinds"), [{"item": 1, "kind": "trim"}], "結べたのは R1 の指摘だけ")
+        both = self.run_turn(eyes=eyes(items=[r1, r2_tied]))
+        self.assertCountEqual(both.get("item_kinds") or [], [{"item": 1, "kind": "trim"}, {"item": 1, "kind": "unfinished"}])
+        untied = self.run_turn(eyes=eyes(items=[r2]))
+        self.assertCountEqual(untied.get("item_kinds") or [], [{"item": 1, "kind": "unfinished"}, {"item": 2, "kind": "unfinished"}],
+                              "結べず全部を対象にした時は全部の項目に返した種を並べる")
+        plain = {k: v for k, v in r1.items() if k != "kind"}
+        self.assertEqual(self.run_turn(eyes=eyes(items=[plain])).get("item_kinds"), [], "種の無い指摘は行を作らない")
+        self.assertEqual(self.run_turn(eyes=eyes("stay")).get("item_kinds"), [], "返さない抜け方では空")
+        self.assertEqual(self.run_turn(fixed=None).get("item_kinds"), [])
+        self.assertIn("item_kinds", self.e.FIELDS)
+        text = (kit.BLOCKS / BLOCK / "scripts" / "eyes_back.py").read_text(encoding="utf-8")
+        fallen = next(n for n in ast.walk(ast.parse(text)) if isinstance(n, ast.FunctionDef) and n.name == "fallen")
+        built = next(n.value for n in ast.walk(fallen) if isinstance(n, ast.Return))
+        keys = {k.value: ast.literal_eval(v) for k, v in zip(built.keys, built.values) if isinstance(k, ast.Constant) and isinstance(v, (ast.List, ast.Constant))}
+        self.assertEqual(keys.get("item_kinds"), [], "落ちた時の形の item_kinds は空の配列")
+        spec = yaml.safe_load((kit.BLOCKS / BLOCK / "works-factory-line.yaml").read_text(encoding="utf-8"))
+        node = next(n for n in spec["nodes"] if n["id"] == "back-1")
+        self.assertIn("item_kinds", node["output_format"]["required"])
+        self.assertLessEqual(set(node["output_format"]["required"]), {k.value for k in built.keys})
+
     def test_stay_route_stop_word_or_fallen_round_does_not_return(self):
         """目の route が stay・前の段の修正が止めの語か異議を返した・前の周の返りが欠けた時は go が偽で、抜けた訳が route_why か EXITS の語になる"""
         stay = self.run_turn(eyes=eyes("stay"))
@@ -109,6 +141,23 @@ class TurnCase(_Case):
         self.assertTrue(got["exit"].startswith(self.e.EXITS["stop"]), got["exit"])
         self.assertEqual(script_const("eyes_back", "EXIT_FELL"), self.e.EXITS["fell"], "script の fallback の字")
         self.assertEqual(script_const("eyes_back_end", "EXIT_FELL"), self.e.EXITS["fell"])
+
+    def test_the_fix_stage_why_reaches_the_exit_line(self):
+        """合わせが止めた訳 stop_why を持つ時、止めの語の有無によらず抜けた訳に載り、輪を抜けた訳の行（最後の承認ノードと報告が読む）に出る。
+        差分が変わらなかった時は、その字を修正の段の訳で包んで残す。stop_why が無ければ今の字のまま"""
+        why = "直しが入った木では落ちる試験を書けない"
+        first = self.run_turn()
+        stopped = self.run_turn(k=2, prev=first, fixed=fixed(go=False, stop_reason="works:no-suite", stop_why=why))
+        self.assertEqual(stopped["exit"], f"{self.e.EXITS['stop']}（works:no-suite：{why}）")
+        self.assertIn(f"輪を抜けた訳: {stopped['exit']}", self.e.lines(first["rows"], stopped["exit"]))
+        wordless = self.run_turn(k=2, prev=first, fixed=fixed(go=False, stop_why=why))
+        self.assertEqual(wordless["exit"], f"{self.e.EXITS['stop']}（修正の段の合わせが進めなかった：{why}）")
+        undone = self.run_turn(k=2, prev=first, fixed=fixed(stop_why=why), tests=gate_got("h1"))
+        self.assertEqual(undone["exit"], f"{self.e.EXITS['unchanged']}（修正の段が直さなかった訳: {why}）")
+        self.assertIn(f"輪を抜けた訳: {undone['exit']}", self.e.lines(first["rows"], undone["exit"]))
+        bare = self.run_turn(k=2, prev=first, fixed=fixed(stop_reason="works:unrestored"))
+        self.assertEqual(bare["exit"], f"{self.e.EXITS['stop']}（works:unrestored）")
+        self.assertEqual(self.run_turn(k=2, prev=first, tests=gate_got("h1"))["exit"], self.e.EXITS["unchanged"])
 
     def test_unchanged_diff_or_past_the_limit_leaves_the_loop(self):
         """返しの修正の後の指紋の diff_hash がその前と同じなら『差分が変わらない』で、周の番号が LIMIT を越えれば上限の訳 CAP_WHY で抜け、

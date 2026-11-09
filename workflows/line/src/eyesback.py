@@ -11,7 +11,8 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕と、それぞ�
 - FIELDS: 周の頭の出力の欄の名。RECORD: 集め eyes-back の出力の欄の名（最後に走った周の頭の状態）
 - EXITS・CAP_WHY: 輪を抜けた訳の字（fell・stop・unchanged・no_fix・cap。目の route が stay の時は目の route_why が訳）
 - row(k, eyes, items)・count(rows)・capped(record)・left_text(left): 周の記録の行と数え方
-- turn(...) -> 周の頭の出力: 返すかを決め、返す時は修正の段への入力（only_items・notes・prior ほか）を組む
+- turn(...) -> 周の頭の出力: 返すかを決め、返す時は修正の段への入力（only_items・item_kinds〔返した項目の種を修正案の項目の番号ごとに運ぶだけ。型の語は
+  修正の段が引く〕・notes・prior ほか）を組む
 - last(heads) -> 集め eyes-back の出力・current(eyes_back, fixed, tests, eyes) -> (fixed, tests, eyes): 最後の周の状態の選びの 1 か所
 - lines(rows, exit_, left) -> 最後の承認ノードと報告が同じ行に読む返した周の行
 - broken(eyes_back, head) -> 集めが飛んだのに周の頭が走ったか（報告が BROKE の 1 行を出す）
@@ -35,6 +36,7 @@ EXITS = {
     "no_fix": "直す物が無い run は返さない",
     "cap": CAP_WHY,
 }
+UNDONE = "返しの修正で差分が変わらなかった（修正の段が直さなかった訳: {why}）"
 NOT_REVIEWED = "返した段の差分は、段ごとの差分の審査・並行 PR との重なりの確かめ直し・仕様の照らし・異議の再審を通っていない"
 NOTHING = "返す物が無い"
 BROKE = "返す輪が途中で落ちた（下の状態は返す前の物）"   # 集めが飛んだのに周の頭が走った run の報告の 1 行（broken）
@@ -42,7 +44,7 @@ UNRETURNED = "独立の目が返す項目を挙げたが、修正の段へ返さ
 UNTIED = "返す項目を修正案の項目に結べなかったので、全部の項目を対象にする"
 NOTE_HEAD = "独立の目"
 FIELDS = ("go", "round", "only_items", "notes", "prior", "plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun", "more", "rows",
-          "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims")
+          "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims", "item_kinds")
 RECORD = ("rows", "exit", "left", "fixed", "tests", "eyes", "fingerprint", "green_ok", "eyes_ok", "sealable", "item_claims")
 FIX_ROUTE = "fix"
 _LINE_AT = re.compile(r":\d+(?:-\d+)?$")
@@ -99,18 +101,31 @@ def _diff_hash(tests) -> str:
     return fingerprint.get("diff_hash") if isinstance(fingerprint.get("diff_hash"), str) else ""
 
 
-def _tied(items: list, plan_fields) -> list:
-    """返す項目の where の path を、修正案の項目（plan-fields の欄の並びの番号。1 から）に結んだ番号の並び（planrange.owner の結び）。
+def _ties(items: list, plan_fields) -> list:
+    """返す項目の where の path を、修正案の項目（plan-fields の欄の並びの番号。1 から）に結んだ (返す項目, 番号) の並び（planrange.owner の結び）。
     どの項目の範囲にも入らない where は結ばない"""
     plan = [{"item": n, **f} for n, f in enumerate(plan_fields or [], 1) if isinstance(f, dict)]
     out = []
     for i in items:
         path = _LINE_AT.sub("", str(i.get("where") or "").strip())
         if path and any(planrange.inside(path, p) for p in plan):
-            n = planrange.owner(path, plan)["item"]
-            if n not in out:
-                out.append(n)
-    return sorted(out)
+            out.append((i, planrange.owner(path, plan)["item"]))
+    return out
+
+
+def _tied(items: list, plan_fields) -> list:
+    """返す項目を結んだ修正案の項目の番号の並び（小さい順・重なりは 1 つ）"""
+    return sorted({n for _, n in _ties(items, plan_fields)})
+
+
+def _kinds(items: list, plan_fields, only: list) -> list:
+    """返した項目の種を修正案の項目の番号ごとに並べた [{item, kind}]（現れた順・重なりは 1 つ）。項目に結べた時（only が空でない）は、
+    結べた項目の番号とその指摘の種。結べず全部を対象にした時は、全部の項目の番号に返した種を並べる。種の無い指摘は行を作らない"""
+    if only:
+        pairs = [(n, i.get("kind")) for i, n in _ties(items, plan_fields)]
+    else:
+        pairs = [(n, i.get("kind")) for i in items for n in range(1, len(plan_fields or []) + 1)]
+    return [{"item": n, "kind": kind} for n, kind in dict.fromkeys(pairs) if isinstance(kind, str) and kind]
 
 
 def _base(k, fixed, tests, eyes, rows, more) -> dict:
@@ -120,7 +135,7 @@ def _base(k, fixed, tests, eyes, rows, more) -> dict:
             "fixed": fixed, "tests": tests, "eyes": eyes, "fingerprint": _d(tests).get("fingerprint") if isinstance(_d(tests).get("fingerprint"), dict) else None,
             "green_ok": _d(tests).get("ok") is True, "eyes_ok": _d(eyes).get("ok") is True,
             "sealable": isinstance(fixed, dict) and isinstance(tests, dict) and isinstance(eyes, dict),
-            "item_claims": _d(fixed).get("item_claims")}
+            "item_claims": _d(fixed).get("item_claims"), "item_kinds": []}
 
 
 def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_replan, plan_fields) -> dict:
@@ -129,11 +144,13 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     前の周の頭の記録（抜けた訳・返した周の行・残った作り残し・最後の状態）をそのまま運ぶ。決める順:
     0. k が 2 以上で前の周の頭が返さなかった（go が真でない）→ 前の記録をそのまま運ぶ
     1. 前の周の頭か合わせが欠けた（k が 2 以上で prev が無い・fixed が無い）→ 輪の節が落ちた
-    2. 前の段の修正の stop_reason か異議が空でない・合わせが進めない（k が 1 なら判定の stop_reason も）→ 修正の段が止めた。
+    2. 前の段の修正の stop_reason か異議が空でない・合わせが進めない（k が 1 なら判定の stop_reason も）→ 修正の段が止めた。合わせの
+       stop_why（止めの語と組の止めた訳）が在れば『（<語か合わせが進めなかった旨>：<stop_why>）』と組で載せる。
        合わせの no_fix が真（直す物が無い run。計画が無いので修正役を起こせない）→ 直す物が無い run は返さない。
        どちらも、目が返そうとした項目を left に運ぶ（周の行が 0 でも lines が名指す）
     3. 試験か目の返りが欠けた → k が 2 以上なら輪の節が落ちた。1 周目は目か試験が返らなかっただけ（輪の節は落ちていない）なので返す物を読めない訳で抜ける
-    4. k が 2 以上で試験の指紋の diff_hash が前の周と同じ → 返しの修正で差分が変わらなかった
+    4. k が 2 以上で試験の指紋の diff_hash が前の周と同じ → 返しの修正で差分が変わらなかった（stop_why が在れば UNDONE で修正の段が
+       直さなかった訳を添える）
     5. 目の route が fix でない・返す項目が無い → 目の route_why（無ければ『返す物が無い』）
     6. k が LIMIT を越えた → 上限の訳（残った作り残しを left に運ぶ）
     7. 案の直しの返りが読めない（1 周目で refixed が真なのに案の直しか答えの返りが無い）→ 輪の節が落ちた
@@ -155,14 +172,15 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     stops = [str(fixed.get("stop_reason") or ""), oneline.one_line(fixed.get("objection") or ""),
              str(_d(judged).get("stop_reason") or "") if k == 1 else ""]
     why = next((s for s in stops if s), "" if fixed.get("go") is True else "修正の段の合わせが進めなかった")
+    stop_why = oneline.one_line(fixed.get("stop_why") or "")
     if why:
-        return leave(f"{EXITS['stop']}（{why}）", left=pending)
+        return leave(f"{EXITS['stop']}（{why}：{stop_why}）" if stop_why else f"{EXITS['stop']}（{why}）", left=pending)
     if fixed.get("no_fix") is True:
         return leave(EXITS["no_fix"], left=pending)
     if not isinstance(tests, dict) or not isinstance(eyes, dict):
         return fall() if k > 1 else leave(NO_RETURN)
     if k > 1 and _diff_hash(tests) and _diff_hash(tests) == str(_d(_d(prev).get("fingerprint")).get("diff_hash") or ""):
-        return leave(EXITS["unchanged"])
+        return leave(UNDONE.format(why=stop_why) if stop_why else EXITS["unchanged"])
     items = _items(eyes)
     if eyes.get("route") != FIX_ROUTE or not items:
         return leave(oneline.one_line(eyes.get("route_why") or "") or NOTHING)
@@ -178,7 +196,7 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     notes = [f"{NOTE_HEAD} {item_text(i)}" for i in items]
     stages = fixed.get("stages") if isinstance(fixed.get("stages"), list) else []
     prior = _d(_d(stages[-1] if stages else None).get("fix")).get("carry") if stages else None
-    return {**out, **plan, "go": True, "only_items": only, "notes": "\n".join([*notes, *([] if only else [UNTIED])]),
+    return {**out, **plan, "go": True, "only_items": only, "item_kinds": _kinds(items, plan_fields, only), "notes": "\n".join([*notes, *([] if only else [UNTIED])]),
             "prior": prior if isinstance(prior, (dict, list)) else None, "rows": [*rows, row(k, eyes, items)]}
 
 

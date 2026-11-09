@@ -261,13 +261,14 @@ nodes:
         after_ok: {type: boolean}
         findings:
           type: array
-          description: '修正の段へ返す項目（判定が fix-needed の R1・R2 の出口の findings に目の名を付けて並べた物）'
+          description: '修正の段へ返す項目（判定が fix-needed の R1・R2 の出口の findings に目の名と種を付けて並べた物。種は R1 の指摘が trim〔削れる物〕・R2 の指摘が unfinished〔作り残し〕）'
           items:
             type: object
             additionalProperties: false
-            required: [eye, where, text]
+            required: [eye, kind, where, text]
             properties:
               eye: {type: string, enum: [r1, r2]}
+              kind: {type: string, enum: [trim, unfinished]}
               where: {type: string}
               text: {type: string}
         route: {type: string, enum: [fix, stay], description: '修正の段へ返すか。判定の語からまとめが決める（AI に書かせない）'}
