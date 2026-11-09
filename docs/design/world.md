@@ -289,7 +289,7 @@ bin/works-factory workflow run works-factory-world --cwd <対象> \
 - keep-essence の 12（世界の解に照らす）を守るのは: 抜き書きの照らし（Verify）・識別子の弾き（Classes・Banned）・`differs` の `challenge`（Judge）・行ごとの答えの強制（plan の試験）・依頼を出どころにした外れが人に回る（plan-review と line の試験）。e2e の `tests/e2e/evidence.json` の J05・J23・J112・R79・P030・P229・P233 は、node の id と place のパスを新しい物に合わせる。
 
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
-- `test_world.py`: `ShapeCase` の 3 本（輪の上限は `tests/layers/test_loop_bounds.py`。web の on と off の輪の `when:` は筋書き `standalone`〔off〕と `web-on` が見る。md の断片の字）・`FlowCase.test_lang_reaches_the_prompt`（指示の字）。役の道具の `test_roles_have_only_their_tools` は残す（言い直す役が対象を読まない・web の off の役が網に出ない）。
+- `test_world.py`: `ShapeCase` の 3 本（輪の until の配線と上限は `tests/layers/test_loop_bounds.py`。web の on と off の輪の `when:` は筋書き `standalone`〔off〕と `web-on` が見る。md の断片の字）・`FlowCase.test_lang_reaches_the_prompt`（指示の字）。役の道具の `test_roles_have_only_their_tools` は残す（言い直す役が対象を読まない・web の off の役が網に出ない）。
 - 筋書き `gave-up`（言い直しの控えが無ければ出口が failed と最後の却下の理由を返す。`test_world.py` の `FlowCase.test_rejected_reply_brings_the_reason_to_the_next_prompt` と `test_steps.py` の `Plan.test_failed_loop_keeps_last_reject_reason` が見る。控えが無い時の枝を消す壊しで 4 本が赤）。
 
 ## 9 入口の workflow: policy-check（方針の文だけを評価する）

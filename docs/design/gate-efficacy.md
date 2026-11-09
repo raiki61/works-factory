@@ -292,7 +292,7 @@ materials.md の 4 節の順。観点の前の照らしは無く、後の照ら�
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 使われていない block なので、standalone の筋書きと流れの試験を残し、ほかの block と同じ型の字の照らしを落とした。下の一覧は写した時の記録で、今は次を持たない。
 - 筋書き `gave-up`（拒まれても run を止めない道）・`skipped`（合流で回さない道）・`entry`（入口で回さない道）。回さない 2 つの道は `FlowCase.test_merge_route_does_not_run_the_role`・`test_entry_route_does_not_run_the_role_and_merge_wins_when_both`、3 回で諦めるのは `FlowCase.test_three_rejections_give_up` が script で見る。
 - `FlowCase` の変異の宣言が指示に入る字（`test_declared_mutation_stage_reaches_the_instruction`。段落の真偽と値は `test_viewpoint.py` の `test_mutation_values_and_paragraphs` が見る）・intake 無しの落ち・include の道で place が分かれる（tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`）。
-- `ShapeCase`（輪の上限と役の起こし方の写し）。輪の上限は tests/layers の `test_loop_bounds.py`、`denyWrite`・期限・retry は tests/layers の E7・E12・E19 の検査が見る。
+- `ShapeCase`（輪の上限と役の起こし方の写し）。輪の until の配線と上限は tests/layers の `test_loop_bounds.py`、`denyWrite`・期限・retry は tests/layers の E7・E12・E19 の検査が見る。
 - `test_viewpoint.py` の `test_declaration`（宣言の定数の写し）と `test_materials_and_report`（報告の行の字）。宣言の定数を替える壊し（`GUARDED`・`NA`・`MATERIALS`）と `materials_of` を空にする壊しは、tests/blocks/materials の `test_viewpoints.py` と `FlowCase` が赤にする。
 
 - standalone の fixture（`workflows/gate-efficacy/fixtures/`）:

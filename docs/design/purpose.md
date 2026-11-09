@@ -356,7 +356,7 @@ bin/works-factory workflow run works-factory-purpose \
 - 筋書き `frozen`（固めた目的で輪を通らずに出口へ届く道）と `gave-up`（拒まれても run を止めない道）。`gave-up` は standalone と同じ YAML の道（輪は受け付けの `done` で抜け、`finish` は `trigger_rule: all_done` で `when:` を持たない）で、違うのは差し替えの値だけ。`frozen` の輪を飛ばす `when:` が壊れても、役が走って受け付けが固めた目的の書き直しを拒むだけで、固めた目的は変わらない。固めた目的を読む道は `IntakeCase.test_frozen_purpose_skips_the_role_and_keeps_files`・`FinishCase.test_frozen_purpose_is_returned`、固めた目的を書き直さないのは `AcceptCase.test_frozen_purpose_is_not_overwritten`、3 回で諦めるのは `FinishCase.test_three_rejections_give_up` が見る。
 - `PromptCase` の指示の字（PR の文・前提の実測の行・検索の断片・前の拒否が次の指示に入る・intake 無しの落ち）。残すのは前の run の判断を見せない `test_role_does_not_see_the_prior_run`（持ち主の決め `premises-purpose`）だけ。印に値が無い・値に印が無いのは workflows/.shared/prompt.py の emit が全体に照らす。
 - `FinishCase.test_included_block_writes_in_its_own_place`: include の道で place が分かれるのは tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、block が自前に place を組まないのは tests/layers の `test_block_shape.py`（7.1 の 7）が見る。
-- `ShapeCase` の YAML と定数の写し（`source` の enum・輪の上限・AI の node の鍵）。輪の上限は tests/layers の `test_loop_bounds.py`、AI の node の鍵は tests/layers の E7・E12・E19 の検査が見る。残すのは、受け付けが作業ツリーを比べる欄の `test_tree_keys_leave_out_porcelain`（比べる欄を全部にする壊しで、ほかの試験は赤にならない）。
+- `ShapeCase` の YAML と定数の写し（`source` の enum・輪の上限・AI の node の鍵）。輪の until の配線と上限は tests/layers の `test_loop_bounds.py`、AI の node の鍵は tests/layers の E7・E12・E19 の検査が見る。残すのは、受け付けが作業ツリーを比べる欄の `test_tree_keys_leave_out_porcelain`（比べる欄を全部にする壊しで、ほかの試験は赤にならない）。
 
 ### 7.1 standalone の fixture（`workflows/purpose/fixtures/`）
 

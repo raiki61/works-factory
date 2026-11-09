@@ -293,7 +293,7 @@ uv run --isolated python3 -m unittest discover -s tests/blocks/materials -t .
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
 - 筋書きの `gave-up.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/prior_decisions/test_prior_decisions.py` の `FlowCase.test_three_rejections_give_up` が見る。
 - `tests/blocks/prior_decisions/test_prior_decisions.py` の `FlowCase` から: いつも回す（入口の run でも回す）の 1 本（`ViewpointCase` と `test_port_values_alone_reach_the_material` の due が見る）・依頼の行の指示の字の 2 本（`request_lines` の値は `ViewpointCase.test_request_lines_and_material`、指示に載る配線は `test_port_values_alone_reach_the_material` が見る）・言語の 1 文・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
-- `ShapeCase`（YAML の写し）: 輪の上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
+- `ShapeCase`（YAML の写し）: 輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
 - `tests/blocks/prior_decisions/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
 
 ## 3 script の node

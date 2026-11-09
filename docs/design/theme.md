@@ -231,7 +231,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 - 守る keep-essence: 4（3 回拒まれたら諦める）。9（独立設計）は、この block が独立設計の返答を受けない形で守る。
 
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
-- `test_theme.py` の `ShapeTest`（入力の鍵の並び・書き手の型が形 `shared:theme-design` の写し・輪の上限・include の id と同じ名の node が無い）。輪の上限は `tests/layers/test_loop_bounds.py`、include の id は `tests/layers/test_block_shape.py`（7.1 の 13）、書き手の返答の形は書く時の `ports.pointer` が形に照らす。
+- `test_theme.py` の `ShapeTest`（入力の鍵の並び・書き手の型が形 `shared:theme-design` の写し・輪の上限・include の id と同じ名の node が無い）。輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、include の id は `tests/layers/test_block_shape.py`（7.1 の 13）、書き手の返答の形は書く時の `ports.pointer` が形に照らす。
 - 筋書き `missing-theme`（テーマの md が無いと書き手を起こさず failed。`RoundTest.test_a_missing_theme_does_not_wake_the_writer` が見る。読めないテーマで due を真にする壊しで赤）。筋書き `resubmit` は出し直しの役の指示を組んだ証なので残す。
 
 ## 10 報告の行

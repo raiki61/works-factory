@@ -366,7 +366,7 @@ bin/works-factory workflow run works-factory-premises \
 - 筋書き `gave-up`（拒まれても run を止めない道）と `bad-request`（読めない依頼で役を起こさない道）。`gave-up` は standalone と同じ YAML の道（輪は受け付けの `done` で抜け、`finish` は `trigger_rule: all_done`）で、違うのは差し替えの値だけ。`bad-request` の輪を飛ばす `when:` が壊れても、役の支度が落ちて出口が failed を返すだけで、書き込みも承認も動かない。3 回で諦めるのは `FinishCase.test_three_rejections_give_up`、読めない依頼で止めないのは `IntakeCase.test_unreadable_request_does_not_stop_the_run`・`FinishCase.test_failed_intake_is_failed` が見る。
 - `PromptCase` の全部（指示の字・検索の断片・前の拒否が次の指示に入る・intake 無しの落ち）。印に値が無い・値に印が無いのは workflows/.shared/prompt.py の emit が全体に照らす。
 - `FinishCase.test_included_block_writes_in_its_own_place`: include の道で place が分かれるのは tests/blocks/shared の `test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、block が自前に place を組まないのは tests/layers の `test_block_shape.py`（7.1 の 7）が見る。
-- `ShapeCase` の全部（`kind` の enum と語の写し・役の返答の型・出口の欄・輪の上限・AI の node の鍵）。語の写しのずれ（`MEASURED` を替える壊し）は `AcceptCase.test_measured_without_output_rejected` が赤にする。出口の欄は tests/layers の E5（`test_block_returns.py`）、輪の上限は tests/layers の `test_loop_bounds.py`、AI の node の鍵は tests/layers の E7・E12・E19 の検査が見る。
+- `ShapeCase` の全部（`kind` の enum と語の写し・役の返答の型・出口の欄・輪の上限・AI の node の鍵）。語の写しのずれ（`MEASURED` を替える壊し）は `AcceptCase.test_measured_without_output_rejected` が赤にする。出口の欄は tests/layers の E5（`test_block_returns.py`）、輪の until の配線と上限は tests/layers の `test_loop_bounds.py`、AI の node の鍵は tests/layers の E7・E12・E19 の検査が見る。
 
 ### 7.1 standalone の fixture（`workflows/premises/fixtures/`）
 
