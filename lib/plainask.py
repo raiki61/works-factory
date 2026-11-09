@@ -14,7 +14,10 @@
 - item_text(x) -> str・item_title(x) -> str | None: 人に聞く項目の要素の読み口。要素は字（本文だけ）でも {text, title} の行でもよい（前の記録は字）。
   題は役が本文と一緒に書く飾りの欄なので、item_title は改行を 1 行に畳み（lib/oneline.py の one_line。字数では切らない）、空白だけ・欄が無い・
   字の要素は None（題なし。報告の頭は種の名に戻す）を返す。題で役を拒む照らしは持たない（改行だけで役を出し直しにして run が止まる道を作らない）
-- item_row(text, title) -> dict: 人に聞く項目の行 {text, title?} を組む口（題が無ければ title の欄を持たない。行を組む式はここ 1 か所）
+- item_row(text, title, recommend, reason_push) -> dict: 人に聞く項目の行 {text, title?, recommend?, reason_push?} を組む口（値が無い欄は持たない。
+  行を組む式はここ 1 か所）。recommend は役が書いた推しを検めた値（検めるのは gatemarks.recommend_of。無人の抜け方と次の依頼の下書きが読む欄）、
+  reason_push は構造から読んだ役の推し（台帳の問いの理由に判定の役が書いた推し・構造の目が採った案）を運ぶ表示だけの欄（抜け方も下書きも読まない）。
+  item_recommend(x)・item_reason_push(x) はその読み口（字の要素・欄が無い行は None）
 - 記録のファイルの名・単位の key・行や答えの id は、対象のリポジトリのファイルの名や役の文と字で見分けられないので照らさない（人が見る）
 - 断片 plain-ask の欄の印（required-for-fields）に handled.how を入れない: 同じ置き場を持つ差分の審査の手直しの役（delta-review の
   refix-1・refix-2）は how に走らせた試験やパスの証拠を書く決まりで、参照を書かない決まりと食い違う（仕様の直す役は requirements.text で印に入る）
@@ -30,6 +33,7 @@ URL = re.compile(r"https?://\S+")
 CODE = re.compile(r"`[^`\n]*`")
 LINE_REF = re.compile(r"(?<![A-Za-z0-9_./-])[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.([A-Za-z][A-Za-z0-9]*):\d+(?:-\d+)?")
 INDEX_REF = re.compile(r"(?<![A-Za-z0-9_])[a-z_][a-z0-9_]*\[\d+\]")
+RECOMMEND = "recommend"   # 項目の行の推しの欄の名（lib/gatemarks.py が import して同じ名で使う。gatemarks は plainask を import するので逆向きは輪になる）
 WHY = ("初見の読み手が解けない run の中を指す参照（{refs}）が在る——人に聞く文には <パス>:<行> も <欄>[<番号>] も書かず、"
        "指す物が何かを平易な言葉で書け（出どころの名指しは決め手・根拠の欄に）")
 
@@ -68,6 +72,18 @@ def item_title(x) -> str | None:
     return (oneline.one_line(title) or None) if isinstance(title, str) else None
 
 
-def item_row(text: str, title: str | None) -> dict:
-    """人に聞く項目の行 {text, title?}（題が空か None なら title の欄を持たない）"""
-    return {"text": text, **({"title": title} if title else {})}
+def item_recommend(x) -> dict | None:
+    """人に聞く項目の行の欄 recommend（検める前の値のまま。字の要素・欄が無い行は None。形の検めは gatemarks.recommend_of）"""
+    return x.get(RECOMMEND) if isinstance(x, dict) and x.get(RECOMMEND) is not None else None
+
+
+def item_reason_push(x) -> str | None:
+    """人に聞く項目の行の表示だけの欄 reason_push（字でない・空は None）"""
+    got = x.get("reason_push") if isinstance(x, dict) else None
+    return got if isinstance(got, str) and got.strip() else None
+
+
+def item_row(text: str, title: str | None = None, recommend: dict | None = None, reason_push: str | None = None) -> dict:
+    """人に聞く項目の行 {text, title?, recommend?, reason_push?}（題が空か None・推しが無ければ、その欄を持たない）"""
+    return {"text": text, **({"title": title} if title else {}), **({RECOMMEND: recommend} if recommend is not None else {}),
+            **({"reason_push": reason_push} if reason_push else {})}

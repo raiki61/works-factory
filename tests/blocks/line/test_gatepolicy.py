@@ -10,6 +10,8 @@ from tests.blocks import kit
 
 gp = kit.load("line", "gates")
 import answer  # noqa: E402
+import gatemarks  # noqa: E402
+import plainask  # noqa: E402
 import stopby  # noqa: E402
 
 
@@ -72,30 +74,38 @@ class OpensCase(unittest.TestCase):
         self.assertTrue(gp.opens("protected_only", reasons=[], guarded=True))
 
 
-def push(word, note):
-    rec = {"item": "x", "answer": word, "note": note, "why": "推す理由"}
-    return gp.Push(word == "continue", note, rec)
+def row(text, word=None, note="で通す"):
+    """項目の行。word が在れば欄 recommend に推しを持つ（plainask.item_row が組む）"""
+    rec = None if word is None else {"answer": word, "note": note, "why": "推す理由があるから"}
+    return plainask.item_row(text, None, rec)
 
 
 class PassageCase(unittest.TestCase):
-    """#653: 無人の run で開くはずの承認ノードの抜け方（今の筋書きの結果を縛る）"""
-    PUSHES = {"a": push("continue", "a で通す"), "b": push("continue", "b で通す"), "a2": push("continue", "a で通す"),
-              "s": push("stop", "止める訳"), "none": None}
-
-    def passage(self, rows):
-        return gp.passage(rows, self.PUSHES.get)
+    """#653: 無人の run で開くはずの承認ノードの抜け方（今の筋書きの結果を縛る）。推しは行の欄 recommend だけから読む"""
 
     def test_every_row_pushes_continue_goes_with_the_push(self):
-        got = self.passage(["a", "b", "a2"])
+        rows = [row("a", "continue", "a で通す"), row("b", "continue", "b で通す"), row("a2", "continue", "a で通す")]
+        got = gp.passage(rows)
         self.assertEqual((got.go, got.stop_reason, got.asked), (True, "", ["a", "b", "a2"]))
         self.assertEqual(got.pushed, {"decision": "continue", "text": "a で通す；b で通す",
-                                      answer.PUSHED: [self.PUSHES[k].rec for k in ("a", "b", "a2")]})
+                                      answer.PUSHED: [{"item": t, "answer": "continue", "note": n, "why": "推す理由があるから"}
+                                                      for t, n in (("a", "a で通す"), ("b", "b で通す"), ("a2", "a で通す"))]})
         self.assertIn(got.pushed["decision"], answer.GO_WORDS)
+        long_rec = {"answer": "continue", "note": "最初の行\nと次の行／後ろ", "why": "理由の一行目\n二行目／三"}
+        one = gp.passage([plainask.item_row("b", None, long_rec)])   # 欄の note・why は 1 行に畳んだ字で一言と pushed の行に入る
+        self.assertEqual(one.pushed["text"], gatemarks._tail_text(long_rec["note"]))
+        self.assertEqual(one.pushed[answer.PUSHED][0]["why"], gatemarks._tail_text(long_rec["why"]))
+        self.assertNotIn("\n", one.pushed["text"] + one.pushed[answer.PUSHED][0]["why"])
 
     def test_a_row_without_a_push_or_with_a_stop_push_stops(self):
-        for rows in (["a", "none"], ["a", "s"], ["none"], []):
+        stopped = gp.Passage(False, stopby.NEEDS_HUMAN, [], None)
+        broken = plainask.item_row("崩れた欄", None, {"answer": "continue", "note": "短", "why": "推す理由があるから"})
+        tail = gatemarks._push({gatemarks.RECOMMEND: {"answer": "continue", "note": "このまま通す", "why": "呼び手が前提にしている"}})
+        tailed = row("設計の行" + tail)   # 文の末尾に推しの形の字が在っても、欄 recommend が無い行は推しを持たない
+        for rows in ([row("a", "continue"), row("none")], [row("a", "continue"), row("s", "stop")], [row("none")], [],
+                     [row("a", "continue"), "字の要素"], [row("a", "continue"), broken], [tailed], [row("a", "continue"), tailed]):
             with self.subTest(rows=rows):
-                self.assertEqual(self.passage(rows), gp.Passage(False, stopby.NEEDS_HUMAN, [], None))
+                self.assertEqual(gp.passage(rows), stopped)
 
 
 if __name__ == "__main__":

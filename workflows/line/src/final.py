@@ -252,7 +252,7 @@ def final_head(got: dict, why: list) -> list:
     decide = ("報告へ進めて run を終えるか、止めるか（打つ行は末尾の答え方）"
               + ("。守りのパスと許したテストの変更と消した試験は下の最初のセクションを確かめてから通す" if guarded else "")
               + (f"。{R2_KEEPS_OUT}" if r2_redesign(got) else ""))
-    return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["questions"], *got["means_questions"]]))
+    return gatemarks.head3(happened, decide, gatemarks.pushes([*held, *got["means_questions"]]))
 
 
 def returned_section(got: dict) -> list:
@@ -406,12 +406,13 @@ def question_lines(got: dict) -> list:
     if got["means_questions"]:
         lines.append(f"- {MEANS_HEAD}（R2。{len(got['means_questions'])} 件）:")
         for q in got["means_questions"]:
-            lines += [f"  {x}" for x in gatemarks.quote(q)]
+            lines += [f"  {x}" for x in gatemarks.quote(plainask.item_text(q))]
+            lines += [f"  {x}" for x in gatemarks.item_lines([q])[1:]]
         lines.append(f"  - {R2_KEEPS_OUT}" if r2_redesign(got) else f"  - {MEANS_ANSWERS}")
     if got["held"]:
         lines.append(f"- 判定の役が人に聞くと保留にしたままの問い（問いの台帳・{len(got['held'])} 件。この承認ノードの答えは問いに答えない。"
                      "問いは報告の冒頭に並ぶ）:")
-        lines += [f"  - {q}" for q in got["held"]]
+        lines += [f"  - {plainask.item_text(q)}" for q in got["held"]]
         lines.append(f"  {gatemarks.ANSWER_HOW}")
     if got["answered"]:
         lines.append(f"- {gatemarks.ANSWERED_HEAD}（問いの台帳・{len(got['answered'])} 件。保留の件数には数えない）:")
@@ -494,13 +495,13 @@ def ask(got: dict, *, mode: str, unattended: bool, run_id: str) -> dict:
 
 def unattended_pass(got: dict, *, mode: str) -> gates.Passage:
     """無人の run で開くはずの最後の承認ノードの抜け方（docs/design/plan-review.md の 20 章の 6.4・決め means-ask の 2）。開ける理由が
-    R2 の頼みどおりの違いの問い（means_questions）だけの時は、その問いの行を gates.passage に掛ける（どの問いも通す推しを持つ時だけ推しで
-    進む。continue / stop がそのまま問いへの答えなので、推しの continue が答えになる）。ほかの開ける理由が 1 つでも在る（問いを除いた
+    R2 の頼みどおりの違いの問い（means_questions）だけの時は、その問いの行を gates.passage に掛ける（どの問いの行も欄 recommend に通す推しを持つ時
+    だけ推しで進む。continue / stop がそのまま問いへの答えなので、推しの continue が答えになる）。ほかの開ける理由が 1 つでも在る（問いを除いた
     材料の needs が空でない。開き方 protected_only で開かない理由も数える）か、開き方 always（問いが無くても開く）なら止める"""
     others = needs({**got, "means_questions": []})
     if mode == gates.ALWAYS or others or not got["means_questions"]:
         return gates.Passage(False, stopby.NEEDS_HUMAN, [], None)
-    return gates.passage(got["means_questions"], gates.row_push)
+    return gates.passage(got["means_questions"])
 
 
 def keep(out: dict, place: Path) -> dict:
@@ -548,7 +549,10 @@ def ledger_rows(judged: dict | None, given: dict, before_fix, *, unattended: boo
     except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
         return empty, [f"判定の問いの控えを読めない（保留の問いを数えていない。{type(error).__name__}: {error}）"]
     units = [u.get("key") for u in b.record["units"]]
-    return ({"held": gatemarks.held_lines(b), "answered": gatemarks.answered_lines(b),
+    lines = gatemarks.held_lines(b)
+    pushes = [gatemarks.reason_push(q) or None for q in gatemarks.held_questions(b)]
+    held = [plainask.item_row(line, None, None, pushes[i] if i < len(pushes) else None) for i, line in enumerate(lines)]
+    return ({"held": held, "answered": gatemarks.answered_lines(b),
              "unmatched": gatemarks.unmatched_answer_lines(b), "unread_holds": gatemarks.unread_hold_lines(b),
              "lost_ties": gatemarks.lost_ties(b.ties, b.record["questions"], units)}, [])
 
@@ -647,9 +651,16 @@ def split_and_unproven(fixed: dict, judgment) -> tuple:
 
 
 def eye_texts(items) -> list:
-    """独立の目の問い（eyes の出力の questions・means_questions）の本文の字の並び。要素は字でも {text, title} の行でもよい（題は報告の頭の側で読む。
+    """独立の目の問い（eyes の出力の questions）の本文の字の並び。要素は字でも {text, title} の行でもよい（題は報告の頭の側で読む。
     ここは本文だけ）。本文の無い行は落とす"""
     return [plainask.item_text(q) for q in items or [] if isinstance(q, str) or plainask.item_text(q)]
+
+
+def eye_rows(items) -> list:
+    """独立の目の問い（eyes の出力の means_questions）の行 {text, recommend?, …} の並び。字の要素は本文だけの行に、行の要素は欄 recommend を落とさずに
+    持ち回る（題は報告の頭の側で読む）。本文の無い行は落とす"""
+    return [plainask.item_row(plainask.item_text(q), None, plainask.item_recommend(q)) for q in items or []
+            if isinstance(q, str) or plainask.item_text(q)]
 
 
 def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None, eyes: dict | None, seal_got: dict | None,
@@ -687,7 +698,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "mismatched": [x for x in fixed.get("mismatched") or [] if isinstance(x, str)],
         "eyes": {name: eye.get(name) for name in (*EYES, "premise_check")},
         "questions": eye_texts(eye.get("questions")),
-        "means_questions": eye_texts(eye.get("means_questions")),
+        "means_questions": eye_rows(eye.get("means_questions")),
         "spec_changed": [q for q in (spec_check or {}).get("questions") or [] if isinstance(q, str)],
         "spec_unchecked": (spec_check or {}).get("unchecked") is True,
         "objection": str(fixed.get("objection") or ""), "rejudge_verdict": str((judged or {}).get("rejudge_verdict") or ""),

@@ -220,7 +220,7 @@ class FenceCase(unittest.TestCase):
         "stop-reasons": ['HEAD = "works:"', "WAIT_WORDS = stopby.WAITING"],
         "start-record": ['NAME = "start.json"'],
         "human-gates": ['FINAL_GATES = ("always", "when_needed", "protected_only")', "import gates as gp",
-                        "pushed = [policy.row_push(r) for r in rows]"],
+                        "go = rec[gatemarks.RECOMMEND_KEYS[0]] == gatemarks.RECOMMEND_ANSWERS[0]"],
         "gate-evidence": ['RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "'],
         "accept-round": ["out = rolekit.with_done(d, name, got)", "if iteration >= GIVE_UP_AFTER:",
                          'REJECTS_FILE = "report-rejects.json"', "GIVE_UP_AFTER = 3"],

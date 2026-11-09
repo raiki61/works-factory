@@ -5,7 +5,7 @@
   THEME_CONVERGE に足し、止め時を src.rounds.decide で決める。計画の往復の plan-out と同じ口）
 - failed() -> dict: 設計の案ができなかった形の theme-out の返り（欄の名の正本）
 - design_of(po)・design_asks(po): その周の設計の案と、持ち主に聞く問い
-- items(po) -> [(種類, 文)]: 関所 gate-theme の項目（持ち主に聞く問い・往復の止まり・書き手か事前審査の諦めと落ち）。どの行も通す推しの尾を
+- items(po) -> [(種類, 文)]: 関所 gate-theme の項目（持ち主に聞く問い・往復の止まり・書き手か事前審査の諦めと落ち）。どの行も通す推しの欄を
   持たない（asks の pick は案の中の選びで、関所を通す推しではない。機械は推しを作らない）ので、無人の run は項目が 1 つでも在れば止まる
 - gate_text(...)・round_text(...): 関所の文と周ごとの控えの文
 - answer_rows(talks, request_answers=()) -> list: 人の答えの行（id H<n>。shared:human-answers.schema.json）。関所の答えの text の見出しの
@@ -101,7 +101,7 @@ def _ask_row(a: dict) -> str:
 
 
 def items(po: dict) -> list:
-    """関所 gate-theme の項目（モジュールの頭の docstring）。無人の run はこの行を src.gates.passage に掛ける（設計の下書きの 2.4 の 2）"""
+    """関所 gate-theme の項目（モジュールの頭の docstring）。字の項目は推しの欄を持たないので、無人の run は項目が在れば必ず止める（src.descend。設計の下書きの 2.4 の 2）"""
     from src import gates, rounds
     out = []
     fell = WRITER_FELL.get(str(po.get("status") or ""))

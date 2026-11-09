@@ -1,5 +1,5 @@
 {
-  "description": "無人の run が採った推しの行（lib/gatemarks.py の push_rec。lib/answer.py が答えに足す）",
+  "description": "無人の run が採った推しの行（workflows/line/src/gates.py の passage が、項目の行の欄 recommend から書く。lib/answer.py が答えに足す）",
   "type": "object",
   "properties": {
     "item": {

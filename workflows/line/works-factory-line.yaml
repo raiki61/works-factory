@@ -856,7 +856,7 @@ nodes:
           reason: {type: string}
           text: {type: string}
           # 載せなかった問い。要素は字（前の版の記録）でも {text, title} の行でもよい。題は台帳の問いの title か、機械が組んだ項目の種類の平易な言い方
-          deferred: {type: array, items: &deferred_item {type: [string, object], properties: {text: {type: string}, title: {type: string}}, required: [text]}}
+          deferred: {type: array, items: &deferred_item {type: [string, object], properties: {text: {type: string}, title: {type: string}, recommend: {type: object, properties: {answer: {type: string}, note: {type: string}, why: {type: string}}}, reason_push: {type: string}}, required: [text]}}
           asked: {type: array, items: {type: string}}
           pushed: &pushed {type: [object, 'null'], properties: {decision: {type: string}, text: {type: string}, pushed: {type: array, items: *push_row}}}
           passes: {type: array, items: &passed {type: object, properties: {node: {type: string}, round: {type: [integer, 'null']}, by: {type: string}, item: {type: string}, decided_by: {type: string}}}}

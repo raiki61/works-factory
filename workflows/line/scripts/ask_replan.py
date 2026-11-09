@@ -7,15 +7,15 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 
 直した項目ごとの事実は案の直しの事前審査の出力 replan の行 {item, units, contract_changed, human, widened}（plan-review の設計書の
 10.3）。聞くかは line が決める（src.gates.replan_asks: (contract_changed かつ 無人の run で widened でない) か human が在る。読めない
-行は聞く側に倒す）。直した項目の頼みの解き方と判定の処方の外れ（事前審査の deviations の source means・prescription）は推しの尾つきで聞く
-（depart_rows）。修正前の承認ノードの答えで通した穴の行（事前審査の穴 [kind] key の頭で始まる asked の行）は聞き直さない
+行は聞く側に倒す）。直した項目の頼みの解き方と判定の処方の外れ（事前審査の deviations の source means・prescription）は、事前審査の役の推しを行の欄 recommend に
+持たせて聞く（depart_rows）。修正前の承認ノードの答えで通した穴の行（事前審査の穴 [kind] key の頭で始まる asked の行）は聞き直さない
 （L-D26・S22）。無人の run で範囲を広げるだけの直しは聞かずに通し、足した・外した glob を widened で返す（L-G45）。無人の run で聞く
-はずの時は gates.passage（約束の欄が変わった項目の行は推しを持たないので止まる。L-D30）。
+はずの時は gates.passage（約束の欄が変わった項目の行は欄 recommend を持たないので止まる。L-D30）。
 案の直しが計画を作れなかった（replan の ok が偽）時は開かず進めない（fixed が held にする）。事前審査が諦めた・落ちた時は、その訳を
 聞く行にする（案を審査できていない）。その時の外れは、直した項目の計画の {means, deviation}・{prescription, deviation} を推しなしで並べる
 （修正前の承認ノードと同じ。無人の run なら止まる。判定の処方の文は入力 judgment の判定から引き、読めなければ読めていないと名乗る）。
 文は聞く項目ごとの節（約束の欄の変化・人に聞く穴・その項目を誤りとした申し出の文と裁定の文〔fix の conflicts。字のまま〕・前と後の
-項目の JSON）。asked は承認ノードに見せた項目の行（「項目 <id>: …」と事前審査の問いの行。answer-replan が答えの asked にする）。
+項目の JSON）。asked は承認ノードに見せた項目の本文の字の並び（「項目 <id>: …」と事前審査の問いの行。推しは文に書かない。answer-replan が答えの asked にする）。
 
 入力（with:）: replan（replan-out の got）・review（replan-review-out の got か null）・old_plan（承認済みの案の欄の pointer）・
 items（直す計画の項目の番号）・conflicts（1 回目の修正の申し出と裁定の pointer か null）・before_fix（修正前の承認ノードの答え）・
@@ -99,20 +99,21 @@ def passed_before(before_fix, face: dict) -> bool:
 
 
 def depart_rows(deviations, ids: list, before_fix) -> list:
-    """案の直しの事前審査の外れの行のうち、直した項目（ids）の頼みの解き方と判定の処方の行の項目の文（gatemarks.depart_item。推しの尾つき。
-    計画 means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行は、推しの文が書き直されていても聞き直さない: 頼みの解き方は
-    聞いた文の頭の鍵 (項目, M<n>, 向き)（gatemarks.means_key）、判定の処方は推しの尾を外した文（gatemarks.depart_key）で比べる
+    """案の直しの事前審査の外れの行のうち、直した項目（ids）の頼みの解き方と判定の処方の行の項目の行（本文は gatemarks.depart_item の文、欄 recommend は
+    事前審査の役が書いて gatemarks.recommend_of が検めた推し。計画 means-answers の 3.3 の 5）。修正前の承認ノードが continue で通した行は、推しが
+    書き直されていても聞き直さない: 頼みの解き方は聞いた文の頭の鍵 (項目, M<n>, 向き)（gatemarks.means_key）、判定の処方は本文の全文一致で比べる
     （同じ項目・同じ単位・同じ外れの訳なら同じ行。外れの訳を変えた行は聞く）。直さない項目の行は修正前の承認ノードで答え済みなので
     足さない。事前審査が諦めた・落ちた時は、deviations に直した案の計画の外れの行（gatemarks.means_rows・prescription_depart_rows。
     推しなし）を渡す"""
     import answer
     import gatemarks
+    import plainask
     revised = {int(i) for i in ids if str(i).isdigit()}
     asked = []
     if isinstance(before_fix, dict) and before_fix.get("decision") in answer.GO_WORDS:
-        asked = [a for a in before_fix.get("asked") or [] if isinstance(a, str)]
+        asked = [t for a in before_fix.get("asked") or [] if (t := plainask.item_text(a))]
     passed_means = {k for a in asked if (k := gatemarks.means_key(a)) is not None}
-    passed_text = {gatemarks.depart_key(a) for a in asked}
+    passed_text = set(asked)
     out = []
     for d in deviations if isinstance(deviations, list) else []:
         if not (isinstance(d, dict) and d.get("source") in (gatemarks.MEANS_KIND, gatemarks.PRESCRIPTION_KIND) and d.get("item") in revised):
@@ -121,10 +122,12 @@ def depart_rows(deviations, ids: list, before_fix) -> list:
         if d["source"] == gatemarks.MEANS_KIND:
             again = gatemarks.means_key(text) in passed_means
         else:
-            again = gatemarks.depart_key(text) in passed_text
-        if not again:
-            out.append(text)
-    return list(dict.fromkeys(out))
+            again = text in passed_text
+        mark = d.get("mark") if isinstance(d.get("mark"), dict) else {}
+        row = plainask.item_row(text, None, gatemarks.recommend_of(mark))
+        if not again and row not in out:
+            out.append(row)
+    return out
 
 
 def policy_row(record: dict, folder: Path, answered: list) -> str:
@@ -142,6 +145,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         policy: str = "", missing=(), means=(), judgment=None) -> dict:
     import answer
     import gatemarks
+    import plainask
     import planmarks
     import replan
     import worldmark
@@ -157,7 +161,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
     rows, widened, sections = [], [], []
     if review_got is None or review_got["status"] != "ok":
         why = "出力が無い" if review_got is None else (review_got["reason"] or review_got["status"])
-        rows.append(REVIEW_FELL.format(why=why))
+        rows.append(plainask.item_row(REVIEW_FELL.format(why=why)))
         facts = [{"item": i} for i in ids]
         judged = gates.read_located(judgment, "判定", missing, lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))
         rows += depart_rows([*gatemarks.means_rows(new_fields, worldmark.means_hints(means)),
@@ -169,36 +173,36 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         ident = r.get("item") if isinstance(r, dict) else None
         old, new = item(old_fields, ident), item(new_fields, ident)
         if not isinstance(r, dict) or old is None or new is None or "contract_changed" not in r:
-            rows.append(f"項目 {ident}: 承認済みの項目か直した項目を読めない（聞く側に倒す）")
+            rows.append(plainask.item_row(f"項目 {ident}: 承認済みの項目か直した項目を読めない（聞く側に倒す）"))
             sections += section(ident, old, new, [], ruled)
             continue
         changed = list(r.get("contract_changed") or [])
         human = [f for f in r.get("human") or [] if isinstance(f, dict) and not passed_before(before_fix, f)]
         if changed:
-            rows.append(f"項目 {ident}: 約束の欄が変わった（{'・'.join(changed)}）")
-        rows += [f"事前審査の問い: 事前審査の穴 [{f.get('kind')}] {f.get('key')}: {f.get('why')}" for f in human]
+            rows.append(plainask.item_row(f"項目 {ident}: 約束の欄が変わった（{'・'.join(changed)}）"))
+        rows += [plainask.item_row(f"事前審査の問い: 事前審査の穴 [{f.get('kind')}] {f.get('key')}: {f.get('why')}") for f in human]
         if changed or human:
             sections += section(ident, old, new, changed, ruled)
     for r in facts:
         if unattended and isinstance(r, dict) and r.get("widened") and not r.get("human"):
             widened.append(f"項目 {r.get('item')}: {replan.widen_text(r['widened'])}")
-    rows += [f"{row}{gates.UNREAD_TAIL}" for row in dict.fromkeys(missing)]
+    rows += [plainask.item_row(f"{row}{gates.UNREAD_TAIL}") for row in dict.fromkeys(missing)]
     if policy:
-        rows.append(policy)
+        rows.append(plainask.item_row(policy))
     if not rows:
         return {**closed, "go": True, "widened": widened}
     if unattended:
-        got = gates.passage(rows, gates.row_push)
+        got = gates.passage(rows)
         return {**closed, "go": got.go, "stop_reason": got.stop_reason, "widened": widened, "asked": got.asked, "pushed": got.pushed}
     lines = gatemarks.head3(f"{HEAD}が開いた。修正の段が誤りとした計画の項目を直した案に、人が決める物が {len(rows)} 件ある",
                             "直した案で 2 度目の修正へ進めるか、止めるか（打つ行は末尾の答え方）", gatemarks.push_of(rows))
-    lines += ["", f"項目（{len(rows)} 件）:", *[f"- {row}" for row in rows], *[f"- {w}" for w in widened],
+    lines += ["", f"項目（{len(rows)} 件）:", *gatemarks.item_lines(rows), *[f"- {w}" for w in widened],
               *([f"- {unread}"] if unread else []), "", *sections,
               "答え方:",
               f"- 修正に戻る: {answer.line(run_id, 'continue', '<一言>')}（一言は {RECORD} に残り、修正前の承認ノードの答えの条件と共に 2 度目の修正に届く）",
               f"- 止める: {answer.line(run_id, 'stop', '<理由>')}（報告は出る）"]
-    return {"open": True, "go": True, "stop_reason": "", "text": "\n".join(lines) + "\n", "widened": widened, "asked": rows,
-            "pushed": None}
+    return {"open": True, "go": True, "stop_reason": "", "text": "\n".join(lines) + "\n", "widened": widened,
+            "asked": [plainask.item_text(row) for row in rows], "pushed": None}
 
 
 def compute() -> dict:

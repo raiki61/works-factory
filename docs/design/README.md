@@ -460,7 +460,7 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 - lens: `lenses`
 - eyes（graph）: `eyeverdict`（観点ごとの部分は r1〜r4 へ）
 - report: `outcome`（結末の 10 語と決める順。ほかの block の欄の名〔`stalled`・`premise_check`・`units` など〕を読む読み分けは report に持ち込まず、line が `facts` の欄〔止め・人待ち・残り〕に仕分けて渡す。report の設計書の 9 節）・`report_roles`・`glossary.json`
-- line（graph の `src/`）: `fixture`・`startrec`（始めの記録を読む口。形を問わない JSON の読み書きは KEEP の `jsonfile` へ。4.3-9）・`testcmd_check`・`versions`・`gatepolicy`・`gatemarks` の承認ノードの決めの部分（`row_push`・`_as_push`、始めの記録を読む `design_only`・`request_answers` の道。4.5-4 の (a)(b)。問いの行の形と承認ノードの文の組み立ては KEEP。修正案と事前審査に渡していた文は md へ）・`depth`（段 → 回す物の表と単位ごとの深さ。block には真偽と一覧を port で渡す）・`latedepth`（修正の後の上げ直し。読み手は line だけ）・`headdepth.report_line`（4.5-6）・`converge` の往復の記録と止め・`gate_axes`・`runreport` の line だけが使う部分（`src/facts.py`。9.1）
+- line（graph の `src/`）: `fixture`・`startrec`（始めの記録を読む口。形を問わない JSON の読み書きは KEEP の `jsonfile` へ。4.3-9）・`testcmd_check`・`versions`・`gatepolicy`・`gatemarks` の承認ノードの決めの部分（推しで進むかの決め。今は line の `src/gates.py` の `passage` が項目の行の欄 `recommend` を読む。始めの記録を読む `design_only`・`request_answers` の道。4.5-4 の (a)(b)。問いの行の形と承認ノードの文の組み立ては KEEP。修正案と事前審査に渡していた文は md へ）・`depth`（段 → 回す物の表と単位ごとの深さ。block には真偽と一覧を port で渡す）・`latedepth`（修正の後の上げ直し。読み手は line だけ）・`headdepth.report_line`（4.5-6）・`converge` の往復の記録と止め・`gate_axes`・`runreport` の line だけが使う部分（`src/facts.py`。9.1）
 
 ### 9.3 lib/ の KEEP（使い手）
 
@@ -488,7 +488,7 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 - `tree_run`（test-gate・fix・merge・line・`bin/`）・`userenv`（`bin/`・report・`tree_run`）
 - `unittrees` の全部（fix・delta-review・lens・independent-design・`green_cert`・`groups`・`tree_run`。4.3-10・4.4-B）
 - `worldmark`（world・diagnose・plan・plan-review・line。行の欄と語・読み・答えの照らし。`judgebeside` への import は外し、文は md へ。報告の行の組み立て `report_lines` は world の `src/` へ）
-- `gatemarks` の KEEP の部分: 問いの行の形（問いの語 `ASKING`・人へ回す問いの選び `asks_human`・項目の推しの尾の字の形 `push_rec`。diagnose・plan-review・line・report。4.1）・承認ノードの文の組み立て `gate_text`（line・spec）・定数 `BASELINE_NOT_RUN`・`BASELINE_UNVERIFIED`・`MATERIAL_WORDS`・`SPEC_CHANGED_LABEL` とそれが組む `KIND_WORDS`（test-gate・spec・`declared_checks`・`green_cert`。4.3-7）・決め手の欄を外す `split`（replan・plan・plan-review。4.3-追加-3）・問いと答えの行の札 `GATE_NODE`・`START_GATE_NODE`・`status_named`（r1〜r4・line・report。4.3-追加-5）
+- `gatemarks` の KEEP の部分: 問いの行の形（問いの語 `ASKING`・人へ回す問いの選び `asks_human`・項目の行の推しの欄の形の検め `recommend_of`。diagnose・plan-review・line・report。4.1）・承認ノードの文の組み立て `gate_text`（line・spec）・定数 `BASELINE_NOT_RUN`・`BASELINE_UNVERIFIED`・`MATERIAL_WORDS`・`SPEC_CHANGED_LABEL` とそれが組む `KIND_WORDS`（test-gate・spec・`declared_checks`・`green_cert`。4.3-7）・決め手の欄を外す `split`（replan・plan・plan-review。4.3-追加-3）・問いと答えの行の札 `GATE_NODE`・`START_GATE_NODE`・`status_named`（r1〜r4・line・report。4.3-追加-5）
 - `fixboard` を fix.md 1.5.2 の名だけに削った物（git の 3 つ `pr_revs`・`pr_diff`・`pr_added_lines` と trace の助け。fix・delta-review・independent-design・r2 と KEEP の `writes`・`conflict`・`planbrief`・`eyekit`。新しいモジュールは作らない。4.3-1）
 - 前提の実測の行の形（`kind` の語 `実測`・`仮説`。premises・independent-design・diagnose・report）と目的の出典の語（`source` の語。purpose・independent-design・diagnose）。今 `carry`・`runreport`・`judge_accept`・`design` に割れている語を、作り手ごとの行の形のモジュールに寄せる（4.1。名は premises と purpose の設計書で決める）
 - `jsonfile`・`oneline`（ほぼ全部。`jsonfile` は dict でなければ拒む読みと、書いたバイトを返す書きを足す。4.3-9・4.3-追加-2）
