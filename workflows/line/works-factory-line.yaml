@@ -1845,7 +1845,7 @@ nodes:
       got: "$eyes.output"
       names: &eyes_names "ok r1 r2 r3 r4 questions means_questions passes premise_check notes after dirty escalate after_ok findings route route_why report sections"
   # 21.5 独立の目から修正の段へ返す輪（docs/design/line.md の 1.3・5.4）。止めた Archon は loop_group の本体に子の run の節を置けず、修正は組を子の run で回すので、
-  # 周を LIMIT 周分並べる。周 k の頭 back-k は毎周走り（Archon は飛んだ node の出力を when: が読むと誤りにするので when: を置かない）、目の route と findings を読んで返すかを決める。前の周の頭が返さなかった周は前の記録をそのまま運ぶ。返す周だけ修正・合わせ・最後の試験・独立の目が走る。
+  # 周を LIMIT 周分並べる。周 k の頭 back-k は毎周走り（Archon は飛んだ node の出力を when: が読むと誤りにするので when: を置かない。2 周目以降の頭と back-k-fixed は one_success。docs/design/line.md の 1.3 の 22 の後の段落）、目の route と findings を読んで返すかを決める。前の周の頭が返さなかった周は前の記録をそのまま運ぶ。返す周だけ修正・合わせ・最後の試験・独立の目が走る。
   # back-4 は上限の訳を記録するだけで返す節を持たない。集め eyes-back が最後に走った周の頭の状態を運ぶ
   - id: back-1
     script: eyes_back
@@ -1866,7 +1866,7 @@ nodes:
       type: object
       additionalProperties: false
       required: [go, round, only_items, notes, prior, plan, fix_plan, ripple, plan_review, answers, skip_rerun, more, rows, exit, left, fixed, tests,
-                 eyes, fingerprint, green_ok, eyes_ok, sealable, item_claims, item_kinds]
+                 eyes, fingerprint, green_ok, eyes_ok, sealable, item_claims, item_kinds, checkpoint]
       properties:
         go: {type: boolean, description: '修正の段へ返すか（偽は返す周のループを抜ける。抜けた訳は exit）'}
         round: {type: integer}
@@ -1881,17 +1881,18 @@ nodes:
         answers: *answer
         skip_rerun: {type: array, items: {type: string}}
         more: {type: array, description: 'この周より前に返した段の修正の got の並び', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力（受け皿の got）'}}
-        rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, kind: {type: string}, where: {type: string}, text: {type: string}}}}}}}
+        rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目と、返した時の作業ツリーの木 tree）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, kind: {type: string}, where: {type: string}, text: {type: string}}}}, tree: {type: string, description: '返した時の作業ツリーの木の sha（取れなかった行は持たない）'}}}}
         exit: {type: string, description: '返す周のループを抜けた訳（返す周は空）'}
-        left: {type: array, description: '上限で抜けた時に残った作り残し（最後の周の目の findings）', items: *eye_item}
-        fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後の合わせの出力'}
-        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後の試験の受け皿の got'}
-        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後の目の受け皿の got'}
+        left: {type: array, description: '抜けた時に残った作り残し（上限なら最後の周の目の findings、返した段が止まった・落ちたなら最後に返した周の項目、差分が変わらなければ今の周の目の項目）', items: *eye_item}
+        fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後に試験と独立の目を通った状態の合わせの出力（返した段が止まった・落ちた周は、返した段の合わせの封じる差分を語る欄を返す前の物に替えた物）'}
+        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後に試験と独立の目を通った周の試験の受け皿の got'}
+        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後に試験と独立の目を通った周の目の受け皿の got'}
         fingerprint: {type: [object, 'null'], properties: {head: {type: string}, diff_hash: {type: string}}}
         green_ok: {type: boolean}
         eyes_ok: {type: boolean}
-        sealable: {type: boolean, description: '最後の目の got が在り、封じてよい状態か'}
+        sealable: {type: boolean, description: '最後に試験と独立の目を通った状態の目の got が在り、封じてよい状態か'}
         item_claims: *item_claims
+        checkpoint: &back_checkpoint {type: [object, 'null'], description: '返す前の状態を封じた時の戻す先（返す前の周の番号と作業ツリーの木の sha。ほかは null）', properties: {round: {type: integer}, tree: {type: string}}}
   - id: back-1-fix
     include: works-factory-fix
     depends_on: [back-1]
@@ -1920,6 +1921,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [back-1, back-1-fix-out]
+    trigger_rule: one_success
     when: "$back-1.output.go == true"
     with:
       <<: *fixed_with
@@ -1970,7 +1972,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [back-1, back-1-fixed, back-1-fix-out, back-1-gate-out, back-1-eyes-out]
-    trigger_rule: none_failed_min_one_success
+    trigger_rule: one_success
     with:
       round: "2"
       prev: "$back-1.output"
@@ -2010,6 +2012,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [back-2, back-2-fix-out]
+    trigger_rule: one_success
     when: "$back-2.output.go == true"
     with:
       <<: *fixed_with
@@ -2060,7 +2063,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [back-2, back-2-fixed, back-2-fix-out, back-2-gate-out, back-2-eyes-out]
-    trigger_rule: none_failed_min_one_success
+    trigger_rule: one_success
     with:
       round: "3"
       prev: "$back-2.output"
@@ -2100,6 +2103,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [back-3, back-3-fix-out]
+    trigger_rule: one_success
     when: "$back-3.output.go == true"
     with:
       <<: *fixed_with
@@ -2150,7 +2154,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [back-3, back-3-fixed, back-3-fix-out, back-3-gate-out, back-3-eyes-out]
-    trigger_rule: none_failed_min_one_success
+    trigger_rule: one_success
     with:
       round: "4"
       prev: "$back-3.output"
@@ -2176,31 +2180,52 @@ nodes:
     output_format:
       type: object
       additionalProperties: false
-      required: [rows, exit, left, fixed, tests, eyes, fingerprint, green_ok, eyes_ok, sealable, item_claims]
+      required: [rows, exit, left, fixed, tests, eyes, fingerprint, green_ok, eyes_ok, sealable, item_claims, checkpoint]
       properties:
         rows: *back_rows
         exit: {type: string, description: '返す周のループを抜けた訳（周のノードが落ちた時は eyesback.EXITS の fell）'}
         left: {type: array, items: *eye_item}
-        fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後の周の合わせの出力（返さなかった run は最初の物）'}
-        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後の周の試験の受け皿の got（返さなかった run は最初の物）'}
-        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後の周の目の受け皿の got（返さなかった run は最初の物）'}
+        fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後に試験と独立の目を通った周の合わせの出力（返さなかった run は最初の物。返した段が止まった・落ちた周は返す前の状態）'}
+        tests: {type: [object, 'null'], description: 'json(returns:works-factory-test-gate): 最後に試験と独立の目を通った周の試験の受け皿の got（返さなかった run は最初の物）'}
+        eyes: {type: [object, 'null'], description: 'json(returns:works-factory-eyes): 最後に試験と独立の目を通った周の目の受け皿の got（返さなかった run は最初の物）'}
         fingerprint: {type: [object, 'null'], properties: {head: {type: string}, diff_hash: {type: string}}}
         green_ok: {type: boolean}
         eyes_ok: {type: boolean}
-        sealable: {type: boolean, description: '最後の目の got が在り、封じてよい状態か'}
+        sealable: {type: boolean, description: '最後に試験と独立の目を通った状態の目の got が在り、封じてよい状態か'}
         item_claims: *item_claims
-  # 22 封じる（直す物が無い周は飛ぶ）。depends_on は eyes でなく返す輪の集め eyes-back（最後に走った周の状態を 1 つの出どころで運ぶ。輪の節が
-  # 落ちた・最後の目の got が無い時は sealable が偽で封じが飛ぶ）。with: の fingerprint・green_ok・eyes_ok は eyes-back の欄を読む
+        checkpoint: *back_checkpoint
+  # 21.9 封じる前に作業ツリーを返す前の木へ戻す（作業ツリーを書く節。mutates_checkout の鍵は書かず、tests/layers/scan.py の CHANGE_CHECKOUT に訳を書く）。
+  # 返した段が止まった・落ちた抜け方は、返す前の状態（checkpoint が在る）を封じるが、返した段の試験を通っていない書き換えが作業ツリーに
+  # 残る。封じと当ては今の作業ツリーを読むので、封じる前に返す前の木へ戻し、書き換えは置き場の eyes-back-kept.patch に控える。checkpoint が null の run と、
+  # 指紋がもう作業ツリーと合う run は触らない。戻せない・合わない時は封じ自身の指紋の照らしが拒む。when は封じと同じ式
+  - id: eyes-back-restore
+    script: eyes_back_restore
+    runtime: uv
+    depends_on: [eyes-back]
+    when: "$fixed.output.no_fix == false && $eyes-back.output.sealable == true"
+    with:
+      fingerprint: "$eyes-back.output.fingerprint"
+      checkpoint: "$eyes-back.output.checkpoint"
+    output_format:
+      type: object
+      additionalProperties: false
+      required: [restored, kept, reason]
+      properties:
+        restored: {type: boolean, description: '作業ツリーを返す前の木へ戻し、返す前の指紋が合った'}
+        kept: {type: string, description: '返した段の書き換えの控え（置き場の eyes-back-kept.patch）のパス。控えを書かなければ空'}
+        reason: {type: string, description: '戻せなかった訳（eyesback.RESTORE_*）。戻した・触らなかった時は空'}
+  # 22 封じる（直す物が無い周は飛ぶ）。depends_on は eyes でなく返す輪の集め eyes-back（最後に試験と独立の目を通った周の状態を 1 つの出どころで運ぶ。
+  # 輪の節が落ちて前の周の記録も読めない・最後の目の got が無い時は sealable が偽で封じが飛ぶ）。with: の fingerprint・green_ok・eyes_ok は eyes-back の欄を読む
   - id: merge-seal
     include: works-factory-merge
-    depends_on: [eyes-back]
+    depends_on: [eyes-back, eyes-back-restore]
     when: "$fixed.output.no_fix == false && $eyes-back.output.sealable == true"
     with:
       mode: "seal"
       base: "$start.output.ports.base_rev"
       fingerprint: "$eyes-back.output.fingerprint"
       green_ok: "$eyes-back.output.green_ok"
-      # 目の ok も最後の周の物（最初の目の ok ではない）
+      # 目の ok も最後に試験と独立の目を通った周の物（最初の目の ok ではない。返した段が止まった・落ちた周は返す前の周の物）
       eyes_ok: "$eyes-back.output.eyes_ok"
   - id: merge-seal-out
     <<: *receiver
@@ -2214,7 +2239,7 @@ nodes:
     script: ask_final
     runtime: uv
     mutates_checkout: false
-    depends_on: [eyes-out, eyes-back, merge-seal-out]
+    depends_on: [eyes-out, eyes-back, eyes-back-restore, merge-seal-out]
     trigger_rule: none_failed_min_one_success
     with:
       fix_in: "$fix-in.output"
@@ -2223,6 +2248,7 @@ nodes:
       tests: {from: "$test-gate-final-out.output.got", if_skipped: null}
       eyes: {from: "$eyes-out.output.got", if_skipped: null}
       eyes_back: {from: "$eyes-back.output", if_skipped: null}
+      back_restore: {from: "$eyes-back-restore.output", if_skipped: null}
       seal: {from: "$merge-seal-out.output.got", if_skipped: null}
       spec_check: {from: "$spec-check-run-out.output.got", if_skipped: null}
       parallel_after: {from: "$parallel-pr-after-out.output.got", if_skipped: null}
@@ -2307,7 +2333,7 @@ nodes:
                  design-in, plan-rounds-out, ask-before-fix, answer-before-fix, fix-in, fix-out, after-fix, raise, lens-out, lens-in,
                  delta-review-out, replan-out, replan-review-out, ask-replan, answer-replan, refix-run-out, lens-2-out, lens-2-in,
                  delta-review-2-out, fixed, parallel-pr-after-out, rejudge-run-out, spec-check-run-out, judged, test-gate-final-out, eyes-in,
-                 eyes-out, back-1, back-1-fix-out, back-1-gate-out, back-1-eyes-out, back-2-fix-out, back-2-gate-out, back-2-eyes-out, back-3-fix-out, back-3-gate-out, back-3-eyes-out, eyes-back, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
+                 eyes-out, back-1, back-1-fix-out, back-1-gate-out, back-1-eyes-out, back-2-fix-out, back-2-gate-out, back-2-eyes-out, back-3-fix-out, back-3-gate-out, back-3-eyes-out, eyes-back, eyes-back-restore, merge-seal-out, ask-final, answer-final, merge-apply-out, spec-entry-out, spec-diagnose-out, spec-plan-out,
                  spec-check-out, spec-rounds, spec-ask-before-fix, spec-direction-out, spec-answer-before-fix, fixture-ask-before-fix, fixture-direction-out,
                  fixture-answer-before-fix, theme-world-out, theme-world-in, theme-blind-out, theme-design-in,
                  theme-rounds-out, theme-descend, request-in, theme-return]
@@ -2352,6 +2378,7 @@ nodes:
       eyes_in: {from: "$eyes-in.output", if_skipped: null}
       eyes: {from: "$eyes-out.output.got", if_skipped: null}
       eyes_back: {from: "$eyes-back.output", if_skipped: null}
+      back_restore: {from: "$eyes-back-restore.output", if_skipped: null}
       back_1: {from: "$back-1.output", if_skipped: null}
       merge_seal: {from: "$merge-seal-out.output.got", if_skipped: null}
       ask_final: {from: "$ask-final.output", if_skipped: null}

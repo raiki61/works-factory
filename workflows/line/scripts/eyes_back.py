@@ -5,8 +5,10 @@
 """独立の目から修正の段へ返す輪の周の頭 back-k（docs/design/line.md の 1.3・5.4。決めは src/eyesback.py の turn）。
 
 毎周走る（前の周の頭が返さなかった周は前の記録をそのまま運ぶ）。直前の目の判定の route が fix で、返す項目（findings）があれば、go を真にして修正の段への入力（only_items・notes・prior・案の欄）を返す。
-抜ける時は go を偽にして抜けた訳 exit を返し、最後の試験・目・合わせの状態を持ち越す。落ちない: 読めない・決められない時は輪の節が
-落ちたとして抜ける（封じず、最後の承認ノードが開ける理由にする）。
+返す時は今の作業ツリーの木（snap に渡す eyesback.tree_now）を新しい周の行に控える。
+抜ける時は go を偽にして抜けた訳 exit を返し、最後に試験と独立の目を通った状態を持ち越す（返した段が止まった・落ちた周は、返す前のその状態と
+戻す先の checkpoint を持ち越して封じる）。落ちない: 読めない・決められない時は輪の節が落ちたとして抜ける（状態を持たず封じず、
+最後の承認ノードが開ける理由にする）。
 
 入力（with:）: round（周の番号）・prev（前の周の頭の出力。1 周目は null）・fixed（直前の修正の段の合わせ）・judged・fix_in
 （line の node の返り）・tests・eyes（直前の最後の試験と独立の目の受け皿の got）・replan・answer_replan（案の直しの受け皿の got と答えの node の
@@ -58,14 +60,14 @@ def compute():
         k=int(ports.text(raw["round"])), prev=ports.parsed(raw["prev"]), fixed=fixed,
         judged=ports.parsed(raw["judged"]), fix_in=ports.parsed(raw["fix_in"]), tests=picked(raw["tests"], TESTS),
         eyes=picked(raw["eyes"], EYES), replan=picked(raw["replan"], REPLAN), answer_replan=picked(raw["answer_replan"], ANSWER_REPLAN),
-        plan_fields=plan_fields(fixed))
+        plan_fields=plan_fields(fixed), snap=lambda: eyesback.tree_now(Path.cwd()))
 
 
 def fallen(reason: str) -> dict:
     return {"go": False, "round": 0, "only_items": [], "notes": "", "prior": None, "plan": None, "fix_plan": None, "ripple": None,
             "plan_review": None, "answers": None, "skip_rerun": [], "more": [], "rows": [], "exit": EXIT_FELL, "left": [], "fixed": None,
             "tests": None, "eyes": None, "fingerprint": None, "green_ok": False, "eyes_ok": False, "sealable": False, "item_claims": None,
-            "item_kinds": []}
+            "item_kinds": [], "checkpoint": None}
 
 
 ports.run(compute, fallen)

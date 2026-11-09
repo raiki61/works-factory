@@ -68,7 +68,7 @@
     {
       "name": "封じと最後の承認",
       "source": "docs/design/line.md の 1.3 の 22〜24・2 節の 4",
-      "nodes": ["merge-seal", "merge-seal-out", "ask-final", "gate-final", "answer-final", "merge-apply", "merge-apply-out"],
+      "nodes": ["eyes-back-restore", "merge-seal", "merge-seal-out", "ask-final", "gate-final", "answer-final", "merge-apply", "merge-apply-out"],
       "wiring": ["merge-seal-out", "merge-apply-out"]
     },
     {

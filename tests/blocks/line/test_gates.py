@@ -581,7 +581,8 @@ def final_got(final, **over) -> dict:
            "beside_unread": [], "allowed_tests": [], "allowed_untouched": 0, "removed_tests": [], "untested": [], "unsatisfied": [], "structure_missing": "", "sealed": True, "seal_reason": "",
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
            "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": [],
-           "eyes_back": {"rows": [], "exit": "返す物が無い", "left": []}}   # 独立の目から修正の段へ返さずに抜けた輪の記録
+           "eyes_back": {"rows": [], "exit": "返す物が無い", "left": []},   # 独立の目から修正の段へ返さずに抜けた輪の記録
+           "back_restore": None}   # 封じる前の戻しの結末（戻す節が飛んだ run は null）
     return {**got, **over}
 
 
@@ -689,6 +690,44 @@ class AskFinalCase(unittest.TestCase):
         out = self.ask(got, mode="protected_only", unattended=True)
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, __import__("stopby").NEEDS_HUMAN))
         self.assertFalse(any(self.f.BACK_FELL in phrase for phrase in self.f.final_needs(got)), "3 周で抜けたのは輪の節が落ちたのとは別")
+
+    def test_failed_restore_opens_and_the_returned_section_names_the_kept_patch(self):
+        """返した段が止まって返す前の状態を封じる run（eyes_back が checkpoint を持つ）では、返した周の節が封じたのが 1 周目に返す前の状態であることと
+        控えのパスを言う。戻しの結末が空でない reason を持つ（戻せなかった）時は、作業ツリーが半ば戻ったかもしれないので、開き方に依らず開く理由に出す。
+        戻しの結末を持たない材料は今と同じ節のまま"""
+        eb = kit.load(BLOCK, "eyesback")
+        left = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
+        record = {"rows": self.BACK_ROWS[:1], "exit": f"{eb.EXITS['stop']}（修正の段の合わせが進めなかった）", "left": left,
+                  "checkpoint": {"round": 1, "tree": "t1"}}
+        plain = final_got(self.f)
+        self.assertEqual(self.f.returned_section(plain), [])
+        kept = final_got(self.f, eyes_back=record, back_restore={"restored": True, "kept": "k.patch", "reason": ""})
+        text = self.f.final_text(kept, self.f.final_needs(kept), RUN)
+        self.assertIn("1 周目に返す前の状態", text)
+        self.assertIn("k.patch", text)
+        self.assertFalse(any("返す前の状態へ戻せなかった" in why for why, _ in self.f.needs(kept)), "戻せた時は開ける理由にしない")
+        failed = final_got(self.f, eyes_back=record, back_restore={"restored": False, "kept": "k.patch", "reason": eb.RESTORE_DIFFERS})
+        why = self.f.needs(failed)
+        self.assertTrue(any("返す前の状態へ戻せなかった" in phrase and must for phrase, must in why), why)
+        for mode in ("when_needed", "protected_only"):
+            self.assertTrue(self.ask(failed, mode=mode)["open"], mode)
+        self.assertIn(eb.RESTORE_DIFFERS, self.ask(failed, mode="protected_only")["text"])
+        self.assertIn("k.patch", self.ask(failed, mode="protected_only")["text"], "戻せなくても控えの在りかを言う")
+
+    def test_internal_error_round_opens_and_says_the_seal_is_the_state_before_the_return(self):
+        """返した周の節が中の誤りで落ちて、次の周の頭が返す前の状態を持ち越した記録（exit が輪の節が落ちた・checkpoint が在る）では、最後の承認ノードは
+        開き方に依らず開き、理由に BACK_FELL を出し、返した周の節が封じに出したのが 1 周目に返す前の状態であることと、返したが直せなかった項目を言う"""
+        eb = kit.load(BLOCK, "eyesback")
+        left = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
+        record = {"rows": self.BACK_ROWS[:1], "exit": eb.EXITS["fell"], "left": left, "checkpoint": {"round": 1, "tree": "t1"}}
+        got = final_got(self.f, eyes_back=record, back_restore={"restored": True, "kept": "k.patch", "reason": ""})
+        self.assertTrue(any(self.f.BACK_FELL in phrase and must for phrase, must in self.f.needs(got)), self.f.needs(got))
+        for mode in ("when_needed", "protected_only"):
+            self.assertTrue(self.ask(got, mode=mode)["open"], mode)
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        self.assertIn("1 周目に返す前の状態", text)
+        self.assertIn("返したが直せなかった項目", text)
+        self.assertIn("写しが残っている", text)
 
     def test_removed_tests_are_their_own_must_reason_and_section(self):
         """下書き 4.1 の 7・4.3: 消した試験（修正の出力の removed_tests）は開き方に依らず開ける理由と節に出し、消しただけの試験のファイルを

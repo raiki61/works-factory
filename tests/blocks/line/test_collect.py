@@ -6,6 +6,7 @@ docs/design/report.md の 1.2 の表の欄ごとに見る。組んだ形は repo
 守る keep-essence: 8（人に回した申し出で人待ちに倒す。waits.conflicts）・10（守りのパスの当たりの数を tallied に入れる）・11（TDD の
 単位ごとの節を fix の report から載せる）
 """
+import inspect
 import json
 import pathlib
 import unittest
@@ -482,6 +483,22 @@ class SectionsCase(unittest.TestCase):
         self.assertLess(titles.index(self.s.EYES), titles.index(self.s.BACK))
         for record in (None, {"rows": [], "exit": "返す物が無い", "left": []}):
             self.assertNotIn(self.s.BACK, [s["title"] for s in self.build({**passing(), "eyes_back": record})])
+
+    def test_back_lines_read_a_missing_restore_outcome_as_no_record(self):
+        """返した周の節の行 back_lines は、封じた周の checkpoint を持つ記録と戻しの結末を lines に渡す。戻しの結末が null（戻す節が飛んだ）なら
+        結末の記録が無いと言い、変えていなかったとは言わない。空の dict（戻す節が走って何も変えなかった）とは行が違う"""
+        params = inspect.signature(self.s.back_lines).parameters
+        self.assertIn("back_restore", params, f"back_lines の引数 {sorted(params)} に back_restore が無い")
+        items = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
+        eb = kit.load(BLOCK, "eyesback")
+        rows = [{"round": 1, "r1": "fix-needed", "r2": "pass", "items": items}]
+        record = {"rows": rows, "exit": eb.EXITS["stop"], "left": items, "checkpoint": {"round": 1, "tree": "t1"}}
+        missing = self.s.back_lines(record, None)
+        self.assertTrue(any("戻しの結末の記録が無い" in line for line in missing), missing)
+        self.assertFalse(any("変えていなかった" in line for line in missing), missing)
+        ran = self.s.back_lines(record, {})
+        self.assertTrue(any("変えていなかった" in line for line in ran), ran)
+        self.assertNotEqual(missing, ran)
 
     def test_broken_loop_is_named_when_a_round_head_ran(self):
         """周の節が中の誤りで落ちると集め eyes-back が飛ぶ（eyes_back が null）。周の頭 back-1 が走っていれば、返した周の節に「返す輪が途中で

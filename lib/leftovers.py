@@ -1,7 +1,11 @@
-"""修正役の後始末（blk-fix の節 ignored_before・clean・assert_changed が import するモジュール。節ではないので scripts/ でなくここに置く）。
+"""修正役の後始末と、作業ツリーを木の姿へ戻す手続き（blk-fix の節 ignored_before・clean・assert_changed が import するモジュール。節ではないので scripts/ でなくここに置く）。
+戻しの手続き touched・restore・restore_paths の使い手は 2 つ: 修正の block（workflows/fix/src/common.py が同じ名で引く）と line の封じる前の戻し（workflows/line/src/eyesback.py の restore_before_seal）。
 
 - git・git_names:     git を呼ぶ手続き（-z で読むパスの一覧も。Unreadable と合わせて、blk-fix の正本はここの 1 本。期限は付けない）
 - snapshot:           作業ツリーの今の姿（未追跡の新しいファイルも）を一時の index で固めた木の sha（本物の index は触らない）
+- touched:            木 a から木 b で変わったパス（足した・消したを含む）
+- restore:            作業ツリーを木の姿に戻す（その後に変わった・足した・消したファイルだけ）
+- restore_paths:      作業ツリーの指したパスだけを木の姿に戻す（木に無いパスは消す）
 - record_ignored:     修正役の前の git が無視するファイル・丸ごと無視されるフォルダと未追跡のフォルダと、段の頭の木（snapshot）を
                       置き場の fix-ignored-before.json に控える（節 ignored-before）
 - head_tree:          控えた段の頭の木（修正の受け付けが最後の回に止めた単位の足跡を戻す先）
@@ -70,6 +74,35 @@ def snapshot(repo) -> str:
             git(repo, "read-tree", "HEAD", env=env)
         git(repo, "add", "-A", "--", ":/", env=env)
         return git(repo, "write-tree", env=env).strip()
+
+
+def touched(repo, a: str, b: str) -> list:
+    """木 a から木 b で変わったパス（足した・消したを含む）"""
+    return sorted(set(git_names(repo, "diff-tree", "-r", "--name-only", "--no-renames", a, b)))
+
+
+def restore(repo, tree: str) -> list:
+    """作業ツリーを木 tree の姿に戻す（その後に変わった・足した・消したファイルだけ）。戻したパスを返す"""
+    return restore_paths(repo, tree, touched(repo, tree, snapshot(repo)))
+
+
+def restore_paths(repo, tree: str, paths) -> list:
+    """作業ツリーの paths だけを木 tree の姿に戻す（tree に無いパスは消す）。戻したパスを返す"""
+    paths = sorted(set(paths))
+    if not paths:
+        return []
+    keep = set(paths) & set(git_names(repo, "ls-tree", "-r", "--name-only", tree))
+    for p in paths:
+        if p not in keep:
+            f = pathlib.Path(repo) / p
+            if f.is_file() or f.is_symlink():
+                f.unlink()
+    if keep:
+        with tempfile.TemporaryDirectory(prefix="works-tdd-index-") as td:
+            env = {**os.environ, "GIT_INDEX_FILE": str(pathlib.Path(td) / "index")}
+            git(repo, "read-tree", tree, env=env)
+            git(repo, "checkout-index", "-f", "--", *sorted(keep), env=env)
+    return paths
 
 
 def ignored_files(repo) -> list:

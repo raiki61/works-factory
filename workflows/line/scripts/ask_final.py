@@ -9,10 +9,12 @@
 green_ok・eyes_ok・r2）もこの node が受け皿の got から返す（受け皿の got の中の欄は Archon の with: で読めない。output_format の宣言の
 外の道になるため）。封じが飛んだ・落ちた時は sealed_hash が空で、開ける理由に「差分を封じられなかった」が入る（閉じた側に倒れる）。
 
-試験・目・合わせは最後の周の物を使う（独立の目から修正の段へ返した run は返した後の物。src.eyesback.current が選ぶ唯一の所を 1 度呼び、文と
-merge の apply に渡す値の両方へ同じ物を渡す）。返す輪の集め eyes_back は材料の欄 eyes_back として運び、返した周の節と開ける理由が読む。
+試験・目・合わせは最後に試験と独立の目を通った周の物を使う（独立の目から修正の段へ返した run は、返した後の物か、返した段が止まった・落ちた時は
+返す前の物。src.eyesback.current が選ぶ唯一の所を 1 度呼び、文と merge の apply に渡す値の両方へ同じ物を渡す）。返す輪の集め eyes_back と
+封じる前の戻しの結末 back_restore は材料の欄として運び、返した周の節と開ける理由が読む。
 
-入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes（最初の試験と目の受け皿の got）・eyes_back（返す輪の集めの出力）・seal・spec_check・parallel_after・replan_review（受け皿の got か
+入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes（最初の試験と目の受け皿の got）・eyes_back（返す輪の集めの出力）・
+back_restore（封じる前の戻しの結末。戻す節が飛んだ run は null）・seal・spec_check・parallel_after・replan_review（受け皿の got か
 null）・replan_answer（案の直しの承認ノードの答えか null）・widened（ask-replan の widened か null）・start_answer（起動の承認ノードの答えか
 null。今は文に載せない）・record（始めの記録の pointer）・final_gate（開き方）・ports（start の配る値）・
 request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
@@ -39,7 +41,7 @@ PARALLEL = ("ok", "status", "stop_reason", "reason", "material", "report")
 def compute() -> dict:
     raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "fixed": os.environ.get("INPUTS_FIXED"), "judged": os.environ.get("INPUTS_JUDGED"),
            "tests": os.environ.get("INPUTS_TESTS"), "eyes": os.environ.get("INPUTS_EYES"), "eyes_back": os.environ.get("INPUTS_EYES_BACK"),
-           "seal": os.environ.get("INPUTS_SEAL"),
+           "back_restore": os.environ.get("INPUTS_BACK_RESTORE"), "seal": os.environ.get("INPUTS_SEAL"),
            "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "parallel_after": os.environ.get("INPUTS_PARALLEL_AFTER"),
            "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"), "replan_answer": os.environ.get("INPUTS_REPLAN_ANSWER"),
            "widened": os.environ.get("INPUTS_WIDENED"), "start_answer": os.environ.get("INPUTS_START_ANSWER"),
@@ -70,7 +72,8 @@ def compute() -> dict:
     got = final.gather(fix_in=dict(fix_in), fixed=dict(fixed), judged=ports.picked(raw["judged"], JUDGED), tests=tests, eyes=eyes,
                        seal_got=seal, spec_check=ports.picked(raw["spec_check"], SPEC), parallel_after=parallel_after,
                        replan_answer=ports.parsed(raw["replan_answer"]), widened=widened if isinstance(widened, list) else [],
-                       record=record, given=given, rounds_lines=rounds_lines, unread=unread, eyes_back=eyes_back, missing=missing)
+                       record=record, given=given, rounds_lines=rounds_lines, unread=unread, eyes_back=eyes_back,
+                       back_restore=ports.parsed(raw["back_restore"]), missing=missing)
     out = final.ask(got, mode=ports.text(raw["final_gate"]), unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"])
     return {**final.keep(out, ports.place()), **final.merge_values(tests, eyes, seal)}
 

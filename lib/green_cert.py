@@ -57,7 +57,7 @@ def diff_bytes(repo, rev, *, skip=()) -> bytes:
 
 
 def diff_between(repo, before, after, *, skip=()) -> bytes:
-    """commit before から after までの差分のバイト（旗と除くパスの頭 skip は diff_bytes と同じ。作業ツリーを読まない）。
+    """commit または木の sha before から after までの差分のバイト（旗と除くパスの頭 skip は diff_bytes と同じ。作業ツリーを読まない）。
     周の鎖の最後の差分と、周ごとの差分が使う。git の木でない・rev が引けなければ ValueError"""
     try:
         return unittrees._git(repo, *unittrees._DIFF, before, after, "--", *unittrees.pathspec_without(skip)).stdout

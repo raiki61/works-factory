@@ -13,11 +13,13 @@
 組 B の試験は、ここの line_traces・ran・bound を import して使う。
 """
 import json
+import re
 import unittest
 
 import yaml
 
 from tests.blocks import kit
+from tests.blocks.line.test_wiring import would_run
 
 BLOCK = "line"
 LINE = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
@@ -543,6 +545,70 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual(asked["r2"]["status"], "pass")
         self.assertEqual(out(trace, "result")["r2_status"], "pass")
         self.assertIn("独立の目から修正の段へ 1 回返した", asked["text"])
+
+
+ROUND_NODE = re.compile(r"back-\d+(?:-.+)?|eyes-back")
+
+
+def settle(seed: dict, failing: set, go: dict) -> dict:
+    """返す輪の節（周の節と集め eyes-back）の結末を、depends_on と trigger_rule（待ち方の模型は test_wiring.would_run の 1 か所）と when で
+    求める。結末は would_run の状態の語。seed は輪の外の節（eyes-out など）の結末、failing は走って誤りで落ちる節、go は when の
+    `.go == true` が読む節の値"""
+    top = nodes()
+    state = dict(seed)
+    todo = [n for n in top if ROUND_NODE.fullmatch(n)]
+    while todo:
+        ready = [n for n in todo if all(d in state for d in top[n].get("depends_on") or [])]
+        if not ready:
+            raise AssertionError(f"待つ先の結末が決まらない節: {todo}")
+        for n in ready:
+            todo.remove(n)
+            deps = [state[d] for d in top[n].get("depends_on") or []]
+            if not would_run({**top[n], "depends_on": top[n].get("depends_on") or []}, state):
+                state[n] = "skipped_after_failure" if any(d in ("failed", "skipped_after_failure") for d in deps) else "skipped"
+                continue
+            reads = re.findall(r"\$([\w-]+)\.output\.go == true", top[n].get("when") or "")
+            state[n] = "skipped" if not all(go.get(r, False) for r in reads) else "failed" if n in failing else "completed"
+    return state
+
+
+class EyesBackFellTest(unittest.TestCase):
+    """独立の目から修正の段へ返す輪で、返した周の修正の段の中の節が誤りで落ちた run（筋書き eyes-back-fell）: 後ろの節は飛ぶが、次の周の頭と
+    集めと戻す節と封じと最後の承認ノードは走り、返す前に試験と独立の目を通った状態を封じに出す。待ち方は配線を Archon の決めに当てて確かめ
+    （周の頭が 1 つも走らない run では集めが飛んだままなことも）、Archon の源が使える時は筋書きを dry-run した trace も照らす"""
+
+    GO = {"back-1": True}   # 1 周目の頭は返す。返した段の合わせは落ちた段を受けて進めない。ほかの頭は返さない
+
+    def test_internal_error_in_the_returned_stage_seals_the_state_before_the_return(self):
+        fell = settle({"eyes-out": "completed"}, {"back-1-fix"}, self.GO)
+        self.assertEqual(fell["back-1-fix"], "failed")
+        for node in ("back-1-gate", "back-1-eyes"):
+            self.assertNotEqual(fell[node], "completed", f"{node} は落ちた修正の段の後ろなので走らない")
+        for node in ("back-1-fixed", "back-2", "back-3", "back-4", "eyes-back"):
+            self.assertEqual(fell[node], "completed", f"{node} は落ちた周の後ろでも走る")
+        stopped = settle({"eyes-out": "skipped"}, set(), self.GO)
+        self.assertEqual({n: s for n, s in stopped.items() if s == "completed"}, {}, "周の頭が 1 つも走らない run では集めも飛ぶ")
+        try:
+            trace = line_traces(("eyes-back-fell",))["eyes-back-fell"]
+        except unittest.SkipTest:
+            return
+        self.assertEqual(trace["back-1-fix__finish"]["state"], "failed")
+        for node in ("back-1-gate__result", "back-1-eyes__verdict"):
+            self.assertFalse(ran(trace, node), f"{node} は落ちた修正の段の後ろなので走らない")
+        for node in ("back-2", "eyes-back", "eyes-back-restore", "merge-seal__merge", "ask-final", "gate-final", "collect", "result"):
+            self.assertTrue(ran(trace, node), node)
+        first, second = out(trace, "back-1"), out(trace, "back-2")
+        self.assertTrue(first["go"], first)
+        self.assertFalse(second["go"], second)
+        self.assertTrue(second["exit"].startswith("修正の段"), second["exit"])
+        last = out(trace, "eyes-back")
+        self.assertTrue(last["sealable"], last)
+        self.assertEqual(last["checkpoint"]["round"], 1)
+        self.assertEqual(last["checkpoint"]["tree"], first["rows"][-1]["tree"])
+        self.assertEqual(last["fingerprint"], out(trace, "test-gate-final-out")["got"]["fingerprint"], "封じる指紋は返す前の試験の物")
+        asked = out(trace, "ask-final")
+        self.assertIn("封じに出したのは 1 周目に返す前の状態", asked["text"])
+        self.assertIn("返したが直せなかった項目", asked["text"])
 
 
 if __name__ == "__main__":
