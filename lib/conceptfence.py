@@ -1,4 +1,4 @@
-"""考えの住処の柵の道具（試験 lib/tests/test_concept_fences.py は works-factory 自身の表に、run の中の構造のブロックは対象の表に当てる）。
+"""考えの住処の柵の道具（run の中の構造のブロックが対象の表に当てる。試験 lib/tests/test_concept_fences.py は仮の置き場で道具の振る舞いだけを見る）。
 
 表 docs/concepts.json（地図 docs/concepts.md の隣）が、住処の在る考えごとに柵を持つ: 語の形（pattern。正規表現）・
 知ってよい所（allowed。fnmatch の形で `*` は `/` もまたぐ）・既知の漏れ（known。"<表の持ち主のフォルダからのパス>" → [行の数, 理由]）・
