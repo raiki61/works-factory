@@ -1,7 +1,7 @@
 """直し方の型の段 1（docs/design/fix.md の 22 節）の、型を問わない部品の試験。
 
 - route から型を引く表（src/route.weapon_of。docs/design/fix.md の 22.1 の 5 行）と、振り分けの AI に渡す単位の集まり（route_keys）
-- 試験が無いかの印 no_tests の決め（src/basecase._no_tests。docs/design/fix.md の 22.3 の 5 つの場合と、宣言を読む木。予約の 1 件だけの元の結末は 0 件）。どの試験も対象の試験を
+- 試験が無いかの印 no_tests の決め（src/basecase._no_tests。docs/design/fix.md の 22.3 の場合分けと、宣言を読む木。予約の 1 件だけの元の結末は 0 件）。どの試験も対象の試験を
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
 - 口の形（.shared/schemas/weapon-order.schema.json・schemas/weapon-return.schema.json）
@@ -149,7 +149,7 @@ def _decl(lines=None, setup=None, marker=None) -> str:
 
 
 class NoTestsCase(unittest.TestCase):
-    """no_tests の決め（4.4 の作る物 12 の 5 つの場合と、宣言を読む木）"""
+    """no_tests の決め（docs/design/fix.md の 22.3 の場合分けと、宣言を読む木）"""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

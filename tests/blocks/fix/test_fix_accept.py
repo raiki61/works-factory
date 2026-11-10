@@ -412,7 +412,7 @@ class TestLoopRedTree(FixGatesCase):
 
 
 class RedGreenKeptCase(FixGatesCase):
-    """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/design/fix.md の 22.4 の変える段の箱の義務の `before`・`after`）。
+    """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/design/fix.md の 22.4 の、起点の木と返した木の赤緑）。
     _red_green を「名指しごとの事実を返す口」と「問題の文を組む口」に割る前に作り、割る前の字（実行器を起こす順と回数・問題の行・
     飛ばした理由・守りの結末）をここに控える。割った後も同じ返答で同じ字になることを縛る（割ると、実行器を 2 回起こす・文が変わる
     のを赤にする）。場面は 8 つ: 緑の通し・base で通る赤・輪の赤の木・赤の木が通る・赤の木の後にテストが動いた・守りのテスト・

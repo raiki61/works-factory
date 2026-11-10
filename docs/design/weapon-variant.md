@@ -1,7 +1,7 @@
 # block の設計書: weapon-variant（書き手の型 variant）
 
 - 何の話か: 修正の block が `include:` する葉の block `workflows/weapon-variant/` のうち、型 `variant` の書き手の設計。共通の形（フォルダ・ports・node の並び・共通の本体・写しの照らし）は [fix.md](fix.md) の 24 節、書き手に渡す slots と鎖の並びは同じ文書の 2 節、下請けの部品は 24.9 に書いてあり、この文書は型ごとに違う物だけを書く。
-- 決めたこと: 型ごとに違う物は `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と、頭の段落 `prompts/parts/head.md` だけ。この型は、AI の node に `Agent` を足し、項目ごとに下請けの実装役と審査役を起こせる型。下書きの 11.8 の決め（案 B）で、下請けを起こすのは、TDD の輪の結果を閉じる書き手 `weapon-tdd-close` を除く 5 つ（variant・remove・pin・tidy・static）で、variant だけの型ではない（D2 の段 2 で pin・tidy・static・remove にも付けた。部品は 5 つで共通なので、この block の中に置かない）。
+- 決めたこと: 型ごとに違う物は `src/render.py` の 3 つの定数（`ORDER_WEAPON`・`SPAWNS`・`SUMMARY`）と、頭の段落 `prompts/parts/head.md` だけ。この型は、AI の node に `Agent` を足し、項目ごとに下請けの実装役と審査役を起こせる型。fix.md の 24.9 の決め（案 B）で、下請けを起こすのは、TDD の輪の結果を閉じる書き手 `weapon-tdd-close` を除く 5 つ（variant・remove・pin・tidy・static）で、variant だけの型ではない（D2 の段 2 で pin・tidy・static・remove にも付けた。部品は 5 つで共通なので、この block の中に置かない）。
 - 読む人: この block を作る・直す実装の役が、型ごとの違いを引く時に読む。急ぎではない。持ち主に求めること: なし。この文書を読んだだけで要る作業は無い。
 - 語: D1・D2 は修正の block の型の block 化の段階（D1 が書き手 5 つ、D2 が variant）。「鎖」は修正の block の YAML で、型の block の include を並べた node の並び（fix.md の 2.2.1）。「箱」は型の区分（change・keep・outside。fix.md の 22 節）。`prep` は block の最初の script node で、注文と slots を読んで書き手の指示を組む（落ちるのは run がその node で止まること。fix.md の 24.3）。「注文」は修正の block が型ごとに書く依頼（単位・範囲・許し）。「受け付け」は書き手の返答を通すか拒むかを決める修正の block の検査。「下請け」は書き手が修正案の項目ごとに Agent で起こす実装役と審査役。
 - block の状態: 今の木に在る（`workflows/weapon-variant/`）。
@@ -20,7 +20,7 @@ TDD の輪を通らず、振る舞いを変える直し（輪が緑にしなか�
 
 ## 頭の段落 `prompts/parts/head.md` の出どころ
 
-D2 の基の main（`05dbfa97`）の版の fix の `parts/variant.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。字は `workflows/weapon-variant/prompts/parts/head.md`。型ごとの頭の文を移す前の字と組み上がった指示に照らしていた試験は、移しが済んだので 2026-11-10 に消した（指示の字だけを見る試験で、書き込みも承認も守らない。持ち主の決め `tests-guard-writes`）。下請けの実装役の指示に型の決まりを渡す段落 `{weapon_rule}` に、この `head.md` を組んで差し込むのは段 2（下書きの 11.8 の決め。案 B）。
+D2 の基の main（`05dbfa97`）の版の fix の `parts/variant.md` の、見出し `# Fixing (the writer's job)` と `<!-- end rules -->` の間の字を、字を変えずに移した物。頭の段落は 1 段落（役の定義）。字は `workflows/weapon-variant/prompts/parts/head.md`。型ごとの頭の文を移す前の字と組み上がった指示に照らしていた試験は、移しが済んだので 2026-11-10 に消した（指示の字だけを見る試験で、書き込みも承認も守らない。持ち主の決め `tests-guard-writes`）。下請けの実装役の指示に型の決まりを渡す段落 `{weapon_rule}` に、この `head.md` を組んで差し込むのは段 2（fix.md の 24.9 の決め。案 B）。
 
 ## この型の受け付けの義務の在処
 
