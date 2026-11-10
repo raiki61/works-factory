@@ -3,7 +3,9 @@
 # dependencies = []
 # ///
 """返し spec-in（docs/design/judge-eyes.md の 1.3 の 4）: 仕様の段を挟まないか spec が承認で終われば go。仕様が足した受け入れ条件の行を
-依頼の行の後ろに積んだ依頼を place に書き、後の段（並行 PR・前提の実測・世界の解・先行議論の突合）へ pointer で渡す。落ちない"""
+依頼の行の後ろに積んだ依頼を place に書き、後の段（並行 PR・前提の実測・世界の解・先行議論の突合）へ pointer で渡す。落ちない。
+
+入力（with:）: spec_out（spec の返りまるごと。仕様の段を挟まない run は null）"""
 import json
 import os
 import sys
@@ -13,11 +15,14 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
+SPEC = ("status", "stop_reason", "reason", "spec", "added_rows", "added_origin")   # spec の返りのうち読む欄
+
 
 def compute():
     import jsonfile
     from src import feed, files
-    got = feed.received(os.environ.get("INPUTS_SPEC_OUT"))
+    spec = ports.picked(os.environ.get("INPUTS_SPEC_OUT"), SPEC)
+    got = None if spec is None else dict(spec)
     gate = feed.spec_gate(ports.flag(os.environ.get("INPUTS_SPEC")), got)
     added = []
     if gate["go"] and isinstance(got, dict) and got.get("added_rows"):

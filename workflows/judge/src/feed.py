@@ -1,14 +1,12 @@
 """judge の graph の返し 2 つの中身（docs/design/judge-eyes.md の 1.3 の 4 と 10）。値を組むだけで、観点の判断はしない。
 
 - MATERIAL_IDS: 素材の観点の include の id（観点の順。diagnose の materials の並びと、報告の節の並び）
-- received(raw) -> 受け皿 <include の id>-out の返り {got, why} の got（受け皿が飛んだ・返らなければ None）
 - spec_gate(spec_on, got) -> {go, stop_reason, reason}: 仕様の段を挟まないか、spec の status が approved なら go
 - merged(request, added) -> 依頼: 依頼の行（配列か findings を持つ容器）の後ろに、仕様が足した受け入れ条件の行を積む
 - diagnose_values(received, verify_by_tier) -> diagnose を回すか（go）と、渡す飛ばされうる値と、判定の裏取りを回すかと、素材の観点の
   返答の引き方（REPLY_SOURCES。観点の役の名と欄の名は graph のここが持ち、diagnose は持たない）
 """
 import headdepth  # lib/。段の語
-import ports
 import stopby  # lib/
 
 from src import fallback
@@ -38,14 +36,6 @@ DECISIONS_ROLE = "prior-decisions"
 REPLY_SOURCES = {"replies": [{"key": key, "role": role, "field": field} for key, (role, field) in REPLY_KEYS.items()],
                  "trail": list(TRAIL_ROLES), "decisions": DECISIONS_ROLE}
 
-RECEIVED = ("got", "why")   # 受け皿の返りの欄（受け皿の output_format の required の全部）
-
-
-def received(raw):
-    whole = ports.picked(raw, RECEIVED)
-    return whole["got"] if whole is not None else None
-
-
 def spec_gate(spec_on: bool, got: dict | None) -> dict:
     if not spec_on:
         return {"go": True, "stop_reason": "", "reason": ""}
@@ -68,7 +58,7 @@ def merged(request, added: list):
 
 
 def diagnose_values(received: dict, verify_by_tier: dict) -> dict:
-    """received は include の id → 受け皿の got（返りが無ければ None）。素材の観点の id と parallel-pr・world・head-depth・
+    """received は include した block の名 → その block の返りの読む欄（返りが無ければ None）。素材の観点の id と parallel-pr・world・head-depth・
     premises・purpose と、返し spec-in の出力を "spec-in" で持つ。go は前提の実測と目的の固定が通ったか（diagnose の when: が読む。
     Archon は when: が飛んだ node の出力を読むと落とすので、diagnose は返しの欄だけを読む）"""
     materials, missing = [], []

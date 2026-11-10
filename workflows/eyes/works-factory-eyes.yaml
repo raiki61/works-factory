@@ -62,31 +62,14 @@ nodes:
       base: "$ins.output.head"
       plan: "$INPUTS.plan"
       lang: "$INPUTS.lang"
-  - id: structure-after-out
-    # 受け皿の本体はここ 1 か所。ほかは <<: *receiver で受け、id・depends_on・with だけを書く（names は運ぶ欄の名）
-    <<: &receiver
-      script: returned
-      runtime: uv
-      mutates_checkout: false
-      output_format: &received
-        type: object
-        additionalProperties: false
-        required: [got, why]
-        properties:
-          got: {type: [object, 'null'], description: 'json(returns:works-factory-structure): 受けた block の出力の、names の欄を選んだ物（受け手が ports.picked で名を選ぶ）。飛ばされた block は null'}
-          why: {type: string}
-    depends_on: [structure-after]
-    with:
-      got: "$structure-after.output"
-      names: "ok status reason structure after dirty escalate report"
   - id: after-in
     script: after_in
     runtime: uv
     mutates_checkout: false
-    depends_on: [ins, structure-after-out]
+    depends_on: [ins, structure-after]
     trigger_rule: none_failed_min_one_success
     with:
-      structure_after_out: {from: "$structure-after-out.output", if_skipped: null}
+      structure_after_out: {from: "$structure-after.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -119,13 +102,6 @@ nodes:
       review: "$INPUTS.review"
       policy: "$INPUTS.policy"
       lang: "$INPUTS.lang"
-  - id: r1-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r1): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [r1]
-    with:
-      got: "$r1.output"
-      names: "ok status reason verdict questions findings report"
   # r2 は直した後の実測を読まないので待たない（E9）
   - id: r2
     include: works-factory-r2
@@ -147,13 +123,6 @@ nodes:
       test_outcomes: "$INPUTS.test_outcomes"
       tdd: "$INPUTS.tdd"
       lang: "$INPUTS.lang"
-  - id: r2-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r2): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [r2]
-    with:
-      got: "$r2.output"
-      names: "ok status reason verdict questions premise_check notes findings report"
   - id: r3
     include: works-factory-r3
     depends_on: [after-in]
@@ -169,17 +138,10 @@ nodes:
       pushes: "$INPUTS.pushes"
       decisions: "$INPUTS.decisions"
       lang: "$INPUTS.lang"
-  - id: r3-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r3): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [r3]
-    with:
-      got: "$r3.output"
-      names: "ok status reason verdict questions report"
-  # R4 は R1・R2 の後に、どちらかが落ちても回す（E8。落ちた目は受け皿が飛ぶだけ）
+  # R4 は R1・R2 の後に、どちらかが落ちても回す（E8。目の中の節が落ちても、目の返す節は落ちずに返す）
   - id: r4
     include: works-factory-r4
-    depends_on: [after-in, r1-out, r2-out]
+    depends_on: [after-in, r1, r2]
     trigger_rule: none_failed_min_one_success
     when: "$ins.output.run == true"
     with:
@@ -200,25 +162,18 @@ nodes:
       declared: "$INPUTS.declared"
       coherence: "$ins.output.merge"
       lang: "$INPUTS.lang"
-  - id: r4-out
-    <<: *receiver
-    output_format: {<<: *received, properties: {got: {type: [object, 'null'], description: 'json(returns:works-factory-r4): 出力の names の欄。飛ばされた block は null'}, why: {type: string}}}
-    depends_on: [r4]
-    with:
-      got: "$r4.output"
-      names: "ok status reason verdict questions passes coherence report"
   - id: verdict
     script: verdict
     runtime: uv
     mutates_checkout: false
-    depends_on: [ins, after-in, structure-after-out, r1-out, r2-out, r3-out, r4-out]
+    depends_on: [ins, after-in, structure-after, r1, r2, r3, r4]
     trigger_rule: all_done
     with:
-      structure_after_out: {from: "$structure-after-out.output", if_skipped: null}
-      r1_out: {from: "$r1-out.output", if_skipped: null}
-      r2_out: {from: "$r2-out.output", if_skipped: null}
-      r3_out: {from: "$r3-out.output", if_skipped: null}
-      r4_out: {from: "$r4-out.output", if_skipped: null}
+      structure_after_out: {from: "$structure-after.output", if_skipped: null}
+      r1_out: {from: "$r1.output", if_skipped: null}
+      r2_out: {from: "$r2.output", if_skipped: null}
+      r3_out: {from: "$r3.output", if_skipped: null}
+      r4_out: {from: "$r4.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false

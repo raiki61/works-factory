@@ -10,7 +10,7 @@
   判定の語の意味を知る場所は ok を決める build とここだけで、line は route と findings を読むだけ
 - build(received, *, run, merge, skip_why) -> まとめの出力
 
-received は include の id（structure-after・r1〜r4）→ 受け皿の got（返りが無ければ None）。
+received は include の id（structure-after・r1〜r4）→ その block の返りの読む欄（script が ports.picked で選ぶ。返りが無ければ None）。
 """
 import eyekit  # lib/。返らなかった目の訳（fell_text・FELL_MARK）
 import oneline  # lib/

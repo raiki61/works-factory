@@ -2,9 +2,12 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""返す node verdict（docs/design/judge-eyes.md の 1.4）: 受け皿の got から止めの語の順の最初の物と line が配る欄を組み、目的の監査の受けた
-返答を place の purpose-review.json に写し（受けていなければ {}）、まとめを verdict.json に写す。
-落ちない: 中の誤りは全部捕まえて ok: false と works:judge を返す。境の口か lib を読めない時も、標準ライブラリだけの src/fallback で返す"""
+"""返す node verdict（docs/design/judge-eyes.md の 1.4）: include した block の返りから止めの語の順の最初の物と line が配る欄を組み、目的の
+監査の受けた返答を place の purpose-review.json に写し（受けていなければ {}）、まとめを verdict.json に写す。
+落ちない: 中の誤りは全部捕まえて ok: false と works:judge を返す。境の口か lib を読めない時も、標準ライブラリだけの src/fallback で返す。
+
+入力（with:）: <block>_out（include した block の返りまるごと。飛ばされた block は null。読む欄は下の名の並びで選び、どれも欄 optional を
+無くてよい欄として読む）と、返しの spec_in・diagnose_in（返りまるごと）"""
 import json
 import os
 import sys
@@ -12,6 +15,22 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
+
+# include した block の返りのうち読む欄（src/verdict.py が読む物。欄 optional はどれも無くてよい欄として足す）
+HEAD_DEPTH = ("ok", "status", "reason", "tier", "why", "rows", "record", "report")
+SPEC = ("ok", "status", "stop_reason", "reason", "spec", "added_rows", "added_origin", "report")
+PARALLEL_PR = ("ok", "status", "stop_reason", "reason", "material", "excluded", "drafts", "reads", "downgrades", "report")
+PREMISES = ("ok", "status", "reason", "constraints", "report")
+PURPOSE = ("ok", "status", "reason", "purpose", "purpose_text", "source", "means", "report")
+WORLD = ("ok", "status", "reason", "rows", "classes", "dropped", "report")
+MATERIAL = ("ok", "status", "reason", "material", "report")
+DIAGNOSE = ("ok", "status", "mode", "stop_reason", "reason", "ready", "judgment", "units", "questions", "inputs", "brief", "materials",
+            "out_of_purpose", "answer_ties", "downgrades", "report")
+VERIFY = ("ok", "status", "stop_reason", "reason", "verify", "report")
+
+
+def _plain(got):
+    return None if got is None else dict(got)
 
 
 def _has_rows(ports, ptr) -> tuple:
@@ -39,29 +58,28 @@ def _review_reply(ports, got) -> tuple:
 
 def compute(ports):
     import jsonfile
-    from src import feed, files, verdict
-    _got = feed.received
+    from src import files, verdict
     received = {
-        "head-depth": _got(os.environ.get("INPUTS_HEAD_DEPTH_OUT")),
-        "spec": _got(os.environ.get("INPUTS_SPEC_OUT")),
+        "head-depth": _plain(ports.picked(os.environ.get("INPUTS_HEAD_DEPTH_OUT"), HEAD_DEPTH, optional=("optional",))),
+        "spec": _plain(ports.picked(os.environ.get("INPUTS_SPEC_OUT"), SPEC, optional=("optional",))),
         "spec-in": ports.parsed(os.environ.get("INPUTS_SPEC_IN")),   # 返しの返りまるごと（Archon が output_format で照らした値）
-        "parallel-pr": _got(os.environ.get("INPUTS_PARALLEL_PR_OUT")),
-        "premises": _got(os.environ.get("INPUTS_PREMISES_OUT")),
-        "purpose": _got(os.environ.get("INPUTS_PURPOSE_OUT")),
-        "world": _got(os.environ.get("INPUTS_WORLD_OUT")),
-        "prior-decisions": _got(os.environ.get("INPUTS_PRIOR_DECISIONS_OUT")),
-        "purpose-review": _got(os.environ.get("INPUTS_PURPOSE_REVIEW_OUT")),
-        "local-review": _got(os.environ.get("INPUTS_LOCAL_REVIEW_OUT")),
-        "consistency-bypass": _got(os.environ.get("INPUTS_CONSISTENCY_BYPASS_OUT")),
-        "hygiene": _got(os.environ.get("INPUTS_HYGIENE_OUT")),
-        "external-standards": _got(os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT")),
-        "procedure-trace": _got(os.environ.get("INPUTS_PROCEDURE_TRACE_OUT")),
-        "test-double-fidelity": _got(os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT")),
-        "main-path-observation": _got(os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT")),
-        "provenance": _got(os.environ.get("INPUTS_PROVENANCE_OUT")),
+        "parallel-pr": _plain(ports.picked(os.environ.get("INPUTS_PARALLEL_PR_OUT"), PARALLEL_PR, optional=("optional",))),
+        "premises": _plain(ports.picked(os.environ.get("INPUTS_PREMISES_OUT"), PREMISES, optional=("optional",))),
+        "purpose": _plain(ports.picked(os.environ.get("INPUTS_PURPOSE_OUT"), PURPOSE, optional=("optional",))),
+        "world": _plain(ports.picked(os.environ.get("INPUTS_WORLD_OUT"), WORLD, optional=("optional",))),
+        "prior-decisions": _plain(ports.picked(os.environ.get("INPUTS_PRIOR_DECISIONS_OUT"), MATERIAL, optional=("optional",))),
+        "purpose-review": _plain(ports.picked(os.environ.get("INPUTS_PURPOSE_REVIEW_OUT"), MATERIAL, optional=("optional",))),
+        "local-review": _plain(ports.picked(os.environ.get("INPUTS_LOCAL_REVIEW_OUT"), MATERIAL, optional=("optional",))),
+        "consistency-bypass": _plain(ports.picked(os.environ.get("INPUTS_CONSISTENCY_BYPASS_OUT"), MATERIAL, optional=("optional",))),
+        "hygiene": _plain(ports.picked(os.environ.get("INPUTS_HYGIENE_OUT"), MATERIAL, optional=("optional",))),
+        "external-standards": _plain(ports.picked(os.environ.get("INPUTS_EXTERNAL_STANDARDS_OUT"), MATERIAL, optional=("optional",))),
+        "procedure-trace": _plain(ports.picked(os.environ.get("INPUTS_PROCEDURE_TRACE_OUT"), MATERIAL, optional=("optional",))),
+        "test-double-fidelity": _plain(ports.picked(os.environ.get("INPUTS_TEST_DOUBLE_FIDELITY_OUT"), MATERIAL, optional=("optional",))),
+        "main-path-observation": _plain(ports.picked(os.environ.get("INPUTS_MAIN_PATH_OBSERVATION_OUT"), MATERIAL, optional=("optional",))),
+        "provenance": _plain(ports.picked(os.environ.get("INPUTS_PROVENANCE_OUT"), MATERIAL, optional=("optional",))),
         "diagnose-in": ports.parsed(os.environ.get("INPUTS_DIAGNOSE_IN")),
-        "diagnose": _got(os.environ.get("INPUTS_DIAGNOSE_OUT")),
-        "verify": _got(os.environ.get("INPUTS_VERIFY_OUT")),
+        "diagnose": _plain(ports.picked(os.environ.get("INPUTS_DIAGNOSE_OUT"), DIAGNOSE, optional=("optional",))),
+        "verify": _plain(ports.picked(os.environ.get("INPUTS_VERIFY_OUT"), VERIFY, optional=("optional",))),
     }
     world = received["world"]
     reply, unread = _review_reply(ports, received["purpose-review"])

@@ -25,7 +25,7 @@ def ptr(path: str) -> dict:
 
 
 def passing() -> dict:
-    """どの段も通った受け皿の got（include した block の名 → got）と返しの出力"""
+    """どの段も通った block の返り（include した block の名 → 返り）と返しの出力"""
     got = {
         "head-depth": {"ok": True, "status": "ok", "reason": "", "tier": "標準", "why": "原因が未知", "rows": [], "record": ptr("h.json"),
                        "report": ["- 段: 標準"]},
@@ -249,13 +249,6 @@ class ScriptCase(unittest.TestCase):
     def setUp(self):
         self.run = kit.Run(self, BLOCK)
 
-    def test_returned_carries_named_fields(self):
-        got = self.run.script("returned", "judge__x-out", got=json.dumps({"ok": True, "report": [], "extra": 1}), names="ok report")
-        self.assertEqual(got, {"got": {"ok": True, "report": [], "optional": None}, "why": ""})
-        got = self.run.script("returned", "judge__x-out", got=json.dumps({"ok": True}), names="ok report")
-        self.assertIsNone(got["got"])
-        self.assertIn("report", got["why"])
-
     def test_ins(self):
         got = self.run.script("ins", "judge__ins", spec="true", world="false", web="off")
         self.assertEqual(got, {"spec": True, "world": False, "web": "off"})
@@ -268,7 +261,7 @@ class ScriptCase(unittest.TestCase):
         spec = {"ok": True, "status": "approved", "stop_reason": "", "reason": "", "spec": ptr("judge/spec/spec.json"),
                 "added_rows": ptr("judge/spec/added-rows.json"), "added_origin": "仕様の受け入れ条件", "report": []}
         got = self.run.script("spec_in", "judge__spec-in", spec="true", request=json.dumps(REQUEST),
-                              spec_out=json.dumps({"got": spec, "why": ""}))
+                              spec_out=json.dumps(spec))
         self.assertEqual((got["go"], got["stop_reason"], got["added_origin"]), (True, "", "仕様の受け入れ条件"))
         self.assertEqual(got["added_rows"], ptr("judge/spec/added-rows.json"))
         stacked = json.loads((self.run.artifacts / got["request"]["path"]).read_text(encoding="utf-8"))
@@ -295,15 +288,15 @@ class ScriptCase(unittest.TestCase):
                                                    carried="[]", lang="")
         self.assertTrue(intake["due"], intake)
 
-    def receivers(self, got: dict) -> dict:
-        outs = {f"{name.replace('-', '_')}_out": json.dumps({"got": got.get(name), "why": ""} if got.get(name) else None)
-                for name in INCLUDED}
+    def returns(self, got: dict) -> dict:
+        """with: の入力: include した block の返りまるごと（返らない block は null）と返しの出力"""
+        outs = {f"{name.replace('-', '_')}_out": json.dumps(got.get(name)) for name in INCLUDED}
         return {**outs, "spec_in": json.dumps(got.get("spec-in")), "diagnose_in": json.dumps(got.get("diagnose-in"))}
 
     def test_diagnose_in_script(self):
         got = passing()
         got["hygiene"] = None
-        out = self.run.script("diagnose_in", "judge__diagnose-in", verify_by_tier='{"標準": true}', **self.receivers(got))
+        out = self.run.script("diagnose_in", "judge__diagnose-in", verify_by_tier='{"標準": true}', **self.returns(got))
         self.assertEqual((out["ok"], out["missing"], out["verify"], len(out["materials"])), (True, ["hygiene"], True, 9))
 
     def test_diagnose_in_falls_without_crashing(self):
@@ -313,7 +306,7 @@ class ScriptCase(unittest.TestCase):
     def test_verdict_script_writes_its_files(self):
         got = passing()
         got["world"] = {**got["world"], "rows": None}
-        out = self.run.script("verdict", "judge__verdict", world="true", **self.receivers(got))
+        out = self.run.script("verdict", "judge__verdict", world="true", **self.returns(got))
         self.assertEqual((out["ok"], out["ready"]), (True, True), out["report"])
         self.assertEqual(out["purpose_review"], ptr("judge/purpose-review.json"))
         self.assertEqual(json.loads((self.run.artifacts / "judge" / "purpose-review.json").read_text(encoding="utf-8")), {})
@@ -350,15 +343,14 @@ class WiringCase(unittest.TestCase):
         self.assertNotIn("objection", self.includes["diagnose"]["with"])
         self.assertNotIn("prior", self.includes["diagnose"]["with"])
 
-    def test_every_include_has_a_receiver_and_the_verdict_reads_receivers_only(self):
+    def test_the_verdict_reads_every_include_directly(self):
+        """verdict は include した block の返りを全部、待って直に結ぶ（返す節は落ちない形に縛る。tests/workflows/test_returns_never_fail.py）"""
         verdict = self.nodes["verdict"]
         self.assertEqual(verdict["trigger_rule"], "all_done")
+        reads = [b["from"] for b in verdict["with"].values()]
         for node in self.includes.values():
-            name = node["id"]
-            self.assertEqual(self.nodes[f"{name}-out"]["with"]["got"], f"${name}.output")
-            self.assertIn(f"{name}-out", verdict["depends_on"])
-        reads = json.dumps(verdict["with"])
-        self.assertFalse([n["id"] for n in self.includes.values() if f"${n['id']}.output" in reads], "verdict は include を直に読まない")
+            self.assertIn(node["id"], verdict["depends_on"])
+            self.assertIn(f"${node['id']}.output", reads)
 
     def test_include_ids_follow_the_verdict_table(self):
         """include の id は verdict が optional の頭に付ける名（fallback.include_id）と同じ"""
@@ -382,7 +374,7 @@ class WiringCase(unittest.TestCase):
     def test_materials_run_after_world_even_when_it_is_cut(self):
         for name in MATERIALS:
             node = self.includes[name]
-            self.assertEqual((node["depends_on"], node["trigger_rule"]), (["purpose-run", "world-out"], "none_failed_min_one_success"))
+            self.assertEqual((node["depends_on"], node["trigger_rule"]), (["purpose-run", "world"], "none_failed_min_one_success"))
 
 
 class FixtureCase(unittest.TestCase):
