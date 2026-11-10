@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>run ビューア（試作 4）</title>
+<style>
+/*TOKENS*/
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--fontStack-system); color: var(--fgColor-default); background: var(--bgColor-default); display: flex; flex-direction: column; overflow: hidden; font-size: 14px; }
+header { padding: 5px 10px; border-bottom: 1px solid var(--borderColor-default); }
+.help { display: inline-block; width: 20px; height: 20px; line-height: 18px; text-align: center; border: 1px solid var(--borderColor-default); border-radius: 50%; color: var(--fgColor-muted); cursor: help; }
+header h1 { font-size: 16px; margin: 0 0 4px; }
+header .sub { color: var(--fgColor-muted); }
+.bar { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+.bar .sub { overflow: hidden; text-overflow: ellipsis; }
+.bar button { font: inherit; font-size: 12.5px; padding: 2px 8px; border: 1px solid var(--borderColor-default); background: var(--bgColor-muted); color: var(--fgColor-default); border-radius: 6px; cursor: pointer; }
+.bar button:hover { background: var(--bgColor-neutral-muted); }
+.legend { display: flex; gap: 6px; margin-left: 10px; color: var(--fgColor-muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 3px; vertical-align: -1px; }
+/* VS Code の HTML を見る拡張は body の中身を自分の div で包むので、flex と height: 100% に頼ると図の高さが 0 になる。高さはスクリプトが窓の下の端までに合わせる（attention の milestone-map と同じ） */
+main { position: relative; display: flex; height: 600px; }
+#view { flex: 1; position: relative; overflow: hidden; background: var(--bgColor-muted); cursor: grab; }
+#view.drag { cursor: grabbing; }
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#wires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.frame { position: absolute; border: 1px solid var(--borderColor-default); border-radius: 10px; background: var(--frame-bg); }
+.frame.stage { background: var(--bgColor-default); border-width: 1.5px; }
+.frame > .fhead { position: absolute; left: 0; right: 0; top: 0; height: 32px; padding: 6px 12px; display: flex; gap: 8px; align-items: baseline; cursor: pointer; border-bottom: 1px solid var(--borderColor-muted); white-space: nowrap; overflow: hidden; }
+.frame > .fhead b { font-size: 14.5px; }
+.frame > .fhead span { color: var(--fgColor-muted); font-size: 13px; }
+.frame > .fhead:hover { background: var(--bgColor-neutral-muted); }
+.card { position: absolute; border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); box-shadow: var(--shadow); padding: 9px 12px 9px 15px; cursor: pointer; width: 290px; overflow: hidden; }
+.card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--st); }
+.card .t { display: flex; gap: 6px; align-items: baseline; }
+.card .t b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .k { font-size: 12px; padding: 0 5px; border-radius: 9px; border: 1px solid var(--borderColor-default); color: var(--fgColor-muted); white-space: nowrap; }
+.card.ai .k { background: var(--bgColor-accent-emphasis); color: var(--fgColor-onEmphasis); border-color: transparent; }
+.card.gate .k { background: var(--bgColor-severe-muted); color: var(--fgColor-severe); }
+.card .m { color: var(--fgColor-muted); font-size: 13px; margin-top: 2px; white-space: nowrap; }
+.card .w { font-size: 13.5px; margin-top: 4px; color: var(--fgColor-default); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card.group { border-width: 1.5px; }
+.card.group .open { margin-left: auto; color: var(--fgColor-accent); font-size: 12.5px; white-space: nowrap; }
+.card.wire { width: 170px; padding: 3px 8px 3px 10px; opacity: .7; box-shadow: none; }
+.card.wire .w, .card.wire .k { display: none; }
+.card.dim, .frame.dim { opacity: .45; }
+.card.sel { outline: 2px solid var(--bgColor-accent-emphasis); outline-offset: 1px; }
+.st-ok { --st: var(--bgColor-success-emphasis); }
+.st-failed { --st: var(--bgColor-danger-emphasis); }
+.st-skipped { --st: var(--borderColor-default); }
+.st-none { --st: transparent; }
+.st-running, .st-waiting { --st: #d4a72c; }
+.card.st-skipped, .card.st-none { background: var(--bgColor-muted); }
+.card.st-skipped .t b, .card.st-none .t b { color: var(--fgColor-muted); }
+.card.st-failed { background: var(--bgColor-danger-muted); }
+#world.far .card .m, #world.far .card .w, #world.far .card .k, #world.far .card .open { display: none; }
+#world.far .card { padding: 6px 10px 6px 14px; }
+#world.far .card .t b { font-size: min(calc(14px / var(--z)), 44px); }
+#world.far .card::before { width: min(calc(5px / var(--z)), 16px); }
+#world.far .card.wire .t b { font-size: min(calc(11px / var(--z)), 30px); }
+#world.far .frame > .fhead { height: auto; top: auto; bottom: 100%; border: 0; background: transparent; padding: 0 2px 2px; }
+#world.far .frame > .fhead b { font-size: min(calc(14px / var(--z)), 150px); }
+#world.vfar .card { background: var(--st) !important; border-color: transparent; }
+#world.vfar .card .t b { visibility: hidden; }
+#world.vfar .card.st-none, #world.vfar .card.st-skipped { background: var(--bgColor-neutral-muted) !important; }
+#world.far .frame > .fhead span { display: none; }
+#world.far .frame { border-width: min(calc(1.5px / var(--z)), 5px); }
+.st-future { --st: transparent; }
+.card.st-future, .frame.st-future { opacity: .32; border-style: dashed; box-shadow: none; }
+.card.st-running { --st: #d4a72c; box-shadow: 0 0 0 3px #d4a72c55; animation: pulse 1.1s ease-in-out infinite; }
+.frame.st-running { border-color: #d4a72c; border-width: 2px; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px #d4a72c1a; } }
+@media (prefers-reduced-motion: reduce) { .card.st-running { animation: none; } }
+.card.now { outline: 3px solid #d4a72c; outline-offset: 2px; }
+.frame.now > .fhead { outline: 3px solid #d4a72c; outline-offset: -2px; border-radius: 10px 10px 0 0; }
+#tl { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; background: color-mix(in srgb, var(--bgColor-default) 92%, transparent); border-top: 1px solid var(--borderColor-default); padding: 6px 12px 8px; backdrop-filter: blur(4px); }
+#tl .row { display: flex; gap: 8px; align-items: center; }
+#tl button { font: inherit; font-size: 13px; min-width: 30px; padding: 2px 8px; border: 1px solid var(--borderColor-default); background: var(--bgColor-muted); color: var(--fgColor-default); border-radius: 6px; cursor: pointer; }
+#tl button.on { background: var(--bgColor-accent-emphasis); color: var(--fgColor-onEmphasis); border-color: transparent; }
+#tl select, #tl label { font: inherit; font-size: 12.5px; color: var(--fgColor-muted); }
+#tl .now-t { font: 12.5px var(--fontStack-mono); color: var(--fgColor-default); white-space: nowrap; }
+#tl .now-w { color: var(--fgColor-muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+#band { position: relative; height: 22px; margin-top: 6px; border-radius: 5px; background: var(--bgColor-muted); cursor: pointer; overflow: hidden; }
+#band .seg { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--bgColor-default); font-size: 11px; line-height: 22px; padding-left: 4px; color: var(--fgColor-default); overflow: hidden; white-space: nowrap; }
+#band .seg.wait { background-image: repeating-linear-gradient(45deg, transparent 0 4px, #0000000d 4px 8px); }
+#band .cur { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #d4a72c; box-shadow: 0 0 0 1px var(--bgColor-default); }
+#scrub { width: 100%; margin: 4px 0 0; accent-color: #d4a72c; }
+path.e { fill: none; stroke: var(--fgColor-muted); stroke-opacity: .45; stroke-width: 1.2; }
+path.e.hot { stroke: var(--bgColor-accent-emphasis); stroke-opacity: 1; stroke-width: 2; }
+#side { position: absolute; right: 0; top: 0; bottom: 0; width: min(520px, 42%); border-left: 1px solid var(--borderColor-default); overflow: auto; padding: 12px 14px; background: var(--bgColor-default); box-shadow: -6px 0 18px #1f232822; transform: translateX(105%); transition: transform .15s ease; z-index: 5; }
+#side.on { transform: none; }
+#side .x { position: sticky; top: 0; float: right; font: inherit; font-size: 16px; border: 0; background: transparent; color: var(--fgColor-muted); cursor: pointer; }
+#side h2 { font-size: 15px; margin: 0 0 4px; }
+#side .what { color: var(--fgColor-muted); margin-bottom: 8px; }
+#side table { border-collapse: collapse; margin-bottom: 8px; }
+#side td { padding: 2px 8px 2px 0; vertical-align: top; }
+#side td:first-child { color: var(--fgColor-muted); white-space: nowrap; }
+#side pre { white-space: pre-wrap; background: var(--bgColor-muted); border: 1px solid var(--borderColor-muted); border-radius: 6px; padding: 8px; font: 12px var(--fontStack-mono); max-height: 420px; overflow: auto; }
+#side details { margin: 6px 0; }
+#side summary { cursor: pointer; }
+
+#side.wide { width: min(1100px, 82%); }
+#side .tools { position: sticky; top: 0; float: right; display: flex; gap: 2px; z-index: 2; }
+#side .tools button { font: inherit; font-size: 15px; border: 0; background: var(--bgColor-default); color: var(--fgColor-muted); cursor: pointer; padding: 0 6px; border-radius: 4px; }
+#side .tools button:hover { background: var(--bgColor-muted); }
+.run { border: 1px solid var(--borderColor-default); border-radius: 8px; margin: 10px 0; overflow: hidden; }
+.run > .rh { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--bgColor-muted); cursor: pointer; font-size: 12.5px; }
+.run > .rh .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--st); flex: none; border: 1px solid var(--borderColor-default); }
+.run > .rh .m { color: var(--fgColor-muted); }
+.run.shut > .rb { display: none; }
+.rb { padding: 8px 10px; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--borderColor-default); margin-bottom: 8px; }
+.tabs button { font: inherit; font-size: 12.5px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--fgColor-muted); padding: 4px 8px; cursor: pointer; }
+.tabs button.on { color: var(--fgColor-default); border-bottom-color: #fd8c73; font-weight: 600; }
+.tabs .n { display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--bgColor-neutral-muted); font-size: 11px; font-weight: 500; }
+.vals { display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; align-items: start; }
+.vals .k { font: 12px var(--fontStack-mono); color: var(--fgColor-accent, #4493f8); padding-top: 2px; cursor: pointer; }
+.vals .v code { font: 12px var(--fontStack-mono); background: var(--bgColor-muted); border-radius: 4px; padding: 1px 5px; white-space: pre-wrap; word-break: break-word; }
+.vals .v .empty { color: var(--fgColor-muted); font-style: italic; }
+.vals details summary { font: 12px var(--fontStack-mono); color: var(--fgColor-muted); }
+.note { color: var(--fgColor-muted); font-size: 12px; margin: 4px 0 8px; }
+#side pre.prompt { max-height: 70vh; }
+mark.val { background: #d4a72c38; color: var(--fgColor-default); border-bottom: 2px solid #d4a72c; border-radius: 2px; }
+mark.val.flash { background: #d4a72c99; }
+mark.val::before { content: attr(data-n); font: 10px var(--fontStack-mono); color: var(--fgColor-default); background: #d4a72c80; border-radius: 3px; padding: 0 3px; margin-right: 3px; }
+.talk { display: flex; flex-direction: column; gap: 6px; }
+.turn { border-left: 2px solid var(--borderColor-default); padding-left: 10px; transition: opacity .2s; }
+.turn.later { opacity: .28; }
+.turn.copied { border-left-style: dashed; }
+.turn .th { font-size: 11.5px; color: var(--fgColor-muted); display: flex; gap: 8px; margin-bottom: 3px; }
+.bub { white-space: pre-wrap; word-break: break-word; font-size: 12.5px; line-height: 1.5; margin: 3px 0; }
+.bub.say { background: var(--bgColor-accent-muted); border-radius: 8px; padding: 6px 9px; }
+.bub.user { background: var(--bgColor-muted); border-radius: 8px; padding: 6px 9px; }
+details.think > summary { font-size: 12px; color: var(--fgColor-muted); font-style: italic; }
+details.think .bub { color: var(--fgColor-muted); font-style: italic; }
+details.call { margin: 3px 0; border: 1px solid var(--borderColor-muted); border-radius: 6px; }
+details.call > summary { list-style: none; padding: 3px 8px; font-size: 12px; display: flex; gap: 6px; align-items: baseline; }
+details.call > summary::-webkit-details-marker { display: none; }
+details.call .tn { font: 600 11.5px var(--fontStack-mono); padding: 0 5px; border-radius: 4px; background: var(--bgColor-neutral-muted); color: var(--fgColor-default); flex: none; }
+details.call .tt { font: 11.5px var(--fontStack-mono); color: var(--fgColor-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+details.call .tm { font-size: 11px; color: var(--fgColor-muted); flex: none; }
+details.call.err { border-color: #ff818266; }
+details.call.err .tn { background: var(--bgColor-danger-muted); color: var(--fgColor-danger); }
+details.call.agent .tn { background: #8250df2e; color: var(--fgColor-done); }
+details.call > div { padding: 4px 8px 8px; }
+details.call b { font-size: 11.5px; color: var(--fgColor-muted); font-weight: 600; }
+details.call pre { max-height: 300px !important; }
+.sub-talk { margin: 6px 0 2px 4px; padding-left: 10px; border-left: 2px solid #c297ff; }
+.find { display: flex; gap: 6px; margin-bottom: 6px; }
+.find input { flex: 1; font: inherit; font-size: 12.5px; padding: 3px 7px; border: 1px solid var(--borderColor-default); border-radius: 6px; background: var(--bgColor-default); color: var(--fgColor-default); }
+.hidefind { display: none !important; }
+@keyframes pop { from { opacity: 0; } to { opacity: 1; } }
+.card.pop, .frame.pop { animation: pop .35s ease-out both; }
+/* 出入口（受けた・返した）の札 */
+.card.pin, .card.pout { width: 300px; padding: 8px 10px 8px 13px; border-style: solid; background: var(--bgColor-muted); }
+.card.pin::before, .card.pout::before { background: #8c959f; }
+.card.pin .t b, .card.pout .t b { font-size: 13.5px; }
+.prow { display: grid; grid-template-columns: max-content 1fr; gap: 0 8px; font: 11.5px var(--fontStack-mono); line-height: 1.55; margin-top: 4px; }
+.prow .pn { color: var(--fgColor-accent); }
+.prow .pv { color: var(--fgColor-default); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .pv.e { color: var(--fgColor-muted); font-style: italic; }
+.prow .pv .from { color: var(--fgColor-done); }
+.pmore { font-size: 11.5px; color: var(--fgColor-muted); margin-top: 3px; }
+.card .io { font-size: 12px; color: var(--fgColor-muted); margin-top: 3px; white-space: nowrap; }
+.card .io b { color: var(--fgColor-default); font-weight: 600; }
+#world.far .card .io, #world.far .prow, #world.far .pmore { display: none; }
+/* 分岐の札（カードの上の左） */
+.bchip { position: absolute; font-size: 11.5px; line-height: 18px; padding: 0 7px; border-radius: 9px; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; pointer-events: none; border: 1px solid transparent; }
+.bchip.yes { background: #1f883d26; color: var(--fgColor-success); border-color: #1f883d55; }
+.bchip.no { background: var(--bgColor-neutral-muted); color: var(--fgColor-muted); border-color: var(--borderColor-default); }
+.bchip.up { background: var(--bgColor-neutral-muted); color: var(--fgColor-muted); border-style: dashed; border-color: var(--borderColor-default); }
+.bchip.bad { background: var(--bgColor-danger-muted); color: var(--fgColor-danger); border-color: var(--fgColor-danger); }
+#world.far .bchip { display: none; }
+#world.vfar .bchip { display: none; }
+path.e.skip { stroke-dasharray: 5 5; stroke-opacity: .3; }
+path.e.swon { stroke-width: 3; stroke: var(--bgColor-accent-emphasis); stroke-opacity: .9; }
+.card.sw { width: 210px; border: 1.5px solid var(--bgColor-accent-emphasis); border-radius: 22px; background: color-mix(in srgb, var(--bgColor-accent-emphasis) 8%, var(--bgColor-default)); padding: 7px 14px; }
+.card.sw.st-skipped, .card.sw.st-future { border-color: var(--borderColor-default); background: var(--bgColor-muted); }
+.card.sw .dia { color: var(--fgColor-accent); font-size: 16px; margin-right: 4px; }
+.card.sw .arms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.card.sw .arm { font-size: 11.5px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--borderColor-default); color: var(--fgColor-muted); }
+.card.sw .arm.on { border-color: var(--bgColor-accent-emphasis); color: var(--fgColor-accent); font-weight: 600; }
+.elab.swl { font-weight: 600; }
+.elab.swl:not(.on) { opacity: .55; }
+.elab { position: absolute; transform: translate(-50%, -50%); font: 11px var(--fontStack-mono); background: var(--bgColor-default); color: var(--fgColor-done); border: 1px solid var(--borderColor-muted); border-radius: 8px; padding: 0 6px; white-space: nowrap; pointer-events: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+#world.far .elab { display: none; }
+#side .ports { display: grid; grid-template-columns: max-content max-content 1fr; gap: 3px 10px; font-size: 12px; align-items: start; margin-bottom: 8px; }
+#side .ports .pn { font: 12px var(--fontStack-mono); color: var(--fgColor-accent); }
+#side .ports .ps { color: var(--fgColor-done); font-size: 11.5px; white-space: nowrap; }
+#side .ports .ps a { color: inherit; cursor: pointer; text-decoration: underline dotted; }
+#side .ports code { font: 12px var(--fontStack-mono); background: var(--bgColor-muted); border-radius: 4px; padding: 1px 5px; white-space: pre-wrap; word-break: break-word; }
+#side .why { border: 1px solid var(--borderColor-default); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+#side .why.yes { border-left: 4px solid var(--fgColor-success); } #side .why.no { border-left: 4px solid var(--fgColor-muted); } #side .why.bad { border-left: 4px solid var(--fgColor-danger); }
+#side .why code { font: 12px var(--fontStack-mono); white-space: pre-wrap; word-break: break-word; }
+#side .why .v { background: #d4a72c38; border-radius: 3px; padding: 0 3px; }
+#side a.jump { color: var(--fgColor-accent); cursor: pointer; }
+.info { cursor: pointer; color: var(--fgColor-accent); font-size: 13px; padding: 0 3px; border-radius: 4px; }
+.info:hover { background: var(--bgColor-accent-muted); }
+.card .t .info { margin-left: 2px; }
+#world.far .info { display: none; }
+.bchip.ans { background: var(--bgColor-severe-muted, #fff1e5); color: var(--fgColor-severe); border-color: var(--fgColor-severe); }
+.card .rej { display: inline-block; margin-left: 6px; font-size: 11.5px; padding: 0 6px; border-radius: 9px; background: var(--bgColor-danger-muted); color: var(--fgColor-danger); }
+.card .rnd { display: inline-block; margin-left: 6px; font-size: 11.5px; padding: 0 6px; border-radius: 9px; background: var(--bgColor-neutral-muted); color: var(--fgColor-default); }
+#where { position: absolute; left: 10px; top: 8px; z-index: 3; font-size: 12.5px; color: var(--fgColor-muted); background: var(--bgColor-default); border: 1px solid var(--borderColor-muted); border-radius: 8px; padding: 3px 9px; pointer-events: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: var(--shadow); }
+#where b { color: var(--fgColor-default); }
+#where:empty { display: none; }
+#side .role { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 9px; margin: 2px 0 6px; border: 1px solid var(--borderColor-default); }
+#side .role.ai { background: var(--bgColor-accent-muted); } #side .role.code { background: var(--bgColor-neutral-muted); } #side .role.human { background: var(--bgColor-severe-muted, #fff1e5); } #side .role.wire { background: transparent; border-style: dashed; }
+#side h3 { font-size: 13.5px; margin: 12px 0 4px; }
+#side .sumrow { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 13px; }
+#side .sumrow > span:nth-child(odd) { color: var(--fgColor-muted); white-space: nowrap; }
+#side .item { border: 1px solid var(--borderColor-muted); border-radius: 8px; padding: 6px 9px; margin: 5px 0; font-size: 12.5px; }
+#side .item .h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+#side .item .h .m { color: var(--fgColor-muted); font-size: 11.5px; }
+#side .item.bad { border-left: 4px solid var(--fgColor-danger); } #side .item.ans { border-left: 4px solid var(--fgColor-severe); } #side .item.cost { border-left: 4px solid var(--fgColor-accent); }
+#side .item .body { white-space: pre-wrap; word-break: break-word; margin-top: 3px; max-height: 9.5em; overflow: auto; }
+#side pre.cmd { font-size: 11.5px; max-height: 260px; user-select: all; }
+#side .warn { color: var(--fgColor-danger); font-size: 12px; margin: 4px 0; }
+#side code.path { font: 12px var(--fontStack-mono); background: var(--bgColor-muted); border-radius: 4px; padding: 1px 5px; user-select: all; }
+#mini { position: absolute; left: 10px; bottom: 96px; width: 200px; height: 130px; opacity: .92; background: var(--bgColor-default); border: 1px solid var(--borderColor-default); border-radius: 6px; box-shadow: var(--shadow); }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar"><b id="title"></b><span class="sub" id="sub"></span><span style="flex:1"></span>
+    <button id="sum-t" title="run のサマリー（結果・承認の回答・リジェクト・コスト上位）">サマリー</button>
+    <button id="fit">全体を表示</button>
+    <button id="closeall">全部折りたたむ</button>
+    <button id="openstages">ステージを全部展開</button>
+    <button id="io-t" title="block 単位の I/O で見るか、Archon のノード単位で見るか">ノードビュー</button>
+    <button id="wires-t">接続スクリプトを表示</button>
+    <span class="legend" id="legend"></span>
+    <span class="help" title="開くと右にこの run のサマリー（結果・承認の回答・リジェクト・コスト上位）を表示。「I/O ビュー」は block を「入力 → 処理 → 出力」で描き、接続スクリプトを隠す（「ノードビュー」で全ノード）。カード左上のラベルは実行条件（when）の評価結果（✕ は偽でスキップ、✓ は兄弟と分岐した所）。ⓘ で block の入力値・出力値・修正箇所・再実行コマンド。立体の枠のカードはクリックで展開、枠の見出しのクリックで折りたたむ。ドラッグ（カードの上からも可）か 2 本指スクロールで移動、WASD キーでも移動。ピンチか Ctrl/⌘+スクロールでズーム（+ / − キー、0 で全体表示）。左下のミニマップはクリック・ドラッグでその位置へ移動。詳細パネルは × か Esc で閉じる。">?</span>
+  </div>
+</header>
+<main>
+  <div id="view"><div id="where"></div><div id="world"><svg id="wires"></svg></div><canvas id="mini"></canvas>
+    <div id="tl">
+      <div class="row">
+        <button id="rp-play" title="再生・一時停止（Space）">▶</button>
+        <button id="rp-prev" title="1 ステップ戻る（←）">‹</button>
+        <button id="rp-next" title="1 ステップ進む（→）">›</button>
+        <button id="rp-stop" title="再生を終了して最終状態に戻る">■</button>
+        <select id="rp-speed" title="速度"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
+        <label title="実行中のノードへ画面を追従させる"><input type="checkbox" id="rp-follow" checked> 追従</label>
+        <label title="実行中のノードの枠を自動で展開する（外すと枠は開かず、閉じた枠のカードが光る。図の並べ直しが起きない）"><input type="checkbox" id="rp-open"> 枠を自動で開く</label>
+        <span class="now-t" id="rp-t"></span><span class="now-w" id="rp-w"></span>
+      </div>
+      <div id="band"></div>
+      <input type="range" id="scrub" min="0" max="0" value="0">
+    </div></div>
+  <aside id="side"></aside>
+</main>
+<script type="application/json" id="data">/*DATA*/</script>
+<script>
+/*DAGRE*/
+</script>
+<script>
+"use strict";
+document.addEventListener("DOMContentLoaded", () => {
+const D = JSON.parse(document.getElementById("data").textContent);
+const O = D.objs, ROOT = "[]";
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (v == null) continue; if (k === "class") e.className = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
+$("title").textContent = D.head.title;
+const RUNWORD = { completed: "完了", failed: "失敗", running: "実行中", paused: "一時停止", cancelled: "キャンセル", pending: "待機中" };
+const RESWORD = { stopped_by_human: "人が停止", ok: "変更あり", no_change: "変更なし", failed: "失敗" };
+const SUMM = D.summary || {};
+$("sub").textContent = `開始 ${(D.head.started || "").replace("T", " ").slice(0, 16)}（UTC）・${RUNWORD[D.head.status] || D.head.status}・結果 ${RESWORD[D.head.result] || D.head.result}・${SUMM.seconds ? Math.round(SUMM.seconds / 60) + " 分・" : ""}$${Number(D.head.cost).toFixed(2)}`;
+for (const [s, w] of Object.entries(D.words)) $("legend").append(el("span", { class: "st-" + s }, el("i", { style: "background:var(--st);border:1px solid var(--borderColor-default)" }), w));
+
+const open = new Set([ROOT]);
+// ── 再生: 出来事の始めと終わりとスキップの時刻を「歩」にする
+const T = s => s ? Date.parse(s) : NaN;
+const leafIv = {};   // 葉の key → [{s, e, st}]
+for (const [k, o] of Object.entries(O)) if (!o.kids.length) leafIv[k] = o.events.map(e => ({ s: T(e.start), e: T(e.end), st: e.status === "ok" ? "ok" : e.status === "failed" ? "failed" : e.status === "waiting" ? "waiting" : "running" })).filter(x => !isNaN(x.s));
+const desc = {}; function leaves(k) { if (desc[k]) return desc[k]; return desc[k] = O[k].kids.length ? O[k].kids.filter(c => O[c].kind !== "switch").flatMap(leaves) : [k]; }
+const span = {}; function spanOf(k) { if (span[k]) return span[k]; let a = Infinity, b = -Infinity; for (const l of leaves(k)) for (const iv of leafIv[l] || []) { a = Math.min(a, iv.s); b = Math.max(b, isNaN(iv.e) ? iv.s : iv.e); } return span[k] = [a, b]; }
+const stepsSet = new Set();
+for (const [k, ivs] of Object.entries(leafIv)) { if (O[k].wire) continue; for (const iv of ivs) { stepsSet.add(iv.s); if (!isNaN(iv.e)) stepsSet.add(iv.e); } }
+// スキップは、続けざま（1 秒未満の間）に起きる物を 1 歩にまとめる（後ろの段がまとめてスキップになる所で、数十歩も止まって見えないように）
+{ const sk = Object.values(O).map(o => T(o.skipAt)).filter(x => !isNaN(x)).sort((a, b) => a - b);
+  for (let i = 0; i < sk.length; i++) if (i === sk.length - 1 || sk[i + 1] - sk[i] >= 1000) stepsSet.add(sk[i]); }
+// AI のノードの会話の往復の始めも歩にする（再生で、会話が 1 往復ずつ進む）
+for (const o of Object.values(O)) for (const e of o.events) { const ss = e.session && D.sess && D.sess[e.session]; if (!ss) continue; const a = T(e.start), b = T(e.end);
+  for (const t of ss.turns) { if (t.copied) continue; const x = T(t.start || t.at); if (!isNaN(x) && (isNaN(a) || x >= a) && (isNaN(b) || x <= b)) stepsSet.add(x); } }
+const steps = [...stepsSet].sort((a, b) => a - b);
+const rp = { on: false, i: steps.length - 1, timer: null, auto: new Set() };
+const now = () => steps[rp.i];
+function swVal(k) { const tk = swTaken(k), on = O[k].arms.filter((a, i) => tk[i]); if (on.length === 1 && !on[0].label.includes(",")) { const l = on[0].label; return l.startsWith("= ") ? l.slice(2) : l.slice(2) + " 以外"; } if (on.length === 1) return on[0].label; if (on.length > 1) return "周ごとに違う（" + on.map(a => a.label).join(" / ") + "）"; const v = O[k].value; return v == null || v === "null" || v === "None" ? "?" : v; }
+function swTaken(k) { return O[k].arms.map(a => a.keys.some(x => ["ok", "failed", "running", "waiting"].includes(stateAt(x)))); }
+function stateAt(k) {
+  if (O[k].kind === "switch") { if (!rp.on) return O[k].state; const tk = swTaken(k); if (tk.some(Boolean)) return "ok"; return O[k].arms.every(a => a.keys.every(x => stateAt(x) === "skipped")) ? "skipped" : "future"; }
+  if (!rp.on) return O[k].state;
+  const t = now();
+  if (!O[k].kids.length) {
+    const ivs = (leafIv[k] || []).filter(iv => iv.s <= t);
+    if (!ivs.length) return (O[k].skipAt && T(O[k].skipAt) <= t) ? "skipped" : "future";
+    const last = ivs[ivs.length - 1];
+    if (isNaN(last.e) || last.e > t) return last.st === "waiting" ? "waiting" : "running";
+    return last.st === "running" ? "ok" : last.st;
+  }
+  const [a, b] = spanOf(k);
+  if (!(a <= t)) { const sk = leaves(k).some(l => O[l].skipAt && T(O[l].skipAt) <= t); return sk && a === Infinity ? "skipped" : "future"; }
+  const ls = leaves(k).map(stateAt);
+  if (ls.includes("waiting")) return "waiting";
+  if (ls.includes("running")) return "running";
+  if (ls.includes("failed")) return "failed";
+  if (t < b) return "running";
+  return O[k].state;
+}
+const word = s => s === "future" ? "未到達" : D.words[s];
+const isGroup = k => O[k].kids.length > 0;
+const world = $("world"), wires = $("wires"), view = $("view");
+let selected = null, scale = 1, tx = 20, ty = 20, lastBox = null, hideWire = true;
+let io = true;   // I/O ビュー（block の手続きの script を隠し、受けた・返した の札を出す）
+const PROC = new Set(["script", "bash"]);
+const hidCache = new Map(), depCache = new Map();
+function hidden(k) {
+  if (hidCache.has(k)) return hidCache.get(k);
+  const o = O[k]; let h;
+  if (o.kind === "pin" || o.kind === "pout") h = !io;
+  else if (o.kind === "switch") h = o.arms.every(a => a.keys.every(hidden));
+  else if (!o.kids.length) h = (hideWire && o.wire) || (io && PROC.has(o.kind));
+  else h = io && o.kind === "loop" && o.kids.every(hidden);   // 手続きだけのループは、中身ごと隠す
+  hidCache.set(k, h); return h;
+}
+function depsOf(k) {
+  if (depCache.has(k)) return depCache.get(k);
+  depCache.set(k, []);
+  const o = O[k]; let d;
+  if (o.kind === "pout") {
+    const sib = O[o.parent].kids.filter(c => c !== k && !hidden(c) && O[c].kind !== "pin");
+    const used = new Set(sib.flatMap(depsOf)); const sinks = sib.filter(c => !used.has(c));
+    d = sinks.length ? sinks : O[o.parent].kids.filter(c => O[c].kind === "pin");
+  } else {
+    d = [...new Set(o.deps.flatMap(x => hidden(x) ? depsOf(x) : [x]))];
+    if (io && !d.length && o.kind !== "pin" && O[o.parent] && O[o.parent].portsIn) { const pin = O[o.parent].kids.find(c => O[c].kind === "pin"); if (pin) d = [pin]; }
+  }
+  depCache.set(k, d); return d;
+}
+
+function visibleAncestor(k) { // 閉じた祖先が在れば一番外の閉じた祖先、無ければ自分
+  const chain = []; let p = O[k].parent; while (p) { chain.unshift(p); p = O[p].parent; }
+  for (const a of chain) if (a !== ROOT && !open.has(a)) return a;
+  return k;
+}
+function entries(k) { if (!isGroup(k) || !open.has(k)) return [k]; const ks = O[k].kids; const vk = ks.filter(c => !hidden(c)); const inner = vk.filter(c => !depsOf(c).some(d => vk.includes(d))); if (!vk.length) return []; return (inner.length ? inner : vk).flatMap(entries); }
+function exits(k) { if (!isGroup(k) || !open.has(k)) return [k]; const ks = O[k].kids.filter(c => !hidden(c)); if (!ks.length) return []; const used = new Set(ks.flatMap(depsOf)); const last = ks.filter(c => !used.has(c)); return (last.length ? last : ks).flatMap(exits); }
+
+const fmtV = v => { if (v == null) return ""; let j = v; try { j = JSON.parse(v); } catch (_) {}
+  const art = x => x && typeof x === "object" && x.type === "archon_artifact";
+  if (art(j)) return "📄 " + (j.path || "");
+  if (Array.isArray(j) && j.length && j.every(art)) return `📄 ×${j.length} ` + j.map(x => (x.path || "").split("/").pop()).join(", ");
+  return typeof j === "string" ? j : JSON.stringify(j); };
+const srcWord = p => (p.src || []).map(s => s.kind === "inputs" ? "↑" + s.field : s.kind === "block" ? "← " + s.name : s.kind === "code" ? "← " + s.name + "（code）" : "← " + (s.name || "?")).join(" ");
+function portCard(k) {
+  const o = O[k], b = O[o.parent], ins = o.kind === "pin", rows = (ins ? b.portsIn : b.portsOut) || [];
+  const pick = [...rows].sort((x, y) => (x.empty - y.empty)).slice(0, 7);
+  const c = el("div", { class: `card ${o.kind} st-${stateAt(o.parent)}`, title: ins ? "この block の入力値（押すと全部）" : "この block の出力値（押すと全部）" },
+    el("div", { class: "t" }, el("b", {}, (ins ? "⇥ 入力" : "出力 ⇥") + ` ${rows.length}`)));
+  const pst = stateAt(o.parent);
+  if (rp.on && (ins ? pst === "future" : ["future", "running", "waiting"].includes(pst))) { c.append(el("div", { class: "pmore" }, ins ? "（入力前）" : "（出力前）")); c.onclick = ev => { ev.stopPropagation(); select(o.parent, true); }; return c; }
+  const g = el("div", { class: "prow" });
+  for (const r of pick) { const v = fmtV(r.v); const pv = el("span", { class: "pv" + (r.empty ? " e" : "") }, r.empty ? "（空）" : v.replace(/\s+/g, " ").slice(0, 120));
+    if (ins && r.src && r.src.some(s => s.kind === "block")) pv.prepend(el("span", { class: "from" }, srcWord(r) + " "));
+    g.append(el("span", { class: "pn" }, r.n), pv); }
+  c.append(g);
+  if (rows.length > pick.length) c.append(el("div", { class: "pmore" }, `ほか ${rows.length - pick.length} 個`));
+  c.onclick = ev => { ev.stopPropagation(); select(o.parent, true); };
+  return c;
+}
+function infoBtn(k) { const b = el("span", { class: "info", title: "詳細（入力値・出力値・実行条件）を右に出す" }, "ⓘ"); b.onclick = ev => { ev.stopPropagation(); select(k, true); }; return b; }
+function swCard(k) {
+  const o = O[k], st = stateAt(k), tk = swTaken(k);
+  const c = el("div", { class: `card sw st-${st}`, title: o.whatFull },
+    el("div", { class: "t" }, el("span", { class: "dia" }, "◇"), el("b", {}, o.name), el("span", { class: "k" }, "分岐")),
+    el("div", { class: "m" }, st === "future" ? "未到達" : tk.some(Boolean) ? "値 " + swVal(k) : "届かなかった（上流がスキップ）"),
+    el("div", { class: "arms" }, ...o.arms.map((a, i) => el("span", { class: "arm" + (tk[i] ? " on" : "") }, (tk[i] ? "▶ " : "") + a.label))));
+  c.onclick = ev => { ev.stopPropagation(); select(k, true); };
+  return c;
+}
+function cardFor(k) {
+  const o = O[k];
+  if (o.kind === "switch") return swCard(k);
+  if (o.kind === "pin" || o.kind === "pout") return portCard(k);
+  const st = stateAt(k); const meta = [word(st)];
+  if (o.runs > 1) meta.push(`実行 ${o.runs} 回`);
+  if (o.cost >= 0.005 && st !== "future") meta.push("$" + o.cost.toFixed(2));
+  if (o.time && st !== "future" && (isGroup(k) || o.kind === "ai" || o.kind === "gate")) meta.push(o.time);
+  if (isGroup(k)) meta.push(`${o.kids.filter(c => O[c].kind !== "pin" && O[c].kind !== "pout").length} 個`);
+  const c = el("div", { class: `card st-${st} ${o.kind}` + (isGroup(k) ? " group" : "") + (o.wire ? " wire" : ""), title: o.whatFull || o.name },
+    el("div", { class: "t" }, el("b", {}, o.name), o.kind === "stage" ? null : el("span", { class: "k" }, o.kindWord), isGroup(k) ? el("span", { class: "open" }, "展開 ＋") : null, isGroup(k) && o.kind !== "stage" ? infoBtn(k) : null),
+    el("div", { class: "m" }, meta.join(" · "), o.rounds > 1 && st !== "future" ? el("span", { class: "rnd", title: "ループの反復回数" }, `反復 ${o.rounds}`) : null, o.rejects && st !== "future" ? el("span", { class: "rej", title: "バリデーションが AI の出力をリジェクトした回数" }, `リジェクト ${o.rejects}`) : null),
+    o.what && !o.wire ? el("div", { class: "w" }, o.what) : null,
+    io && o.portsIn && !open.has(k) ? el("div", { class: "io" }, "入力 ", el("b", {}, String(o.nIn)), " → 出力 ", el("b", {}, String(o.nOut))) : null);
+  c.onclick = ev => { ev.stopPropagation(); if (isGroup(k)) { open.add(k); select(k, false); layout(k); } else select(k, true); };
+  return c;
+}
+
+let flipPrev = null;
+function flip() { // 並べ直しの前と後で同じカード・同じ枠は、前の画面の位置から今の位置へ滑らせる（FLIP）。線は後から浮かせる
+  const prev = flipPrev; flipPrev = null; if (!prev || !prev.size) return;
+  const ms = rp.timer ? Math.max(120, Math.min(450, 900 / Number($("rp-speed").value) * 0.85)) : 380;
+  const moved = [];
+  for (const n of world.querySelectorAll(".card,.frame")) {
+    const o = prev.get(n.dataset.k); if (!o || o.frame !== n.classList.contains("frame")) continue;
+    const r = n.getBoundingClientRect(); const dx = (o.r.left - r.left) / scale, dy = (o.r.top - r.top) / scale;
+    if (Math.abs(dx) + Math.abs(dy) < 1) continue;
+    n.style.transition = "none"; n.style.transform = `translate(${dx}px, ${dy}px)`; moved.push(n);
+  }
+  if (moved.length) { void world.offsetWidth; for (const n of moved) { n.style.transition = `transform ${ms}ms cubic-bezier(.2,.7,.2,1)`; n.style.transform = ""; n.addEventListener("transitionend", () => { n.style.transition = ""; }, { once: true }); } }
+  wires.style.transition = "none"; wires.style.opacity = "0"; void wires.getBoundingClientRect();
+  wires.style.transition = `opacity ${Math.round(ms * 0.8)}ms ease-in ${Math.round(ms * 0.6)}ms`; wires.style.opacity = "1";
+}
+function owns(a, k) { while (k) { if (k === a) return true; k = O[k].parent; } return false; }
+function portLabel(a, b) { // a の出口から b の入口へ直に渡った入口の名
+  const A = O[a].kind === "pout" ? O[a].parent : a, B = O[b].kind === "pin" ? O[b].parent : b;
+  const ps = (O[B].portsIn || []).filter(p => (p.src || []).some(s => s.kind === "block" && s.key && (owns(s.key, A) || owns(A, s.key)))).map(p => p.n);
+  if (!ps.length) return "";
+  return ps.slice(0, 3).join(", ") + (ps.length > 3 ? ` ほか ${ps.length - 3}` : "");
+}
+function chipFor(k) { // 実行条件（when）を値で解いた札。承認のノードは承認の回答
+  if (O[k].answer && !["future", "running", "waiting"].includes(stateAt(k))) return { cls: "ans", text: "承認の回答: " + O[k].answer };
+  const b = O[k].branch; if (!b) return null; const st = stateAt(k); if (st === "future") return null;
+  if (b.sw && !b.mismatch && b.upstream === undefined) return null;
+  if (b.upstream !== undefined) return st === "skipped" ? { cls: "up", text: "⤳ 上流のスキップから連鎖" } : null;
+  const vals = (b.used || []).map(([n, v]) => `${n}=${v}`).join(" ");
+  if (b.mismatch) return { cls: "bad", text: "⚠ 条件評価と実行結果が不一致: " + vals };
+  if (b.result === true) return b.fork ? { cls: "yes", text: "✓ " + vals } : null;   // 真の札は、兄弟と道が分かれた所だけ
+  if (b.result === false) return { cls: "no", text: "✕ " + vals };
+  return null;
+}
+function layout(focusKey, keepView, deferFlip) {
+  hidCache.clear(); depCache.clear();
+  for (const n of [...world.querySelectorAll(".bchip,.elab")]) n.remove();
+  flipPrev = new Map([...world.querySelectorAll(".card,.frame")].map(n => [n.dataset.k, { r: n.getBoundingClientRect(), frame: n.classList.contains("frame") }]));
+  const before = new Set(flipPrev.keys());
+  for (const n of [...world.querySelectorAll(".card,.frame")]) n.remove();
+  const g = new dagre.graphlib.Graph({ compound: true, multigraph: false });
+  g.setGraph({ rankdir: "LR", nodesep: 52, ranksep: io ? 120 : 64, marginx: 10, marginy: 10 });   // 出入口の見方は、線に入口の名を載せる幅を空ける
+  g.setDefaultEdgeLabel(() => ({}));
+  const cards = new Map(), frames = new Map();
+  const farWas = [world.classList.contains("far"), world.classList.contains("vfar")]; world.classList.remove("far", "vfar");
+  const visit = (k, parent) => {
+    for (const c of O[k].kids) {
+      if (hidden(c)) continue;
+      if (isGroup(c) && open.has(c)) {
+        g.setNode(c, {}); if (parent) g.setParent(c, parent); frames.set(c, true); visit(c, c);
+      } else {
+        const card = cardFor(c); card.style.visibility = "hidden"; world.append(card);
+        const h = card.offsetHeight; card.style.height = h + "px";   // 寄った時の大きさで測り、遠くの見え方でも同じ高さに保つ（重ならない）
+        cards.set(c, card); g.setNode(c, { width: card.offsetWidth, height: h }); if (parent) g.setParent(c, parent);
+      }
+    }
+  };
+  visit(ROOT, null);
+  world.classList.toggle("far", farWas[0]); world.classList.toggle("vfar", farWas[1]);
+  // 線: 兄弟の deps を、見えている物へ写す
+  const edges = new Set();
+  for (const [k, o] of Object.entries(O)) {
+    if (k === ROOT || hidden(k) || !depsOf(k).length) continue;
+    for (const d of depsOf(k)) {
+      const A = visibleAncestor(d), B = visibleAncestor(k);
+      if (A === B) continue;
+      for (const a of exits(A)) for (const b of entries(B)) if (a !== b && cards.has(a) && cards.has(b)) edges.add(a + "\u0000" + b);
+    }
+  }
+  const out = new Map(); for (const e of edges) { const [a, b] = e.split("\u0000"); if (!out.has(a)) out.set(a, new Set()); out.get(a).add(b); }
+  const reach = (a, b) => { const seen = new Set(), st = [...(out.get(a) || [])].filter(x => x !== b); while (st.length) { const x = st.pop(); if (x === b) return true; if (seen.has(x)) continue; seen.add(x); for (const y of out.get(x) || []) st.push(y); } return false; };
+  let dropped = 0;
+  for (const e of edges) { const [a, b] = e.split("\u0000"); if (reach(a, b)) { dropped++; continue; } g.setEdge(a, b); }
+  // dagre は囲みの見出しの場所を持たないので、囲みの最初に見えない頭の箱を置く代わりに、上の余白を後で足す
+  dagre.layout(g);
+  let maxX = 0, maxY = 0;
+  // 囲み（枠）: 外から順に描く
+  const depth = k => { let n = 0, p = O[k].parent; while (p && p !== ROOT) { n++; p = O[p].parent; } return n; };
+  const fs = [...frames.keys()].sort((a, b) => depth(a) - depth(b));
+  for (const f of fs) {
+    const n = g.node(f); const o = O[f];
+    const x = n.x - n.width / 2 - 10, y = n.y - n.height / 2 - 40, w = n.width + 20, h = n.height + 50;
+    const meta = [word(stateAt(f))]; if (o.cost >= 0.005) meta.push("$" + o.cost.toFixed(2)); if (o.time) meta.push(o.time);
+    if (o.rounds > 1 && stateAt(f) !== "future") meta.push(`反復 ${o.rounds}`); if (o.rejects && stateAt(f) !== "future") meta.push(`リジェクト ${o.rejects}`);
+    const head = el("div", { class: "fhead", title: (o.whatFull || "") + "（クリックで折りたたむ）" }, el("b", {}, "▾ " + o.name), o.kind !== "stage" ? infoBtn(f) : null, el("span", {}, (o.kind === "stage" ? "" : o.kindWord + " · ") + meta.join(" · ")), o.what ? el("span", {}, o.what) : null);
+    head.onclick = ev => { ev.stopPropagation(); closeTree(f); select(f, false); layout(f); };
+    const fr = el("div", { class: "frame st-" + stateAt(f) + (o.kind === "stage" ? " stage" : ""), "data-k": f }, head);
+    Object.assign(fr.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px" });
+    if (rp.on && before.size && !before.has(f)) fr.classList.add("pop");
+    world.insertBefore(fr, wires);
+    maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+  }
+  for (const [k, card] of cards) {
+    const n = g.node(k);
+    Object.assign(card.style, { left: (n.x - n.width / 2) + "px", top: (n.y - n.height / 2) + "px", visibility: "visible" });
+    card.dataset.k = k;
+    if (rp.on && before.size && !before.has(k)) card.classList.add("pop");
+    const ch = chipFor(k);
+    if (ch) { const d = el("div", { class: "bchip " + ch.cls, title: O[k].branch.shown || O[k].branch.expr }, ch.text); Object.assign(d.style, { left: (n.x - n.width / 2) + "px", top: (n.y - n.height / 2 - 22) + "px" }); world.insertBefore(d, wires); }
+    maxX = Math.max(maxX, n.x + n.width / 2); maxY = Math.max(maxY, n.y + n.height / 2);
+  }
+  wires.setAttribute("width", maxX + 40); wires.setAttribute("height", maxY + 40);
+  wires.innerHTML = "";
+  for (const e of g.edges()) {
+    const pts = g.edge(e).points; if (!pts || pts.length < 2) continue;
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 1; i < pts.length - 1; i++) { const m = { x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2 }; d += ` Q${pts[i].x},${pts[i].y} ${m.x},${m.y}`; }
+    d += ` L${pts[pts.length - 1].x},${pts[pts.length - 1].y}`;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const toSkip = (() => { const t = O[e.w].kind === "pin" ? O[e.w].parent : e.w; const st = stateAt(t); return st === "skipped" || st === "none"; })();
+    const fromSw = O[e.v].kind === "switch" && O[e.w].swArm && O[e.w].swArm[e.v];
+    const swOn = fromSw && (() => { const i = O[e.v].arms.findIndex(a => a.label === O[e.w].swArm[e.v]); return swTaken(e.v)[i]; })();
+    p.setAttribute("d", d); p.setAttribute("class", "e" + (toSkip ? " skip" : "") + (swOn ? " swon" : "")); p.dataset.a = e.v; p.dataset.b = e.w;
+    if (fromSw) { const a0 = pts[0], a1 = pts[Math.min(pts.length - 1, 1)], m = { x: a0.x * 0.35 + a1.x * 0.65, y: a0.y * 0.35 + a1.y * 0.65 }; const t = el("div", { class: "elab swl" + (swOn ? " on" : "") }, O[e.w].swArm[e.v]); Object.assign(t.style, { left: m.x + "px", top: m.y + "px" }); world.append(t); }
+    if (io && !fromSw) { const lab = portLabel(e.v, e.w); if (lab) { const a0 = pts[0], a1 = pts[pts.length - 1], m = { x: (a0.x + a1.x) / 2, y: (a0.y + a1.y) / 2 }; const t = el("div", { class: "elab", title: lab }, lab); Object.assign(t.style, { left: m.x + "px", top: m.y + "px" }); world.append(t); } }
+    p.setAttribute("marker-end", "url(#arr)");
+    wires.append(p);
+  }
+  wires.insertAdjacentHTML("afterbegin", '<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--fgColor-muted)"/></marker></defs>');
+  lastBox = { w: maxX + 20, h: maxY + 20 };
+  highlight();
+  if (keepView) { mini(); } else if (focusKey && isGroup(focusKey) && open.has(focusKey)) fitTo(focusKey); else if (focusKey) showFrom(focusKey); else start();
+  mini();
+  if (!deferFlip) flip();
+}
+function restyle() {
+  for (const c of world.querySelectorAll(".card")) { const k = c.dataset.k, st = stateAt(k); c.className = c.className.replace(/\bst-\S+/, "st-" + st); const m = c.querySelector(".m"); if (m) m.firstChild.textContent = m.firstChild.textContent.replace(/^[^·]+/, word(st) + (m.textContent.includes("·") ? " " : "")); }
+  for (const f of world.querySelectorAll(".frame")) { const k = f.dataset.k; f.className = f.className.replace(/\bst-\S+/, "st-" + stateAt(k)); }
+}
+function closeTree(k) { open.delete(k); for (const c of O[k].kids) if (isGroup(c)) closeTree(c); }
+
+function highlight() {
+  const sel = selected;
+  const near = new Set();
+  for (const p of wires.querySelectorAll("path.e")) {
+    const hot = sel && (p.dataset.a === sel || p.dataset.b === sel);
+    p.classList.toggle("hot", !!hot);
+    if (hot) { near.add(p.dataset.a); near.add(p.dataset.b); }
+  }
+  for (const c of world.querySelectorAll(".card")) { c.classList.toggle("sel", c.dataset.k === sel); c.classList.toggle("dim", !!sel && near.size > 0 && !near.has(c.dataset.k)); }
+}
+function select(k, show) { selected = k; highlight(); if (show) side(k); }
+
+const esc = s => String(s ?? "");
+function swSide(k) {
+  const o = O[k], s = $("side"); s.innerHTML = ""; s.classList.add("on"); s.dataset.k = k;
+  const tools = el("div", { class: "tools" }); const x = el("button", { title: "閉じる（Esc）" }, "×"); x.onclick = () => s.classList.remove("on"); tools.append(x); s.append(tools);
+  const tk = swTaken(k), st = stateAt(k);
+  s.append(el("div", { class: "sub" }, "分岐（Archon のノードではなく、兄弟の実行条件から合成した物）"), el("h2", {}, "◇ " + o.ref));
+  s.append(el("div", { class: "what" }, st === "future" ? "まだ値が決まっていない。" : tk.some(Boolean) ? `この時点の値は ${swVal(k)}。▶ の道が選ばれた。` : "上流がスキップしたので、どの道にも届かなかった。"));
+  if (o.decider) { const d = el("div", { class: "note" }, "値を出したノード: "); d.append(linkTo(o.decider)); s.append(d); }
+  o.arms.forEach((a, i) => { s.append(el("h3", {}, (tk[i] ? "▶ " : "") + (o.ref.includes("・") ? a.label : o.ref + " " + a.label)));
+    for (const kk of a.keys) { const r = el("div", { class: "item" + (tk[i] ? " ans" : "") }); r.append(linkTo(kk), " ", el("span", { class: "m" }, word(stateAt(kk)) + " · " + (O[kk].when || ""))); s.append(r); } });
+}
+function side(k) {
+  if (O[k].kind === "switch") return swSide(k);
+  const o = O[k], s = $("side"); s.innerHTML = ""; s.classList.add("on"); s.dataset.k = k;
+  const tools = el("div", { class: "tools" });
+  const wide = el("button", { title: "パネルの幅を切り替える" }, "⇔"); wide.onclick = () => s.classList.toggle("wide");
+  const x = el("button", { title: "閉じる（Esc）" }, "×"); x.onclick = () => s.classList.remove("on");
+  tools.append(wide, x); s.append(tools);
+  const path = []; let p = k; while (p && p !== ROOT) { path.unshift(O[p].name); p = O[p].parent; }
+  s.append(el("div", { class: "sub" }, path.slice(0, -1).join(" › ")), el("h2", {}, o.name));
+  const rl = roleOf(k); if (rl) s.append(el("span", { class: "role " + rl[0], title: rl[2] }, rl[1]));
+  s.append(el("div", { class: "what" }, o.whatFull || ""));
+  const t = el("table");
+  const row = (l, v) => { if (v == null || v === "" || (Array.isArray(v) && !v.length)) return; t.append(el("tr", {}, el("td", {}, l), el("td", {}, typeof v === "object" ? JSON.stringify(v) : String(v)))); };
+  row("種類", o.kindWord); row("状態", D.words[o.state]); row("時間", o.time); row("コスト（USD・Archon の値）", o.cost ? o.cost.toFixed(3) : "");
+  row("実行条件（when）", o.when); row("依存（depends_on）", o.depsNames); row("スキップの理由", o.skip); row("プロンプトのテンプレート", o.mdPath); row("script", o.script);
+  if (o.kids.length) row("中身", o.kids.length + " 個");
+  s.append(t);
+  if (o.branch) s.append(whyBox(k));
+  const gate = (SUMM.gates || []).filter(g => g.key === k);
+  for (const g of gate) s.append(el("div", { class: "item ans" }, el("div", { class: "h" }, el("b", {}, "承認の回答: " + (g.decision || "（無し）")), el("span", { class: "m" }, hms(g.at))), g.text ? el("div", { class: "body" }, g.text) : null));
+  const rj = (SUMM.rejects || []).filter(r => r.ai === k || r.loop === k || r.key === k);
+  if (rj.length) { s.append(el("h3", {}, `リジェクト（${rj.length}）`), el("div", { class: "note" }, "バリデーション（スクリプト）が AI の出力をルール違反としてリジェクトした箇所。AI の判断とルールが食い違っているので、直すならプロンプトかバリデーションのルール。"));
+    for (const r of rj) s.append(rejectItem(r)); }
+  if (o.fixit) s.append(fixBox(o));
+  if (o.portsIn) {
+    s.append(el("h3", { style: "font-size:13.5px;margin:10px 0 4px" }, `入力値（${o.portsIn.length}）`));
+    const g = el("div", { class: "ports" });
+    for (const r of o.portsIn) {
+      const srcs = el("span", { class: "ps" });
+      for (const x of r.src || []) { const a = el(x.key ? "a" : "span", {}, x.kind === "inputs" ? `↑ 親の入力 ${x.field}` : `← ${x.name}${x.field && x.field !== "*" ? "." + x.field : ""}${x.kind === "code" ? "（code）" : ""}`); if (x.key) a.onclick = () => jumpTo(x.key); srcs.append(a, " ");
+        if (x.reads && x.reads.length) { const d = el("details", { style: "display:inline-block" }, el("summary", { style: "font-size:11px;color:var(--fgColor-muted)" }, `スクリプトの参照元 ${x.reads.length}`)); for (const [n, rk] of x.reads) { d.append(el("br")); if (rk) { const b = el("a", { class: "jump" }, n); b.onclick = () => jumpTo(rk); d.append(b); } else d.append(n); } srcs.append(d); } }
+      g.append(el("span", { class: "pn", title: r.desc || "" }, r.n), srcs, valCell(r));
+    }
+    s.append(g);
+  }
+  if (o.portsOut && o.portsOut.length) {
+    s.append(el("h3", { style: "font-size:13.5px;margin:10px 0 4px" }, `出力値（${o.portsOut.length}）`));
+    const g = el("div", { class: "ports" });
+    for (const r of o.portsOut) g.append(el("span", { class: "pn" }, r.n), el("span", { class: "ps" }, r.type || ""), valCell(r));
+    s.append(g);
+  }
+  if (o.doc) s.append(el("details", {}, el("summary", {}, "script の説明"), el("pre", {}, o.doc)));
+  if (o.md) s.append(el("details", {}, el("summary", {}, "プロンプトのテンプレート（md）"), el("pre", {}, o.md)));
+  o.events.forEach((e, i) => s.append(runBox(o, e, i, i === o.events.length - 1)));
+  lateTurns();
+}
+function valCell(r) {
+  if (r.empty) return el("span", { class: "empty", style: "color:var(--fgColor-muted);font-style:italic" }, "（空）");
+  const v = fmtV(r.v);
+  if (v.length <= 140 && !v.includes("\n")) return el("code", {}, v);
+  let pretty = r.v; try { pretty = JSON.stringify(JSON.parse(r.v), null, 1); } catch (_) {}
+  return el("details", {}, el("summary", { style: "font:12px var(--fontStack-mono);color:var(--fgColor-muted)" }, v.replace(/\s+/g, " ").slice(0, 90) + `…（${String(r.v).length} 文字）`), el("pre", {}, pretty));
+}
+function roleOf(k) { // 憲法の 1 の分担（YAML はつなぐ・code は計算する・AI は判断する）と、人の承認
+  const o = O[k];
+  if (o.kind === "ai") return ["ai", "AI ノード", "AI が判断するノード。直すならプロンプト"];
+  if (o.kind === "gate") return ["human", "承認ゲート", "承認待ちのノード"];
+  if (o.kind === "halt") return ["code", "停止", "run を停止するノード"];
+  if (o.kind === "child") return ["code", "子 run の起動", ""];
+  if (o.wire) return ["wire", "接続（block 間のデータ受け渡し）", "YAML の配線上で値を組み替えるスクリプト。block の I/O の外側"];
+  if (o.kind === "script" || o.kind === "bash") return ["code", "スクリプト", "値を計算・検査するスクリプト。直すならスクリプト"];
+  if (o.kind === "block") return ["wire", "block（入力 → 処理 → 出力）", ""];
+  return null;
+}
+function linkTo(k, word) { const a = el("a", { class: "jump" }, word || (O[k] ? O[k].name : "?")); a.onclick = () => jumpTo(k); return a; }
+function atLink(at) { if (!at) return null; const a = el("a", { class: "jump", title: "再生をこの時刻に合わせる" }, "⏱ この時刻へ"); a.onclick = () => { const t = T(at); let i = steps.findIndex(x => x > t); i = i < 0 ? steps.length - 1 : Math.max(0, i - 1); if (rp.timer) play(); go(i); }; return a; }
+function rejectItem(r) {
+  return el("div", { class: "item bad" }, el("div", { class: "h" }, el("b", {}, "リジェクト"), r.ai ? linkTo(r.ai) : null, el("span", { class: "m" }, `反復 ${r.round ?? "?"} · ${hms(r.at)}` + (r.giveUp ? " · 打ち切り" : "")), atLink(r.at)), el("div", { class: "body" }, r.reason || "（理由の記載無し）"));
+}
+function fixBox(o) {
+  const f = o.fixit, w = el("div");
+  w.append(el("h3", {}, "修正と検証"), el("div", { class: "note" }, "この run 時点のパス（リポジトリのルートから）。現在のツリーでは名前や中身が変わっていることがある。"));
+  const g = el("div", { class: "sumrow" });
+  const paths = (label, xs) => { if (!xs || !xs.length) return; const c = el("span"); xs.forEach((x, i) => { if (i) c.append(el("br")); c.append(el("code", { class: "path" }, x)); }); g.append(el("span", {}, label), c); };
+  paths("設計書", f.design); paths("YAML", [f.yaml]); paths("プロンプトのテンプレート（md）", f.md); paths("fixture", f.fixtures); paths("テスト", [f.tests]);
+  w.append(g);
+  w.append(el("h3", {}, "この block だけ再実行（コマンド案）"),
+    el("div", { class: "note" }, "この run で記録した入力値を --input に並べたコマンド（README の「Running one block on its own」の形式）。空の入力は省略し、block の既定値を使う。実行すると AI のコストがかかり、対象リポジトリに worktree が作られる。プロンプトを直した後、同じ入力で出力が変わるかの確認用。"));
+  const miss = (f.converted || []).filter(c => c.missing.length);
+  if ((f.converted || []).length) w.append(el("div", { class: "note" }, "artifacts のファイルを指す入力（" + f.converted.map(c => c.n).join("・") + "）は、ファイルの絶対パスに変換した。"));
+  if (miss.length) w.append(el("div", { class: "warn" }, "⚠ artifacts のファイルが現存しない（run 後に削除済み）: " + miss.map(c => c.n).join("・") + "。この入力はそのままでは再実行できない。"));
+  w.append(el("pre", { class: "cmd", title: "押すと全部が選ばれる" }, f.cmd));
+  return w;
+}
+function summaryPanel() {
+  const s = $("side"); s.innerHTML = ""; s.classList.add("on"); s.dataset.k = "";
+  const tools = el("div", { class: "tools" }); const wide = el("button", { title: "パネルの幅を切り替える" }, "⇔"); wide.onclick = () => s.classList.toggle("wide");
+  const x = el("button", { title: "閉じる（Esc）" }, "×"); x.onclick = () => s.classList.remove("on"); tools.append(wide, x); s.append(tools);
+  s.append(el("div", { class: "sub" }, D.head.title), el("h2", {}, "run のサマリー"));
+  const g = el("div", { class: "sumrow" });
+  const row = (a, b) => { if (b == null || b === "") return; g.append(el("span", {}, a), el("span", {}, b)); };
+  row("結果", (RESWORD[SUMM.result] || SUMM.result || "") + (SUMM.outcome ? `（Archon の outcome: ${SUMM.outcome}）` : ""));
+  row("時間", SUMM.seconds ? `${Math.round(SUMM.seconds / 60)} 分` : "");
+  row("コスト", `$${Number(D.head.cost).toFixed(2)}`);
+  const c = SUMM.counts || {}; row("ノード", c.total ? `${c.total} 個（完了 ${c.completed ?? "?"}・スキップ ${c.skipped ?? "?"}・失敗 ${c.failed ?? "?"}）` : "");
+  for (const [k, v] of Object.entries(SUMM.inputs || {})) row("入力 " + k, String(v));
+  s.append(g);
+  const sec = (title, items, empty, note) => { s.append(el("h3", {}, `${title}（${items.length}）`)); if (note) s.append(el("div", { class: "note" }, note)); if (!items.length) s.append(el("div", { class: "note" }, empty)); };
+  sec("承認の回答", SUMM.gates || [], "無し", "承認ゲートでの人の回答。run の分岐を人が決めた箇所。");
+  for (const gt of SUMM.gates || []) s.append(el("div", { class: "item ans" }, el("div", { class: "h" }, el("b", {}, gt.decision || "（回答無し）"), linkTo(gt.key), el("span", { class: "m" }, hms(gt.at)), atLink(gt.at)), gt.text ? el("div", { class: "body" }, gt.text) : null));
+  sec("リジェクト", SUMM.rejects || [], "無し", "バリデーション（スクリプト）が AI の出力をリジェクトした箇所。修正候補。");
+  for (const r of SUMM.rejects || []) s.append(rejectItem(r));
+  sec("失敗したノード", SUMM.fails || [], "無し");
+  for (const f of SUMM.fails || []) s.append(el("div", { class: "item bad" }, el("div", { class: "h" }, linkTo(f.key), el("span", { class: "m" }, hms(f.at))), el("div", { class: "body" }, f.error)));
+  sec("コスト上位の AI ノード", SUMM.topcost || [], "無し");
+  for (const [k, v] of SUMM.topcost || []) s.append(el("div", { class: "item cost" }, el("div", { class: "h" }, linkTo(k), el("span", { class: "m" }, `$${v.toFixed(2)} · ${O[k].time || ""}`), O[k].rejects ? el("span", { class: "m" }, `リジェクト ${O[k].rejects}`) : null)));
+  sec("条件評価と実行結果の不一致", SUMM.mismatch || [], "無し（ページで評価した実行条件は、すべて Archon の実行結果と一致）");
+  for (const k of SUMM.mismatch || []) s.append(el("div", { class: "item bad" }, linkTo(k)));
+  s.append(el("h3", {}, "ステージ"));
+  const sg = el("div", { class: "sumrow" });
+  for (const st of O[ROOT].kids) { const o = O[st]; const a = el("a", { class: "jump" }, o.name); a.onclick = () => { open.add(st); layout(st); }; sg.append(a, el("span", {}, [D.words[o.state], o.time, o.cost >= 0.005 ? "$" + o.cost.toFixed(2) : ""].filter(Boolean).join(" · "))); }
+  s.append(sg);
+}
+function whyBox(k) {
+  const b = O[k].branch, st = stateAt(k);
+  if (b.upstream !== undefined) {
+    const w = el("div", { class: "why no" }, el("b", {}, "なぜスキップか: 上流のスキップから連鎖"), el("div", {}, "実行条件 ", el("code", {}, b.expr)));
+    w.append(el("div", {}, "起点のスキップ: ", b.upstream ? (() => { const a = el("a", { class: "jump" }, O[b.upstream].name); a.onclick = () => jumpTo(b.upstream); return a; })() : (b.upName || "?"), "（上流がスキップされたため未実行）"));
+    return w;
+  }
+  const cls = b.mismatch ? "bad" : b.result === true ? "yes" : "no";
+  const head = b.mismatch ? "⚠ 条件の評価結果と Archon の実行結果が不一致" : b.actual === "ran" ? "なぜ実行されたか: 実行条件が真" : b.actual === "skipped" ? "なぜスキップか: 実行条件が偽" : b.result ? "実行条件は真（未到達）" : "実行条件は偽（未到達）";
+  const w = el("div", { class: "why " + cls }, el("b", {}, head));
+  const code = el("code", {}); const re = /(\$[A-Za-z0-9_.-]+)〔([^〕]*)〕/g; let at = 0, m; const t = b.shown || b.expr;
+  while ((m = re.exec(t))) { code.append(t.slice(at, m.index), m[1], el("span", { class: "v" }, "= " + m[2])); at = m.index + m[0].length; }
+  code.append(t.slice(at));
+  w.append(el("div", { style: "margin-top:4px" }, code));
+  w.append(el("div", { class: "note" }, "式の $node.output.field を、その時点で完了済みの出力値（黄色）に置き換えて評価した物。実行を決めたのは Archon で、その結果は「" + (b.actual === "ran" ? "走った" : b.actual === "skipped" ? "スキップ" : "記録に無い") + "」。"));
+  return w;
+}
+function jumpTo(k) { let p = O[k].parent; while (p && p !== ROOT) { open.add(p); p = O[p].parent; } if (hidden(k)) { io = false; $("io-t").textContent = "I/O ビュー"; } select(k, true); layout(k); }
+const TX = D.tx || {}, SS = D.sess || {};
+const txt = m => m == null ? "" : (TX[m] ?? "（記録に無い）");
+const hms = s => s && !isNaN(T(s)) ? new Date(T(s)).toISOString().slice(11, 19) : "";
+const secsBetween = (a, b) => { const d = (T(b) - T(a)) / 1000; return isNaN(d) ? "" : d >= 60 ? (d / 60).toFixed(1) + "分" : d.toFixed(d < 10 ? 1 : 0) + "秒"; };
+const kTok = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n || 0);
+function runBox(o, e, i, openIt) {
+  const st = e.status === "ok" ? "ok" : e.status === "failed" ? "failed" : e.status === "waiting" ? "waiting" : "running";
+  const box = el("div", { class: "run st-" + st + (openIt ? "" : " shut") });
+  const bits = [];
+  if (o.events.length > 1) bits.push(`実行 ${i + 1}`);
+  if (e.loop && e.loop.length) bits.push(`反復 ${e.loop.join("・")}`);
+  bits.push(D.words[st] || e.status);
+  const meta = [hms(e.start), secsBetween(e.start, e.end), e.cost ? "$" + Number(e.cost).toFixed(3) : "", e.model || ""].filter(Boolean).join(" · ");
+  const head = el("div", { class: "rh" }, el("span", { class: "dot" }), el("b", {}, bits.join(" ")), el("span", { class: "m" }, meta));
+  head.onclick = () => box.classList.toggle("shut");
+  const body = el("div", { class: "rb" });
+  box.append(head, body);
+  const panes = [];
+  const tabs = el("div", { class: "tabs" });
+  const tab = (label, n, make) => { const b = el("button", {}, label, n != null ? el("span", { class: "n" }, String(n)) : null); panes.push([b, make]); tabs.append(b); };
+  const ss = e.session ? SS[e.session] : null;
+  if (e.sent) {
+    const vals = uniqVals(e.values);
+    tab("入力値", vals ? vals.length : "?", () => valsPane(e, vals, show));
+    tab("プロンプト", null, () => promptPane(e, ss));
+  }
+  if (ss) { const nCalls = countCalls(ss); tab("会話", `${ss.turns.length}・ツール呼び出し ${nCalls}`, () => talkPane(ss)); }
+  tab(e.error ? "出力・エラー" : "出力", null, () => outPane(e));
+  const pane = el("div");
+  function show(idx, after) { panes.forEach(([b], j) => b.classList.toggle("on", j === idx)); pane.innerHTML = ""; pane.append(panes[idx][1]()); if (after) after(pane); lateTurns(); }
+  panes.forEach(([b], j) => b.onclick = () => show(j));
+  if (panes.length > 1) body.append(tabs);
+  body.append(pane);
+  show(e.sent ? 0 : panes.length - 1);
+  box._show = show;
+  return box;
+}
+function uniqVals(v) { if (!v) return null; const seen = new Map(); for (const [n, a, b] of v) if (!seen.has(n)) seen.set(n, [n, a, b, 1]); else seen.get(n)[3]++; return [...seen.values()]; }
+function countCalls(ss) { return ss.turns.reduce((a, t) => a + t.calls.length, 0) + (ss.agents || []).reduce((a, g) => a + countCalls(g), 0); }
+function valsPane(e, vals, show) {
+  const w = el("div");
+  if (!vals) { w.append(el("div", { class: "note" }, "テンプレートとプロンプトを照合できず、値を抽出できなかった。全文は「プロンプト」タブで見られる。")); return w; }
+  w.append(el("div", { class: "note" }, "テンプレート（md）のプレースホルダ {name} に入った値。プロンプトとテンプレートを照合して抽出。名前を押すとプロンプト内の該当箇所へ移動。"));
+  const g = el("div", { class: "vals" });
+  const sent = txt(e.sent);
+  for (const [n, a, b, times] of vals) {
+    const v = sent.slice(a, b);
+    const k = el("div", { class: "k", title: "プロンプト内で見る" }, "{" + n + "}" + (times > 1 ? ` ×${times}` : ""));
+    k.onclick = () => show(1, p => { const m = p.querySelector(`mark[data-n='${CSS.escape(n)}']`); if (m) { m.scrollIntoView({ block: "center" }); m.classList.add("flash"); setTimeout(() => m.classList.remove("flash"), 1200); } });
+    let cell;
+    if (!v.trim()) cell = el("span", { class: "empty" }, "（空）");
+    else if (v.length <= 160 && !v.includes("\n")) cell = el("code", {}, v);
+    else { const first = v.replace(/\s+/g, " ").trim(); cell = el("details", {}, el("summary", {}, (first.length > 90 ? first.slice(0, 90) + "…" : first) + `（${v.length} 文字）`), el("pre", {}, v)); }
+    g.append(k, el("div", { class: "v" }, cell));
+  }
+  w.append(g);
+  return w;
+}
+function promptPane(e, ss) {
+  const w = el("div");
+  const sent = txt(e.sent);
+  w.append(el("div", { class: "note" }, `AI に送ったプロンプトの全文（${sent.length} 文字）。黄色はプレースホルダに入った値。Claude Code のセッションログから取得。`));
+  const pre = el("pre", { class: "prompt" });
+  let at = 0;
+  for (const [n, a, b] of (e.values || []).filter(x => x[2] > x[1]).sort((x, y) => x[1] - y[1])) {
+    if (a < at) continue;
+    pre.append(sent.slice(at, a), el("mark", { class: "val", "data-n": n, title: "{" + n + "}" }, sent.slice(a, b)));
+    at = b;
+  }
+  pre.append(sent.slice(at));
+  w.append(pre);
+  if (ss && ss.system.length) {
+    const sys = ss.system.map(m => txt(m)).join("\n\n――――\n\n");
+    w.append(el("details", {}, el("summary", {}, `システムプロンプト（${sys.length} 文字。Claude Code の既定分と、工場の .system.md を含む）`), el("pre", {}, sys)));
+  }
+  return w;
+}
+function outPane(e) {
+  const w = el("div");
+  if (e.error) w.append(el("b", {}, "エラー"), el("pre", {}, e.error));
+  w.append(el("pre", {}, e.output || "（無し）"));
+  return w;
+}
+function talkPane(ss) {
+  const w = el("div");
+  const f = el("div", { class: "find" }); const q = el("input", { placeholder: "会話ログを絞り込む（ツール名・文字列）" }); f.append(q); w.append(f);
+  const body = talkOf(ss, 0);
+  q.oninput = () => { const v = q.value.trim().toLowerCase(); for (const n of body.querySelectorAll(".bub, details.call, details.think")) n.classList.toggle("hidefind", !!v && !n.textContent.toLowerCase().includes(v)); };
+  w.append(el("div", { class: "note" }, "ターンごとに、AI の思考（灰）・発言（青）・ツール呼び出しを時系列で表示。ツールを押すと入力と結果を表示。再生中は現在時刻より後のターンを薄く表示。"), body);
+  return w;
+}
+function talkOf(ss, depth) {
+  const w = el("div", { class: "talk" });
+  let cur = null, ci = 0, turn = null;
+  const agentOf = id => (ss.agents || []).find(a => a.meta && a.meta.use === id);
+  for (const [kind, ...r] of ss.seq) {
+    if (kind === "turn") {
+      turn = ss.turns[r[0]]; ci = 0;
+      const u = turn.usage || {};
+      cur = el("div", { class: "turn" + (turn.copied ? " copied" : ""), "data-at": turn.start || turn.at || "" });
+      cur.append(el("div", { class: "th" }, el("b", {}, `ターン ${r[0] + 1}`), el("span", {}, hms(turn.start || turn.at)), el("span", {}, secsBetween(turn.start, turn.end)),
+        el("span", { title: "入力（新規・キャッシュ読み・キャッシュ書き）→ 出力のトークン" }, u.out != null ? `入 ${kTok((u.in || 0) + (u.cache_read || 0) + (u.cache_write || 0))} → 出 ${kTok(u.out)}` : ""),
+        turn.copied ? el("span", {}, "前の会話の引き継ぎ") : null));
+      w.append(cur); continue;
+    }
+    const into = cur || w;
+    if (kind === "user") { if (!cur) continue; into.append(el("div", { class: "bub user" }, txt(r[0]))); }  // 最初の指示は「プロンプト」の欄に出す
+    else if (kind === "say") into.append(el("div", { class: "bub say" }, txt(r[0])));
+    else if (kind === "think") { const t = txt(r[0]); into.append(el("details", { class: "think" }, el("summary", {}, "思考: " + (t.length > 80 ? t.slice(0, 80) + "…" : t)), el("div", { class: "bub" }, t))); }
+    else if (kind === "call") {
+      const c = turn ? turn.calls[ci++] : null;
+      const input = txt(r[1]);
+      let title = input; try { const j = JSON.parse(input); title = j.command || j.description || (j.file_path ? "…/" + j.file_path.split("/").slice(-3).join("/") : "") || j.pattern || j.query || j.url || j.prompt || input; } catch (_) {}
+      const ag = c && agentOf(c.id);
+      const d = el("details", { class: "call" + (c && c.error ? " err" : "") + (ag ? " agent" : "") },
+        el("summary", {}, el("span", { class: "tn" }, r[0]), el("span", { class: "tt" }, String(title).split("\n")[0]), el("span", { class: "tm" }, c ? secsBetween(c.at, c.done) : "")));
+      const inner = el("div", {}, el("b", {}, "入力"), el("pre", {}, input));
+      if (c && c.out) inner.append(el("b", {}, c.error ? "結果（エラー）" : "結果"), el("pre", {}, txt(c.out)));
+      if (ag) inner.append(el("b", {}, `サブエージェント（${ag.meta.type || "agent"}・${ag.turns.length} ターン）`), el("div", { class: "sub-talk" }, talkOf(ag, depth + 1)));
+      d.append(inner); into.append(d);
+    }
+  }
+  return w;
+}
+function lateTurns() {
+  const t = rp.on || rp.i < steps.length - 1 ? now() : Infinity;
+  for (const n of document.querySelectorAll("#side .turn")) { const at = T(n.dataset.at); n.classList.toggle("later", !isNaN(at) && at > t); }
+}
+
+// 移動と拡大
+let whereRaf = 0;
+function whereNow() { whereRaf = 0; const W = view.clientWidth, H = view.clientHeight - ($("tl") ? $("tl").offsetHeight : 0); const cx = (W * 0.45 - tx) / scale, cy = (H * 0.5 - ty) / scale;
+  let best = null, bd = -1;
+  for (const f of world.querySelectorAll(".frame")) { const x = f.offsetLeft, y = f.offsetTop; if (cx >= x && cx <= x + f.offsetWidth && cy >= y && cy <= y + f.offsetHeight) { let d = 0, p = O[f.dataset.k]; while (p && p.parent) { d++; p = O[p.parent]; } if (d > bd) { bd = d; best = f.dataset.k; } } }
+  const w = $("where"); w.innerHTML = ""; if (!best) return;
+  const names = []; let p = best; while (p && p !== ROOT) { names.unshift(O[p].name); p = O[p].parent; }
+  w.append("現在位置: ", el("b", {}, names.join(" › ")));
+}
+function apply() { world.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; world.style.setProperty('--z', scale); world.classList.toggle('far', scale < 0.72); world.classList.toggle('vfar', scale < 0.22); mini(); if (!whereRaf) whereRaf = requestAnimationFrame(whereNow); }
+function fit() { if (!lastBox) return; const sd = $("side"), W = view.clientWidth - (sd && sd.classList.contains("on") ? sd.offsetWidth : 0), H = view.clientHeight; scale = Math.min(1, Math.min(W / lastBox.w, (H - 40) / lastBox.h) * 0.94); tx = (W - lastBox.w * scale) / 2; ty = (H - lastBox.h * scale) / 2; apply(); }
+function start() { fit(); }
+function showFrom(k) { // 開いた・閉じた物の左上から、字が読める大きさで見せる
+  const n = world.querySelector(`[data-k='${CSS.escape(k)}']`); if (!n) return start();
+  const W = view.clientWidth, H = view.clientHeight; const r = { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
+  scale = Math.max(0.9, Math.min(1, Math.min(W / (r.w + 60), H / (r.h + 60))));
+  tx = (r.w * scale < W - 60 ? (W - r.w * scale) / 2 : 30) - r.x * scale; ty = (r.h * scale < H - 60 ? (H - r.h * scale) / 2 : 30) - r.y * scale; apply(); }
+function fitTo(k) { // 開いた枠を画面に収める（引いた時は名前だけの見せ方になる）
+  const n = world.querySelector(`.frame[data-k='${CSS.escape(k)}']`); if (!n) return fit();
+  const W = view.clientWidth, H = view.clientHeight; const r = { x: n.offsetLeft, y: n.offsetTop - 50, w: n.offsetWidth, h: n.offsetHeight + 50 };
+  scale = Math.min(1, Math.min(W / (r.w + 60), H / (r.h + 60)));
+  tx = (W - r.w * scale) / 2 - r.x * scale; ty = (H - r.h * scale) / 2 - r.y * scale; apply(); }
+function showAt(k) { // 開いた枠の入口のカードを、画面の左寄り・上下の真ん中に等倍で置く
+  const n = world.querySelector(`.card[data-k='${CSS.escape(k)}']`); if (!n) return start();
+  const H = view.clientHeight; scale = 1; tx = 60 - n.offsetLeft; ty = H / 2 - n.offsetTop - n.offsetHeight / 2; apply(); }
+function centerOn(k) {
+  const n = world.querySelector(`[data-k='${CSS.escape(k)}']`); if (!n) return fit();
+  const W = view.clientWidth, H = view.clientHeight;
+  const r = { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
+  scale = Math.max(0.35, Math.min(1, Math.min(W / (r.w + 80), H / (r.h + 80))));
+  tx = W / 2 - (r.x + r.w / 2) * scale; ty = H / 2 - (r.y + r.h / 2) * scale; apply();
+}
+let drag = null, dragMoved = false;
+view.addEventListener("pointerdown", ev => { if (ev.button !== 0 || ev.target.closest("#tl,#mini,#side,button,a,input,select,summary,pre")) return; drag = { x: ev.clientX, y: ev.clientY, tx, ty, id: ev.pointerId, on: false }; dragMoved = false; });
+const endDrag = () => { drag = null; view.classList.remove("drag"); };
+view.addEventListener("pointercancel", endDrag); view.addEventListener("lostpointercapture", endDrag); window.addEventListener("blur", endDrag);
+view.addEventListener("pointermove", ev => { if (!drag) return; if (!(ev.buttons & 1)) { endDrag(); return; }
+  const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+  if (!drag.on) { if (Math.abs(dx) + Math.abs(dy) < 4) return; drag.on = true; dragMoved = true; stopTween(); view.classList.add("drag"); try { view.setPointerCapture(drag.id); } catch (e) {} }
+  tx = drag.tx + dx; ty = drag.ty + dy; apply(); });
+view.addEventListener("pointerup", ev => { if (drag && !drag.on && !ev.target.closest(".card,.fhead")) { selected = null; highlight(); } endDrag(); });
+// ドラッグした後のクリックは、カードを開く・選ぶに使わない
+view.addEventListener("click", ev => { if (dragMoved) { ev.stopPropagation(); ev.preventDefault(); dragMoved = false; } }, true);
+function zoomAt(mx, my, f) { const ns = Math.max(0.1, Math.min(2.5, scale * f)); tx = mx - (mx - tx) * ns / scale; ty = my - (my - ty) * ns / scale; scale = ns; apply(); }
+view.addEventListener("wheel", ev => { if (ev.target.closest("#tl,#side")) return; ev.preventDefault(); stopTween();
+  const r = view.getBoundingClientRect(); const k = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? view.clientHeight : 1;
+  if (ev.ctrlKey || ev.metaKey) { zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-Math.max(-60, Math.min(60, ev.deltaY * k)) * 0.008)); return; }   // ピンチは Chrome で ctrlKey つきの wheel になる
+  tx -= (ev.shiftKey && !ev.deltaX ? ev.deltaY : ev.deltaX) * k; ty -= (ev.shiftKey && !ev.deltaX ? 0 : ev.deltaY) * k; apply(); }, { passive: false });
+document.addEventListener("keydown", ev => { if (ev.target.closest("input,select,textarea")) return; const W = view.clientWidth, H = view.clientHeight;
+  if (ev.key === "+" || ev.key === "=") { stopTween(); zoomAt(W / 2, H / 2, 1.25); } else if (ev.key === "-") { stopTween(); zoomAt(W / 2, H / 2, 0.8); } else if (ev.key === "0") { stopTween(); fit(); }
+  else if (["w", "a", "s", "d"].includes(ev.key)) { stopTween(); const st = 160; if (ev.key === "w") ty += st; if (ev.key === "s") ty -= st; if (ev.key === "a") tx += st; if (ev.key === "d") tx -= st; apply(); } });
+
+function mini() {
+  const c = $("mini"); if (!lastBox) return; const ctx = c.getContext("2d"); const dpr = devicePixelRatio || 1;
+  c.width = 200 * dpr; c.height = 130 * dpr; ctx.scale(dpr, dpr); ctx.clearRect(0, 0, 200, 130);
+  const s = Math.min(196 / lastBox.w, 126 / lastBox.h); const css = getComputedStyle(document.body);
+  ctx.fillStyle = css.getPropertyValue("--borderColor-default");
+  for (const n of world.querySelectorAll(".card")) ctx.fillRect(2 + n.offsetLeft * s, 2 + n.offsetTop * s, Math.max(1, n.offsetWidth * s), Math.max(1, n.offsetHeight * s));
+  ctx.strokeStyle = css.getPropertyValue("--bgColor-accent-emphasis"); ctx.lineWidth = 1.5;
+  ctx.strokeRect(2 + (-tx / scale) * s, 2 + (-ty / scale) * s, view.clientWidth / scale * s, view.clientHeight / scale * s);
+}
+function miniGo(ev) { const r = $("mini").getBoundingClientRect(); const s = Math.min(196 / lastBox.w, 126 / lastBox.h); const wx = (ev.clientX - r.left - 2) / s, wy = (ev.clientY - r.top - 2) / s;
+  const sd = $("side"), W = view.clientWidth - (sd && sd.classList.contains("on") ? sd.offsetWidth : 0), H = view.clientHeight - ($("tl") ? $("tl").offsetHeight : 0);
+  stopTween(); tx = W / 2 - wx * scale; ty = H / 2 - wy * scale; apply(); }
+let miniDrag = false;
+$("mini").addEventListener("pointerdown", ev => { if (ev.button !== 0) return; miniDrag = true; $("mini").setPointerCapture(ev.pointerId); miniGo(ev); ev.stopPropagation(); });
+$("mini").addEventListener("pointermove", ev => { if (miniDrag && (ev.buttons & 1)) miniGo(ev); else miniDrag = false; });
+$("mini").addEventListener("pointerup", () => { miniDrag = false; }); $("mini").addEventListener("lostpointercapture", () => { miniDrag = false; });
+fillHeight();
+layout();
+summaryPanel();   // 開いた時は、まずこの run に何が起きたかを出す
+fit();
+// ── 再生の操作
+const t0 = steps[0], t1 = steps[steps.length - 1];
+const pct = t => ((t - t0) / Math.max(1, t1 - t0) * 100);
+const hhmmss = t => new Date(t).toISOString().slice(11, 19);
+const plus = t => { const s = Math.round((t - t0) / 1000); return `+${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const band = $("band");
+for (const sk of O[ROOT].kids) { const [a, b] = spanOf(sk); if (!(a <= b)) continue; const st = O[sk].state;
+  const seg = el("div", { class: "seg st-" + st + (O[sk].name.includes("承認") ? " wait" : ""), title: `${O[sk].name} ${hhmmss(a)}〜${hhmmss(b)}` }, O[sk].name);
+  Object.assign(seg.style, { left: pct(a) + "%", width: Math.max(0.4, pct(b) - pct(a)) + "%", background: "color-mix(in srgb, var(--st) 30%, var(--bgColor-default))" }); band.append(seg); }
+const cur = el("div", { class: "cur" }); band.append(cur);
+const scrub = $("scrub"); scrub.max = steps.length - 1; scrub.value = rp.i;
+function running() { return Object.keys(leafIv).filter(k => !O[k].wire && (stateAt(k) === "running" || stateAt(k) === "waiting")); }
+function lastStarted(t) { let best = null, bs = -Infinity; for (const [k, ivs] of Object.entries(leafIv)) { if (O[k].wire) continue; for (const iv of ivs) if (iv.s <= t && iv.s > bs) { bs = iv.s; best = k; } } return best; }
+function ancestors(k) { const a = []; let p = O[k].parent; while (p && p !== ROOT) { a.unshift(p); p = O[p].parent; } return a; }
+function repOf(k) { // 図の上で k の代わりに見せる物。隠した手続きは、入力の札（まだ前に何も無い時）・その手続きが決める分岐・親の枠（見出しが光る）の順に写す
+  if (!hidden(k)) return visibleAncestor(k);
+  const p = O[k].parent; if (!p || p === ROOT) return k;
+  if (hidden(p)) return repOf(p);   // 手続きだけのループの中: そのループの代わりの物へ
+  if (!open.has(p)) return visibleAncestor(k);
+  const kids = O[p].kids, pin = kids.find(c => O[c].kind === "pin");
+  const up = depsOf(k);
+  if (pin && up.every(d => d === pin)) return pin;
+  const sw = kids.find(c => O[c].kind === "switch" && O[c].decider === k && !hidden(c)); if (sw) return sw;
+  return p;
+}
+function changedAt(t) { // この歩（前の歩より後〜この歩まで）で、始まった・終わった・スキップになった葉
+  const prev = rp.i > 0 ? steps[rp.i - 1] : -Infinity, inn = x => x > prev && x <= t;
+  return Object.keys(O).filter(k => !O[k].kids.length && !O[k].wire && ((leafIv[k] || []).some(iv => inn(iv.s) || inn(iv.e)) || inn(T(O[k].skipAt))));
+}
+function startOf(k, t) { let s = -Infinity; for (const iv of leafIv[k] || []) if (iv.s <= t) s = Math.max(s, iv.s); return s; }
+const elOf = k => world.querySelector(`[data-k='${CSS.escape(k)}']`);
+const boxOf = n => n.classList.contains("frame") ? { x: n.offsetLeft, y: n.offsetTop, w: Math.min(n.offsetWidth, 520), h: Math.min(n.offsetHeight, 160) } : { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
+let tw = null, aim = null;   // 動いている途中の滑らかな動きと、その行き先
+function stopTween() { if (tw) { cancelAnimationFrame(tw); tw = null; } aim = null; }
+function tween(nx, ny, ns, ms) {
+  // 画面の真ん中が通る道を世界の座標で補間する。行き先が 1 画面より遠い時は、途中で少し引いて（両端が見える所まで）飛ぶ。いきなり横へ流れて見えないように
+  stopTween(); aim = { tx: nx, ty: ny, scale: ns }; const a = { tx, ty, scale }, s0 = performance.now();
+  const Wc = view.clientWidth / 2, Hc = view.clientHeight / 2;
+  const c0 = { x: (Wc - a.tx) / a.scale, y: (Hc - a.ty) / a.scale }, c1 = { x: (Wc - nx) / ns, y: (Hc - ny) / ns };
+  const dw = Math.hypot(c1.x - c0.x, c1.y - c0.y), far = dw * Math.min(a.scale, ns) > view.clientWidth * 0.7;
+  const u0 = 1 / a.scale, u1 = 1 / ns, sm = Math.max(0.12, Math.min(a.scale, ns, view.clientWidth * 0.75 / Math.max(1, dw)));
+  const bump = far ? Math.max(0, 1 / sm - (u0 + u1) / 2) : 0;
+  if (far) ms = Math.min(1500, Math.max(ms * 1.6, 800));
+  const f = t => { const p = Math.min(1, (t - s0) / ms), e = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    const u = u0 + (u1 - u0) * e + bump * 4 * e * (1 - e), sc = 1 / u, cx = c0.x + (c1.x - c0.x) * e, cy = c0.y + (c1.y - c0.y) * e;
+    if (p >= 1) { tx = nx; ty = ny; scale = ns; } else { scale = sc; tx = Wc - cx * sc; ty = Hc - cy * sc; }
+    apply(); tw = p < 1 ? requestAnimationFrame(f) : null; if (!tw) aim = null; };
+  tw = requestAnimationFrame(f);
+}
+function camera(keys, main) { // keys の見えている物を、画面（右の欄と時間の帯を除いた所）に収める
+  const els = [...new Set(keys.map(repOf))].map(elOf).filter(Boolean); if (!els.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const n of els) { const b = boxOf(n); x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h); }
+  const side = $("side"), sw = side.classList.contains("on") ? side.offsetWidth : 0;
+  const W = view.clientWidth - sw, H = view.clientHeight - $("tl").offsetHeight;
+  const fitS = Math.min(1, W * 0.8 / (x1 - x0), H * 0.72 / (y1 - y0));
+  const at = aim || { tx, ty, scale };   // 動いている途中なら、行き先で考える
+  let s = at.scale, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  if (fitS < 0.4) { // 全部は読める大きさに収まらない: 一番新しい物を真ん中に
+    s = 0.55; const m = elOf(repOf(main)); if (m) { const b = boxOf(m); cx = b.x + b.w / 2; cy = b.y + b.h / 2; }
+  } else if (s > fitS || s < Math.min(0.6, fitS)) s = Math.min(fitS, 0.85);
+  // 今の位置で収まっていて、大きさも変えないなら動かさない（細かく揺らさない）
+  const inX = x0 * at.scale + at.tx >= W * 0.08 && x1 * at.scale + at.tx <= W * 0.92, inY = y0 * at.scale + at.ty >= H * 0.1 && y1 * at.scale + at.ty <= H * 0.9;
+  if (Math.abs(s - at.scale) < 0.01 && (fitS >= 0.4 ? inX && inY : (() => { const m = elOf(repOf(main)); if (!m) return true; const b = boxOf(m), mx = (b.x + b.w / 2) * at.scale + at.tx, my = (b.y + b.h / 2) * at.scale + at.ty; return mx > W * 0.25 && mx < W * 0.75 && my > H * 0.2 && my < H * 0.8; })())) return;
+  const ms = rp.timer ? Math.max(140, Math.min(700, 900 / Number($("rp-speed").value) * 0.9)) : 300;
+  tween(W / 2 - cx * s, H / 2 - cy * s, s, ms);
+}
+function go(i) {
+  rp.i = Math.max(0, Math.min(steps.length - 1, i)); rp.on = rp.i < steps.length - 1 || rp.timer != null; scrub.value = rp.i;
+  const t = now(); cur.style.left = pct(t) + "%";
+  const run = rp.on ? running() : [];
+  let tg = run.length ? run : rp.on ? changedAt(t) : [];
+  if (rp.on && !tg.length) { const l = lastStarted(t); if (l) tg = [l]; }
+  const main = [...tg].sort((a, b) => startOf(b, t) - startOf(a, t))[0] || null;
+  $("rp-t").textContent = rp.on ? `${hhmmss(t)}（${plus(t)}）` : "最終状態";
+  const skippedNow = !run.length && tg.length && tg.every(k => stateAt(k) === "skipped");
+  $("rp-w").textContent = rp.on ? (main ? (run.length ? "実行中: " : skippedNow ? "スキップ: " : "直前の変化: ") + [...ancestors(main), main].map(x => O[x].name).join(" › ") + (tg.length > 1 ? ` ほか ${tg.length - 1} 個` : "") : "") : `${steps.length} ステップ・スライダーか ▶ で再生`;
+  const following = $("rp-follow").checked && rp.on;
+  // 並べ直しの前に、今の物がどこに見えていたか（閉じた枠ならその枠のカード）を覚える。並べ直した後、今の物をそこに置き直すので、
+  // 枠はその場から広がって見え、図が跳ばない
+  const preEl = main ? elOf(repOf(main)) : null;
+  const pre = preEl ? { x: preEl.offsetLeft + preEl.offsetWidth / 2, y: preEl.offsetTop + preEl.offsetHeight / 2 } : null;
+  let changed = false;
+  if (following && $("rp-open").checked) {
+    // 開くのは動いている物の枠。動いている物が無い歩（スキップ・終わっただけ）は、開いた枠を閉じずに、動いた物の枠を足すだけにする
+    const keep = run.length ? [] : [...rp.auto];
+    const want = new Set([...keep, ...tg.filter(k => stateAt(k) !== "skipped").slice(0, 12).flatMap(ancestors)]);
+    // 自動で開いた枠は、再生の間は閉じない（閉じると図の形が大きく変わり、画面が跳ぶ）。再生を終えた時にまとめて閉じる
+    for (const a of want) if (!open.has(a)) { open.add(a); rp.auto.add(a); changed = true; }
+  }
+  if (!rp.on || !$("rp-open").checked) { for (const a of rp.auto) open.delete(a); if (rp.auto.size) changed = true; rp.auto.clear(); }
+  if (changed) {
+    stopTween();
+    layout(null, true, true);
+    const postEl = main ? elOf(repOf(main)) : null;
+    if (pre && postEl && rp.on) { tx += (pre.x - (postEl.offsetLeft + postEl.offsetWidth / 2)) * scale; ty += (pre.y - (postEl.offsetTop + postEl.offsetHeight / 2)) * scale; apply(); }
+    flip();
+  } else restyle();
+  for (const c of world.querySelectorAll(".card.now, .frame.now")) c.classList.remove("now");
+  if (main) { const c = elOf(repOf(main)); if (c) c.classList.add("now"); }   // 閉じた枠の中なら、その枠のカード
+  if (following && tg.length) camera(tg, main);
+  lateTurns();
+}
+function play() { if (rp.timer) { clearInterval(rp.timer); rp.timer = null; $("rp-play").textContent = "▶"; $("rp-play").classList.remove("on"); return; }
+  if (rp.i >= steps.length - 1) rp.i = -1;
+  $("rp-play").textContent = "❚❚"; $("rp-play").classList.add("on");
+  rp.timer = setInterval(() => { if (rp.i >= steps.length - 2) { play(); go(steps.length - 2); return; } go(rp.i + 1); }, 900 / Number($("rp-speed").value)); }
+$("rp-play").onclick = play;
+$("rp-prev").onclick = () => go((rp.on ? rp.i : steps.length - 1) - 1);
+$("rp-next").onclick = () => go(rp.i + 1);
+$("rp-stop").onclick = () => { if (rp.timer) play(); rp.on = false; go(steps.length - 1); };
+$("rp-speed").onchange = () => { if (rp.timer) { play(); play(); } };
+scrub.oninput = () => go(Number(scrub.value));
+band.onclick = ev => { const r = band.getBoundingClientRect(); const t = t0 + (ev.clientX - r.left) / r.width * (t1 - t0); let i = steps.findIndex(x => x > t) - 1; if (i < 0) i = 0; go(i); };
+document.addEventListener("keydown", ev => { if (ev.target.closest("input,select")) return; if (ev.key === " ") { ev.preventDefault(); play(); } else if (ev.key === "ArrowRight") go(rp.i + 1); else if (ev.key === "ArrowLeft") go((rp.on ? rp.i : steps.length - 1) - 1); });
+go(steps.length - 1);
+$("fit").onclick = fit;
+$("io-t").onclick = ev => { io = !io; ev.target.textContent = io ? "ノードビュー" : "I/O ビュー"; layout(selected && O[selected] && !hidden(selected) ? selected : null, true); };
+$("sum-t").onclick = () => summaryPanel();
+$("closeall").onclick = () => { open.clear(); open.add(ROOT); selected = null; layout(); };
+$("openstages").onclick = () => { for (const k of O[ROOT].kids) open.add(k); layout(); fit(); };
+$("wires-t").onclick = ev => { hideWire = !hideWire; ev.target.textContent = hideWire ? "接続スクリプトを表示" : "接続スクリプトを隠す"; layout(selected && !hidden(selected) ? selected : null); };
+function fillHeight() { const m = document.querySelector("main"); const r = m.getBoundingClientRect(), sc = m.offsetWidth ? r.width / m.offsetWidth : 1; m.style.height = Math.max(300, (window.innerHeight - r.top) / (sc || 1) - 2) + "px"; }
+window.addEventListener("resize", () => { fillHeight(); mini(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") $("side").classList.remove("on"); });
+});
+</script>
+</body>
+</html>
