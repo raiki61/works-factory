@@ -80,8 +80,8 @@ def returned(include: str) -> str:
 
 
 def got(trace: dict, include: str):
-    """include した block の返り（返す節の出力。返す節が走らなければ None）"""
-    node = returned(include)
+    """include した block の返り（返す節の出力）か、輪（loop_group）の返り（輪の行の出力）。走らなければ None"""
+    node = returned(include) if "include" in nodes()[include] else include
     return out(trace, node) if ran(trace, node) else None
 
 
