@@ -17,7 +17,7 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 文は聞く項目ごとの節（約束の欄の変化・人に聞く穴・その項目を誤りとした申し出の文と裁定の文〔fix の conflicts。字のまま〕・前と後の
 項目の JSON）。asked は承認ノードに見せた項目の本文の字の並び（「項目 <id>: …」と事前審査の問いの行。推しは文に書かない。answer-replan が答えの asked にする）。
 
-入力（with:）: replan（replan-out の got）・review（replan-review-out の got か null）・old_plan（承認済みの案の欄の pointer）・
+入力（with:）: replan（replan の返り）・review（replan-review の返りか null）・old_plan（承認済みの案の欄の pointer）・
 items（直す計画の項目の番号）・conflicts（1 回目の修正の申し出と裁定の pointer か null）・before_fix（修正前の承認ノードの答え）・
 record（始めの記録の pointer。方針の文書が固めた版から変わっていれば、その行を聞く項目に足す）・ports（start の配る値）・
 means（依頼が示した解き方の文の並びか null。外れの行の M<n> に文を添える）・

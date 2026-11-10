@@ -5,7 +5,7 @@
 """仕様駆動の run の判定と計画の往復を、判定のまとめと計画の往復の返りの形に組み直す node spec-rounds（docs/design/spec-driven.md の 6.2 の足す node の 8。
 決まりは src/specrounds.py）。返り {judge, rounds, stop_reason, reason}。例外の時は止めの語 works:line-script で、後ろは when: で飛ぶ。
 
-入力（with:）: diagnose（spec-diagnose-out の got）・plan（spec-plan-out の got）・entry（spec-entry-out の got）・ports（start の配る値）
+入力（with:）: diagnose（spec-diagnose の返り）・plan（spec-plan の返り）・entry（spec-entry の返り）・ports（start の配る値）
 """
 import json
 import os

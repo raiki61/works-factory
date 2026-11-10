@@ -17,7 +17,7 @@ run が推しで進んだ時は pushed を答えとして記録する）。加�
 - skip_rerun: いつも []（全部が標準なので省く単位は無い）
 
 入力（with:）: gate・go・stop_reason・place・asked・pushed（承認ノードと ask-replan の返り）・before_fix（修正前の承認ノードの答え）・
-replan（replan-out の got）・review（replan-review-out の got か null）・items（直した項目の番号）・first_ripple（計画の往復の波及の一覧）・
+replan（replan の返り）・review（replan-review の返りか null）・items（直した項目の番号）・first_ripple（計画の往復の波及の一覧）・
 units_tier（fix-in の単位の深さ）
 """
 import os
