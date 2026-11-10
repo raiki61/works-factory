@@ -16,6 +16,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import accept  # noqa: E402
+import querytest  # noqa: E402
 from accept import _ignored_entries, snapshot_tree, touched_files, tree_change, tree_state  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
@@ -255,6 +256,57 @@ class TestBeyondStatus(AcceptCase):
         for flag in (True, "true", " True "):
             with self.subTest(flag=flag):
                 self.assertEqual(accept.status_keys(flag), accept.BEYOND_STATUS)
+
+
+class GitWaitsWithoutDeadlineCase(unittest.TestCase):
+    """受け付けと修正の後始末の git・判定の問いの git grep は期限を付けずに待つ（台帳 R4: 新しい期限を足さない。止まった git は
+    ほかの所と同じく待ち、run の外の止め方で止める）"""
+
+    def test_accept_and_leftovers_git_have_no_timeout(self):
+        from unittest import mock
+        import subprocess
+        import accept
+        import leftovers
+        done = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+        for mod, call in ((accept, lambda d: accept._git(d, "status")), (leftovers, lambda d: leftovers.git(d, "status"))):
+            with self.subTest(mod.__name__), tempfile.TemporaryDirectory() as d, \
+                    mock.patch.object(mod.subprocess, "run", return_value=done) as run:
+                call(d)
+                self.assertIsNone(run.call_args.kwargs.get("timeout"), run.call_args)
+
+    def test_git_and_count_have_no_deadline(self):
+        """engine の git・run_count（rev の確かめ・下調べ・本体の git grep）が、子のプロセスに期限を渡さず、
+        止めの Timer も作らない（E12）"""
+        import subprocess
+        import threading
+        from unittest import mock
+        util = querytest._util
+        runs, popens = [], []
+        real_run, real_popen = subprocess.run, subprocess.Popen
+
+        def run(*a, **k):
+            runs.append(k)
+            return real_run(*a, **k)
+
+        def popen(*a, **k):
+            popens.append(k)
+            return real_popen(*a, **k)
+        with tempfile.TemporaryDirectory() as d:
+            real_run(["git", "init", "-q", d], check=True)
+            (pathlib.Path(d) / "a.txt").write_text("x\n", encoding="utf-8")
+            real_run(["git", "-C", d, "add", "a.txt"], check=True)
+            real_run(["git", "-C", d, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c"], check=True)
+            with mock.patch.object(util.subprocess, "run", side_effect=run), \
+                    mock.patch.object(util.subprocess, "Popen", side_effect=popen), \
+                    mock.patch.object(threading, "Timer", side_effect=AssertionError("Timer を作った")), \
+                    mock.patch.object(util, "GIT_CWD", d):
+                self.assertIsNotNone(util.git("status"))
+                got, why = util.run_count({"patterns": ["x"], "paths": ["a.txt"], "count": "lines"}, d, rev="HEAD")
+        self.assertEqual((got, why), (1, ""))
+        self.assertTrue(runs and popens)
+        for k in runs + popens:
+            self.assertNotIn("timeout", k)
+        self.assertFalse(hasattr(util, "GIT_TIMEOUT"))
 
 
 if __name__ == "__main__":
