@@ -1,5 +1,5 @@
-"""下請け（書き手が項目ごとに起こす実装役と審査役）の値の関数（lib/subagents.py）の試験。docs/plans/2026-10-24-fix-weapons.md の 11.6 の D2 の
-縛る試験のうち「項目ごとに 2 つのファイル・審査役の型の <base>..<head> の直し・brief の無い run の残りの単位の項目」の、値の関数の側。
+"""下請け（書き手が項目ごとに起こす実装役と審査役）の値の関数（lib/subagents.py）の試験。docs/design/fix.md の 24.9 の
+試験のうち「項目ごとに 2 つのファイル・審査役の型の <base>..<head> の直し・brief の無い run の残りの単位の項目」の、値の関数の側。
 ファイルを place に書いて md を組む本体は tests/blocks/shared/test_writerblock.py。lib は実行環境を知らない（E3）ので、md を組んだ字は引数で渡す。
 """
 import pathlib

@@ -3,7 +3,7 @@
 形 {conflicts: <conflicts.json の中身か null>, loops: [{record: <tdd-<k>/record.json の中身>, summary: <summary.md の字か "">}],
 accept: <accept.json の中身か null>, bases: [{base: <bases/<k>/base.json の中身か null>, accept: <bases/<k>/accept.json の中身か null>}],
 returns: [<returns/<k>.json の中身>]}（この段の place の全部の輪・元の結末の写し・返しの控え。子から写した物を含む。accept・bases・
-returns は下書き docs/plans/2026-10-24-fix-weapons.md の 2.1 の「2 回目の block の置き場へ写す」道）。2 回目の段の prep は port prior でこの束だけを受け、place の prior/ に
+returns は docs/design/fix.md の 22.3 の「運ぶ道」）。2 回目の段の prep は port prior でこの束だけを受け、place の prior/ に
 置き直してから、今の adopt_prior_pass と同じ写しをする（今は前の段の place のフォルダを名で開いていた）。
 """
 from __future__ import annotations

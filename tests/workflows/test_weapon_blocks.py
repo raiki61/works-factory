@@ -1,5 +1,4 @@
-"""書き手の型の block の写しの照らし（docs/design/fix.md の 24.6。名の表を持たない yes/no。docs/plans/2026-10-24-fix-weapons.md の 11.6 の D1 の
-縛る試験の 2・11.10 の 2）。
+"""書き手の型の block の写しの照らし（docs/design/fix.md の 24.6。名の表を持たない yes/no）。
 
 書き手の型の block は「`script: writer_prep` の node を持つ workflow」で見分ける（型の名の表を持たない）。Archon は YAML の錨も `output_format` も
 ファイルをまたいで共にできないので、書き手の AI の node の起こし方と返答の形は型の block の数だけの YAML に写る。写しを 1 つの照らしで縛る。

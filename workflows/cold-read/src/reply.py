@@ -5,7 +5,7 @@
 """
 import json
 
-VERDICTS = ("pass", "redesign-needed")   # YAML の cold の output_format の verdict の enum と同じ（試験が突き合わせる）
+VERDICTS = ("pass", "redesign-needed")   # YAML の cold の output_format の verdict の enum と同じ字（突き合わせる試験は無い。変える時は YAML と一緒に直す）
 PASSED, REDESIGN = VERDICTS
 COLD_UNREADABLE = "初見の読み手の返答を読めない（判定の語が無い）"
 COLD_EMPTY = "（止まった所・推測の欄が空）"

@@ -1,4 +1,4 @@
-"""振り分けと、route から型を引く表（docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3。型を問わない部品）。
+"""振り分けと、route から型を引く表（docs/design/fix.md の 22.1。型を問わない部品）。
 
 振り分けの段は TDD の輪の最初の段だった（tdd.py の route）。組の子の loop route-loop（route-prep → AI の route → route-step）に出し、
 型の輪の前に回す。指示は変えない（prompts/route.md は {part:tdd} の 1 行で、状態の段が route の時の tdd_values が同じ字を組む）。

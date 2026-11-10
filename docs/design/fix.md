@@ -4,7 +4,7 @@
 - 決めたこと: 今の `workflows/fix/` の node のうち、差分の審査・レンズ・手直し（`delta-cut`〜`refix2-loop`）を delta-review と lens の block に渡し、残りを同じ並びの block にする。始めの記録の代わりに port で受け、run の頭の深さ（`depth`・`head_depth`・`depth_record`）と fix の中の深さの上げ直し（`fixboard.redepth`）を外して、port `skip_rerun` 1 つにする。AI の node は 9 つ（修正役・裁定の後の修正役・相談の答え 2・TDD の役 2・裁定役・合わせ役 2）で、指示の本文は block の 5 つの断片（`fixer`・`consult`・`tdd`・`clash`・`brief`）と裁定役の md 1 本と、書く役の決まりの共通の断片 `writer-rules`（delta-review の手直しの役と共に使う）に寄せる。lib の 12 モジュールを `src/` へ写す（どの関数をどこへ写すかは 1.5）。振る舞いは変えない。変える所は 13 節に名指した物だけ。
 - 読む人: この block を作る実装の役（この設計書だけで作れるように書いた）。README 11.1 の 3 波目（delta-review と同時。写す範囲は 1.5.3 で割った）。
 - 持ち主に求めること: なし。README・持ち主の決め・今のコードの事実で 1 つに決まらなかった物は 16 節（未確認）に置いた。作り直しの中で見つけた今の工場の不具合（相談の答えの役が修正役の会話の分かれとして起きる・振り分けの段の書き込みが戻らない など）は直さず 13.3 に並べた（振る舞いを変えるので作り直しの外。structure の設計書の 11 節の 8 と同じ扱い）。
-- 直し方の型の段 1（PR A。2026-10-25）の形: 組の子は、元の結末を組の頭で取って `base.json` に置き、振り分けを TDD の輪の外の `route-loop` に出し、型ごとの注文を `orders` が書いてから、tdd の輪と修正役の輪を並べる。この形は 22 節に書き（段 1 の PR B で修正役を型ごとの書き手に分けた形は 23 節。22 節の「修正役の輪」「修正役」の文は 23 節に従う）、1.3 の 13〜16・1.4・4 節・7 節・8 節・17〜19 節の該当の文は 22 節に従う。下書きは [2026-10-24-fix-weapons.md](../plans/2026-10-24-fix-weapons.md)。書き手が修正役のまま 1 つであることと、書き手の返す証拠が要る照らしを PR B に回したことは、この文書でも「段 1 の PR B で」と書く。
+- 直し方の型の段 1（PR A。2026-10-25）の形: 組の子は、元の結末を組の頭で取って `base.json` に置き、振り分けを TDD の輪の外の `route-loop` に出し、型ごとの注文を `orders` が書いてから、tdd の輪と修正役の輪を並べる。この形は 22 節に書き（段 1 の PR B で修正役を型ごとの書き手に分けた形は 23 節。22 節の「修正役の輪」「修正役」の文は 23 節に従う）、1.3 の 13〜16・1.4・4 節・7 節・8 節・17〜19 節の該当の文は 22 節に従う。この文書の「下書き」「計画の N.N」は、使い終えて消した計画 2026-10-24-fix-weapons（git の履歴が持つ）の節の番。書き手が修正役のまま 1 つであることと、書き手の返す証拠が要る照らしを PR B に回したことは、この文書でも「段 1 の PR B で」と書く。
 - 直し方の型の段 2 の D1・D2（2026-10-26）の形: 書き手の型 6 つ（tdd の閉じ・pin・tidy・static・variant・remove）を、修正の block が `include:` する葉の block `workflows/weapon-<型>/` に出した（D1 が 5 つ、D2 の段 1 で variant）。D2 の段 2 で、下請けを付ける型を下書きの 11.8 の決め（案 B）の 5 つ（variant・remove・pin・tidy・static。tdd の閉じの外）にした（24.9）。書き手に渡す slots と鎖の並びは 2 節、型の block の共通の形と共通の本体は 24 節、型ごとに違う物は型ごとの設計書（`docs/design/weapon-<型>.md`）。1.2〜1.5 の port・node の並び・コードの置き場は D2 の段 1 の後の形に合わせた。下請け（書き手が項目ごとに起こす実装役と審査役）の部品は `lib/subagents.py`・`.shared/prompts/g1-*.md`・本体 `writerblock.prep` に移った（24.9）。
 
 この文書の語は README の頭の物を使う（block・graph・port・place・prep・accept・pointer と、Archon の YAML の鍵、form の書き方）。keep-essence の番号は README の 10 節、F の番号は元の works の能力の棚卸しの行（消した表なので、この設計書の 12 節が対応を持つ）。ほかに:
@@ -251,7 +251,7 @@ lib の `fixbeside.py`（README 9.1 で DELETE）のうち fix の物: `CLOSURE_
 
 ## 2 書き手に渡す slots と型の block の鎖（修正役の設計シートだった節。段 2 の D1 で書き直した）
 
-段 1 の PR B（23 節）で、修正役 `fixer`・`fix-ruled` は型ごとの書き手 6 つの node に分かれた。段 2 の D1（下書き [2026-10-24-fix-weapons.md](../plans/2026-10-24-fix-weapons.md) の 11 章）は、そのうち 5 つ（tdd の閉じ・pin・tidy・static・remove）を、D2 は残る variant を、修正の block が `include:` する葉の block `workflows/weapon-<型>/` に出す（憲法の 3 の外し。持ち主の決め `leaf-include`）。この節は D2 の段 1 の後の形で、修正の block が書き手に渡す物（注文 `order` と指示の材料 `slots`）・鎖の並び・受け付けの読みを書く。型の block の側の共通の形（node の並び・共通の本体・写しの照らし）は 24 節、型ごとに違う物は型ごとの設計書（[weapon-tdd-close.md](weapon-tdd-close.md)・[weapon-pin.md](weapon-pin.md)・[weapon-tidy.md](weapon-tidy.md)・[weapon-static.md](weapon-static.md)・[weapon-variant.md](weapon-variant.md)・[weapon-remove.md](weapon-remove.md)）。
+段 1 の PR B（23 節）で、修正役 `fixer`・`fix-ruled` は型ごとの書き手 6 つの node に分かれた。段 2 の D1 は、そのうち 5 つ（tdd の閉じ・pin・tidy・static・remove）を、D2 は残る variant を、修正の block が `include:` する葉の block `workflows/weapon-<型>/` に出す（憲法の 3 の外し。持ち主の決め `leaf-include`）。この節は D2 の段 1 の後の形で、修正の block が書き手に渡す物（注文 `order` と指示の材料 `slots`）・鎖の並び・受け付けの読みを書く。型の block の側の共通の形（node の並び・共通の本体・写しの照らし）は 24 節、型ごとに違う物は型ごとの設計書（[weapon-tdd-close.md](weapon-tdd-close.md)・[weapon-pin.md](weapon-pin.md)・[weapon-tidy.md](weapon-tidy.md)・[weapon-static.md](weapon-static.md)・[weapon-variant.md](weapon-variant.md)・[weapon-remove.md](weapon-remove.md)）。
 
 2.3 の並びと 2.5 の骨組みは、型の block に出した後も、書き手の組み上がった指示の並びと同じ（指示の文は変えず、md の置き場だけを移した。割った先は 2.3 に書く）。2.6・2.7 は作り直しの時の記録で、字を直さない。
 
@@ -1195,7 +1195,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - E11（根の `AGENTS.md`）: (1) Archon は持たない（確かめ直しは工場の `join` の中の事）。(2) ASF も持たない（18 節と同じ）。(3) 要る: keep-essence の 1（直しで壊した赤を見逃さない）を、外すと緑で 3 回とも赤の組を戻すことで保ったまま、試験の 1 回の揺れや前からの赤で正しい組を戻して出し直しの費用を捨てる事（run 96f35545 で約 $122）を無くす。元の works の `_green_after` は `test_cmd` を 1 回だけ走らせていた。
 - 試験: `tests/blocks/fix/test_join.py` の `test_rerun_problem_tells_test_cmd_red_apart_on_the_tree_without_the_group`（3 段目の見分けの表と、`test_cmd_notes` と報告の行）・`tests/blocks/fix/test_clash.py` の `test_join_clash_repaired_with_an_uncompared_red_asks_a_human`（合わせ役の道）。
 
-## 22 直し方の型の段 1（PR A）の形（2026-10-25。下書き [2026-10-24-fix-weapons.md](../plans/2026-10-24-fix-weapons.md)）
+## 22 直し方の型の段 1（PR A）の形（2026-10-25）
 
 - 語: 「段」は 2 通りに使う。工程の段（段 1・段 2・PR A/B）と、TDD の輪の中の段（`route`・`test`・`fix`・`refactor`）。「箱」は型の区分で、change（tdd・variant・remove）・keep（tidy・rebuild・pin）・outside（static）。「回 n」は修正の block を line が入れた回で、1 回目 n=1、案の直しの後の 2 回目 n=2。「読み手」は組の結果を読む node（`group-end`・`finish`・line）。
 - 何を: 組の子を「元の結末を取る → 振り分ける → 型ごとの注文を書く → 型の輪を回す → 共通の受け付けで型の義務を照らす」の順に口をそろえた。型の中身は `src/` の型のモジュール（`tdd`・`variant`・`remove`・`static`・`tidy`・`pin`・`rebuild`）に分け、型を問わない部品は `src/route.py`・`src/orders.py`・`src/basecase.py`・`src/duties.py` に置く。型のモジュールどうしは import しない（`duties.py` の表だけが引く。持ち主の答え 9.1 の 3）。
@@ -1394,3 +1394,9 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - 筋書きの標準 3 本（`workflows/fix/fixtures/`）は、dry-run が置き場にファイルを書けず返りの pointer の先を読めないので、返りを読む受け付けの 3 つの script も差し替えた。標準の筋書きの `resolved-text-contains`（variant）は外し、consult の筋書きが照らしていた答えの役の指示は表 `RENDERED`（`consult-answer`）と `tests/blocks/fix/test_prompts.py` の `test_consult_answer` に移した。
 - `test_writer_prompts_kept` は段 1 では控えを替えない（段 2 で 1 度だけ書き直した。24.9 の段 2）。ただし `compose` の variant の枝を型の block の道に替え、指示を組んだ place が型の block の place になるので、下請けのファイルの名指しの place を `{PLACE}` に揃える置き字を足した。'resumed' の場面が受け付けへ渡す variant の返答は、block の返りの字に包む（`kit.Run.environ`）。
 - `slots` の `subagents` を、型を問わず同じ組み方で渡した（設計は「下請けを起こさない型の注文の時も空の並びで置く」。下請けを起こすかは型の block の表が決めるので、修正の block に型の表を持たせない）。
+
+### 24.11 E11 の 3 つの答え（直し方の型の段 1・段 2）
+
+- (1) Archon は直し方を選ぶ仕組みを持たない。持つのは、つなぐ道具の `include:`（`loop_group` の本体の中も）・`when:`・`trigger_rule`・飛ばした返りの `if_skipped` で、型の block を鎖に並べて選ぶのはこれで足り、埋めは足さない。node の鍵と `output_format` をファイルをまたいで共にする仕組みは無いので、写しを照らしで縛る（24.6）。
+- (2) ASF は直し方で役を分けない（1 本の実装役と、読むだけの審査）。AI の node を持つ block が loop の本体で葉の block を include する形は ASF の `archon-deliver-block` が持ち、型だけを採った（E8）。
+- (3) 要る: 型の受け皿が無いまま修正役 1 つに混ぜた直しは、消す依頼で許しが積まれて止まり（run 82d22f4f）、書き直しは止め置かれ（run 20447be2 の組の子）、文書の直しは偽の赤を作って通っていた。持ち主の答えで、振り分けを型の作りと切り離した。足したのは今の置き場の block・形・断片と `.shared/` の口 1 つだけで、新しい層・置き場・常駐する仕組みは足していない（E10 に当たらない）。

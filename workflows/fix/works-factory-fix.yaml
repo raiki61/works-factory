@@ -785,7 +785,7 @@ nodes:
         route: {type: boolean}
         stop: {type: boolean}   # 起動スクリプトが書き直しても壊れたまま・実行器が無い・走らない組（no_suite）
 
-  # 振り分け（今の TDD の輪の最初の段を輪の外へ出した物。docs/plans/2026-10-24-fix-weapons.md の 4.1 の 3）。拒否 3 回で諦めると、
+  # 振り分け（今の TDD の輪の最初の段を輪の外へ出した物。docs/design/fix.md の 22.1）。拒否 3 回で諦めると、
   # 振る単位は全部 AI の答え無しとして route から型を引く表で variant に引かれる。回数の柵は今の tdd-loop と同じ 40
   - id: route-loop
     depends_on: [route-go]

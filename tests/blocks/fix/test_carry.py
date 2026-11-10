@@ -382,7 +382,7 @@ class PriorLoopsCase(tddcase.LoopCase):
 
 
 class BasesCarryCase(unittest.TestCase):
-    """下書き docs/plans/2026-10-24-fix-weapons.md の 4.4 の 3 の縛る試験 (i)〜(iv): 元の結末 base.json と受け付けの書き戻し accept.json と
+    """docs/design/fix.md の 22.3 の「運ぶ道」の試験 (i)〜(iv): 元の結末 base.json と受け付けの書き戻し accept.json と
     返しの控え returns/ が、組を合わせる時に親へ（board.adopt_returned）、束 carry.json で 2 回目の修正の段の置き場へ（carry.adopt）、
     その組の子へ（board.adopt_inputs）写る。どの試験も対象の試験を走らせない（持ち主の決め base-runs-nothing）"""
 

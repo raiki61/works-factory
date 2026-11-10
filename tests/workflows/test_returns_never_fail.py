@@ -14,7 +14,7 @@ resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProdu
 
 照らし:
 - どの workflow の返す節も trigger_rule: all_done で、落ちた節の後にも走る。既定の trigger_rule の返す節は、上流が落ちると飛び、
-  block が値を返さない（docs/plans/2026-10-24-fix-weapons.md の 11.0 の 10。one_success・always_run は上流の全部を待たないので入れない）
+  block が値を返さない（docs/design/fix.md の 24.2 の「落ちた周の守り」。one_success・always_run は上流の全部を待たないので入れない）
 - 落ちてはいけない節は script の節で（AI の節は retry の後に落ちうる）、一時のフォルダへ単独で写して入力無しで走らせると、終了の値 0 で、
   標準出力の JSON が節の output_format に合い、返りの指し札の先が在って空でない。単独とは lib も隣の script も無い木で、口
   （.shared/ports.py。docs/design/README.md の 4 節）と自分の block の src/ だけを置く（block のコードは block のフォルダに在り、

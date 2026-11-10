@@ -1,4 +1,4 @@
-"""止めの語 no-suite（docs/plans/2026-10-24-fix-weapons.md の 3.9 と 4.4 の作る物 6）の試験。
+"""止めの語 no-suite（docs/design/fix.md の 19.1 の「試験なしで直す逃げ道を閉じる」）の試験。
 
 試験の実行器が無いか走らない組で、計画の語が static でない単位が在れば、確かめていない直しを書き進めずに組を止め、組の形の出口が
 stopby.NO_SUITE を名乗る。止める所は 4 つ: 組の頭（orders.no_suite_why。実行器が無く元の結末が取れない）・TDD のループ（実行器が

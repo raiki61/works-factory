@@ -118,7 +118,7 @@ _ROW = json.loads((pathlib.Path(__file__).resolve().parent / ROW_SCHEMA_FILE).re
 FILES_SCHEMA = _ROW["files"]
 MIN_WHY = FILES_SCHEMA["items"]["properties"]["why"]["minLength"]   # 訳の欄（消す訳 why・route_why など）の字の下限
 SYMBOL_CHANGES = tuple(FILES_SCHEMA["items"]["properties"]["symbols"]["items"]["properties"]["change"]["enum"])   # symbols の行の変え方
-# 直し方の語。tdd・direct のほか、項目がどんな直しかの見分けの 3 語（持ち主の答え。docs/plans/2026-10-24-fix-weapons.md の 9.1 の 10）:
+# 直し方の語。tdd・direct のほか、項目がどんな直しかの見分けの 3 語（持ち主の決め route-new-words）:
 # static は試験で示す振る舞いの無い直し・tidy は利用者から届かない使われていない物を消す直し・pin はコードが正しく試験だけが欠けた直し。
 # 修正の段は語を表で型に引くだけで、語を推し量らない（workflows/fix/src/route.py）
 ROUTES = tuple(_ROW["route"]["enum"])

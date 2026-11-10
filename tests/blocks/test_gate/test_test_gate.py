@@ -189,7 +189,7 @@ class ScriptCase(unittest.TestCase):
         self.head = committed_copy(self.repo, SEED)
         self.artifacts = self.tmp / "artifacts"
         self.artifacts.mkdir()
-        self.declared = {}   # 包みの宣言（launcher.FENCE_RECORDS_ENV）。空なら起動の殻を通らない run
+        self.declared = {}   # 起動の殻が script のノードに置く名（launcher.SUITE_KEEP_ENV など）。空なら起動の殻を通らない run
         self.user_home = None   # 在れば起動の殻の隔離を通った run（as_user）
         self.given = {}   # port の値（write_start が書き換える）
         self.fresh = set()   # port を読み直した（intake を回した）形

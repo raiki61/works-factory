@@ -216,8 +216,8 @@ def logged_in_claude(folder: pathlib.Path) -> pathlib.Path:
 
 def archon(cwd: pathlib.Path, *args: str, aliases: bool = True, **env: str | None) -> subprocess.CompletedProcess:
     """源の Archon を cwd で起こす。ARCHON_HOME は cwd の横の使い捨て。源か bun が無ければ absent。子の環境は hermetic.child_env で
-    作る（入口の殻が渡す Archon の頭・包みの宣言・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
-    起こさず、包みを通らない起動を外の run の記録で受け付けさせない）。子へ渡したい名は env で名指しし、値を None にした名は置かない"""
+    作る（入口の殻が渡す Archon の頭・親の run の名は継がない。試験が殻の中で走っても、線の後始末の節が外の Archon を
+    起こさない）。子へ渡したい名は env で名指しし、値を None にした名は置かない"""
     head, child = command(cwd, aliases=aliases, **env)
     return subprocess.run([*head, *args], cwd=cwd, env=child, capture_output=True, text=True, encoding="utf-8")
 

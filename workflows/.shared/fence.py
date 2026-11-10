@@ -17,10 +17,6 @@ cache を作れず落ちる。そこで --settings の sandbox.enabled が true 
 共有の xdg-cache は書けるようにしない（sandbox の外で後に走る script のノードと分け合う cache を、役が汚せてしまう）。起動ごとに空から
 始まる代価は受ける。フォルダが denyWrite の下に入ると書けない（denyWrite は allowWrite に勝つ）ので、その時は起こさない。sandbox の無い起動
 （--settings が無い・sandbox.enabled が無い）は argv も XDG_CACHE_HOME も変えない。作業の場が無くなった置き場は起動の殻が片付ける。
-印の在る起動は、起こす前に起動の記録（--records。起動の殻が env の RECORDS_ENV でも script のノードに名指す）へ時刻と cwd の 1 行を
-足し、書けなければ起こさない。記録は --own の下に置かれ、柵の中の役は書き換えられない。受け付け（以前は test-gate の ci-accept。今の使い手は無い）は
-fenced_since で、役を起こす前の時刻より後にその作業ツリーで柵の掛かった起動が在ったかを見る（今の works の ci_role.take の
-「包みの起動の記録を見て止める」と同じ所。棚卸しの T49）。
 起こす claude の PATH の頭には、起動の殻が --path-head で名指した置き場（読むだけの gh の口 works-gh の置き場）を足す。Archon は
 script のノードと役の claude に同じ環境を渡すので、gh を書き込みのできる口（script のノードが通す hostgh の口）と読むだけの口に
 分けられるのは、役の claude を起こすこの包みだけ（持ち主の決め roles-read-only-gh）。
@@ -29,7 +25,6 @@ script のノードと役の claude に同じ環境を渡すので、gh を書�
 標準ライブラリと、隣の ports が lib から足す writelog だけを使う（起動の殻が `python -I -B` で起こす）。
 """
 import argparse
-import datetime
 import importlib.util
 import json
 import os
@@ -45,7 +40,6 @@ DENY_WRITE = ("sandbox", "filesystem", "denyWrite")
 ALLOW_WRITE = ("sandbox", "filesystem", "allowWrite")
 CACHE_ENV = "XDG_CACHE_HOME"
 REFUSED_EXIT = 3
-RECORDS_ENV = "WORKS_FACTORY_FENCE_RECORDS"   # 起動の記録のパス。在れば run は包みを通ると宣言した
 ENGINE_CHILD_ENV = "GRAPHLOOPS_ENGINE_CHILD"
 PROFILE_ENV = "WORKS_FACTORY_CONNECTION_PROFILE"   # 殻が組む必要設定。探索と認証判断は殻だけが持つ
 # 殻の接続設定の契約が settings に許す鍵（toolset の SETTINGS_KEYS とは別）。awsCredentialExport は、殻が run の置き場に書いた包みのパスを
@@ -244,55 +238,6 @@ def marks(item, archon_home: str) -> bool:
     return isinstance(item, str) and os.path.realpath(os.path.expanduser(item)) == os.path.realpath(archon_home)
 
 
-def record(records: str, cwd: str) -> None:
-    """起動の記録 records に、今の時刻と cwd の実パスの 1 行を足す。書けなければ Refused"""
-    row = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "cwd": os.path.realpath(cwd)}
-    try:
-        os.makedirs(os.path.dirname(records), exist_ok=True)
-        with open(records, "a", encoding="utf-8") as f:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-    except OSError as error:
-        raise Refused(f"起動の記録 {records} を書けない（{error}）") from None
-
-
-def bad_declaration(records: str) -> str:
-    """宣言した記録のパス records を記録の置き場に読めなければ訳の 1 行（読めれば空）"""
-    return "" if os.path.isabs(records) else f"{RECORDS_ENV} が絶対パスでない（{records!r}）"
-
-
-def _at(text) -> datetime.datetime | None:
-    """時刻の字（ISO 8601。時差つき）。読めなければ None"""
-    try:
-        at = datetime.datetime.fromisoformat(text)
-    except (TypeError, ValueError):
-        return None
-    return at if at.tzinfo else None
-
-
-def fenced_since(records, root, since: str | None) -> str:
-    """記録 records に、since より後に root（実パス）かその下を cwd にした起動が在れば空。無ければ訳の 1 行"""
-    start = _at(since)
-    if start is None:
-        return f"役を起こす前の時刻 {since!r} が読めない"
-    try:
-        with open(records, encoding="utf-8", errors="replace") as f:
-            lines = f.read().splitlines()
-    except OSError as error:
-        return f"起動の記録 {records} が読めない（{error}）"
-    top = os.path.realpath(root)
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(row, dict) or not isinstance(cwd := row.get("cwd"), str):
-            continue
-        at = _at(row.get("at"))
-        if at is not None and at > start and within(cwd, [top]):
-            return ""
-    return f"起動の記録 {records} に、{since} より後に {top} で柵を掛けた起動が無い"
-
-
 def main(argv: list[str]) -> int:
     cut = argv.index("--") if "--" in argv else len(argv)
     ap = argparse.ArgumentParser(prog="fence.py")
@@ -300,7 +245,6 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--archon-home", required=True)
     ap.add_argument("--claude-config", required=True)
     ap.add_argument("--own", action="append", default=[])
-    ap.add_argument("--records", required=True)
     ap.add_argument("--path-head", action="append", default=[])
     ap.add_argument("--role-cache", help="sandbox の掛かった起動ごとの cache のフォルダを作る根。起動の殻が渡す。無ければ cache は足さない")
     opts = ap.parse_args(argv[:cut])
@@ -312,9 +256,7 @@ def main(argv: list[str]) -> int:
         return made[-1]
 
     def paths() -> list[str]:
-        listed = protected(os.getcwd(), opts.archon_home, opts.claude_config, opts.own)
-        record(opts.records, os.getcwd())
-        return listed
+        return protected(os.getcwd(), opts.archon_home, opts.claude_config, opts.own)
 
     try:
         profile = connection(os.environ)

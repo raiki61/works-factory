@@ -2,7 +2,7 @@
 
 節と関数:
 - tdd-start → start: 入力 tdd_suite（JUnit XML の書き先を第 1 引数に受け、リポジトリの根で走る実行ファイル。本線と同じ約束）が
-  空なら何もせず go: false（static でない単位の在る組は組の頭が no-suite で止める。docs/plans/2026-10-24-fix-weapons.md の 3.9）。在れば一式を 1 回走らせて元の結末を取り、置き場の tdd-<k>/ に状態を置く。
+  空なら何もせず go: false（static でない単位の在る組は組の頭が no-suite で止める。docs/design/fix.md の 19.1）。在れば一式を 1 回走らせて元の結末を取り、置き場の tdd-<k>/ に状態を置く。
   承認済みの修正案の単位ごとの約束（plan_contract → planmarks.unit_contract と、案が新しく作ると書いたパス creates。道・受け入れのテストと、案が狙う落ち方 red_kind。後者は役に見せるだけで機械は照らさない）もここで 1 回だけ
   組んで状態の contract に置く（欄の控えの無い置き場・平の run は空で、輪は約束の無い今の動きのまま）。
   run のテストのコマンド（線の入力 test_cmd）の関門（test_cmd_gate）もここで 1 回だけ決める: 空なら off、実行器のファイルが
@@ -1161,7 +1161,7 @@ def refused_units(calls) -> list:
 
 
 
-# 型の義務（docs/plans/2026-10-24-fix-weapons.md の 2.4。表は src/duties.py）: 名指しの試験が単位の頭で赤になったことを輪の中で確かめた
+# 型の義務（docs/design/fix.md の 22.4。表は src/duties.py）: 名指しの試験が単位の頭で赤になったことを輪の中で確かめた
 # 記録がある（先に赤）。輪の中の test の段がこれを照らすので、受け付けの表には足す物が無い
 BOX = "change"
 DUTIES = ()

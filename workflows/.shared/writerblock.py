@@ -1,4 +1,4 @@
-"""書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/plans/2026-10-24-fix-weapons.md の 11.10 の 1）。
+"""書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/design/fix.md の 24.4）。
 
 各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と `from src import render`・
 `writerblock.prep(render)`（writer_save.py は `writerblock.save()`、writer_out.py は `writerblock.out()`）だけで、6 つの block で 1 字も違わない。型の名は渡さない:
@@ -16,11 +16,11 @@
   - 下請け（表の SPAWNS が真の型。subagent_items）: slots の subagents から、項目ごとに g1-impl-<n>.md・g1-review-<n>.md を、brief の在る run は
     seat-briefs.md も、この block の place に書く（md は .shared/prompts の g1-*.md・seat-briefs.md を prompt.render_shared で組む。値と借りた型の
     埋めは lib/subagents.py）。g1-impl の {weapon_rule} は、この block の prompts/parts/head.md を prompt.render_part("head", {}) で組んだ字
-    （型の決まり。下請けの実装役の手順書の「試験を書け」とぶつかる型の決まりを、文を 2 か所に写さずに渡す。11.8 の決め〔案 B〕）。
+    （型の決まり。下請けの実装役の手順書の「試験を書け」とぶつかる型の決まりを、文を 2 か所に写さずに渡す。docs/design/fix.md の 24.9）。
     借りた写しの固定の照合（seat.pinned）は下請けのファイルの書き込みより前。続きの周は組まない
 - save() -> {saved}: 入力 reply（AI の node の出力）を ports.json で形（shared:writer-reply.schema.json）に照らし、place の
   reply-<n>.json に書く。<n> = prompt.round_of(<w>) - 1（同じ周の <w>-prep が書いた <w>-prompt-<n>.md と対）。形に合わなければ
-  落ちる（返す節に結ばれない node なので落ちてよく、落ちればその周の終わりに内の輪が落ちる。計画の 11.3 の「落ちた周の守り」）
+  落ちる（返す節に結ばれない node なので落ちてよく、落ちればその周の終わりに内の輪が落ちる。docs/design/fix.md の 24.2）
 - out() -> {ok, reason, reply, report}: 入力を持たず、落ちない（K1。ports.run）。同じ <n> で、place に <w>-prompt-<n>.md が無いか
   out-<n>.json が在れば prep が落ちた周（前の周の返答を返し直さない）、reply-<n>.json が無ければ書き手か save が落ちた周で、どちらも
   ok: false・reply: null・report に reason の 1 行。ほかは ok: true と reply-<n>.json の pointer。返りは out-<n>.json にも書く。

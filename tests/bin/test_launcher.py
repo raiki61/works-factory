@@ -1088,9 +1088,6 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(argv[argv.index("--archon-home") + 1], env["ARCHON_HOME"])
         self.assertEqual(argv[argv.index("--claude-config") + 1], env["CLAUDE_CONFIG_DIR"])
         self.assertEqual(argv[-2:], ["--", "$@"])
-        records = str(self.default_home(self.target) / launcher.FENCE_DIR / "launches.jsonl")
-        self.assertEqual(argv[argv.index("--records") + 1], records)
-        self.assertEqual(env[launcher.FENCE_RECORDS_ENV], records, "script のノードが包みの記録を読めない（包みの宣言が無い）")
 
     def test_fence_names_the_role_cache_root_of_the_run_home(self):
         """包みの殻は --role-cache を 1 つ持つ。そのパスは run の置き場の下の在るフォルダで、隔離した置き場（Archon の家・Claude の設定・
@@ -1186,16 +1183,6 @@ class LauncherTest(unittest.TestCase):
         put(self.target / ".archon" / ".env", "CLAUDE_BIN_PATHS=/x\nOTHER=CLAUDE_BIN_PATH=/x\n")
         self.reached(self.launch("workflow", "run", "works-factory-line"))
 
-    def test_env_file_naming_the_fence_records_stops_the_run(self):
-        """env のファイルが包みの記録（受け付けが読む包みの宣言）を名指すと、宣言が消えるかほかを指すので起こさない"""
-        for where, name in ((self.target, ".env"), (self.default_home(self.target) / "archon-home", ".env")):
-            with self.subTest(file=str(where / name)):
-                env_file = put(where / name, f"{launcher.FENCE_RECORDS_ENV}=/elsewhere.jsonl\n")
-                err = self.stopped(self.launch("workflow", "run", "works-factory-line"))
-                env_file.unlink()
-                self.assertEqual(len(err.strip().splitlines()), 1, err)
-                self.assertIn(launcher.FENCE_RECORDS_ENV, err)
-
     def test_users_claude_bin_path_is_the_real_claude_behind_the_fence(self):
         real = write_fake_claude(self.tmp / "my-claude")
         env = self.reached(self.launch("workflow", "run", "works-factory-line", CLAUDE_BIN_PATH=str(real)))["env"]
@@ -1268,7 +1255,6 @@ class LauncherTest(unittest.TestCase):
             with self.subTest(args=args):
                 env = self.reached(self.launch(*args))["env"]
                 self.assertNotIn("CLAUDE_BIN_PATH", list(env))
-                self.assertNotIn(launcher.FENCE_RECORDS_ENV, list(env))
 
     def test_no_auth_run_without_claude_stops(self):
         """柵を掛けられない run は起こさない（認証の要らない道でも、役は claude で起きる）"""

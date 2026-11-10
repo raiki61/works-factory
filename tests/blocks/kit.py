@@ -247,7 +247,7 @@ class WriterBlockCase(unittest.TestCase):
 
     def test_the_head_paragraph_is_handed_to_the_subagents_as_the_rule_of_the_type(self):
         """(v) 下請けを起こす型（表の SPAWNS が真。名の表を持たない）は、block の prompts/parts/head.md を空の値で組めて、組んだ字が、本体が書いた
-        下請けの実装役の指示 g1-impl-<n>.md の works rules の節に在る（docs/plans/2026-10-24-fix-weapons.md の 11.6 の D2 の {weapon_rule}。
+        下請けの実装役の指示 g1-impl-<n>.md の works rules の節に在る（docs/design/fix.md の 24.9 の段 2 の {weapon_rule}。
         head.md に {名} が増えれば空の値では組めず落ちる）。偽の型は下請けを起こさないので g1-impl を組まない"""
         table = load(self.block, "render")
         _gate()
