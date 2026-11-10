@@ -347,10 +347,10 @@ class WiringCase(unittest.TestCase):
         """verdict は include した block の返りを全部、待って直に結ぶ（返す節は落ちない形に縛る。tests/workflows/test_returns_never_fail.py）"""
         verdict = self.nodes["verdict"]
         self.assertEqual(verdict["trigger_rule"], "all_done")
-        reads = [b["from"] for b in verdict["with"].values()]
-        for node in self.includes.values():
+        for block, node in self.includes.items():
             self.assertIn(node["id"], verdict["depends_on"])
-            self.assertIn(f"${node['id']}.output", reads)
+            # 鍵と include の対応まで見る（結び先を入れ替えると、目に渡る素材が黙って別の観点の物になる）
+            self.assertEqual(verdict["with"][f"{block.replace('-', '_')}_out"]["from"], f"${node['id']}.output", block)
 
     def test_include_ids_follow_the_verdict_table(self):
         """include の id は verdict が optional の頭に付ける名（fallback.include_id）と同じ"""
