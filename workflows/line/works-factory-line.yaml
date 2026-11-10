@@ -378,7 +378,7 @@ nodes:
       additionalProperties: false
       required: [go, stop_reason, reason, answer, no_change, request, request_file, request_answers, approved, rows, notes, report, rounds]
       properties:
-        # 受けた設計の往復の返りをそのまま運ぶ（緩い読み手 collect は落ちうる loop_group を直に結ばず、ここから読む。docs/design/line.md の 13 節）
+        # 受けた設計の往復の返りのうち collect が読む欄（src/loopcarry.py の THEME_ROUNDS）を運ぶ（緩い読み手 collect は落ちうる loop_group を直に結ばず、ここから読む。docs/design/line.md の 13.1）
         rounds: {type: [object, 'null'], properties: *theme_talk_props}
         go: {type: boolean}
         stop_reason: {type: string}
@@ -787,7 +787,7 @@ nodes:
           policy_changed: {type: boolean}
           agreed: *talked
           plan: {type: array, items: {type: string}, description: '承認に掛けた計画の行（項目ごとのやり方と書く所）。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復・修正案の項目が無い run は空'}
-          # 受けた計画の往復の返り（入力 rounds。写しの run は写しの値）をそのまま運ぶ。緩い読み手 collect は落ちうる loop_group を直に結ばず、ここから読む
+          # 受けた計画の往復の返り（入力 rounds。写しの run は写しの値）のうち collect が読む欄（src/loopcarry.py の ROUNDS）を運ぶ。緩い読み手 collect は落ちうる loop_group を直に結ばず、ここから読む
           rounds: {type: [object, 'null'], properties: *design_talk_props}
     depends_on: [plan-rounds, judge, structure-in]
     with:

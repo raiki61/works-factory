@@ -58,13 +58,8 @@ EYES = ("ok", "r1", "r2", "r3", "r4", "questions", "means_questions", "passes", 
         "after_ok", "findings", "route", "route_why", "report", "sections")
 MERGE = ("mode", "ok", "hash", "diff", "protected_hits", "protected_count", "reason", "deliver", "report")
 SPEC_DRIVEN = ("ok", "stop_reason", "reason", "request", "origin", "purpose", "spec", "spec_files", "tdd", "out_of_scope", "mismatches", "report")
-# 輪の返りの欄（輪の直後の script が欄 rounds で運ぶ。往復の設計の相談の欄 open・text・asked・agreed・talks は読まない——
-# 設計の相談の答えは ask-before-fix の agreed と gates/gate-design.json から報告に出る）
-GOT = {
-    "rounds": "done ok status round plan_prior record plan fix_plan reply handoffs ripple owed gave_up stalled capped review asks deviations review_status review_reason stop_reason pointed",
-    "theme_rounds": "done ok status round prior_design record design design_md review stalled capped review_status review_reason reason "
-                    "stop_reason open text asked agreed talks notes shown timeline",
-}
+# 輪の返り（輪の直後の script が欄 rounds で運ぶ）の読む欄。名の住処は運び手と同じ src.loopcarry の 1 か所
+LOOPS = ("rounds", "theme_rounds")
 
 
 def returned() -> dict:
@@ -128,8 +123,9 @@ def values_of(raw: dict) -> dict:
     for name, text in raw.items():
         if name == "notices":
             out[name] = ports.text(text) if text not in (None, "null") else ""
-        elif name in GOT:
-            got = ports.picked(text, GOT[name].split())
+        elif name in LOOPS:
+            from src import loopcarry
+            got = ports.picked(text, loopcarry.ROUNDS if name == "rounds" else loopcarry.THEME_ROUNDS)
             out[name] = None if got is None else dict(got)
         else:
             out[name] = ports.parsed(text)

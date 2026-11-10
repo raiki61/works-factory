@@ -17,8 +17,8 @@ workflows/line/scripts/ask_before_fix.py の決まりのまま、軸・項目・
 policy_changed（方針の文書の変化の行を載せたか。answer-before-fix が固め直す）・agreed（設計の相談の最後の答え。answer-before-fix が通す語の
 合意を修正前の答えとして書き、報告は止めた答えの一言も出す。対話モードでない run は null）・plan（承認に掛けた計画の行。src.talk.plan_lines
 の字の配列。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復・修正案の項目が無い時と、修正案の控えが
-形に合わない時は空の配列）・rounds（受けた計画の往復の返り。写しの run は写しの値。報告を組む collect は落ちうる loop_group を直に
-結ばず、ここから読む。docs/design/line.md の 13 節）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
+形に合わない時は空の配列）・rounds（受けた計画の往復の返りのうち collect が読む欄〔src.loopcarry.ROUNDS〕。写しの run は写しの値。欄が欠ければ null。
+報告を組む collect は落ちうる loop_group を直に結ばず、ここから読む。docs/design/line.md の 13.1）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
 
 入力（with:）: rounds（plan-rounds の返り。往復の最後の周の design-talk の出力）・structure（structure-in の structure。構造の目の控えの
 pointer か null）・judge（judge の返り）・record（始めの記録の pointer）・ports（start の配る値）・
@@ -75,12 +75,9 @@ def compute() -> dict:
 
 
 def carried(raw):
-    """運ぶ往復の返り（object でなければ null。読めない時も落ちずに null）"""
-    try:
-        rounds = ports.parsed(raw)
-    except ValueError:
-        return None
-    return rounds if isinstance(rounds, dict) else None
+    """運ぶ往復の返り（collect が読む欄だけ。src.loopcarry）"""
+    from src import loopcarry
+    return loopcarry.carried(raw, loopcarry.ROUNDS)
 
 
 def shown_plan(rounds) -> list:
