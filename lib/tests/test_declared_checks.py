@@ -222,12 +222,16 @@ class SuitesLineCase(unittest.TestCase):
 
     def test_role_status_words(self):
         """元 entry.suites_line の書き分け: 任せ先の役の素材が clean・found の時だけ走らせたと書き、ほかの status・素材が無い・役が
-        まだ渡していない回は走らせた物を「無い」と書く（未実行を走らせたと書かない）"""
+        まだ渡していない回は走らせた物を「無い」と書く（未実行を走らせたと書かない）。宣言が読めない engine と、test_cmd の段が無い
+        engine も走らせなかった側に名指す"""
         role = {"by": "role_needed", "suites": []}
         for status, ran in (("clean", True), ("found", True), ("not_run", False), ("", False), (None, False)):
             with self.subTest(status=status):
                 line = dc.suites_line(role, role_status=status)
                 self.assertEqual(line.startswith("走らせた: 無い／"), not ran, line)
+        self.assertIn(f"宣言の段・{dc.TEST_CMD_STEP}（宣言が読めないので engine が走らせなかった）",
+                      dc.suites_line({"by": "engine", "suites": []}))
+        self.assertIn(f"{dc.TEST_CMD_STEP}（渡されていない）", dc.suites_line({"by": "engine", "suites": [{"name": "suite", "exit": 0}]}))
 
     def test_unlaunched_direct_step_names_how_to_wrap_in_bash(self):
         """元 LaunchKindCase.test_unlaunched_direct_step_names_how_to_wrap_in_bash（行の分）"""

@@ -128,6 +128,12 @@ class AfterCase(_Tmp):
         self.assertNotIn("新しい名 x", got)
 
 
+    def test_review_line_does_not_read_an_unknown_verdict_as_accepted(self):
+        """約束の外の結論の語は、事前審査が受けたと書かず、読めない行に名指す（表の試験 test_review_line_has_a_line_for_every_verdict の
+        この 1 行だけを残した）"""
+        self.assertEqual(eyekit.review_line({"round": 3, "verdict": "maybe", "why": "x"}),
+                         eyekit.REVIEW_UNREAD.format(why="結論の語が約束の外（'maybe'）"))
+
 class HumanItemsCase(unittest.TestCase):
     def test_rows_keep_the_record_shape_and_the_push_mark(self):
         """HumanPassedCase の行の形の半分（元 eyeverdict.human_items）"""

@@ -18,6 +18,7 @@ if str(LIB) not in sys.path:
 import answer  # noqa: E402
 import gatemarks  # noqa: E402
 import plainask  # noqa: E402
+import seal  # noqa: E402
 
 FORK = {"key": "q-a", "kind": "fork", "status": "held", "origin": "A", "depends": ["B"], "options": ["x", "y"], "reason": "割れる"}
 PUSHED_FORK = {**FORK, "reason": "割れる。推し: x——呼び手が既に x を前提にしている"}
@@ -227,6 +228,16 @@ class PushRecCase(unittest.TestCase):
         self.assertIn("探した所: 公式の文書を探した", none)
         self.assertNotIn(gatemarks.NO_STANDARD, none)
 
+
+
+class EyeWordsCase(unittest.TestCase):
+    def test_eye_words_come_from_seal(self):
+        got = gatemarks.eye_named("R1", "fix-needed")
+        self.assertIn("直しが要る（fix-needed）", got)
+        self.assertNotIn("作り直し", got)
+        for word in seal.STATUSES:
+            with self.subTest(word):
+                self.assertEqual(gatemarks.REVIEW_WORDS[word], seal.STATUS_WORDS[word])
 
 
 class SpecWordsCase(unittest.TestCase):

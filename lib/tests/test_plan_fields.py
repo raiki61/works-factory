@@ -70,6 +70,14 @@ class TestGaps(PlanFieldsCase):
         got = self.gaps(item(tests=[]))
         self.assertTrue(any(g.startswith("plan[0].tests") for g in got), got)
 
+    def test_gaps_static_tidy_pin_items_need_route_why(self):
+        """試験で示す物の無い直し・使われていない物の消し・試験の欠けを埋める直しの語も、語を選んだ訳を MIN_WHY 字以上で書く"""
+        for word in ("static", "tidy", "pin"):
+            got = self.gaps(item(route=word, tests=[], route_why="短い"))
+            self.assertTrue(any(g.startswith("plan[0].route_why") and word in g for g in got), (word, got))
+            self.assertEqual(self.gaps(item(route=word, tests=[], route_why="文書だけの直しで試験で示す物が無い")), [], word)
+        self.assertTrue(any(g.startswith("plan[0].route") for g in self.gaps(item(route="rebuild", tests=[], route_why="z" * 20))))
+
     def test_gaps_rewrite_must_name_an_existing_test(self):
         for tid in ("test_stats.py::TestStats::test_nope", "nope.py::T::t", "/abs/test_stats.py::TestStats::test_mean_of_three",
                     "../test_stats.py::TestStats::test_mean_of_three"):
@@ -92,6 +100,11 @@ class TestGaps(PlanFieldsCase):
         got = self.gaps(item(tests=[t]), item(rewrite_tests=[REWRITE]))
         self.assertTrue(any(g.startswith("plan[1].rewrite_tests[0]") and tid in g and "plan[0].tests[0]" in g for g in got), got)
 
+    def test_gaps_refactor_declared_needs_why(self):
+        got = self.gaps(item(refactor={"declared": True, "why": "整える"}))
+        self.assertTrue(any(g.startswith("plan[0].refactor") for g in got), got)
+        self.assertEqual(self.gaps(item(refactor={"declared": True, "why": "名前の重なる 2 つの関数を 1 つに寄せる"})), [])
+
     def test_gaps_same_test_id_with_two_red_kinds_rejected(self):
         """同じ受け入れのテストの id を 2 つの項目が別の赤の種類で宣言したら拒む（黙って先の物を勝たせない）。同じ種類なら通す"""
         t = item()["tests"][0]
@@ -108,6 +121,33 @@ class TestGaps(PlanFieldsCase):
         bad = sorted(g.split(".name", 1)[0] for g in got if ".name（" in g)
         self.assertEqual(bad, ["plan[0].files[0].symbols[0]", "plan[0].files[0].symbols[3]", "plan[0].files[1].symbols[0]"], got)
         self.assertTrue(all("symbols" in g for g in got), got)
+
+    def test_gaps_removal_rows_need_why(self):
+        """拒むのは 3 つ: why の無い change=remove の symbol、why の無い op=delete・rename の行、why・replaced_by を持つ足す側の行
+        （change=add の symbol・op が create・modify の行）。why と replaced_by を書いた消す行は通る。名指しは行の why か symbol の why"""
+        gone = "呼び手は新しい名に寄せたので要らない"
+        ok = [frow("stats.py", frm("old_mean", why=gone, ) | {"replaced_by": "stats.py::mean"}),
+              frow("old.py", op="delete", why=gone, replaced_by="stats.py"),
+              frow("new.py", op="rename", why="名を実体に合わせて付け替えた", **{"from": "mid.py"})]
+        self.assertEqual(self.gaps(item(files=ok)), [])
+        bare = {k: v for k, v in frm("old_mean").items() if k != "why"}
+        got = self.gaps(item(files=[frow("stats.py", bare), frow("old.py", op="delete"),
+                                    frow("new.py", op="rename", **{"from": "mid.py"}, why="短い")]))
+        for at in ("plan[0].files[0].symbols[0].why", "plan[0].files[1].why", "plan[0].files[2].why"):
+            self.assertEqual(len([g for g in got if g.startswith(at)]), 1, (at, got))
+        add_side = self.gaps(item(files=[frow("stats.py", fadd("median") | {"why": gone}, fadd("mode") | {"replaced_by": "x.py"}),
+                                         frow("new.py", fadd("run"), op="create", why=gone),
+                                         frow("mod.py", op="modify", replaced_by="x.py")]))
+        for at in ("plan[0].files[0].symbols[0].why", "plan[0].files[0].symbols[1].replaced_by", "plan[0].files[1].why",
+                   "plan[0].files[2].replaced_by"):
+            self.assertEqual(len([g for g in add_side if g.startswith(at)]), 1, (at, add_side))
+        dup = self.gaps(item(files=[frow("stats.py", fadd("median")), frow("stats.py", fadd("median"))]))
+        self.assertTrue(any(g.startswith("plan[0].files[1].symbols[0]") and "同じ (path, name, change)" in g for g in dup), dup)
+        same_name_two_paths = self.gaps(item(files=[frow("stats.py", fadd("median")), frow("other.py", fadd("median"))]))
+        self.assertEqual(same_name_two_paths, [], "同じ名でも path が違えば別の行")
+        self.assertTrue(any(g.startswith("plan[0].files[0].from") for g in self.gaps(item(files=[frow("a.py", op="rename", why=gone)]))))
+        self.assertTrue(any(g.startswith("plan[0].files[0].from") for g in self.gaps(item(files=[frow("a.py", **{"from": "b.py"})]))))
+        self.assertTrue(any(g.startswith("plan[0].files[0].path") for g in self.gaps(item(files=[frow("./a.py")]))))
 
     def test_depends_gaps_two_items_pass_cycle_and_self_rejected(self):
         """後の項目が depends_on で前の項目の単位と受ける物を書いた 2 項目は通る。拒むのは、自分指し・案に無い単位・前の項目に無い受ける物・
@@ -146,6 +186,51 @@ class TestGaps(PlanFieldsCase):
         self.assertEqual(planmarks.depends_pairs(chain, among=["A", "C"]), [("A", "C")])
         self.assertEqual(planmarks.depends_pairs(chain, among=["C"]), [])
         self.assertEqual(planmarks.depends_pairs([item(unit_keys=["A"], depends_on=[{"unit": "A", "receives": []}, "壊れ"]), "項目でない"]), [])
+
+    def test_gaps_considered_path_is_not_its_row_and_not_repeated(self):
+        """considered[].path が行の path と同じ（自分を退けた先に数える）なら、plan[0].files[0].considered[k].path を名指して拒む。同じ行で
+        同じ path を 2 度書いたら 2 度目を名指して拒む。行の path と違う path を 1 度ずつ書いた行は通す"""
+        why = "同じ仕事の助け手が無かった"
+        own = frow("lib/x.py", op="create", considered=[{"path": "stats.py", "why_not": why}, {"path": "lib/x.py", "why_not": why}])
+        got = self.gaps(item(files=[own]))
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[0].considered[1].path"), got)
+        twice = frow("lib/x.py", op="create", considered=[{"path": "stats.py", "why_not": why}, {"path": "stats.py", "why_not": why}])
+        got = self.gaps(item(files=[frow("stats.py"), twice]))
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[1].considered[1].path"), got)
+        once = frow("lib/x.py", op="create", considered=[{"path": "stats.py", "why_not": why}, {"path": "test_stats.py", "why_not": why}])
+        self.assertEqual(self.gaps(item(files=[once])), [])
+
+    def test_gaps_considered_own_path_is_refused_even_under_a_root_name(self):
+        """行の path と同じ considered の path は、最初の段が対象の根に在っても拒む（根の名の照らしに隠れない）"""
+        (self.repo / "lib").mkdir()
+        own = frow("lib/x.py", op="create", considered=[{"path": "lib/x.py", "why_not": "同じ仕事の助け手が無かった"}])
+        got = self.gaps(item(files=[own]))
+        self.assertEqual(len(got), 1, got)
+        self.assertTrue(got[0].startswith("plan[0].files[0].considered[0].path") and "行の path と同じ" in got[0], got)
+
+    def test_gaps_considered_path_is_relative_and_starts_at_a_root_name(self):
+        """considered[].path が \\ を含む・根の外を指す（/abs・../x）・整えていない形（./x）・2 段以上で最初の段が種の根に無い
+        （nowhere/x.py）なら、plan[0].files[0].considered[0].path を名指して 1 行拒む。通すのは、種の根に在る名で始まる path・まだ無い
+        1 段の path（median.py）・作業ツリーにまだ無いファイルを根に在る段の下に置く path。根が dir でない時は根の名を照らさない"""
+        (self.repo / "lib").mkdir()
+        why = "同じ仕事の助け手が無かった"
+
+        def row(path):
+            return frow("lib/x.py", op="create", considered=[{"path": path, "why_not": why}])
+        for bad in ("a\\b.py", "/abs/x.py", "../x.py", "./x.py", "nowhere/x.py", "stats.py//x", "lib/../x.py"):
+            with self.subTest(bad):
+                got = self.gaps(item(files=[row(bad)]))
+                self.assertEqual(len(got), 1, got)
+                self.assertTrue(got[0].startswith("plan[0].files[0].considered[0].path"), got)
+        for good in ("stats.py", "test_stats.py", "median.py", "lib/new_helper.py", "lib/deep/er/new.py", "Makefile"):
+            with self.subTest(good):
+                self.assertEqual(self.gaps(item(files=[row(good)])), [])
+        self.assertEqual(planmarks.gaps({"plan": [item(files=[row("nowhere/x.py")])]}, self.repo / "no-such-root"), [])
+        for torn in ({"considered": "壊れ"}, {"considered": ["壊れ", {"path": 3}, {"why_not": "path が無い"}]}):
+            with self.subTest(torn=torn):
+                self.assertEqual(self.gaps(item(files=[frow("lib/x.py", **torn)])), [])   # 形の崩れは型が見る
 
     def test_gaps_added_test_symbol_must_be_a_new_test_of_the_plan(self):
         """files の symbols に足すテスト（テストのファイルの change=add で名前が test で始まる）は、案のどれかの項目の tests（まだ無い
