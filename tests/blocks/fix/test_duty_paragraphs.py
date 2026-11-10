@@ -1,4 +1,4 @@
-"""指示と照らしの組の照らし（docs/plans/2026-10-24-fix-weapons.md の 11.12 の 3・11.6 の F1 の作る物の 6）。
+"""指示と照らしの組の照らし（docs/design/fix.md の 22.4 の「指示と照らしの組」）。
 
 書き手の返答から組む事実（duties.REPLY_FACTS）を読む義務の関数は、書かせる段落の名を関数の属性 paragraph 1 つで持ち、その段落が
 .shared/prompts/writer.md に在る（writer.md の {shared:<名>} の差し込みを解いた字で見る。where_writer は writer-rules.md に在る）。

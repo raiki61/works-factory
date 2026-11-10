@@ -1,4 +1,4 @@
-"""修正の block の型を問わない部品（docs/plans/2026-10-24-fix-weapons.md の 4.1 の 2）。
+"""修正の block の型を問わない部品（docs/design/fix.md の 22 節）。
 
 TDD の輪（src/tdd.py）の中に在り、修正役の受け付け（board・facts・gates）・合わせ役（clash）・確かめ直しが借りていた部品を
 ここに集めた。型のモジュール（tdd・variant・remove・static・tidy・pin）と型を問わない部品（basecase・route・duties）はここを
@@ -919,7 +919,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
     受け口 uncompared（並び）を渡す呼び（組を当てた後の確かめ直し。#846）は赤に数えずその鍵を足し、渡さない呼びは赤のまま。
     版に試験のファイルが無い試験（この直しで足した）は比べるまでもなく新しい赤。
     外した鍵と比べられなかった鍵は黙って捨てず、件数と名（頭の 20 件）を赤の行か知らせに出す。
-    base_file は元の結末 base.json（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。実行器・置き場・元の結末・実行器が作ったファイルを
+    base_file は元の結末 base.json（docs/design/fix.md の 22.3。実行器・置き場・元の結末・実行器が作ったファイルを
     読む。呼び手が board.accept_base で選ぶ）。名指しは named（注文の units[].tests と permits の rewrite の行。orders.named_tests）と、
     輪が名指した試験（record の units[].tests・test_files。_named_files）の和（狭めない）。record は輪の記録のファイルで、空・無ければ輪の
     名指しは無い。書き戻す 4 つの欄（final_left・final_far・ci_left・suite_made の足し）は置き場の accept.json だけに書く（accept はその

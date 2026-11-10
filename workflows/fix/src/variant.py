@@ -1,4 +1,4 @@
-"""型 variant（変える段。今の direct の核。docs/plans/2026-10-24-fix-weapons.md の 3.2）。
+"""型 variant（変える段。今の direct の核。docs/design/weapon-variant.md）。
 
 同じ決まりを共有する所を全部挙げて直し、1 か所ずつ退行を注入して赤を見て、戻して緑を見る。書き手は PR A では今の修正役（指示は
 prompts/parts/fixer.md のまま）。型の義務（2.4）:

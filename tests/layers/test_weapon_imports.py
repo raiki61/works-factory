@@ -1,4 +1,4 @@
-"""修正の block の型のモジュールが、別の型のモジュールを import しない（docs/plans/2026-10-24-fix-weapons.md の 4.1 の 2・6.1。段 1 の間の
+"""修正の block の型のモジュールが、別の型のモジュールを import しない（docs/design/fix.md の 22 節の「何を」。段 1 の間の
 yes/no の試験 1 本。段 2 で型が block になったら、この試験を消して block の形の検査 `tests/layers/test_block_shape.py` に任せる）。
 
 型のモジュールの名は、確かめの表 `workflows/fix/src/duties.py` の `MODULES` の鍵（表の 1 か所。ここに名を写さない）。照らすのは

@@ -42,7 +42,7 @@ REMOVED_FILE = "fix-removed.json"           # clean が消したパスの全件�
 ROUTE_FILE = "route.json"                   # 振り分けの段の状態（place 直下。route-go が置き、route-step が進め、orders が読んで輪の状態を作る）
 RECORD_FILE = "record.json"                 # TDD の輪の記録（tdd-<k>/ の中。輪が抜ける時に書く。形は schemas/tdd-record.schema.json）
 
-# 直し方の型の口（docs/plans/2026-10-24-fix-weapons.md の 2.1・2.2）
+# 直し方の型の口（docs/design/fix.md の 22 節）
 BASE_FILE = "base.json"        # 組の元の結末の控え（src/basecase.take。組の置き場・確かめ直しの <name>/。親は置かない）
 BASE_DIR = "base"              # 元の結末を取った回のログ・JUnit・地図の控えの置き場（base.json の work）
 ACCEPT_FILE = "accept.json"    # 受け付けが書き戻す欄 {final_left, final_far, ci_left, suite_made}（受け付けの走る置き場ごと）

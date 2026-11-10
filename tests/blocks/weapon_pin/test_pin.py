@@ -9,7 +9,7 @@ class PinCase(kit.WriterBlockCase):
     block = "weapon-pin"
 
     def test_the_scenario_reply_carries_sites_test_and_fits_the_shape(self):
-        """F1（docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1 の縛る試験の 4）: 筋書きの返答は、受け付けの義務が読む欄を書き、
+        """F1（docs/design/fix.md の 22.4 の段 2 の PR F1 の照らし）: 筋書きの返答は、受け付けの義務が読む欄を書き、
         書き手の返答の形（shared:writer-reply.schema.json）に合う"""
         reply = kit.shaped("shared:writer-reply.schema.json", self.reply())
         [site] = reply["changes"][0]["closure"]["sites"]

@@ -67,7 +67,7 @@ class SuiteBrokenHeadCase(HeadAfterBase):
         self.assertFalse(note["text"].startswith("修正の段が止めた"))
 
     def test_a_group_stopped_for_no_suite_heads_the_report(self):
-        """試験の実行器が無い・走らないで止めた組（止めの語 no-suite。docs/plans/2026-10-24-fix-weapons.md の 3.9）も、種つきで知らせる"""
+        """試験の実行器が無い・走らないで止めた組（止めの語 no-suite。docs/design/fix.md の 19.1 の「試験なしで直す逃げ道を閉じる」）も、種つきで知らせる"""
         v = base.passing()
         v["fixed"] = {**v["fixed"], "tdd": [[{"group_id": "g1", "ran": False, "reason": "試験の実行器が無いか走らない組", "units": [],
                                               "no_suite": True}]]}

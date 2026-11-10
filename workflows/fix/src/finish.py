@@ -232,7 +232,7 @@ def suite_broken(results) -> list:
 
 
 def no_suite(results) -> list:
-    """実行器が無い・走らないで止めた組の id（組の結果の tdd の no_suite。下書き docs/plans/2026-10-24-fix-weapons.md の 3.9）"""
+    """実行器が無い・走らないで止めた組の id（組の結果の tdd の no_suite。docs/design/fix.md の 19.1）"""
     return [str(r.get("group_id")) for r in results
             if isinstance(r, dict) and isinstance(r.get("tdd"), dict) and r["tdd"].get("no_suite") is True]
 

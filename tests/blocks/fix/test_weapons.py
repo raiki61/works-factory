@@ -1,7 +1,7 @@
-"""直し方の型の段 1（docs/plans/2026-10-24-fix-weapons.md の 4.4）の、型を問わない部品の試験。
+"""直し方の型の段 1（docs/design/fix.md の 22 節）の、型を問わない部品の試験。
 
-- route から型を引く表（src/route.weapon_of。4.1 の 3 の 5 行）と、振り分けの AI に渡す単位の集まり（route_keys）
-- 試験が無いかの印 no_tests の決め（src/basecase._no_tests。4.4 の作る物 12 の 5 つの場合と、宣言を読む木。予約の 1 件だけの元の結末は 0 件）。どの試験も対象の試験を
+- route から型を引く表（src/route.weapon_of。docs/design/fix.md の 22.1 の 5 行）と、振り分けの AI に渡す単位の集まり（route_keys）
+- 試験が無いかの印 no_tests の決め（src/basecase._no_tests。docs/design/fix.md の 22.3 の 5 つの場合と、宣言を読む木。予約の 1 件だけの元の結末は 0 件）。どの試験も対象の試験を
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
 - 口の形（.shared/schemas/weapon-order.schema.json・schemas/weapon-return.schema.json）
@@ -1189,7 +1189,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
 
     def whole_return(self, reply, *, ok=True, report=(), weapon="pin"):
         """型の block の返りまるごと（writer_out の形 {ok, reason, reply: <pointer>, report}）。返答は組の子の run の置き場に書く。
-        ok が偽の返りは reply が null で、report が reason と同じ 1 行（docs/plans/2026-10-24-fix-weapons.md の 11.3）"""
+        ok が偽の返りは reply が null で、report が reason と同じ 1 行（docs/design/fix.md の 24.4 の out）"""
         if not ok:
             reason = "書き手の返答が無い（書き手の AI の node か、返答を置く node pin-save が落ちた）"
             return json.dumps({"ok": False, "reason": reason, "reply": None, "report": [reason]})
@@ -1211,7 +1211,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         rows = json.loads((self.place / "writer-report.json").read_text(encoding="utf-8"))
         self.assertEqual(rows, [{"weapon": weapon, "line": "型の block の報告の 1 行"}])
 
-    # ---- 型の義務の表に足した照らし（F1。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F1 の縛る試験の 1・2）
+    # ---- 型の義務の表に足した照らし（F1。docs/design/fix.md の 22.4 の段 2 の PR F1 の照らし）
     HOW = {"patterns": ["len(xs) - 1"], "paths": ["stats.py"], "count": "lines", "fixed": True}
 
     def weapon_start(self, weapon, unit_extra=None):
@@ -1267,7 +1267,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
                 out = self.weapon_accept("variant", {"changes": [self.variant_change({**site, field: value})], **self.NAMED})
                 self.assertTrue(any(text in ln for ln in self.duty_lines(out)), out["reason"])
 
-    # ---- 変える段の箱の義務（F2。docs/plans/2026-10-24-fix-weapons.md の 11.6 の F2 の縛る試験の 1・3）
+    # ---- 変える段の箱の義務（F2。docs/design/fix.md の 22.4 の変える段の箱の義務）
     BY_NAME = '''
 import pathlib, sys, unittest, xml.etree.ElementTree as ET
 sys.dont_write_bytecode = True

@@ -182,8 +182,8 @@ def reply_of(blocks: dict, pass_: str):
     """起きた書き手の 1 つの (返答の dict, 報告の行の並び)。blocks は型の名 → 型の block の返りまるごと（受ける script が
     ports.picked(<INPUTS_REPLY_<型>>, ("ok", "reason", "reply", "report")) で拾った物。飛んだ block は None）。返りは ok が真でなければ、
     block の名・include の id と返りの reason を名指した ValueError（block の返す節 writer_out は落ちず、指示を組む node・書き手・返答を置く
-    node のどれかが落ちた周は ok: false と reason を返す。呼び手は place に書く前にここで落ちる。計画 docs/plans/2026-10-24-fix-weapons.md の
-    11.3 の「落ちた周の守り」）。返答が形（shared:writer-reply.schema.json）に合わない・読めない時も ValueError。報告の行は返りの report。
+    node のどれかが落ちた周は ok: false と reason を返す。呼び手は place に書く前にここで落ちる。docs/design/fix.md の
+    24.2 の「落ちた周の守り」）。返答が形（shared:writer-reply.schema.json）に合わない・読めない時も ValueError。報告の行は返りの report。
     どれも起きていなければ (None, [])"""
     for w in SEQUENCE[pass_]:
         got = blocks.get(w)

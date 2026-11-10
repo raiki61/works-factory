@@ -1,4 +1,4 @@
-"""組の子の頭の注文（docs/plans/2026-10-24-fix-weapons.md の 2.1・4.1 の 3。node orders。今の tdd-go に替わる）。
+"""組の子の頭の注文（docs/design/fix.md の 22.2。node orders。今の tdd-go に替わる）。
 
 振り分け（route-loop）の後に、計画の語・消す名・振り分けの答えから型の表（route.weapon_of）で単位ごとに型を引き、型ごとの注文を
 orders/<weapon>.json（.shared/schemas/weapon-order.schema.json の形）に書き、索引を orders.json に書く。tdd に引いた単位は輪の状態に

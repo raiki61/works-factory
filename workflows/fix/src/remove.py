@@ -1,4 +1,4 @@
-"""型 remove（変える段。利用者が使える機能を消す。docs/plans/2026-10-24-fix-weapons.md の 3.3）。
+"""型 remove（変える段。利用者が使える機能を消す。docs/design/weapon-remove.md）。
 
 消す物と、それを縛る試験を消す。型の義務（2.4）: 消した試験は remove か rewrite の許しの中。消す名が返した木で引けないことは
 変える段の箱の義務の 2（duties.change_named_or_gone の gone）。書き手は PR A では今の修正役。

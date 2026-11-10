@@ -412,7 +412,7 @@ class TestLoopRedTree(FixGatesCase):
 
 
 class RedGreenKeptCase(FixGatesCase):
-    """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/plans/2026-10-24-fix-weapons.md の 11.6 の F2 の縛る試験の 4）。
+    """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/design/fix.md の 22.4 の変える段の箱の義務の `before`・`after`）。
     _red_green を「名指しごとの事実を返す口」と「問題の文を組む口」に割る前に作り、割る前の字（実行器を起こす順と回数・問題の行・
     飛ばした理由・守りの結末）をここに控える。割った後も同じ返答で同じ字になることを縛る（割ると、実行器を 2 回起こす・文が変わる
     のを赤にする）。場面は 8 つ: 緑の通し・base で通る赤・輪の赤の木・赤の木が通る・赤の木の後にテストが動いた・守りのテスト・
@@ -4160,7 +4160,7 @@ class FixLoopScriptsCase(_XPlace):
     def test_accept_traces_tests_left_to_ci_and_final_stage(self):
         """F013: 受け付けの回ごとに accept-trace.json に impact.ACCEPT_TRACE_OP の行（ci_left・final_left・final_far）を積み、
         読み手は組と段ごとに最後の回＝受けた回の行を読む（fix の finish._accepted_tests）。名は受け付けが書き戻した置き場の accept.json
-        から引く（下書き docs/plans/2026-10-24-fix-weapons.md の 2.1。輪の状態の同じ名の欄は読まない）"""
+        から引く（docs/design/fix.md の 22.3。輪の状態の同じ名の欄は読まない）"""
         import impact
         finish = importlib.import_module("src.finish")
         board = self.board

@@ -1,4 +1,4 @@
-"""書き手が項目ごとに起こす下請け（実装役と審査役）の値の関数（docs/plans/2026-10-24-fix-weapons.md の 11.4 の 5・11.6 の D2・11.8 の決め案 B）。下請けを起こす型は、tdd の閉じの書き手の外の 5 つ
+"""書き手が項目ごとに起こす下請け（実装役と審査役）の値の関数（docs/design/fix.md の 24.9）。下請けを起こす型は、tdd の閉じの書き手の外の 5 つ
 （variant・remove・pin・tidy・static。書き手の block の表 src/render.py の SPAWNS が真）で、この module は型を問わず同じ組み方をする。
 
 下請けの実装役は借りた superpowers の implementer の型、審査役は task-review の型を改変せずに渡される。この module は、型の穴に入れる値

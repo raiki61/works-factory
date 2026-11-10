@@ -1,4 +1,4 @@
-"""下ごしらえ（型ではない段。機械の名 pin。docs/plans/2026-10-24-fix-weapons.md の 3.6）。
+"""下ごしらえ（型ではない段。機械の名 pin。docs/design/weapon-pin.md）。
 
 今の振る舞いを試験で固める。コードを変えない。箱は keep（同じ結果の照らし）。義務（2.4 の pin）:
 1. 差分は試験のファイルだけで、足した試験が 1 つ以上（tests_only）。例外は 1 つ: base.json の no_tests が真の注文では、起点の木に

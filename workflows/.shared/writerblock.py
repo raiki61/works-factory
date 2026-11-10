@@ -1,4 +1,4 @@
-"""書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/plans/2026-10-24-fix-weapons.md の 11.10 の 1）。
+"""書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/design/fix.md の 24.4）。
 
 各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と `from src import render`・
 `writerblock.prep(render)`（writer_save.py は `writerblock.save()`、writer_out.py は `writerblock.out()`）だけで、6 つの block で 1 字も違わない。型の名は渡さない:

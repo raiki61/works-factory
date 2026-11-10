@@ -755,7 +755,7 @@ def spoken_stops(values: dict, returns: dict, record: dict | None = None) -> lis
 
 def suite_broken_notes(values: dict) -> list:
     """修正の段が、工場の書いた試験の起動スクリプトが書き直しても壊れたままで止めた組と、試験の実行器が無い・走らないで止めた組の
-    知らせ（訳とログのパス。#836・docs/design/fix.md の 19 節・docs/plans/2026-10-24-fix-weapons.md の 3.9 の止め方の 6）。fixed の
+    知らせ（訳とログのパス。#836・docs/design/fix.md の 19 節）。fixed の
     tdd（段ごとの組ごとの TDD の記録）の suite_broken・no_suite の行から。差し込み口は組の id とログのパス、本文は訳。無ければ空"""
     def rows(v):
         if isinstance(v, list):

@@ -1,5 +1,5 @@
-"""workflows/.shared/writerblock.py（書き手の型の block 6 つの 2 本の script の本体。docs/plans/2026-10-24-fix-weapons.md の 11.10 の 1・
-11.6 の D1 の縛る試験の 1 の (v) と本体の照らし）: 型が足す値と段落・表の定数の欠け・注文の型の食い違い・返答の書き出し。
+"""workflows/.shared/writerblock.py（書き手の型の block 6 つの 2 本の script の本体。docs/design/fix.md の 24.4・
+24.8 の本体の試験）: 型が足す値と段落・表の定数の欠け・注文の型の食い違い・返答の書き出し。
 
 block の組の試験（筋書きで指示が組める・返答の pointer・下請けの段落の真偽。tests/blocks/kit.py の WriterBlockCase）は block ごとの薄い試験が
 継ぐ。ここは 1 度だけ照らす本体の事を見る。型の block は一時の pack の block `weapon-demo` で、md は slots の全部の鍵を差し込む。
@@ -170,7 +170,7 @@ class PrepCase(Base):
 
 class SubagentCase(Base):
     """表の SPAWNS が真の型の prep が、slots の subagents から下請けのファイルをこの block の place に書き、修正役の指示の {g1_items} の行と段落 g1 を
-    組む（docs/plans/2026-10-24-fix-weapons.md の 11.6 の D2。値の関数は lib/tests/test_subagents.py）。照らす事: 項目ごとに 2 つのファイル・
+    組む（docs/design/fix.md の 24.9。値の関数は lib/tests/test_subagents.py）。照らす事: 項目ごとに 2 つのファイル・
     審査役の型の <base>..<head> の直し・brief の無い run の残りの単位の項目・brief の在る run の seat-briefs.md が頭の見出しと brief の行を持つ"""
 
     def files(self):
@@ -329,7 +329,7 @@ class TableCase(Base):
 
 class SaveCase(Base):
     """<w>-save: 返答を本物の形 writer-reply に照らして place の reply-<n>.json に書き、{saved: true} を返す。形に合わなければ落ちる
-    （その周の終わりに内の輪が落ちる。docs/plans/2026-10-24-fix-weapons.md の 11.3 の「落ちた周の守り」）"""
+    （その周の終わりに内の輪が落ちる。docs/design/fix.md の 24.2 の「落ちた周の守り」）"""
     REPLY = kit.fixture("weapon-static", "standalone")["static"]
 
     def save(self, reply):

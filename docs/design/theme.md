@@ -196,7 +196,7 @@ Rules for queries to outside services and for the sources you use: …
 
 ### 6.1 形
 
-`inventory[]` の行 `{path, lines, gist, to, dest, why}`。手本は `docs/plans/2026-10-24-fix-weapons.md` の 1.4 と付録 A（段落か箇条 1 つずつ行番号つきで挙げ、行き先と入った訳を付けた）。
+`inventory[]` の行 `{path, lines, gist, to, dest, why}`（段落か箇条 1 つずつ行番号つきで挙げ、行き先と入った訳を付ける）。
 
 - `to`: `keep`（そのまま残す）・`move`（`dest` の所へ移す）・`merge`（`dest` の行とまとめる）・`drop`（消す。`why` が要り、`narrows` に同じ行を持つ）。
 - 訳の分からない行は `drop` にせず `keep` か `move` にする（指示に書く）。
@@ -307,7 +307,7 @@ bin/works-factory workflow run works-factory-theme --cwd <対象> --input theme=
 
 ### 13.5 この run で見た事（直していない）
 
-- 修正の段は `works:no-suite` で止まった（差分は空）。`tdd_suite` は対象の試験を走らせる実行器を渡す入力で、渡さないと工場は試験の元の結末を取れない。修正の段は単位を組にまとめて直し、計画は単位ごとに直し方の型の語（`route`。試験の要らない直しは `static`）を付ける。組に `static` でない単位が在り、元の結末が取れない時は、直し方の型（tdd・variant など）を 1 つも回さずに組を止め、止めの語 `no-suite` を名乗る（`docs/plans/2026-10-24-fix-weapons.md` の 3.9 の「止め方」の 1・`workflows/fix/src/orders.py` の `no_suite_why`）。この run の組はこれに当たったので、今の決まりのとおり。設計の段と降りる道の確かめは修正の段の前で済むので、回し直していない。修正の段まで通すには `tdd_suite` を渡す。
+- 修正の段は `works:no-suite` で止まった（差分は空）。`tdd_suite` は対象の試験を走らせる実行器を渡す入力で、渡さないと工場は試験の元の結末を取れない。修正の段は単位を組にまとめて直し、計画は単位ごとに直し方の型の語（`route`。試験の要らない直しは `static`）を付ける。組に `static` でない単位が在り、元の結末が取れない時は、直し方の型（tdd・variant など）を 1 つも回さずに組を止め、止めの語 `no-suite` を名乗る（`docs/design/fix.md` の 19.1 の「試験なしで直す逃げ道を閉じる」の 1・`workflows/fix/src/orders.py` の `no_suite_why`）。この run の組はこれに当たったので、今の決まりのとおり。設計の段と降りる道の確かめは修正の段の前で済むので、回し直していない。修正の段まで通すには `tdd_suite` を渡す。
 - `gate-start` の文が入口を「依頼 0 件」と書き、テーマに触れない。表示がいま壊れている。run の進み方は壊れていない（テーマは設計の段へ運ばれた）。
 - `gate-theme` の文の「往復ごとの案と審査:」の見出しが括弧の中で空になり、往復の行は次の行から「- - 1 往復目」の形で続く。中身は欠けておらず、並べ方が崩れている。表示がいま壊れている。
 - `theme-converge.json` の `round` が 1 のまま（`passes` は 3）。設計の往復の `theme-out` の `round` は 1・2・3 と数えられ、往復の上限の判定（`workflows/line/src/talk.py` の `_capped`）は `theme-out` の `round` を読むので、上限は効く。`lib/converge.py` は記録の `round` と block の `round` が同じことを求めるので、1 のままなのは形 `theme` の作りどおりかもしれない。欠陥かどうかは未確認。
