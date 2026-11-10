@@ -338,15 +338,14 @@ class MainTest(unittest.TestCase):
         self.real.write_text(FAKE_REAL, encoding="utf-8")
         self.real.chmod(0o755)
         self.log = self.tmp / "argv.json"
-        self.records = self.tmp / "run-home" / launcher.FENCE_DIR / "launches.jsonl"
 
-    def run_fence(self, *argv, path=None, records=None, heads=(), role_root=None, xdg=None):
+    def run_fence(self, *argv, path=None, heads=(), role_root=None, xdg=None):
         child = self.tree["child"]
         env = hermetic.child_env(HOME=child["HOME"], FAKE_REAL_LOG=str(self.log), **({"PATH": path} if path else {}),
                                  **({"XDG_CACHE_HOME": xdg} if xdg else {}))
         return subprocess.run([sys.executable, str(FENCE), "--real", str(self.real), "--archon-home", child["ARCHON_HOME"],
                                "--claude-config", child["CLAUDE_CONFIG_DIR"], "--own", self.tree["own"][0],
-                               "--records", str(records or self.records), *(["--role-cache", str(role_root)] if role_root else []),
+                               *(["--role-cache", str(role_root)] if role_root else []),
                                *(a for h in heads for a in ("--path-head", h)),
                                "--", *argv],
                               cwd=self.tree["linked"], env=env, capture_output=True, text=True, encoding="utf-8",
@@ -379,7 +378,7 @@ class MainTest(unittest.TestCase):
                 self.assertEqual(path, [*heads, "/usr/bin", "/bin"])
 
     def test_unmarked_launch_reaches_claude_unchanged(self):
-        """印の無い sandbox の起動は、allowWrite に起動ごとのフォルダが足される以外は渡した argv のまま届き、起動の記録は作られない"""
+        """印の無い sandbox の起動は、allowWrite に起動ごとのフォルダが足される以外は渡した argv のまま届く"""
         settings = {"sandbox": {"enabled": True}}
         done = self.run_fence("-p", "x", "--settings", json.dumps(settings), role_root=self.tmp / "role-cache")
         self.assertEqual(done.returncode, 0, done.stderr)
@@ -387,7 +386,6 @@ class MainTest(unittest.TestCase):
         self.assertEqual(got[:3], ["-p", "x", "--settings"])
         folder = json.loads(pathlib.Path(f"{self.log}.cache").read_text(encoding="utf-8"))
         self.assertEqual(json.loads(got[3]), {"sandbox": {"enabled": True, "filesystem": {"allowWrite": [folder]}}})
-        self.assertFalse(self.records.exists(), "印の無い起動を記録した")
 
     def test_sandboxed_launch_reaches_claude_with_its_own_cache(self):
         """--role-cache の根（symlink を通した根も含む）の下の、作業の場ごとの置き場（控え cwd つき）の中の空のフォルダの実パスが、偽の
@@ -596,8 +594,6 @@ class RealClaudeTest(unittest.TestCase):
             with self.subTest(what=what):
                 self.assertEqual(got[str(place)], "BLOCKED")
         self.assertEqual(got[str(self.outside)], "WROTE", "柵の外まで書けない（試験の道具が書き込みを試していない）")
-        rows = [json.loads(line) for line in launcher.fence_records(home).read_text(encoding="utf-8").splitlines()]
-        self.assertIn(os.path.realpath(self.tree["linked"]), [r["cwd"] for r in rows])
 
     def test_fenced_role_writes_its_own_cache_but_not_the_run_cache(self):
         """書き手の形の sandbox（enabled・allowUnsandboxedCommands: false だけ）の役の Bash は、包み越しに起きると $XDG_CACHE_HOME の下に
