@@ -15,7 +15,7 @@
 - answers: {start, before_fix}（承認ノードの答え）。asked: 修正前の承認ノードで聞いた項目 [{kind, text}]（今の plan_questions）
 
 入力（with:）: fix_in（fix-in の返り）・fixed（fixed の返り）・start_answer（起動の承認ノードの答えか null）・replan_review（案の直しの
-事前審査の受け皿の got か null）・judged（judged の返り）・ports（start の配る値）・request（request-in の
+事前審査の返りか null）・judged（judged の返り）・ports（start の配る値）・request（request-in の
 返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
 import os
@@ -67,7 +67,7 @@ def pushes(judged, given: dict, before_fix, *, unattended: bool) -> tuple:
 
 def compute() -> dict:
     raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "fixed": os.environ.get("INPUTS_FIXED"),
-           "start_answer": os.environ.get("INPUTS_START_ANSWER"), "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"),
+           "start_answer": os.environ.get("INPUTS_START_ANSWER"),
            "judged": os.environ.get("INPUTS_JUDGED"), "ports": os.environ.get("INPUTS_PORTS"),
            "request": os.environ.get("INPUTS_REQUEST")}
     from src import descend, gates, rounds
@@ -76,7 +76,7 @@ def compute() -> dict:
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
     fixed = ports.picked(raw["fixed"], FIXED)
     judged = ports.picked(raw["judged"], JUDGED)
-    replan_review = ports.picked(raw["replan_review"], REVIEW)
+    replan_review = ports.picked(os.environ.get("INPUTS_REPLAN_REVIEW"), REVIEW)
     start_answer = ports.parsed(raw["start_answer"])
     before_fix = fix_in["answer"] if fix_in is not None else None
     switches = (fix_in or {}).get("switches") if isinstance((fix_in or {}).get("switches"), dict) else {}

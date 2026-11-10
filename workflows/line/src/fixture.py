@@ -52,7 +52,7 @@ MANIFEST = "fixture.json"        # DIR の下の控え
 COPY = "place"                   # DIR の下の run の置き場の写し
 CARRIED = "fixture-carried.json"  # 取り込んだ run の置き場の根の、書き換えた carried
 FORMAT = 10                      # 10: 修正前の承認ノードで止まった所も写し、運ぶ値に GATE_KEY を足した（9 は fix-in が運ぶ欄の組。docs/design/line.md の 4.1）。前の版の固定材料は取り込まない
-GATE_KEY = "gate_rounds"         # 運ぶ値の鍵: 修正前の承認ノードで止まった写しだけが持つ、ask-before-fix が読む計画の往復の欄（plan-rounds-out の got）
+GATE_KEY = "gate_rounds"         # 運ぶ値の鍵: 修正前の承認ノードで止まった写しだけが持つ、ask-before-fix が読む計画の往復の返り（plan-rounds の返りまるごと）
 KEY = "fixture"                  # 始めの記録の鍵 {source_run, manifest_sha256, at}（取り込んだ run の印）
 CAPTURED_KEY = "fixture_captured"  # 始めの記録の鍵 {dir, error}（写した run の印）
 # 取り込みで今の値にする入力の欄（ほかの入力の欄は写した始めの記録と今の入力が同じでなければ拒む）。request は名指しの字が違っても

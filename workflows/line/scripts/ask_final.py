@@ -4,18 +4,17 @@
 # ///
 """最後の承認ノードを開くかと、見せる文を決める node ask-final（docs/design/line.md の 2 節の 4・6 節・8.1。決めと文は src.final）。
 
-受け皿の got（試験・目・封じ・仕様・修正の後の並行 PR・案の直しの事前審査）と line の node の返り（fix-in・fixed・judged）を読み、
-開ける理由の列から開くかを決める。開いた文は place の gates/final-gate.md に残す。merge の apply に渡す値（sealed_hash・fingerprint・
-green_ok・eyes_ok・r2）もこの node が受け皿の got から返す（受け皿の got の中の欄は Archon の with: で読めない。output_format の宣言の
-外の道になるため）。封じが飛んだ・落ちた時は sealed_hash が空で、開ける理由に「差分を封じられなかった」が入る（閉じた側に倒れる）。
+block の返り（試験・目・封じ・仕様・修正の後の並行 PR）と line の node の返り（fix-in・fixed・judged）を読み、開ける理由の列から開くかを
+決める。開いた文は place の gates/final-gate.md に残す。merge の apply に渡す値（sealed_hash・fingerprint・green_ok・eyes_ok・r2）もこの
+node が返す（封じて当てる値の出どころを最後の承認ノードの 1 つにする）。封じが飛んだ時は sealed_hash が空で、開ける理由に「差分を封じられ
+なかった」が入る（閉じた側に倒れる）。
 
 試験・目・合わせは最後に試験と独立の目を通った周の物を使う（独立の目から修正の段へ返した run は、返した後の物か、返した段が止まった・落ちた時は
 返す前の物。src.eyesback.current が選ぶ唯一の所を 1 度呼び、文と merge の apply に渡す値の両方へ同じ物を渡す）。返す輪の集め eyes_back と
 封じる前の戻しの結末 back_restore は材料の欄として運び、返した周の節と開ける理由が読む。
 
-入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes（最初の試験と目の受け皿の got）・eyes_back（返す輪の集めの出力）・
-back_restore（封じる前の戻しの結末。戻す節が飛んだ run は null）・seal・spec_check・parallel_after・replan_review（受け皿の got か
-null）・replan_answer（案の直しの承認ノードの答えか null）・widened（ask-replan の widened か null）・start_answer（起動の承認ノードの答えか
+入力（with:）: fix_in・fixed・judged（line の node の返り）・tests・eyes（最初の試験と目の block の返り）・eyes_back（返す輪の集めの出力）・
+back_restore（封じる前の戻しの結末。戻す節が飛んだ run は null）・seal・spec_check・parallel_after（block の返りか null）・replan_answer（案の直しの承認ノードの答えか null）・widened（ask-replan の widened か null）・start_answer（起動の承認ノードの答えか
 null。今は文に載せない）・record（始めの記録の pointer）・final_gate（開き方）・ports（start の配る値）・
 request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
@@ -40,10 +39,8 @@ PARALLEL = ("ok", "status", "stop_reason", "reason", "material", "report")
 
 def compute() -> dict:
     raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "fixed": os.environ.get("INPUTS_FIXED"), "judged": os.environ.get("INPUTS_JUDGED"),
-           "tests": os.environ.get("INPUTS_TESTS"), "eyes": os.environ.get("INPUTS_EYES"), "eyes_back": os.environ.get("INPUTS_EYES_BACK"),
-           "back_restore": os.environ.get("INPUTS_BACK_RESTORE"), "seal": os.environ.get("INPUTS_SEAL"),
-           "spec_check": os.environ.get("INPUTS_SPEC_CHECK"), "parallel_after": os.environ.get("INPUTS_PARALLEL_AFTER"),
-           "replan_review": os.environ.get("INPUTS_REPLAN_REVIEW"), "replan_answer": os.environ.get("INPUTS_REPLAN_ANSWER"),
+           "eyes_back": os.environ.get("INPUTS_EYES_BACK"), "back_restore": os.environ.get("INPUTS_BACK_RESTORE"),
+           "replan_answer": os.environ.get("INPUTS_REPLAN_ANSWER"),
            "widened": os.environ.get("INPUTS_WIDENED"), "start_answer": os.environ.get("INPUTS_START_ANSWER"),
            "record": os.environ.get("INPUTS_RECORD"), "final_gate": os.environ.get("INPUTS_FINAL_GATE"),
            "ports": os.environ.get("INPUTS_PORTS"), "request": os.environ.get("INPUTS_REQUEST")}
@@ -55,10 +52,12 @@ def compute() -> dict:
     if fix_in is None or first_fixed is None:
         raise ValueError("fix-in か fixed の出力が無い（with: の鍵の結びを確かめる）")
     eyes_back = ports.parsed(raw["eyes_back"])
-    last = eyesback.current(eyes_back, first_fixed, ports.parsed(raw["tests"]), ports.parsed(raw["eyes"]))
+    first_tests = ports.picked(os.environ.get("INPUTS_TESTS"), TESTS)
+    first_eyes = ports.picked(os.environ.get("INPUTS_EYES"), EYES)
+    last = eyesback.current(eyes_back, first_fixed, *(None if v is None else dict(v) for v in (first_tests, first_eyes)))
     fixed, tests, eyes = (ports.picked(None if v is None else json.dumps(v), names) for v, names in zip(last, (FIXED, TESTS, EYES)))
-    seal = ports.picked(raw["seal"], SEAL)
-    parallel_after = ports.picked(raw["parallel_after"], PARALLEL)
+    seal = ports.picked(os.environ.get("INPUTS_SEAL"), SEAL)
+    parallel_after = ports.picked(os.environ.get("INPUTS_PARALLEL_AFTER"), PARALLEL)
     unread = []
     record_path = ports.file(raw["record"], "json(start-record.schema.json)")
     try:
@@ -70,7 +69,7 @@ def compute() -> dict:
     rounds_lines = rounds.lines(doc, str(ports.place() / files.PLAN_CONVERGE_DIR)) if isinstance(doc, dict) else []
     widened = ports.parsed(raw["widened"])
     got = final.gather(fix_in=dict(fix_in), fixed=dict(fixed), judged=ports.picked(raw["judged"], JUDGED), tests=tests, eyes=eyes,
-                       seal_got=seal, spec_check=ports.picked(raw["spec_check"], SPEC), parallel_after=parallel_after,
+                       seal_got=seal, spec_check=ports.picked(os.environ.get("INPUTS_SPEC_CHECK"), SPEC), parallel_after=parallel_after,
                        replan_answer=ports.parsed(raw["replan_answer"]), widened=widened if isinstance(widened, list) else [],
                        record=record, given=given, rounds_lines=rounds_lines, unread=unread, eyes_back=eyes_back,
                        back_restore=ports.parsed(raw["back_restore"]), missing=missing)

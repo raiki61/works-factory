@@ -9,10 +9,10 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
-from src import summary  # noqa: E402
 
 
 def compute():
+    from src import summary   # lib を読む src は守った中で読む（lib を読めない時も fallback で返す。落とし穴 K1）
     return summary.finish(ports.place(), Path.cwd())
 
 

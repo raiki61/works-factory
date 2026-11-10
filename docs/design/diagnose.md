@@ -72,7 +72,7 @@
 - `stop_reason`: `status` が `ok` なら空。ほかは次のどれか（どれも今の語。止めるかは graph が決める）: `works:request`（`request` が読めない）・`works:judge`（ほかの入力が読めない・対象差分が取れない・判定役を諦めた・受けた判定が無い）・`works:material`（素材の観点が諦めた）・`works:rejudge-session`（再審の道で `prior` が null）・`works:rejudge`（再審の道のそのほかの落ち）。
 - `reason`: 日本語の 1 行（人に見せる）。`ok` なら空。
 - `ready`: boolean。`status` が `ok` で、開いた単位が 1 つ以上か（今の `verdict` の `ready`）。
-- `judgment`: pointer（place の `judgment.json`）。いつも在る。受けた判定（再審）が無ければ空の形（5.6 の `EMPTY_JUDGMENT`）を書いて指す（今の `_fill`。読み手が null を扱わずに済む）。
+- `judgment`: pointer（place の `judgment.json`）。いつも在る。受けた判定（再審）が無ければ空の形（5.6 の `EMPTY_JUDGMENT`）を書いて指す（今の `_fill`。読み手が null を扱わずに済む）。外しは 1 つ: 出口が落ちて、形の照らし（lib）も読めない時の返り（`src/fallback.py`）は null（5.6 の「落ちない」）。
 - `units`: 開いた単位の構造の目の入力の形 `[{id, paths, summary}]`（今の `structure_units`）。`status` が `ok` でなければ `[]`。
 - `questions`: 受けた判定の台帳のうち人へ回す問いの行（`gatemarks.asks_human` が真の行。台帳の行の形のまま。`title` の欄も含む）。無ければ `[]`。
 - `inputs`: pointer（`diagnose-input.json`）か null。判定の道で材料を書けた時だけ。再審の道の `prior_inputs` に渡す。
@@ -524,7 +524,7 @@ prep は `prompt.PromptError` と値の読み落ち（`intake.json` が読めな
 5. `judgment.json` が無ければ `EMPTY_JUDGMENT`（`{units: [], questions: [], framing: "", one_shot: "", materials_missing: [], carried_r1: [], one_shot_closes: [], precedents: []}`）を書く。
 6. `status` が `ok` なら `units = judge.structure_units(judgment, repo, record=place / "structure-units-dropped.json")`・`questions` は台帳の `gatemarks.asks_human` の行・`ready = bool(units)`。ほかは `[]`・`[]`・`false`。
 7. pointer は `ports.pointer(path, <欄の description の form>)` で（書く時に読み手と同じ形で照らす）、1.2 の条件のとおりファイルが在る時だけ（`judgment` はいつも。出口の fallback は形に合わない judgment.json を空の形に書き直してから指す）。`downgrades` は 1.2 の 1 行。`report` は 5.7。
-- 落ちない: 1〜7 の外の例外も捕まえ、`status: failed`・`stop_reason: works:judge`（再審なら `works:rejudge`）・`reason: "判定の出口が落ちた（<型>: <訳>）"`・`judgment` は place に `EMPTY_JUDGMENT` を書けた時だけ pointer（書けなければ fallback の返りの `judgment` は `{type: archon_artifact, run_id: <WORKFLOW_ID>, path: "judgment.json"}`）。今の `verdict.py` の `fallen`・`verdict_fallback` と同じ決まり（Archon は pointer の先が在るかを照らす）。出力が JSON に書けない（`allow_nan=False` で落ちる値）時も同じ fallback（今の `verdict.py` の終わり）。
+- 落ちない: 1〜7 の外の例外も捕まえ、`status: failed`・`stop_reason: works:judge`（再審なら `works:rejudge`）・`reason: "判定の出口が落ちた（<型>: <訳>）"`・`judgment` は形に合う `judgment.json` か、書き直した `EMPTY_JUDGMENT` の pointer。返りは標準ライブラリと口 `ports` だけを読む `src/fallback.py` の `fallen` が組み、lib を読めない時も返す（落とし穴 K1。line の `collect` が返りを直に結ぶので、落ちない節の照らし `tests/workflows/test_returns_never_fail.py` が単独で走らせる）。形の照らし（lib）を読めず pointer を照らせない時だけ `judgment` は null（pointer の札は手で組まない。E5）。出力が JSON に書けない（`allow_nan=False` で落ちる値）時も同じ fallback（今の `verdict.py` の終わり）。
 
 ### 5.7 報告の行（`src/report.py`）
 
@@ -566,7 +566,7 @@ prep は `prompt.PromptError` と値の読み落ち（`intake.json` が読めな
   - `structure_units` と捨てたパスの記録 → 5.6 の 6。
   - `ready` → 1.2。`rejudge_verdict` → 5.6 の 4。
   - `head_depth`（深さの欄）→ head-depth の block。`optional` の宣言（世界の解・頭の深さ）→ judge のまとめ（この block の node は落ちても line が先へ進めてよい物を持たないので、欄 `optional` を置かない）。
-  - `require_ports`（前の版の判定の返りを受けたら止める）→ line（受け皿の側）。
+  - `require_ports`（前の版の判定の返りを受けたら止める）→ line（返りを読む側）。
 - 入口（judge の `intake.py` と `intake`、`:3832-3868`）: 再審なら判定の置き場に触らない → 道は `objection`。依頼の行を型に通す・止めの語 `works:request` → 5.1 の 3（`requestrows`）。運ばれた制約 → premises の block。前の run の失敗の行を 1 度だけ置く → 5.1 の 7 の `prior_failures`・`redesign`。入口の作業ツリーの姿 `judge-tree.json` → 並行 PR と前提の block がそれぞれ取る。世界の解の切り替え → graph。
 - YAML の鍵: `review_launch`・`retry`・`fresh_context: false`・`max_iterations: 3`・`until_bash`・`trigger_rule: none_failed_min_one_success`・`if_skipped: null` → 1.3（同じ）。`diagnose-prep` の `when`（判定の道だけ）・`verify-merge` の `when` → 道の `when`（1.3）と、裏取りは verify の block。
 - 例の run の記録の照らし（`tests/e2e/evidence.json` の J67〜J82・J100・R76・L-D41・L-D44・L-W42）→ 組み込みで、`where` を新しい place（`parent/judge/diagnose-run/…`・再審の include の id の下）に、`writer` を `src/judge.py` の関数の名に替える。
@@ -613,7 +613,7 @@ bin/works-factory workflow run works-factory-diagnose --cwd <対象> \
 - `test_prompts.py`: 2 本の md が 5.2・5.4 の値の全部で `prompt.render` を通る（段落の真偽の全部の組で）。md が `QUESTION_KINDS`・`QUESTION_STATUS`・`LABELS`・`REJUDGE_VERDICTS` の語を全部字のまま持つ。`diagnose-input.json` の鍵が全部 `prompts/diagnose.md` に `` `鍵` `` の形で在る。2 本の md と使う断片に「new conversation」の字が無い（輪が `fresh_context: false`。1 波目を作った時の決め）。
 - `test_place_names_match_lib`: `src/files.py` が写した名が lib の `marks.py`・`lib/rolekit.py`・`judgebeside.py` の名と同じ。
 - 写さない試験（古い中身だけを見る）: tests/workflows の `test_judge.py` の `CopiedTextsCase`（元の works の字の台帳）・`BriefCase` の 3 本（言語の 1 行を始めの記録から引く今の形）・`LoopTest.test_roles_receive_the_reject_reason_through_the_loop_head`・`test_reject_script_returns_the_reason_as_is`（頭の node が無くなる）・`ScriptReturnsTest`（今の返す節の欄の名）・`test_judge_accept.py` の `VerdictPublicCase`・`VerdictPortsCase`・`PublicFileReadersCase`（judge 全体の返りの形。judge のまとめの試験へ）。
-- 読み手の側の試験はそれぞれに残す: verify の block（`judgment` を読む）・line（再審の返りの受け皿・「再審されずに残った異議」・直す単位にした単位）・report（`report` の節を並べる）。
+- 読み手の側の試験はそれぞれに残す: verify の block（`judgment` を読む）・line（再審の返りの読み・「再審されずに残った異議」・直す単位にした単位）・report（`report` の節を並べる）。
 
 ### 9.3 本物の単独の run
 

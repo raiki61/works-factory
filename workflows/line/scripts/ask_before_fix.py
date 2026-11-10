@@ -17,10 +17,11 @@ workflows/line/scripts/ask_before_fix.py の決まりのまま、軸・項目・
 policy_changed（方針の文書の変化の行を載せたか。answer-before-fix が固め直す）・agreed（設計の相談の最後の答え。answer-before-fix が通す語の
 合意を修正前の答えとして書き、報告は止めた答えの一言も出す。対話モードでない run は null）・plan（承認に掛けた計画の行。src.talk.plan_lines
 の字の配列。仕様駆動の道と写しの道の一言の向きの判定が、見せた計画に一言を照らすために読む。往復・修正案の項目が無い時と、修正案の控えが
-形に合わない時は空の配列）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
+形に合わない時は空の配列）・rounds（受けた計画の往復の返りのうち collect が読む欄〔src.loopcarry.ROUNDS〕。写しの run は写しの値。欄が欠ければ null。
+報告を組む collect は落ちうる loop_group を直に結ばず、ここから読む。docs/design/line.md の 13.1）。材料の読みは src.asking.materials（設計の相談と同じ 1 か所）。
 
-入力（with:）: rounds（plan-rounds-out の got）・structure（structure-in の structure。構造の目の控えの pointer か null）・judge
-（judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）・
+入力（with:）: rounds（plan-rounds の返り。往復の最後の周の design-talk の出力）・structure（structure-in の structure。構造の目の控えの
+pointer か null）・judge（judge の返り）・record（始めの記録の pointer）・ports（start の配る値）・
 request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）と、直す前で止まった写しの run の
 fixture-ask-before-fix だけが渡す fixture（start の fixture。運ぶ値の pointer）。fixture が在れば rounds・judge・structure は写しの
 運ぶ値から読む（src.fixture.gate_inputs。写した run と同じ材料で開き直す）
@@ -37,25 +38,30 @@ ROUNDS = ("done", "ok", "status", "round", "plan_prior", "record", "plan", "fix_
           "stalled", "capped", "review", "asks", "deviations", "review_status", "review_reason", "stop_reason")
 TALKED = ("agreed",)   # 対話モードの run の計画の往復の返りだけが持つ欄（設計の相談の承認ノードの最後の答え。仕様駆動の run の往復の部は持たない）
 POINTED = ("pointed",)   # 人の答えが名指し、読む版に無い文書の行（src.gates.before_fix が読む。plan-out の output_format で required でない）
+JUDGE = ("judgment", "answer_ties", "materials")   # 判定の返りの読む欄（src.asking.materials が読む。means は無くてよい）
 RECORD = "run の置き場の gates/gate-before-fix.json"
 QUESTION = "事前審査の 4 つの軸と人への問い。通すなら通す範囲と条件を一言に"
 
 
 def compute() -> dict:
     raw = {"rounds": os.environ.get("INPUTS_ROUNDS"), "structure": os.environ.get("INPUTS_STRUCTURE"),
-           "judge": os.environ.get("INPUTS_JUDGE"), "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"),
+           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"),
            "request": os.environ.get("INPUTS_REQUEST"), "fixture": os.environ.get("INPUTS_FIXTURE")}
+    judge = ports.picked(os.environ.get("INPUTS_JUDGE"), JUDGE, optional=("means",))
     import gatemarks
     from src import descend, gates
     from src.asking import materials
 
-    raw.update(copied(raw["fixture"]))
+    copy = copied(raw["fixture"])
+    raw.update({k: v for k, v in copy.items() if k != "judge"})
+    if "judge" in copy:   # 写しの run は判定も写しの運ぶ値から読む
+        judge = ports.picked(copy["judge"], JUDGE, optional=("means",))
 
     given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     unattended, design = bool(given.get("unattended")), bool(given.get("design_talk"))
     rounds = ports.picked(raw["rounds"], ROUNDS + TALKED + POINTED, optional=TALKED + POINTED)
     agreed = rounds["agreed"] if rounds is not None and isinstance(rounds["agreed"], dict) else None
-    kw = materials(dict(rounds) if rounds is not None else None, structure_raw=raw["structure"], judge_raw=raw["judge"],
+    kw = materials(dict(rounds) if rounds is not None else None, structure_raw=raw["structure"], judge=judge,
                    record_raw=raw["record"], dealt=given, unattended=unattended, place=ports.place())
     got = gates.before_fix(dict(rounds) if rounds is not None else None, unattended_run=unattended, design=design, agreed=agreed, **kw)
     text = ""
@@ -65,7 +71,13 @@ def compute() -> dict:
         text = gatemarks.gate_text(asking, run_id=os.environ["WORKFLOW_ID"], node=gatemarks.GATE_NODE, record_name=RECORD)
     return {"open": got["open"], "go": got["go"], "stop_reason": got["stop_reason"], "reason": "", "text": text, "deferred": got["deferred"],
             "asked": got["asked"], "pushed": got["pushed"], "passes": got["passes"], "policy_changed": got["policy_changed"],
-            "agreed": agreed, "plan": shown_plan(rounds)}
+            "agreed": agreed, "plan": shown_plan(rounds), "rounds": carried(raw["rounds"])}
+
+
+def carried(raw):
+    """運ぶ往復の返り（collect が読む欄だけ。src.loopcarry）"""
+    from src import loopcarry
+    return loopcarry.carried(raw, loopcarry.ROUNDS)
 
 
 def shown_plan(rounds) -> list:
@@ -98,7 +110,7 @@ def fallback(reason: str) -> dict:
     from src import guard
 
     return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "reason": reason, "text": "", "deferred": [], "asked": [], "pushed": None,
-            "passes": [], "policy_changed": False, "agreed": None, "plan": []}
+            "passes": [], "policy_changed": False, "agreed": None, "plan": [], "rounds": carried(os.environ.get("INPUTS_ROUNDS"))}
 
 
 ports.run(compute, fallback)

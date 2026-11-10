@@ -1,6 +1,8 @@
 """並行 PR の block のファイルの名と定数（docs/design/parallel-pr.md の 1.4・1.5）。place のファイルの名はここだけが持つ。"""
 import reads   # lib/
 
+from . import fallback
+
 ROLE = "pr-check"
 NODE = "p0.parallel_pr"   # 控えの node の欄の値。読み手が古い控えと同じ形で読めるように今のまま
 PR_LIMIT = 100            # gh pr list の --limit
@@ -23,5 +25,4 @@ READS_FAILED = READS.removesuffix(".json") + "-failed-*.json"
 OWN = (TREE, BRIEF, MATERIAL, EXCLUDED, DRAFTS, REJECTS, SCAN, READS, READS_INDEX)
 
 # この block が元の能力から下げている所の宣言（元の downgrades.json の p0.parallel_pr の行の字）
-DOWNGRADES = [{"what": "担当の PR へ申し送りを投稿しない（下書きを報告に載せる）",
-               "versus": "review-graph は任せ先の役が gh で投稿する"}]
+DOWNGRADES = fallback.DOWNGRADES   # 出口が落ちた時の返り（標準ライブラリだけ）と 1 か所

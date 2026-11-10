@@ -930,7 +930,7 @@
         "object",
         "null"
       ],
-      "description": "修正前の承認ノードで人の判断待ちに止まった所の写しだけが持つ、計画の往復の受け皿の got（plan-rounds-out の出力の欄の全部。fixture-ask-before-fix が読む。src/fixture.py の GATE_KEY）。ここに書くのは ask-before-fix が読む欄の主な物で、ほかの欄も持つ。止まらずに写した物は持たない",
+      "description": "修正前の承認ノードで人の判断待ちに止まった所の写しだけが持つ、計画の往復の返り（plan-rounds の返りまるごと。2026-11-10 より前の写しは受け皿の got で、欄 optional: null を持つ。fixture-ask-before-fix が読む。src/fixture.py の GATE_KEY）。ここに書くのは ask-before-fix が読む欄の主な物で、ほかの欄も持つ。止まらずに写した物は持たない",
       "properties": {
         "done": {
           "type": "boolean"

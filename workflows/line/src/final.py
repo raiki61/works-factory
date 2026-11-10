@@ -16,12 +16,12 @@ R2 の頼みどおりの違いの問い（eyes の means_questions。docs/design
 ファイルを触った時だけ開き方で開く理由にする。計画の依存で前に直すはずの単位が型の順で後に回った対（fixed の groups の unsatisfied）は「守れなかった依存」の節に名で並べ、止めず開ける理由にも数えない。判定の役が保留にしたままの問いは冒頭と本文に見せるが
 開ける理由に数えない（L-G36）。修正の後の並行 PR の確かめ直し（8.1）が重なりを見つけた・確かめ直せなかった時は、開き方で開く理由。
 
-got は ask_final の script が受け皿の got と line の値から組む dict（gather の返り）。読む物は修正の事実（fixed と、その stages の
+got は ask_final の script が block の返りと line の値から組む dict（gather の返り）。読む物は修正の事実（fixed と、その stages の
 段ごとの fix・lens・delta-review の got）・試験・目・封じ・判定（judged）・仕様（spec の check）・往復の記録・修正前と案の直しの答え・
-並行 PR（修正の後）。どれも受け皿の got を名指して読む（ports.picked。欄の欠けた前の版の返りを空と読まない）。
+並行 PR（修正の後）。どれも返りの欄を名指して読む（ports.picked。欄の欠けた前の版の返りを空と読まない）。
 
 - needs(got)・final_needs(got)・ask(got, *, mode, unattended, run_id)・final_text(got, why, run_id)・keep(out, place)
-- gather(...) -> got: 受け皿の got と line の値から、文と理由の材料を組む。tests・eyes・fixed は最後に試験と独立の目を通った周の物（ask_final の script が
+- gather(...) -> got: block の返りと line の値から、文と理由の材料を組む。tests・eyes・fixed は最後に試験と独立の目を通った周の物（ask_final の script が
   eyesback.current で選んで渡す）。eyes_back は返す輪の集めの記録（材料の欄 eyes_back としてそのまま運び、返した周の節と開ける理由が読む）。
   back_restore は封じる前の戻しの結末（材料の欄 back_restore としてそのまま運び、返した周の節と開ける理由が読む）
 """
@@ -68,7 +68,7 @@ HANDOFF_HEAD = fixboard.HANDOFF_HEAD   # 字は lib/fixboard.py の 1 か所
 HANDOFF_REASON = "直しの途中で AI が自分で決めずに人に回した物が在る"
 MISMATCH_REASON = "直したという申告と機械の数え直しが合わない単位が在る"
 NO_AFTER = "直した後の構造の実測: 無い（独立の目の after が無い——実測のノードが落ちたか走らなかった。メイングラフは止めずに進めた）"
-SEAL_FELL = "封じの段が返らなかった（merge の seal の受け皿が飛んだ）"
+SEAL_FELL = "封じの段が返らなかった（merge の seal の返りが無い）"
 RETURNED_NOT_RUN = "回していない（独立の目から返した段では回さない）"
 BACK_FELL = "返す輪の記録が無いか、輪の節が落ちた（落ちた周の前に試験と独立の目を通った状態があれば、それを封じに出す）"
 RESTORE_CHECK = "作業ツリーが半ば戻ったかもしれないので人が確かめる"
@@ -525,7 +525,7 @@ def keep(out: dict, place: Path) -> dict:
     return out
 
 
-# ---------------------------------------------------------------- 材料（受け皿の got から）
+# ---------------------------------------------------------------- 材料（block の返りから）
 def asked_conflicts(pointers) -> tuple:
     """(人に回した申し出の行, 控えを読めなかった訳)。fixed の conflicts（fix と refix の conflicts の pointer の並び）の先のフォルダごとに
     lib/conflict.py の human_lines を足す。読めない控えは訳にして数えない（黙って 0 にしない）"""
@@ -675,7 +675,7 @@ def eye_rows(items) -> list:
 def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None, eyes: dict | None, seal_got: dict | None,
            spec_check: dict | None, parallel_after: dict | None, replan_answer, widened, record: dict, given: dict, rounds_lines: list,
            unread: list, eyes_back: dict | None, back_restore: dict | None = None, missing=()) -> dict:
-    """受け皿の got と line の値から、文と理由の材料 got を組む（docs/design/line.md の 2 節の 4 の「読む物」）。missing は指す先が
+    """block の返りと line の値から、文と理由の材料 got を組む（docs/design/line.md の 2 節の 4 の「読む物」）。missing は指す先が
     無いか読めない控えの訳（src.gates.located。開き方に依らず開ける理由にする）。back_restore は封じる前の戻しの結末（戻す節が飛んだ run は None）"""
     missing = list(missing)
     tests_ = tests or {}
@@ -730,7 +730,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
 
 
 def merge_values(tests: dict | None, eyes: dict | None, seal_got: dict | None) -> dict:
-    """merge の apply に渡す値（受け皿の got の中の欄は Archon の with: で読めないので、この node が返す）。封じが飛んだ・落ちた時は
+    """merge の apply に渡す値（封じて当てる値の出どころを最後の承認ノードの 1 つにするので、この node が返す）。封じが飛んだ・落ちた時は
     sealed_hash が空（apply は封じた hash と今の差分を照らせず拒む）"""
     sealed = seal_got is not None and seal_got.get("ok") is True
     return {"sealed_hash": str(seal_got.get("hash") or "") if sealed else "",

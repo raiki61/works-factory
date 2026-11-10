@@ -17,7 +17,7 @@ run が推しで進んだ時は pushed を答えとして記録する）。加�
 - skip_rerun: いつも []（全部が標準なので省く単位は無い）
 
 入力（with:）: gate・go・stop_reason・place・asked・pushed（承認ノードと ask-replan の返り）・before_fix（修正前の承認ノードの答え）・
-replan（replan-out の got）・review（replan-review-out の got か null）・items（直した項目の番号）・first_ripple（計画の往復の波及の一覧）・
+replan（replan の返り）・review（replan-review の返りか null）・items（直した項目の番号）・first_ripple（計画の往復の波及の一覧）・
 units_tier（fix-in の単位の深さ）
 """
 import os
@@ -101,15 +101,14 @@ def units_tier(first: list, owed: list) -> list:
 def compute() -> dict:
     raw = {"gate": os.environ.get("INPUTS_GATE"), "go": os.environ.get("INPUTS_GO"), "stop_reason": os.environ.get("INPUTS_STOP_REASON"),
            "place": os.environ.get("INPUTS_PLACE"), "before_fix": os.environ.get("INPUTS_BEFORE_FIX"),
-           "asked": os.environ.get("INPUTS_ASKED"), "pushed": os.environ.get("INPUTS_PUSHED"), "replan": os.environ.get("INPUTS_REPLAN"),
-           "review": os.environ.get("INPUTS_REVIEW"), "items": os.environ.get("INPUTS_ITEMS"),
+           "asked": os.environ.get("INPUTS_ASKED"), "pushed": os.environ.get("INPUTS_PUSHED"), "items": os.environ.get("INPUTS_ITEMS"),
            "first_ripple": os.environ.get("INPUTS_FIRST_RIPPLE"), "units_tier": os.environ.get("INPUTS_UNITS_TIER")}
     import answer
     from src import gates
 
     asked = ports.parsed(raw["asked"]) or []
-    replan = ports.picked(raw["replan"], REPLAN)
-    review = ports.picked(raw["review"], REVIEW)
+    replan = ports.picked(os.environ.get("INPUTS_REPLAN"), REPLAN)
+    review = ports.picked(os.environ.get("INPUTS_REVIEW"), REVIEW)
     items = ports.parsed(raw["items"]) or []
     first_tier = ports.parsed(raw["units_tier"]) or []
     got = answer.taken(ports.parsed(raw["gate"]), go=ports.flag(raw["go"]), stop_reason=ports.text(raw["stop_reason"]),

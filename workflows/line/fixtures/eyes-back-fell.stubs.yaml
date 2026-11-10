@@ -1,12 +1,14 @@
-# 返した周の修正の段の中の節（back-1-fix__finish）が誤りで落ちた筋書き。Archon は周の節の後ろを飛ばすが、2 周目の頭 back-2 と集め eyes-back は
-# 走り、前の周（1 周目）が返す前に試験と独立の目を通った状態を checkpoint 付きで封じに出す。戻す節・封じ・最後の承認ノードも走る。
-# run は落ちた節があるので failed で終わる。
+# 返した周の修正の段の中の節（back-1-fix__intake）が誤りで落ちた筋書き。修正の block の返す節 finish（all_done）は落ちずに組めなかった訳を
+# 返し、Archon は周の節の後ろ（試験・目）を飛ばすが、合わせの節 back-1-fixed・2 周目の頭 back-2・集め eyes-back は走り、前の周（1 周目）が
+# 返す前に試験と独立の目を通った状態を checkpoint 付きで封じに出す。戻す節・封じ・最後の承認ノードも走る。run は落ちた節があるので failed で
+# 終わる。返す節そのものが落ちる場合は落ちない節の照らし（tests/workflows/test_returns_never_fail.py）が書く時に縛り、それでも落ちれば
+# Archon の run の記録が語る（docs/design/line.md の 13.1。持ち主の決め returns-never-fail）
 
 fixture:
   expect: failed
   inputs:
     request: .archon/workflows/works-factory/line/fixtures/request.json
-  fail-node: [back-1-fix__finish]
+  fail-node: [back-1-fix__intake]
   reached:
   - start
   - gate-start
@@ -747,13 +749,11 @@ report__finish:
   prior_failures: null
   report:
   - '- 報告'
-back-1-fix__intake:
-  ok: false
-  whole: false
-  reason: ''
+back-1-fix__intake: {}
 back-1-fix__fix-reads:
   ok: true
   missing: []
   index_file: fix/reads.json
   reason: ''
-back-1-fix__finish: {}
+# 返す節 finish は中の節の落ちを受け、組めなかった訳の返り（workflows/fix/src/finish.py の fallback の形）を返す
+back-1-fix__finish: {"ok": false, "reason": "fix の出力を組めない（KeyError: 'intake'）", "units": [], "groups": [{"group_id": "", "unit_ids": [], "returned": false, "reason": "fix の出力を組めない（KeyError: 'intake'）"}], "conflicts": null, "carry": null, "replan_items": [], "objection": "", "diff": {"type": "archon_artifact", "run_id": "dry-run", "path": "back-1-fix/fix-collect-error.txt"}, "start_tree": "", "reply": null, "ruled_reply": null, "scope": null, "checked": {"ok": false, "reason": "fix の出力を組めない（KeyError: 'intake'）"}, "allowed_test_changes": [], "changed": {"mechanism_changed": false, "premise_drift": false, "gates_changed": false, "seams_changed": false, "security_surface_changed": false, "path_changed": false, "premise_drift_note": ""}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "stop_reason": "", "item_claims": null, "allowed_tests": {"type": "archon_artifact", "run_id": "dry-run", "path": "back-1-fix/allowed-tests.json"}, "accept_trace": {"type": "archon_artifact", "run_id": "dry-run", "path": "back-1-fix/accept-trace.json"}, "closure": null, "tdd_unit": null, "tdd": [], "frozen": null, "removed": null, "tdd_refused": {"refused": [], "unread": ["fix の出力を組めない（KeyError: 'intake'）"]}, "removed_tests": [], "untested": [], "freeze_off": [], "report": ["修正の出力を組めない: fix の出力を組めない（KeyError: 'intake'）"]}

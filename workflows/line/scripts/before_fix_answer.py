@@ -16,13 +16,13 @@
 （合意した中身を修正役へ落とさない）。
 
 仕様駆動の道と写しの道だけは、承認ノードが開いて人が通す語で答えた時に一言の向きの判定の返り（direction。block answer-direction の
-受け皿の got）を gates.direction_stop に照らす。計画と違う向き・向きが読めない・判定が落ちた・返りが無い時は go 偽・止めの語
+返り）を gates.direction_stop に照らす。計画と違う向き・向きが読めない・判定が落ちた・返りが無い時は go 偽・止めの語
 works:answer-redirected・返りの reason（止めた訳）を返し、方針は固め直さない。照らすのは承認ノードの出力そのもの（合意の一言は足さない）。
-本線は direction・direction_due を渡さず、今の振る舞いのまま（reason は空）。答えの控えは止める時も taken が書く。
+本線は direction を null・direction_due を false で渡し、照らさない（reason は空）。答えの控えは止める時も taken が書く。
 
 入力（with:）: gate（承認ノードの出力。飛ばされたら null）・go・stop_reason・place・asked・pushed・policy_changed・agreed（ask-before-fix の
 返り）・record（始めの記録の pointer）・ports（start の配る値）と、仕様駆動の道と写しの道だけが渡す direction（一言の向きの判定の返り。
-飛ばされたら null）・direction_due（'true'。渡さなければ照らさない）
+飛ばされたら null）・direction_due（'true' か 'false'。渡さなければ照らさない）
 """
 import os
 import sys
@@ -32,10 +32,10 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
-# 仕様駆動の道と写しの道だけが渡す任意の入力（本線の answer-before-fix は渡さず、今の振る舞いのまま）。Archon は script の読む環境変数を
-# 字の呼び（os.environ.get("INPUTS_…")）で数えて with: の束縛を要求するので、名は定数に置いて読む
-INPUTS_DIRECTION = "INPUTS_DIRECTION"
-INPUTS_DIRECTION_DUE = "INPUTS_DIRECTION_DUE"
+# 仕様駆動の道と写しの道だけが照らす入力（本線の answer-before-fix は direction を null、direction_due を false で渡す）。direction は
+# 一言の向きの判定の block の返りまるごとなので、口 ports.picked で字の呼びのまま読む（tests/layers/scan.py の E5）
+# 一言の向きの判定の返りの欄の全部（src.gates.direction_stop が読むのは ok・reason・direction・aligned・why。欄の欠けた前の版の返りを空と読まない）
+DIRECTION = ("ok", "status", "reason", "direction", "aligned", "why", "report")
 
 
 def compute() -> dict:
@@ -43,7 +43,8 @@ def compute() -> dict:
            "place": os.environ.get("INPUTS_PLACE"), "asked": os.environ.get("INPUTS_ASKED"), "pushed": os.environ.get("INPUTS_PUSHED"),
            "policy_changed": os.environ.get("INPUTS_POLICY_CHANGED"), "agreed": os.environ.get("INPUTS_AGREED"),
            "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"),
-           "direction": os.environ.get(INPUTS_DIRECTION), "direction_due": os.environ.get(INPUTS_DIRECTION_DUE)}
+           "direction_due": os.environ.get("INPUTS_DIRECTION_DUE")}
+    direction = ports.picked(os.environ.get("INPUTS_DIRECTION"), DIRECTION)
     import answer
     import policy
     from src import gates, startrec
@@ -65,7 +66,7 @@ def compute() -> dict:
     got = answer.taken(gate, go=ports.flag(raw["go"]), stop_reason=ports.text(raw["stop_reason"]),
                        place=ports.text(raw["place"]), folder=ports.place(), asked=asked if isinstance(asked, list) else [],
                        pushed=ports.parsed(raw["pushed"]))
-    stop, why = gates.direction_stop(opened, got["answer"], ports.parsed(raw["direction"]),
+    stop, why = gates.direction_stop(opened, got["answer"], None if direction is None else dict(direction),
                                      due=raw["direction_due"] is not None and ports.flag(raw["direction_due"]))
     if stop:   # 一言の向きが計画と違うか読めないか判定が落ちた: 修正へ進まず、方針も固め直さない。答えの控えは taken が書いた
         return {**got, "go": False, "stop_reason": stop, "reason": why, "policy": str(given.get("policy") or "")}

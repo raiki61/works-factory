@@ -433,8 +433,8 @@ nodes:
         reason: {type: string}
         ready: {type: boolean}
         judgment:
-          description: 'json(shared:judgment.schema.json): 受けた判定（受けていなければ空の形）'
-          type: object
+          description: 'json(shared:judgment.schema.json): 受けた判定（受けていなければ空の形。出口が落ちて形の照らしも読めない時だけ null。src/fallback.py）'
+          type: [object, 'null']
           properties:
             type: {type: string, enum: [archon_artifact]}
             run_id: {type: string}

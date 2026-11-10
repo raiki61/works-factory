@@ -22,25 +22,31 @@ def scenarios(done) -> dict:
     return {pathlib.PurePosixPath(r["fixture"]).name.removesuffix(".stubs.yaml"): r for r in report["results"]}
 
 
+def _traced(trace: dict, node: str) -> str:
+    """with: が名指す chain の節の trace の行の id。include の節は trace に行が無いので、差し込んだ block の返す節
+    `<include の id>__<returns:>`（Archon が `$<include>.output` を解く先）"""
+    if node in trace:
+        return node
+    top = {n["id"]: n for n in yaml.safe_load((kit.BLOCKS / "chain" / "works-factory-chain.yaml").read_text(encoding="utf-8"))["nodes"]}
+    inner = str(top.get(node, {}).get("include", "")).removeprefix("works-factory-")
+    if not inner:
+        return node
+    doc = yaml.safe_load((kit.BLOCKS / inner / f"works-factory-{inner}.yaml").read_text(encoding="utf-8"))
+    return f"{node}__{doc['returns']}"
+
+
 def bound(trace: dict, value):
     """線の節の with: の 1 つの値を、dry-run の trace の出力で結ぶ（`$<id>.output.<欄>`・まるごとの参照 `$<id>.output` と `{from, if_skipped}`。
-    差し込んだブロックの返りは trace に include の id の行が無いので、受け皿 `<id>-out` の got から読む）"""
+    差し込んだブロックの返りは trace に include の id の行が無いので、返す節の行から読む）"""
     if isinstance(value, dict) and "from" in value:
-        node = value["from"].split(".", 1)[0].lstrip("$")
-        node = node if node in trace else f"{node}-out"   # 差し込んだブロックは受け皿の行で見る
+        node = _traced(trace, value["from"].split(".", 1)[0].lstrip("$"))
         if node not in trace or trace[node]["state"] == "skipped":
             return value.get("if_skipped")
         value = value["from"]
     if isinstance(value, str) and value.startswith("$") and value.endswith(".output"):
-        node = value[1:-len(".output")]
-        if node in trace:
-            return trace[node].get("output")   # 節の出力の丸ごと（関所の答えの字）
-        if f"{node}-out" in trace:   # 差し込んだブロックの返りのまるごと（受け皿の got。飛んだ受け皿は null）
-            out = trace[f"{node}-out"].get("output")
-            return json.loads(out)["got"] if out else None
+        node = _traced(trace, value[1:-len(".output")])
+        return trace[node].get("output") if node in trace else None   # 節の出力の丸ごと（関所の答えの字）
     if not (isinstance(value, str) and value.startswith("$") and ".output." in value):
         return value
     node, field = value[1:].split(".output.", 1)
-    if node in trace:
-        return json.loads(trace[node]["output"]).get(field)
-    return (json.loads(trace[f"{node}-out"]["output"])["got"] or {}).get(field)
+    return json.loads(trace[_traced(trace, node)]["output"]).get(field)

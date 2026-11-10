@@ -17,7 +17,7 @@ workflows/line/scripts/ask_replan.py の決まりのまま）。
 文は聞く項目ごとの節（約束の欄の変化・人に聞く穴・その項目を誤りとした申し出の文と裁定の文〔fix の conflicts。字のまま〕・前と後の
 項目の JSON）。asked は承認ノードに見せた項目の本文の字の並び（「項目 <id>: …」と事前審査の問いの行。推しは文に書かない。answer-replan が答えの asked にする）。
 
-入力（with:）: replan（replan-out の got）・review（replan-review-out の got か null）・old_plan（承認済みの案の欄の pointer）・
+入力（with:）: replan（replan の返り）・review（replan-review の返りか null）・old_plan（承認済みの案の欄の pointer）・
 items（直す計画の項目の番号）・conflicts（1 回目の修正の申し出と裁定の pointer か null）・before_fix（修正前の承認ノードの答え）・
 record（始めの記録の pointer。方針の文書が固めた版から変わっていれば、その行を聞く項目に足す）・ports（start の配る値）・
 means（依頼が示した解き方の文の並びか null。外れの行の M<n> に文を添える）・
@@ -34,7 +34,6 @@ import ports  # noqa: E402
 
 REPLAN = ("ok", "status", "reason", "plan", "fix_plan", "ripple", "round")
 REVIEW = ("ok", "status", "reason", "replan", "round", "holes", "blocks", "deviations")
-REVIEW_OPTIONAL = ("deviations",)   # 頼みの解き方の行を持たない前の版の返りと stub は空と読む
 HEAD = "案の直しの承認ノード"
 RECORD = "run の置き場の gates/gate-replan.json"
 ITEM_HEAD = "## 人に聞く直した項目 {n}（単位 {units}）"   # 元 replan.GATE_ITEM_HEAD
@@ -206,8 +205,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
 
 
 def compute() -> dict:
-    raw = {"replan": os.environ.get("INPUTS_REPLAN"), "review": os.environ.get("INPUTS_REVIEW"),
-           "old_plan": os.environ.get("INPUTS_OLD_PLAN"), "items": os.environ.get("INPUTS_ITEMS"),
+    raw = {"old_plan": os.environ.get("INPUTS_OLD_PLAN"), "items": os.environ.get("INPUTS_ITEMS"),
            "conflicts": os.environ.get("INPUTS_CONFLICTS"), "before_fix": os.environ.get("INPUTS_BEFORE_FIX"),
            "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"), "means": os.environ.get("INPUTS_MEANS"),
            "judgment": os.environ.get("INPUTS_JUDGMENT")}
@@ -224,7 +222,9 @@ def compute() -> dict:
     missing: list = []
     old_plan = gates.located(raw["old_plan"], "承認済みの修正案の欄", missing, lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"))
     conflicts = gates.located(raw["conflicts"], "修正の申し出と裁定の控え", missing, lambda raw: ports.file(raw, "json(lib:conflicts.schema.json)"))
-    return ask(ports.picked(raw["replan"], REPLAN), ports.picked(raw["review"], REVIEW, optional=REVIEW_OPTIONAL), old_plan,
+    return ask(ports.picked(os.environ.get("INPUTS_REPLAN"), REPLAN),
+               # deviations は頼みの解き方の行を持たない前の版の返りと stub では無く、空と読む
+               ports.picked(os.environ.get("INPUTS_REVIEW"), REVIEW, optional=("deviations",)), old_plan,
                [str(x) for x in ids] if isinstance(ids, list) else [], conflicts, before_fix,
                unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"], policy=row, missing=missing,
                means=means if isinstance(means, list) else [], judgment=raw["judgment"])

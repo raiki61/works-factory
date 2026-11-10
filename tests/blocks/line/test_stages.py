@@ -12,7 +12,7 @@ BLOCK = "line"
 
 
 def fix(**kw) -> dict:
-    """fix の受け皿の got（docs/design/fix.md の 1.2 の欄）"""
+    """fix の返り（docs/design/fix.md の 1.2 の欄）"""
     got = {"ok": True, "reason": "", "units": [{"unit_id": "u1", "status": "given_up"}], "groups": [{"group_id": "g1"}],
            "conflicts": {"path": "fix/conflicts.json"}, "carry": None, "replan_items": ["1"], "objection": "", "diff": {"path": "fix/diff"},
            "start_tree": "t1", "reply": None, "ruled_reply": None, "scope": None, "checked": {"ok": True, "reason": ""},
@@ -278,7 +278,7 @@ class ReadCase(unittest.TestCase):
 
 
 class FixedScriptCase(unittest.TestCase):
-    """script fixed: 受け皿の got の欄を全部名指して読み、前の版の返り（欄の欠け）は止める（integration.md 4.3-12）"""
+    """script fixed: block の返りの欄を全部名指して読み、前の版の返り（欄の欠け）は止める（integration.md 4.3-12）"""
 
     def test_script_and_prior_version(self):
         run = kit.Run(self, BLOCK)

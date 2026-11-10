@@ -1,7 +1,7 @@
-"""line の小さな script（docs/design/line.md の 1.5）の振る舞い: testcmd（頭の止め）・gate_answer（承認ノードの答え）・returned（受け皿）・
+"""line の小さな script（docs/design/line.md の 1.5）の振る舞い: testcmd（頭の止め）・gate_answer（承認ノードの答え）・
 relay（返し）・result（line の返す node）・sweep_children（後始末）。
 
-元は test_line.py の GateAnswerCase・ReturnedCase・SweepChildrenCase・CollectAndResultCase の result の部分と
+元は test_line.py の GateAnswerCase・SweepChildrenCase・CollectAndResultCase の result の部分と
 test_testcmd_head.py の TestCmdNodeTest（README 9.5）。script は子のプロセスで回すか（kit.Run.script。port の値だけを
 INPUTS_<名> で渡す）、名で読んで関数を直に呼ぶ。testcmd が run を cancel する Archon の dry-run の場面は line の筋書きが持つ。
 """
@@ -168,26 +168,56 @@ class GateAnswerCase(ScriptRun):
         self.assertEqual(self.take("null", place="gate-start"), {"go": True, "answer": None, "stop_reason": ""})
 
 
-class ReturnedCase(ScriptRun):
-    def test_whole_output_gives_the_declared_fields(self):
-        """受け皿は got（受ける node の返りまるごと）の names で宣言した欄だけを、型を保ったまま got にする。optional は無くてよい"""
-        whole = {"mode": "seal", "ok": True, "hash": "123", "diff": None, "protected_hits": [], "reason": "", "extra": 1}
-        got = self.run.script("returned", got=json.dumps(whole), names="mode ok hash diff protected_hits reason")
-        self.assertEqual(got, {"got": {**{k: v for k, v in whole.items() if k != "extra"}, "optional": None}, "why": ""})
+class LoopCarryCase(ScriptRun):
+    """輪の直後の運び手（ask-before-fix・theme-descend。docs/design/line.md の 13.1）: 受けた輪の返りから、報告を組む collect が読む欄
+    （src/loopcarry.py の ROUNDS・THEME_ROUNDS）だけを出力の欄 rounds に写す。fallback の時も運び、欄が欠ければ null。collect は落ちうる輪を
+    直に結ばないので、運び手が落とせば報告から往復の節が黙って消える"""
 
-    def test_missing_declared_field_is_a_null_got_with_the_why(self):
-        """宣言した欄が無い返り（前の版の block の返り）は空と読まず、got: null と訳（integration.md の 4.3-12）"""
-        got = self.run.script("returned", got=json.dumps({"ok": True}), names="ok hash")
-        self.assertIsNone(got["got"])
-        self.assertIn("hash", got["why"])
+    EXTRA = {"open": True, "text": "関所の文" * 50, "asked": ["q"], "agreed": None, "talks": [], "notes": [], "shown": "s", "timeline": []}
 
-    def test_unreadable_got_is_a_null_got(self):
-        for case, inputs in {"無い": {"names": "ok"}, "null": {"got": "null", "names": "ok"}, "配列": {"got": "[]", "names": "ok"},
-                             "names が無い": {"got": "{}"}}.items():
-            with self.subTest(case):
-                got = self.run.script("returned", **inputs)
-                self.assertIsNone(got["got"])
-                self.assertTrue(got["why"])
+    def setUp(self):
+        super().setUp()
+        self.lc = kit.load("line", "loopcarry")
+
+    def loop(self, names) -> dict:
+        return {**self.EXTRA, **{name: f"v-{name}" for name in names}}
+
+    def record(self) -> str:
+        path = self.run.artifacts / "r1" / "start.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"answers": []}), encoding="utf-8")
+        return self.run.pointer("r1/start.json")
+
+    def ask(self, rounds: dict, **over) -> dict:
+        from tests.blocks.line.test_tiers import handed
+        inputs = {"request": handed({}), "rounds": json.dumps(rounds), "structure": "null",
+                  "judge": json.dumps({"judgment": None, "answer_ties": None, "materials": None}), "record": self.record(),
+                  "ports": json.dumps({"unattended": False, "design_talk": False, "policy": "", "base_rev": "abc", "deliver": ""}), **over}
+        return self.run.script("ask_before_fix", **inputs)
+
+    def test_ask_before_fix_carries_the_fields_collect_reads(self):
+        from tests.blocks.line.test_gates import rounds
+        given = {**rounds(), "pointed": [], **self.EXTRA}
+        self.assertLessEqual(set(self.lc.ROUNDS), set(given))
+        for name, out in (("通る", self.ask(given)), ("fallback", self.ask(given, ports="{"))):
+            with self.subTest(name):
+                self.assertEqual(out["rounds"], {k: given[k] for k in self.lc.ROUNDS}, out)
+                self.assertEqual(out["stop_reason"] == "works:line-script", name == "fallback", out["stop_reason"])
+
+    def test_ask_before_fix_carries_null_for_a_return_missing_a_field(self):
+        given = self.loop(self.lc.ROUNDS)
+        del given[self.lc.ROUNDS[-1]]
+        self.assertIsNone(self.ask(given)["rounds"])
+
+    def test_theme_descend_carries_the_fields_collect_reads(self):
+        given = self.loop(self.lc.THEME_ROUNDS)
+        for name, ports in (("通る", json.dumps({"theme": "", "unattended": False})), ("fallback", "{")):
+            with self.subTest(name):
+                out = self.run.script("theme_descend", rounds=json.dumps(given), ports=ports)
+                self.assertEqual(out["rounds"], {k: given[k] for k in self.lc.THEME_ROUNDS}, out)
+                self.assertEqual(out["stop_reason"] == "works:line-script", name == "fallback", out["stop_reason"])
+        missing = {k: v for k, v in given.items() if k != self.lc.THEME_ROUNDS[0]}
+        self.assertIsNone(self.run.script("theme_descend", rounds=json.dumps(missing), ports="{")["rounds"])
 
 
 class RelayCase(ScriptRun):

@@ -760,8 +760,8 @@ def _feeds(tree, node, env: str) -> bool:
 def _declared(root: Path, yaml_path: Path, node, rel: str, tree, gate) -> tuple:
     """口の呼び gate の名の並び。返りは (宣言の場所, 名の tuple)。解けなければ (None, None)。2 つ目の引数の読む形は 3 つだけ:
     module の頭の字の tuple の名（_top_names）・lib の部品の字の tuple の定数 `<部品>.<定数>`・節の with: の字の値を
-    `ports.text(<"INPUTS_<鍵>" の読み>).split()` で読む形（受け皿。名は YAML の字で、`$` の参照を持たない。この式を 1 度だけ束ねた名も可）。
-    鍵は `optional=` だけで、値は字の tuple（無くてよい欄。宣言の名には数えない）"""
+    `ports.text(<"INPUTS_<鍵>" の読み>).split()` で読む形（judge・eyes の graph の受け皿の names と line の返し relay の field。名は YAML の
+    字で、`$` の参照を持たない。この式を 1 度だけ束ねた名も可）。鍵は `optional=` だけで、値は字の tuple（無くてよい欄。宣言の名には数えない）"""
     if len(gate.args) != 2 or any(k.arg != GATE_OPTIONAL for k in gate.keywords):
         return None, None
     for keyword in gate.keywords:
@@ -1106,8 +1106,9 @@ def _shapes(root: Path) -> list[str]:
        同じで、道はその form の形に在る（#851 の落ちるはずの所の 10 番。殻は workflows/ の外なので 4 の照らしが届かない）。欄が ""
        の行は返す値そのものを読む行で、返す節の output_format（書き手）が form の形（読み手）に合い、道はその形に在る（bin/_lib/apply.py
        がメイングラフと周の鎖の result を読む所）。鍵が (workflow, ノードの id) の行は run の記録の出来事からノードの出力を読む行で、
-       ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節）が form の形に合い、道はその形に在る
-       （bin/_lib/apply.py が --allow-failed でメイングラフの封じの受け皿・独立の目の受け皿・最後の承認ノードの答えを読む所）"""
+       ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節。ノードの id が
+       `<include の id>__<返す節の id>` なら差し込む workflow の返す節）が form の形に合い、道はその形に在る（bin/_lib/apply.py が
+       --allow-failed でメイングラフの封じの返す節・返す周の集めの最後の目・最後の承認ノードの答えを読む所）"""
     pack, out = _Pack(root), []
     gate = pack.gate
     returns_name = re.compile(r"\bjsonl?\(%s:" % gate.RETURNS_HEAD)
@@ -1392,14 +1393,15 @@ def _shell_reads(pack: "_Pack") -> list[str]:
 def _node_read(pack: "_Pack", where: str, key, field: str, form: str, paths) -> list[str]:
     """RETURN_READS の鍵が (workflow, ノードの id) の行（殻が run の記録の出来事からノードの出力を読む。bin/_lib/apply.py の --allow-failed
     の道）: ノードの output_format（欄が "" でなければその欄。欄が json(returns:<名>) なら名の返す節の output_format）が form の形に合い、
-    道がその形に在る"""
+    道がその形に在る。ノードの id が `<include の id>__<返す節の id>`（Archon が include を展開した後の id）なら、その include が差し込む
+    workflow の返す節"""
     workflow, step = key
     head = f"{where}: {SHELL_READS} の {workflow} のノード {step}"
     entry = pack.docs.get(workflow)
     node = next((n for n in _all_nodes(entry[2].get("nodes")) if n.get("id") == step), None) if entry else None
-    if node is None or node.get("output_format") is None:
+    shape, folder = (node.get("output_format"), entry[0]) if node is not None else _included_return(pack, entry, step)
+    if shape is None:
         return [f"{head}: ノードか、その output_format が {workflow} に無い"]
-    shape, folder = node["output_format"], entry[0]
     if field:
         shape = (shape.get("properties") or {}).get(field)
         if not isinstance(shape, dict):
@@ -1410,6 +1412,18 @@ def _node_read(pack: "_Pack", where: str, key, field: str, form: str, paths) -> 
         elif named and named[0] == "json":
             shape = pack.shape_of(named[1], folder)
     return _whole_read(pack, where, f"{workflow} のノード {step} の{f' 欄 {field} の' if field else ''}出力", shape, folder, form, paths)
+
+
+def _included_return(pack: "_Pack", entry, step: str) -> tuple:
+    """`<include の id>__<返す節の id>` の id が、workflow の include の節の差し込む workflow の返す節を指すなら (その output_format, フォルダ)。
+    指さなければ (None, None)"""
+    include, sep, inner = step.partition("__")
+    node = next((n for n in _all_nodes(entry[2].get("nodes")) if n.get("id") == include), None) if entry and sep else None
+    called = node.get("include") if isinstance(node, dict) else None
+    child = pack.docs.get(called) if isinstance(called, str) else None
+    if child is None or child[2].get("returns") != inner:
+        return None, None
+    return pack.returned(called)
 
 
 def _whole_read(pack: "_Pack", where: str, label: str, shape, folder, form: str, paths) -> list[str]:

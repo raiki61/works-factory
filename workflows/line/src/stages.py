@@ -5,11 +5,11 @@ late_records と、最後の承認ノードと報告が同じ行を出す closur
 always_rows・next_items）。名は元のまま（E18）。差分の審査の穴の枝（branch_rows）・レンズの行・手直しの行は delta-review と lens の
 block が自分の出力の report・carry で返すので写さない（delta-review の設計書の 1.6）。lib は KEEP の物だけを読む。
 
-- PORTS・FROM: fix の出力の控えの欄（pointer の欄と、中身の欄）。stage(got) は fix の受け皿の got から読み手の口に渡す段
+- PORTS・FROM: fix の出力の控えの欄（pointer の欄と、中身の欄）。stage(got) は fix の返りから読み手の口に渡す段
 - resolve(ptr, field): 作り手の返りの欄 field の pointer（か、パスの字）を、その欄の宣言の form で中身を照らしてこの run の place の
   中のパスに戻す（戻せない・形に合わなければ ValueError）。resolve を受ける読み手の口は resolve(ptr, 欄の名) で呼ぶ
 - read(stages, resolve)・tdd(stage, resolve)・late_records(stage, resolve): 読み手の口（元 fixbeside の同じ名。delta_holes・lenses を読まない）
-- fixed(values) -> fixed の node の返り（YAML の output_format の欄）。values は fixed.py が受け皿の got から組んだ dict。鍵 more（MORE）は独立の目から
+- fixed(values) -> fixed の node の返り（YAML の output_format の欄）。values は fixed.py が block の返りから組んだ dict。鍵 more（MORE）は独立の目から
   修正の段へ返した段の fix の got の並び（MORE。返した順。段が落ちて got が無い段は None）で、stages の 3 段目以降に積み、最後の段・単位・組・
   項目の申告・異議・TDD の記録・変更の印をそこまで含めて合わせる。返した段は lens と delta-review を回さないので、go・done はその段の分を
   段の修正の ok と変更の確かめだけで決める
@@ -83,7 +83,7 @@ def resolve(ptr, field: str) -> pathlib.Path:
 
 
 def stage(got, name: str) -> dict:
-    """修正の返り got（受け皿の got）から、読み手の口に渡す段 {name, diff, 控えの欄}（name は段の名。names が fixed の stages の行から引く）"""
+    """修正の返り got から、読み手の口に渡す段 {name, diff, 控えの欄}（name は段の名。names が fixed の stages の行から引く）"""
     return {"name": name, "diff": got["diff"], **{field: got[field] for field in (*PORTS, *FROM)}}
 
 

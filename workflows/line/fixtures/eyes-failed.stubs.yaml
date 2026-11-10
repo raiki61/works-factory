@@ -1,11 +1,12 @@
 # 独立の目の graph の返す node が落ちる（本物の eyes の verdict に output_format に合わない stub を置いて落とす）。
-# 封じる段（merge-seal）・最後の承認ノード・答え・取り込み（merge-apply）は差分を当てずに飛び、collect・report・result まで走る（L-G50）。
-# 守りのパスの当たりの道は seal-protected。
+# 封じる段（merge-seal）・最後の承認ノード・答え・取り込み（merge-apply）は差分を当てずに飛ぶ（L-G50）。返す node は落ちない形に縛る
+# （tests/workflows/test_returns_never_fail.py）ので、それでも落ちた run は、返りを直に結ぶ collect も落ちて報告が出ず、Archon の run の記録が
+# 落ちた node を語る（docs/design/line.md の 13.1。持ち主の決め returns-never-fail）。守りのパスの当たりの道は seal-protected。
 fixture:
   expect: "failed"
-  fail-node: "eyes__verdict"
+  fail-node: ["eyes__verdict", "collect"]
   inputs: {"request": ".archon/workflows/works-factory/line/fixtures/request.json"}
-  reached: ["collect", "report__finish", "result"]
+  reached: ["test-gate-final__result", "eyes-in"]
 exec-code: true
 delta-review__cut-2: {"due": false, "reason": ""}
 delta-review__finish: {"ok": true, "status": "ok", "reason": "", "rounds": 1, "pass": true, "holes": null, "diff": {"type": "archon_artifact", "run_id": "dry-run", "path": "delta/diff.patch"}, "carry": [], "report": []}

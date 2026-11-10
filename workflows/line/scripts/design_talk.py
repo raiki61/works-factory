@@ -16,7 +16,7 @@
 until_bash はこの node の done だけを読む（飛びうる関所の出力を読まない。止めた Archon の決まり）。
 
 入力（with:）: turn（design-turn の返り）・plan_out（plan-out の返り。回さなかった周は null）・previous（$LOOP_PREV.design-talk.output）・
-structure（structure-in の structure）・judge（judge-out の got）・record（始めの記録の pointer）・ports（start の配る値）・
+structure（structure-in の structure）・judge（judge の返り）・record（始めの記録の pointer）・ports（start の配る値）・
 request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
 """
 import os
@@ -27,10 +27,14 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
+JUDGE = ("judgment", "answer_ties", "materials")   # 判定の返りの読む欄（src.asking.materials が読む。means は無くてよい）
+
 
 def compute() -> dict:
-    raw = {name: os.environ.get(f"INPUTS_{name.upper()}")
-           for name in ("turn", "plan_out", "previous", "structure", "judge", "record", "ports", "request")}
+    raw = {"turn": os.environ.get("INPUTS_TURN"), "plan_out": os.environ.get("INPUTS_PLAN_OUT"),
+           "previous": os.environ.get("INPUTS_PREVIOUS"), "structure": os.environ.get("INPUTS_STRUCTURE"),
+           "record": os.environ.get("INPUTS_RECORD"), "ports": os.environ.get("INPUTS_PORTS"), "request": os.environ.get("INPUTS_REQUEST")}
+    judge = ports.picked(os.environ.get("INPUTS_JUDGE"), JUDGE, optional=("means",))
     from src import asking, descend, talk
 
     given = ports.parsed(raw["ports"])
@@ -45,7 +49,7 @@ def compute() -> dict:
     dealt = descend.dealt(given, raw["request"])
 
     def materials(rounds: dict) -> dict:
-        return asking.materials(rounds, structure_raw=raw["structure"], judge_raw=raw["judge"], record_raw=raw["record"],
+        return asking.materials(rounds, structure_raw=raw["structure"], judge=judge, record_raw=raw["record"],
                                 dealt=dealt, unattended=False, place=place)
 
     return talk.settle(turn_got=turn_got, plan_out=plan_out,

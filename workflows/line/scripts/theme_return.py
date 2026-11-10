@@ -8,7 +8,7 @@
 持ち主の一言）・依頼のファイル（それまでの答え）・起動の 1 行を run の置き場の theme/next/ に書く。ほかの時は何も書かずに back: false。
 run を閉じるのは修正前の承認ノード（agreed の語が通す語でないので human:gate-design で止める）。
 
-入力（with:）: rounds（plan-rounds-out の got）・ports（start の配る値）・record（始めの記録の pointer）・descended（theme-descend の返り）
+入力（with:）: rounds（plan-rounds の返り）・ports（start の配る値）・record（始めの記録の pointer）・descended（theme-descend の返り）
 """
 import os
 import sys

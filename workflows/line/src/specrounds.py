@@ -1,6 +1,6 @@
 """仕様駆動の run の判定と計画の往復の組み直し（node spec-rounds。docs/design/spec-driven.md の 6.2 の足す node の 8・6.8 の 1 と 2）。
 
-判定の役（spec-diagnose）と計画の部品（spec-plan）を 1 回ずつ通した返りを、今の judge-out と plan-rounds-out の受け皿の got と同じ形
+判定の役（spec-diagnose）と計画の部品（spec-plan）を 1 回ずつ通した返りを、判定のまとめ judge と計画の往復 plan-rounds の返りと同じ形
 （fix-in と ask_before_fix が読む欄の全部）に組み直す。修正前の承認ノードの前の段と fix-in が同じ値を読む。
 
 - judge_part(diagnose, purpose_text, forced) -> 判定の部: 判定の役の返りと、今の本線でその欄を作る段が回らなかった run と同じ値

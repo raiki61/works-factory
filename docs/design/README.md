@@ -155,7 +155,7 @@
 11. `698cd06c`（B、bin）封じた（merge が差分の hash を取って固定した。0 節の「守りのファイルと当たり」）後のノードが落ちた run でも、差分を対象のリポジトリに当てる入口 `bin/apply` が、封じのノードの出力の hash と差分を照らしてから当てる。
     - 新しい形で触る所: `bin/_lib/apply.py`（と `tests/bin/`・Archon の出来事の名を照らす `tests/shared/test_archon_contract.py`）と根の `README.md`（旗 `--allow-failed`・`--allow-stopped`）。
     - 起きなくなる分: docs の `works-parity.md`。
-    - 判定: 2 か所（殻と、利用者の使い方の文書）。`bin/apply` は line の受け皿のノードの id（`merge-seal-out` など）を名指すが、殻は line を起こす口なので line の名を知るのは正しい。block の中の名は知らない（今と同じ）。
+    - 判定: 2 か所（殻と、利用者の使い方の文書）。`bin/apply` は line のノードの id（封じの返す節 `merge-seal__merge` など）を名指すが、殻は line を起こす口なので line の名を知るのは正しい。block の中の名は知らない（今と同じ）。
 12. `8bc1d4e1`（C）ベンチの sandbox の確かめを本物の claude に踏ませる。
     - 新しい形で触る所: `tests/calibration/`（と `tests/bin/sandbox_probe.py`・埋め fence の試験）と `docs/owner-decisions.md`（版の照らしを消すという決めの変更）。
     - 判定: 形の外で今と同じ 2 か所。block にも lib にも届かない。

@@ -72,7 +72,7 @@
 
 D1・D2 の node 間の port: `fix-prep`・`fix-ruled-prep` の返りは `{go, iteration, writer, order, slots}`（`order`・`slots` は pointer。型の block の入力。2.2。指示の字 `prompt` は D2 で外した）で、型の block の出力 `reply`（pointer）を受け付けが読む（2.8）。block 全体の入力と出力（この節の 2 つの一覧）は D1・D2 で変えない。
 
-出力（`returns: finish`、`outcome_field: ok`）。今の `fix` の欄のうち fix の事実の物を名のまま保ち（line の受け皿・最後の承認ノード・eyes・merge・報告が今の名で読む）、差分の審査とレンズの欄を外し、delta-review と line が要る欄を足す:
+出力（`returns: finish`、`outcome_field: ok`）。今の `fix` の欄のうち fix の事実の物を名のまま保ち（line の読み手・最後の承認ノード・eyes・merge・報告が今の名で読む）、差分の審査とレンズの欄を外し、delta-review と line が要る欄を足す:
 
 - `ok`: boolean。組の形: 組の結果を書いた。全体の形: 戻しの記録（`join.json`）が在り、変更の確かめが通り、当たったままの組が無い（今の `done` から差分の審査の `pass` を外した物）。
 - `reason`: 日本語の 1 行。ok でない訳（落ちた段・読めない port・変更の確かめの訳）。
@@ -243,9 +243,9 @@ lib の `fixbeside.py`（README 9.1 で DELETE）のうち fix の物: `CLOSURE_
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- line の 1 回目の修正の段（include の id `fix`）: `mode: whole`・`judgment` ← diagnose の `judgment`・`answer_ties`・`materials` ← line（今の judge-out の同じ欄）・`plan`・`fix_plan`・`ripple` ← plan の往復の最後の周・`plan_review` ← 最後の事前審査・`answers` ← 修正前の承認ノードの答え（`asked` を付けて。F225）・`request_answers`・`unattended`・`parallel`・`test_cmd`・`reuse_dir`・`user_env_dir`・`lang` ← 始めの記録・`policy` ← 始めの記録の固めた写し・`request` ← 依頼のファイル・`baseline` ← `$test-gate-base.output.baseline`・`tdd_suite` ← `$test-gate-base.output.suite`・`reuse_key` ← line の run の id・`skip_rerun` ← line が深さの表から引いた軽量の単位（段 → 回す物の表が「緑の後の試験の走らせ直しを省く」を持つ段だけ。今の `depth.omits`）。
+- line の 1 回目の修正の段（include の id `fix`）: `mode: whole`・`judgment` ← diagnose の `judgment`・`answer_ties`・`materials` ← line（判定のまとめ judge の返りの同じ欄）・`plan`・`fix_plan`・`ripple` ← plan の往復の最後の周・`plan_review` ← 最後の事前審査・`answers` ← 修正前の承認ノードの答え（`asked` を付けて。F225）・`request_answers`・`unattended`・`parallel`・`test_cmd`・`reuse_dir`・`user_env_dir`・`lang` ← 始めの記録・`policy` ← 始めの記録の固めた写し・`request` ← 依頼のファイル・`baseline` ← `$test-gate-base.output.baseline`・`tdd_suite` ← `$test-gate-base.output.suite`・`reuse_key` ← line の run の id・`skip_rerun` ← line が深さの表から引いた軽量の単位（段 → 回す物の表が「緑の後の試験の走らせ直しを省く」を持つ段だけ。今の `depth.omits`）。
 - 2 回目の修正の段（案の直しの後）: 同じ物に `plan`・`fix_plan` ← 案の直し・`ripple`・`answers`・`notes` ← 案の直しの承認ノード・`only_items` ← `$fix.output.replan_items`・`prior` ← `$fix.output.carry`・`plan_review` ← 案の直しの事前審査。
-- 読み手（line の設計書で配る）: line の受け皿と 2 段の合わせ（`units`・`groups`・`conflicts`・`objection`・`stop_reason`・`ok`・`diff` ほか）・line の上げ直し（`units`・`conflicts`・`diff`・`plan_declared`・`objection`・`tdd_refused`・`accept_trace`）・delta-review（`start_tree`・`reply`・`ruled_reply`・`scope`・`conflicts`・`checked`。`when:` は `checked.ok` と `stop_reason == ""` と line の深さの表）・eyes と r2・r4（`units`・`changed`・`x_scalars`・`plan_declared`・`tdd`）・lens（`start_tree`）・merge（`item_claims`）・line の最後の承認ノードと report（`handoffs`・`mismatched`・`allowed_tests`・`accept_trace`・`closure`・`removed`・`removed_tests`・`untested`・`conflicts`・`freeze_off`・`report`）・案の直し（`replan_items`・`conflicts`）。
+- 読み手（line の設計書で配る）: line の読み手と 2 段の合わせ（`units`・`groups`・`conflicts`・`objection`・`stop_reason`・`ok`・`diff` ほか）・line の上げ直し（`units`・`conflicts`・`diff`・`plan_declared`・`objection`・`tdd_refused`・`accept_trace`）・delta-review（`start_tree`・`reply`・`ruled_reply`・`scope`・`conflicts`・`checked`。`when:` は `checked.ok` と `stop_reason == ""` と line の深さの表）・eyes と r2・r4（`units`・`changed`・`x_scalars`・`plan_declared`・`tdd`）・lens（`start_tree`）・merge（`item_claims`）・line の最後の承認ノードと report（`handoffs`・`mismatched`・`allowed_tests`・`accept_trace`・`closure`・`removed`・`removed_tests`・`untested`・`conflicts`・`freeze_off`・`report`）・案の直し（`replan_items`・`conflicts`）。
 - 組の子の作業ツリーの後始末は line の終わりの node（今の `sweep_children`）。
 - `workflow: works-factory-fix` は `workflows/fix/` の block を指す（pack は `workflows/` の 1 つ。README 3 節）。
 

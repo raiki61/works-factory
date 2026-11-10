@@ -1,7 +1,7 @@
 """仕様駆動の道の node spec-rounds（workflows/line/scripts/spec_rounds.py。docs/design/spec-driven.md の 6.2 の足す node の 8・6.5 の 8・
 6.8 の 1 と 2）。
 
-判定の役（spec-diagnose）と計画の部品（spec-plan）の返りを、今の judge-out と plan-rounds-out の受け皿の got と同じ形に組み直す。
+判定の役（spec-diagnose）と計画の部品（spec-plan）の返りを、判定のまとめと計画の往復の返りと同じ形に組み直す。
 ここで照らすのは、決まっていない narrows（decided_by が無い）が lib/gatemarks.narrow_asks で asks の行になり、修正前の承認ノードに
 出ること（欄が揃うかの形は照らさない。読む側の script が欄の欠けで落ちる）
 """

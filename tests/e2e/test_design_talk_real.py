@@ -4,10 +4,10 @@
 筋書き（archon workflow test）は until_bash の輪を 1 周で終えたことにし、答えた後の周を回さない（止めた Archon の dry-run.ts の
 loopIterationCompletes）。ここでは line の YAML の plan-rounds の node をそのまま写し、AI を起こす 2 つの include（plan・plan-review-run）
 だけを、同じ id・同じ when・同じ返りの欄の模擬の script に差し替えた使い捨ての工程を組んで回す。周の頭 design-turn・plan-out・周の
-終わり design-talk・関所 gate-design と、輪の後ろの受け皿と修正前の承認ノード ask-before-fix は line の本物の script。輪の外の前の段
+終わり design-talk・関所 gate-design と、輪の返りを直に読む修正前の承認ノード ask-before-fix は line の本物の script。輪の外の前の段
 （start・依頼の出どころ request-in・判定・owed など）は値を返すだけの script。AI も認証も要らないので CI でも走る。本物の AI の役（計画・事前審査）は回していない。
 テーマの run の工程は、同じ組み立てで計画の往復の前に line の theme-rounds を写し（AI を起こす theme・theme-review を同じ形の模擬に差し替え）、
-周の頭 theme-turn・theme-out・周の終わり theme-talk・関所 gate-theme・輪の後ろの theme-rounds-out・降りる theme-descend・依頼の出どころ
+周の頭 theme-turn・theme-out・周の終わり theme-talk・関所 gate-theme・輪の返りを直に読んで降りる theme-descend・依頼の出どころ
 request-in を line の本物の script で回す（talk・rounds は段の名を引数に取るだけなので、2 つの loop を同じ部品で回す）。
 
 照らす事（#822 の受入確認のうち、本物の Archon の止め・答え・再開・周の数が要る物）:
@@ -41,7 +41,7 @@ from tests.layers.test_archon_validate import validate
 WORKFLOW = "works-factory-talk-probe"
 FOLDER = "talk-probe"
 LINE = kit.BLOCKS / "line"
-REAL_SCRIPTS = ("design_turn", "design_talk", "plan_out", "returned", "ask_before_fix", "theme_turn", "theme_out", "theme_talk",
+REAL_SCRIPTS = ("design_turn", "design_talk", "plan_out", "ask_before_fix", "theme_turn", "theme_out", "theme_talk",
                 "theme_descend", "request_in")
 REQUEST_FIELDS = ("request", "request_file", "request_answers", "entry", "request_origin", "request_scope", "prior_rows")
 UV_HEAD = "# /// script\n# requires-python = \">=3.12\"\n# dependencies = []\n# ///\n"
@@ -215,7 +215,7 @@ def probe(design_talk: bool, notes: str = "", theme: bool = False) -> dict:
                           THEME_KEYS),
                 "theme-review": ("review_probe", {"prior": "$theme-turn.output.record", "recorded": "$theme-turn.output.recorded",
                                                   "stage": "theme"}, REVIEW_KEYS)}),
-            *(copy.deepcopy(top[name]) for name in ("theme-rounds-out", "theme-descend", "request-in")),
+            *(copy.deepcopy(top[name]) for name in ("theme-descend", "request-in")),
         ]
     else:
         source = [_emit("request-in", {"go": True, "stop_reason": "", "reason": "", **{k: ports[k] for k in REQUEST_FIELDS}, "notes": []},
@@ -223,14 +223,13 @@ def probe(design_talk: bool, notes: str = "", theme: bool = False) -> dict:
     head = [
         _emit("start", {"ok": True, "record": "@ptr:r1/start.json", "ports": ports}, files=files),
         *source,
-        _emit("judge", {"ok": True, "ready": True}, depends=["request-in"]),
-        _emit("judge-out", {"got": {"judgment": None, "answer_ties": None, "materials": None}}, depends=["judge"]),
+        _emit("judge", {"ok": True, "ready": True, "judgment": None, "answer_ties": None, "materials": None}, depends=["request-in"]),
         _emit("owed", {"owed": True, "recorded": [{"source": "doc", "name": "p.md", "text": ""}], "stop_reason": ""}, depends=["judge"]),
         _emit("structure-in", {"structure": None, "stop_reason": ""}, depends=["judge"]),
         _emit("design-in", {"design": None, "reason": "", "stop_reason": ""}, depends=["judge"]),
         _emit("tiers", {"tree": "off", "stop_reason": ""}, depends=["judge"]),
     ]
-    tail = [copy.deepcopy(top["plan-rounds-out"]), copy.deepcopy(top["ask-before-fix"])]
+    tail = [copy.deepcopy(top["ask-before-fix"])]
     return {"name": WORKFLOW, "description": "設計の相談の輪を本物の Archon で回す使い捨ての工程（tests/e2e/test_design_talk_real.py）",
             "nodes": [*head, plan_rounds, *tail]}
 
