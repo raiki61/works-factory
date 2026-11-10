@@ -202,7 +202,7 @@
 
 - 持ち主の言葉: 「おし」（2026-10-13。PR #197〔issue #124〕の「持ち主の答え待ち」——試験の段の証拠の行の頭「- 走らせ方: 」「- ログ: 」の字を `workflows/test-gate/scripts/result.py` と `runreport.py`（読む側の写し。#292 で外した）の 2 か所が持つのを 1 か所に寄せるか——に、運び役の推し「書く側に寄せる」で答えた）
 - 決め: 頭の字は書く側の 1 か所に置き、読む側はそれを引く。写しを持たない。
-- 当て方: 頭の字の持ち主は test-gate の block の `workflows/test-gate/src/certify.py` の `RUN_ROW`・`LOG_ROW`（返す node の script `workflows/test-gate/scripts/result.py` がそれを通して書く）。字の食い違いを赤にしていた結びの試験は、1 か所から引いていることの照らし（`tests/blocks/test_gate/test_test_gate.py` の `EvidenceRowsCase`）に替えた。
+- 当て方: 頭の字の持ち主は test-gate の block の `workflows/test-gate/src/certify.py` の `RUN_ROW`・`LOG_ROW`（返す node の script `workflows/test-gate/scripts/result.py` がそれを通して書く）。字の食い違いを赤にしていた結びの試験は、1 か所から引いていることの照らしに替えたが、その照らしも 2026-11-10 の削り（持ち主の決め `tests-guard-writes`）で消した。報告と最後の承認ノードは証拠の文を開かずに出力の欄を読むので、頭の字は承認を変えない。写しを持たないことは人が見る。
 
 ### `clash-goes-to-ruling` 組の合わせで壊れたら、合わせ役が影響した所だけ直し、直せなければ疑って考える役に回す
 

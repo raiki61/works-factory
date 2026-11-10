@@ -1,8 +1,7 @@
 """止めの理由の住処（lib/stopby.py。考え stop-reasons）の検査。
 
 表の名と定数が揃うこと・ブロックとラインが足す口（declare）の決まり・同じ名の declare は同じ意味であること・
-語の字が変わっていないこと（報告・次の run の依頼に残る字。前の run の止めを読み違えない）・住処の外に語の字が漏れないことを見る。
-関数を直に呼ぶのと、lib と pack（block の src・scripts）と線の script と境の .py を ast で読むだけ（子のプロセスなし）。
+pack が引く stopby の名が在ることを見る。関数を直に呼ぶのと、lib と pack（block の src・scripts）の .py を ast で読むだけ（子のプロセスなし）。
 """
 import ast
 import pathlib
@@ -18,25 +17,10 @@ if str(LIB) not in sys.path:
 from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
 
 SKIP = ("graphloops/",)
-# 報告と次の run の依頼に残る語の字（変えると前の run の止めを読み違える）。表の語と、lib と block が declare で足す語
-WORDS = frozenset({
-    "works:adapter", "works:ci", "works:conflict", "works:delta", "works:empty-fix", "works:fix", "works:lens",
-    "works:plan-converge", "works:pr", "works:premises", "works:purpose", "works:refix", "works:rejudge",
-    "works:rejudge-session", "works:replan", "works:scope-check", "works:spec-changed", "works:suite-broken", "works:no-suite", "works:tdd-repeat", "works:unrestored",
-    "works:start-refused", "works:needs-human", "works:line-script", "works:answer-redirected",
-    "works:rule-give-up", "works:clash-ruled-give-up", "works:judge", "works:judge-verify", "works:spec", "works:material", "works:request",
-    "works:spec-entry", "works:spec-mismatch", "works:spec-objection",
-})
-# 人の答えを待つ語の字（WAITING。報告の結末の語と、次の run の依頼の下書きの前の失敗の行を分ける。外すと人待ちが機械の止めと書かれる）
 WAITING_WORDS = frozenset({
     "works:answer-redirected", "works:conflict", "works:needs-human", "works:replan", "works:spec-changed", "works:tdd-repeat",
     "works:unrestored",
 })
-# 線の script と境（workflows/line/scripts/・workflows/.shared/）で止めの語の字の写しを持ってよい所: lib を読めない時の返り
-# （lib を読めないので stopby を引けない）。値は stopby の定数と同じでなければならない
-COPIES = {
-    ("workflows/line/scripts/result.py", "LINE_SCRIPT"): "LINE_SCRIPT",
-}
 
 
 def stopby():
@@ -65,27 +49,6 @@ def declares():
                 args = [a.value if isinstance(a, ast.Constant) else None for a in n.args]
                 out.append((rel, *args))
     return out
-
-
-def line_py():
-    """線の script と境の .py（リポジトリの根からのパス, 木）"""
-    for folder in (ROOT / "workflows" / "line" / "scripts", ROOT / "workflows" / ".shared"):
-        for p in sorted(folder.glob("*.py")):
-            yield p.relative_to(ROOT).as_posix(), ast.parse(p.read_text(encoding="utf-8"))
-
-
-def word_copies(tree, words) -> list:
-    """[(行, 字, 代入した名か None)]: 止めの語か人の止めの頭か頭 works: で始まる字の定数（docstring のような文の中の言及は数えない）"""
-    named = {}
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant):
-            for target in n.targets:
-                if isinstance(target, ast.Name):
-                    named[id(n.value)] = target.id
-    m = stopby()
-    return [(n.lineno, n.value, named.get(id(n))) for n in ast.walk(tree)
-            if isinstance(n, ast.Constant) and isinstance(n.value, str)
-            and (n.value in words or n.value == m.HUMAN or n.value.startswith(m.HEAD))]
 
 
 class Table(unittest.TestCase):
@@ -152,14 +115,10 @@ class Pack(unittest.TestCase):
             meanings.setdefault(name, set()).add(meaning)
         self.assertEqual({n: m for n, m in meanings.items() if len(m) > 1}, {})
 
-    def test_words_unchanged(self):
-        """表と declare の語の字は WORDS と同じ（語を足すなら WORDS にも足す。字を変えない）"""
-        m = stopby()
-        got = {m.HEAD + n for n in m.REASONS} | {m.HEAD + n for _, n, _ in declares()}
-        self.assertEqual(got, WORDS)
-
     def test_waiting_words_unchanged(self):
-        """人の答えを待つ語の集まり WAITING は WAITING_WORDS と同じ（足す・外すなら WAITING_WORDS も直す）"""
+        """人の答えを待つ語の集まり WAITING は WAITING_WORDS と同じ（足す・外すなら WAITING_WORDS も直す）。語が WAITING から抜けると、
+        報告の結末が needs_human でなく stopped_by_line（種 halted）になり、周の鎖の pick がその周の差分を採らずに飛ばす。
+        この照らしのほかに、それを赤にする試験は無い（2026-11-10 の削りで壊して確かめた）"""
         m = stopby()
         self.assertEqual(m.WAITING, WAITING_WORDS)
 
@@ -171,30 +130,6 @@ class Pack(unittest.TestCase):
                 if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "stopby":
                     with self.subTest(file=rel, attr=n.attr):
                         self.assertTrue(hasattr(m, n.attr))
-
-
-class LineWordsCase(unittest.TestCase):
-    """線が足す止めの語と人の止めの頭は stopby に在り、線の script と境は stopby の定数を引く（字の写しを持たない）。
-    lib を読めない時の返りの写し（COPIES）だけを許し、その値は stopby の定数と同じ"""
-
-    def test_line_words_live_in_stopby_only(self):
-        m = stopby()
-        words = {m.HEAD + n for n in m.REASONS} | {m.HEAD + n for _, n, _ in declares()}
-        for rel, tree in line_py():
-            for line, value, name in word_copies(tree, words):
-                with self.subTest(file=rel, line=line, value=value):
-                    self.assertIn((rel, name), COPIES, f"{rel}:{line} に止めの語の字 {value!r} の写しが在る（stopby の定数を引く）")
-                    self.assertEqual(value, getattr(m, COPIES[(rel, name)]))
-
-    def test_copies_are_in_the_tree(self):
-        """COPIES の行は木に在る（古い行を残さない）"""
-        found = {(rel, name) for rel, tree in line_py() for _, _, name in word_copies(tree, set())}
-        self.assertEqual(set(COPIES) - found, set())
-
-    def test_a_copied_word_is_caught(self):
-        m = stopby()
-        tree = ast.parse(f'STOP = "{m.NEEDS_HUMAN}"\nHEAD = "{m.HUMAN}"\n"""止めの理由 {m.LINE_SCRIPT} を返す"""\n')
-        self.assertEqual([(line, name) for line, _, name in word_copies(tree, {m.NEEDS_HUMAN})], [(1, "STOP"), (2, "HEAD")])
 
 
 if __name__ == "__main__":

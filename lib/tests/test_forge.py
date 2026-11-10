@@ -238,21 +238,6 @@ class GhReadsCase(unittest.TestCase):
         self.assertEqual(doc["pr"]["7"]["body"], "非公開の本文")
         self.assertEqual(doc["issue"]["9"]["body"], "課題の本文")
 
-    def test_pr_gh_can_read_runs_on_no_forge(self):
-        """forge の無い対象でも、gh が PR の base・head を読めれば読み出しに載る"""
-        got = self.read([7], **self._reading_gh())["pr"]["7"]
-        self.assertEqual((got["baseRefOid"], got["headRefOid"]), ("b" * 40, "h" * 40))
-
-    def test_pr_gh_reads_without_base_head_refuses_with_gh_words_on_no_forge(self):
-        """forge の無い対象で gh が PR を読めたのに base・head の欄が欠けた時は、線の入口が 1 行で止める。読めた項を『ホストが
-        無い』と言わず、forge の在る対象と同じ文で止まる"""
-        from lib.tests.test_ghreads import fake_gh
-        self.bin, _, login = fake_gh(self.tmp, base="", head="")
-        text = self.refusal(self.read([7], GH_CONFIG_DIR=str(login)))
-        self.assertIn("PR #7 の base・head を読めない", text)
-        self.assertNotIn("PR を持つホストが無い", text)
-        self.assertNotIn("\n", text)
-
     def _scripted_gh(self, rows):
         """引数の頭（"pr view 7"・"issue view 9"・"api … pulls/7/comments"）ごとに (exit, 標準出力, 標準エラー) を返す偽の gh に替える。
         当たらない呼び出しは exit 1 と GraphQL の見つからない文"""
@@ -290,25 +275,6 @@ class GhReadsCase(unittest.TestCase):
             self.assertFalse(got["reason"].startswith("no_forge"), got)
             self.assertTrue(got["forge"].startswith("no_forge: other_host"), got)
             self.assertNotIn("_no_host", got)   # 内側の印は読み出しに残さない
-
-    def test_ghes_with_expired_login_pr_asks_to_log_in(self):
-        """入力 pr でも同じ: gh が読みに行って読めなかったら『ホストが無い』でなく gh でログインしてから回せと言って止まる"""
-        self._ghes_target()
-        self._scripted_gh({"pr\\ view\\ 7*": (1, None, self.EXPIRED)})
-        text = self.refusal(self.read([7]))
-        self.assertIn("HTTP 401", text)
-        self.assertIn("ログインしてから回す", text)
-        self.assertNotIn("PR を持つホストが無い", text)
-
-    def test_gh_sees_no_github_host_is_not_applicable(self):
-        """gh 自身が対象の remote を GitHub のホストと見ない（none of the git remotes … known GitHub host）項は今どおり
-        not_applicable（理由は no_forge: <種類> と gh の言葉）"""
-        self._ghes_target()
-        self._scripted_gh({"pr\\ view\\ 7*": (1, None, self.NO_HOST)})
-        got = self.read([7])["pr"]["7"]
-        self.assertEqual(got["status"], "not_applicable", got)
-        self.assertTrue(got["reason"].startswith("no_forge: other_host"), got)
-        self.assertIn("known GitHub host", got["reason"])
 
     def test_mixed_named_items_on_no_forge(self):
         """forge の無い対象で、読める項・行コメントだけ読めない項（partial）・gh が GitHub と見ない項・gh が読みに行って読めない項を

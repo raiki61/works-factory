@@ -221,17 +221,14 @@ class SuitesLineCase(unittest.TestCase):
                 self.assertNotIn("環境で起こせなかった", line)
 
     def test_role_status_words(self):
-        """元 entry.suites_line の書き分け: 任せ先の役の素材が clean・found なら役が選んだ一式を走らせたと書き、ほかの status・素材が
-        無い・役がまだ渡していない回は走らせなかった側に書く。宣言が読めない engine と、test_cmd の段が無い engine も名指す"""
+        """元 entry.suites_line の書き分け: 任せ先の役の素材が clean・found の時だけ走らせたと書き、ほかの status・素材が無い・役が
+        まだ渡していない回は走らせた物を「無い」と書く（未実行を走らせたと書かない）。宣言が読めない engine と、test_cmd の段が無い
+        engine も走らせなかった側に名指す"""
         role = {"by": "role_needed", "suites": []}
-        for status, ran, unran in (
-                ("clean", "AI が書いた実行器が選んだ、変更に関わる試験（素材の status clean）", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・全体の試験（CI と人に任せた）"),
-                ("found", "AI が書いた実行器が選んだ、変更に関わる試験（素材の status found）", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・全体の試験（CI と人に任せた）"),
-                ("not_run", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせなかった: 素材の status not_run）"),
-                ("", "無い", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせなかった: 素材の status 無い）"),
-                (None, "無い", f"宣言の段・{dc.TEST_CMD_STEP}（渡されていない）・変更に関わる試験（実行器が走らせる）")):
+        for status, ran in (("clean", True), ("found", True), ("not_run", False), ("", False), (None, False)):
             with self.subTest(status=status):
-                self.assertEqual(dc.suites_line(role, role_status=status), f"走らせた: {ran}／走らせなかった: {unran}")
+                line = dc.suites_line(role, role_status=status)
+                self.assertEqual(line.startswith("走らせた: 無い／"), not ran, line)
         self.assertIn(f"宣言の段・{dc.TEST_CMD_STEP}（宣言が読めないので engine が走らせなかった）",
                       dc.suites_line({"by": "engine", "suites": []}))
         self.assertIn(f"{dc.TEST_CMD_STEP}（渡されていない）", dc.suites_line({"by": "engine", "suites": [{"name": "suite", "exit": 0}]}))

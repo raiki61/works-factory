@@ -1,7 +1,8 @@
-"""考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、表 docs/concepts.json の
-住処ありの柵が本当に当たることと entry-kind が既知の漏れを持たないことを見る FenceCase、main の表を引く main_table と分かれ目の fork_ref の MainTableCase）。
+"""考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、main の表を引く main_table と
+分かれ目の fork_ref の MainTableCase）。
 
-works-factory 自身の地図と表の全部を本物の木に当てる試験（tests/layers の同じ名のファイル）は #765 で消した。
+works-factory 自身の地図と表の全部を本物の木に当てる試験（tests/layers の同じ名のファイル）は #765 で、工場自身の表 docs/concepts.json の
+住処ありの柵を本物の木に当てる FenceCase は 2026-11-10 の削りで消した（書き込みも承認も守らない。持ち主の決め tests-guard-writes）。
 """
 import json
 import pathlib
@@ -192,116 +193,6 @@ class Synthetic(unittest.TestCase):
               "- 繰り返し: `.shared/core/x.py`\n")
         self.assertEqual(cf().map_paths(md, PATH_HEADS), [".shared/core/x.py", "blk-a", "dev/*.sh"])
 
-
-
-class FenceCase(unittest.TestCase):
-    # 住処ありの柵ごとに、柵が当たるはずの 1 行（表の fences の順）。表の柵が正規表現の書き損じで何にも当たらなくなると、
-    # 本物の木の FencesHold は「漏れが無い」と見分けがつかず緑のまま。柵を足したらここにも 1 行足す（足さなければ赤）
-    HITS = {
-        "entry-kind": ['b = _word(raw, "base")', 'if base["from"] == "pr":'],
-        "web-get": ["from urllib.request import urlopen"],
-        "cite": ["from cite import quoted_in", "ok = cite.fold(a) in cite.fold(b)"],
-        "prompt-sections": ["class Section:"],
-        "outcome": ['return "no_fix_needed", ""'],
-        "depth": ["doc = tiers.decide_doc(fields, unit_ids)", 'LATE_UNREAD = "修正の後の信号の控えが読めない（{why}）"',
-                  "run += depthlib.late_signals(outside=outside, refused=refused)"],
-        "features": ['"judge_verify": "判定の裏取り",'],
-        "reads": ['return f"reads-{role}.json"'],
-        "conflict": ['WHY_FIELD = "why_both_cannot_hold"'],
-        "lanes": ["parent[i] = parent[parent[i]]"],
-        "marks": ['"gate": Kind({}, "gate-marks.json", ROOT),', "write_json(jdir / querytest.EXAMPLES_FILE, {})",
-                  'row.setdefault("properties", {}).update(fields)', "{k: row.pop(k) for k in names if k in row}"],
-        "plan-scope": ["any(glob_match(path, g) for g in item_globs(it))"],
-        "test-files": [r'TEST_STEM = re.compile(r"^(test_[^.]+|[^.]+_test|.+\.(test|spec))$")'],
-        "red-check": ['QUOTES_FIELD = "red_quotes"', "probs = list(rules().red_problems(named, cases, code, baseline, base_synth=base_synth))",
-                      r'ANSI = re.compile(r"\x1b\[[0-9;]*m")'],
-        "carry-over": ['NEXT_REQUEST_FILE = "next-request.json"'],
-        "world": ['WORLD_FILE = "world.jsonl"'],
-        "stop-reasons": ['HEAD = "works:"', "WAIT_WORDS = stopby.WAITING"],
-        "start-record": ['NAME = "start.json"'],
-        "human-gates": ['FINAL_GATES = ("always", "when_needed", "protected_only")', "import gates as gp",
-                        "go = rec[gatemarks.RECOMMEND_KEYS[0]] == gatemarks.RECOMMEND_ANSWERS[0]"],
-        "gate-evidence": ['RUN_ROW, LOG_ROW = "- 走らせ方: ", "- ログ: "'],
-        "accept-round": ["out = rolekit.with_done(d, name, got)", "if iteration >= GIVE_UP_AFTER:",
-                         'REJECTS_FILE = "report-rejects.json"', "GIVE_UP_AFTER = 3"],
-        "handoff": ['HANDOFF_SCHEMA = {"type": "object", "required": ["read", "kept", "set_aside", "open"],'],
-    }
-
-    def test_every_home_fence_hits_its_line(self):
-        table = cf().load(LIB.parent)
-        homes = {k: v["fences"] for k, v in table["concepts"].items() if v["status"] == "住処あり"}
-        self.assertEqual(set(self.HITS), set(homes))
-        for k, fences in homes.items():
-            self.assertEqual(len(self.HITS[k]), len(fences), k)
-            for line, fence in zip(self.HITS[k], fences):
-                with self.subTest(concept=k, what=fence["what"]):
-                    self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 1)
-
-    def test_entry_kind_read_only_by_entryshape(self):
-        """L-E55: 入口の種類（依頼・base・PR）を知るのは入口の変換（lib/entryshape.py とメイングラフの start）だけ（元 works/tests/
-        test_entry_block.py の ConversionLayerCase.test_only_conversion_layer_knows_entry_kind）。既知の漏れは 0 件（本物の木の
-        当たりが既知と揃うことを照らした tests/layers の同じ名のファイルの FencesHold は #765 で消した）。
-        柵の正本は表 docs/concepts.json の entry-kind（2 つ目の「base.from での分岐」の形は、比べる相手を入口の種の語
-        （head・base・pr）に限る: 元の形は判定の受け付けの写しの道の指し先 judge_accept.py の w["from"] != "$" にも当たる）"""
-        table = cf().load(LIB.parent)
-        concept = table["concepts"]["entry-kind"]
-        self.assertEqual(concept["status"], "住処あり")
-        fences = concept["fences"]
-        self.assertEqual([f["known"] for f in fences], [{}, {}])
-        self.assertEqual([cf().count_lines('w = step["from"] != "$"', fence, "lib/x.py") for fence in fences], [0, 0])
-
-    def test_carry_over_reading_prior_failures_outside_home_is_red(self):
-        """持ち越しの中身の前の失敗を住処の外で欄の名の字で直に読む行を 1 つ足すと、本物の木の柵が赤になる。欄の名を書くだけの
-        形（ノードの入出力の鍵・並び）は数えない"""
-        table = cf().load(LIB.parent)
-        fence, = table["concepts"]["carry-over"]["fences"]
-        found = cf().scan(LIB.parent, cf().tracked(LIB.parent), fence, table["exclude"])
-        self.assertEqual(cf().verdict(found, fence["known"]), [])
-        for line in ('rows = doc["prior_failures"]', "rows = doc.get('prior_failures', [])"):
-            with self.subTest(line=line):
-                n = cf().count_lines(line, fence, "lib/x.py")
-                self.assertEqual(n, 1)
-                self.assertNotEqual(cf().verdict(found | {"lib/x.py": n}, fence["known"]), [])
-                more = found | {"workflows/report/src/machine.py": found["workflows/report/src/machine.py"] + n}   # 既知の漏れの在るファイルに 1 行足す
-                self.assertNotEqual(cf().verdict(more, fence["known"]), [])
-        for line in ('return {"prior_failures": None}', 'VALUES = ("prior_failures", "redepth")'):
-            self.assertEqual(cf().count_lines(line, fence, "lib/x.py"), 0, line)
-
-    def test_accept_round_arms_catch_each_injected_regression(self):
-        """受け付けの回の住処 rolekit.accept_round の 4 本の腕が、それぞれの形を 1 行ずつ数える。入口は lib/ と workflows/fix/scripts/ の
-        2 つ。住処の外に足すと本物の木の verdict が赤になる。当たらない行（持ち主の定数の参照・別名・別のサブシステムの文のファイル）は 0 件"""
-        table = cf().load(LIB.parent)
-        self.assertIn("accept-round", table["concepts"])
-        concept = table["concepts"]["accept-round"]
-        self.assertEqual(concept["status"], "住処あり")
-        arms = concept["fences"]
-        self.assertEqual([f["known"] for f in arms], [{}, {}, {}, {}])
-        injected = [
-            (0, "out = rolekit.with_done(d, name, got)"), (0, "def counted(d, name, got):"), (0, "def accept_round(board, name, raw, take):"),
-            (0, "def accept_parsed(board, name, got, take):"),
-            (0, "def current_round(board, name):"),
-            (0, 'return {"ok": out["ok"], "done": out["done"], "give_up": out["done"] and not out["ok"], "reason": out["reason"]}'),
-            (1, "if iteration >= GIVE_UP_AFTER:"), (1, "if len(rows) < rolekit.GIVE_UP_AFTER - 1:"), (1, "return n >= GIVE_UP_AFTER"),
-            (2, 'REJECTS_FILE = "report-rejects.json"'), (2, 'REJECT_NAME = "reject-{name}-{k}.md"'),
-            (3, "GIVE_UP_AFTER = 3"),
-            (3, 'REJECT_HEAD = promptsection.Section("## 前の回の受け付けが拒んだ理由", source="fn:x.render")'),
-        ]
-        quiet = [
-            (0, "return rolekit.accept_round(d, name, raw, take)"), (0, "return rolekit.round_outcome(out)"), (1, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"),
-            (1, "return rolekit.GIVE_UP_AFTER"), (1, "for _ in range(rolekit.GIVE_UP_AFTER):"), (2, 'REJECT = "tdd-step-reject-{}.md"'),
-            (3, "GIVE_UP_AFTER = rolekit.GIVE_UP_AFTER"), (3, "REJECT_HEAD = rolekit.REJECT_HEADING"),
-        ]
-        for path in ("lib/x.py", "workflows/fix/scripts/x.py"):
-            for arm, line in quiet:
-                with self.subTest(path=path, quiet=line):
-                    self.assertEqual(cf().count_lines(line, arms[arm], path), 0)
-            for arm, line in injected:
-                with self.subTest(path=path, line=line):
-                    found = cf().scan(LIB.parent, cf().tracked(LIB.parent), arms[arm], table["exclude"])
-                    self.assertEqual(cf().verdict(found, arms[arm]["known"]), [], "本物の木は漏れが無い")
-                    n = cf().count_lines(line, arms[arm], path)
-                    self.assertEqual(n, 1)
-                    self.assertNotEqual(cf().verdict(found | {path: n}, arms[arm]["known"]), [])
 
 
 class MainTableCase(unittest.TestCase):

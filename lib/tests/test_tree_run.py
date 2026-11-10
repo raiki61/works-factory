@@ -12,7 +12,6 @@
 - 生きた仲間の居ないグループ（ゾンビだけ）に惑わされず、別のグループへ出た生きた仲間を止めて、猶予を使い切らずに戻る
 - 殻の直下の親（節では uv）が kill -9 で消えたら（親が替わったら）木ごと止める。起きた時に既に孤児（親が 1）なら走らせない
 - 終わりを待ち終えた直後に届いた止める信号も落とさない
-- pack の中に __pycache__ を作らない（試験が持つ写しの pack で見る）
 孫の生死はプロセスグループ（コマンドの sh の pid と同じ番号）が空かで見る。グループの外へ出た孫は、孫が書いた pid で見る。
 """
 import ast
@@ -21,7 +20,6 @@ import json
 import os
 import pathlib
 import shlex
-import shutil
 import signal
 import subprocess
 import sys
@@ -187,13 +185,6 @@ class TreeRunCase(unittest.TestCase):
         self.assertTrue(self.group_gone(pgid, tree_run.KILL_GRACE * 0.75), "SIGKILL の猶予まで待った（SIGTERM を送っていない）")
         self.assertLess(time.monotonic() - t0, tree_run.KILL_GRACE * 0.75)
         self.assertEqual(p.wait(10), 128 + signal.SIGINT)
-
-    def test_sigterm_ignoring_grandchild_is_killed(self):
-        p = self.start(f"echo $$ > {self.pidf}; (trap '' TERM; sleep 300) & wait")
-        pgid = self.wait_pgid()
-        p.send_signal(signal.SIGTERM)
-        self.assertEqual(p.wait(15), 128 + signal.SIGTERM)
-        self.assertTrue(self.group_gone(pgid, 1), "SIGTERM を無視する孫が残った")
 
     def test_sigterm_ignoring_grandchild_is_killed_before_host_kills_tree_run(self):
         # 実行基盤の cancel は持ち主のグループへ SIGTERM を送り、5 秒（TERMINATION_GRACE_MS）待って SIGKILL を送る。
@@ -514,18 +505,6 @@ class TreeRunCase(unittest.TestCase):
                 stopper.join(10)
         self.assertFalse(stopper.is_alive(), "固まった ps を殺した後も stop_group が戻らない")
         self.assertTrue(self.pid_gone(cpid, 1), "ps が戻った後、回収した長が残した子が消えない")
-
-    # ------------------------------------------------ pack を汚さない
-    def test_no_bytecode_in_pack(self):
-        # 共有の作業ツリーを見ると別の実行が残した __pycache__ を拾うので、この試験だけが持つ写しで起こす。
-        # core ごと写す（tree_run.py は隣の slotwrap.sh を __file__ から引く）
-        core = self.tmp / "core"
-        shutil.copytree(TREE_RUN.parent, core, ignore=shutil.ignore_patterns("__pycache__"))
-        r = subprocess.run([sys.executable, str(core / "tree_run.py"), "--", "true"], env=self.env, cwd=str(self.tmp),
-                           capture_output=True, text=True, encoding="utf-8", timeout=60)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(list(core.rglob("__pycache__")), [])
-
 
 
 class OutsideEnvCase(unittest.TestCase):

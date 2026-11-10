@@ -1,4 +1,4 @@
-"""人の方針を役に届ける形（policy）。写しから組む brief が上限 PASTE_CAP（listcut.FILE_CAP と同じ値）で本文を切ること。
+"""人の方針を役に届ける形（policy）。写しから組む brief が上限 PASTE_CAP で本文を切ること。
 節の文は共通の断片 workflows/.shared/prompts/policy.md（integration.md 4.5-4(c)）"""
 import hashlib
 import json
@@ -12,9 +12,7 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
-import gatemarks  # noqa: E402
 import policy  # noqa: E402
-import listcut  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
 
@@ -23,9 +21,6 @@ class BriefCapCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.pol = pathlib.Path(tmp.name) / "policy.md"
-
-    def test_paste_cap_is_the_listcut_cap(self):
-        self.assertEqual(policy.PASTE_CAP, listcut.FILE_CAP)
 
     def test_brief_cuts_the_body_at_the_paste_cap_and_names_the_rest(self):
         """上限を越えた方針は先頭だけを貼り、続きの置き場を書く（貼った本文は上限の内）"""
@@ -83,25 +78,6 @@ class FreezeCase(unittest.TestCase):
             with self.subTest(start=start):
                 self.assertEqual(policy.frozen_copy(start), "/p.md")
         self.assertEqual(policy.frozen_copy(None), "")
-
-
-class NameOwnerCase(unittest.TestCase):
-    """#454: 方針の 3 つの名（決定記録の突合の返答のファイル名・方針の文書の柵の語・方針の穴の kind）は policy が持ち、使う部品は
-    ここから引く。どちらか片方だけを替えると赤（policy の PRIOR_DECISIONS_FILE だけを替えると役の名が変わり、
-    tests/workflows の test_judge.py の YAML の節 id との突き合わせが赤）"""
-
-    def test_fence_word_is_a_gatemarks_fence(self):
-        self.assertIn(policy.POLICY_DOC_FENCE, gatemarks.FENCES)
-        face = {"key": "f", "kind": "regression", "where": "a.py", "fences": [policy.POLICY_DOC_FENCE]}
-        self.assertEqual(len(policy.face_gaps([face], [])), 1)
-
-    def test_policy_kind_is_a_human_face_kind(self):
-        self.assertIn(policy.POLICY_KIND, policy.HUMAN_FACE_KINDS)
-        self.assertIn(policy.POLICY_KIND, gatemarks.KIND_WORDS)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RecordedCase(unittest.TestCase):

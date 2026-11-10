@@ -256,16 +256,6 @@ class Answers(unittest.TestCase):
         self.assertIn(worldmark.NOT_WEB, dev)
 
 
-class Contract(unittest.TestCase):
-    def test_constants(self):
-        self.assertEqual(worldmark.WORLD_FILE, "world.jsonl")
-        self.assertEqual(worldmark.STATE_FILE, "world-state.json")
-        self.assertEqual(worldmark.MEANS_FILE, "purpose-means.json")
-        self.assertEqual(worldmark.VERDICTS, ("same", "differs", "none"))
-        self.assertEqual(worldmark.BASES, ("web", "knowledge"))
-        self.assertEqual(worldmark.NOT_WEB, "web で確かめていない")
-
-
 class MeansNeed(unittest.TestCase):
     """頼みの解き方の答えの要る表（計画 means-answers の 3.1 の 4。5 章の 2）"""
 

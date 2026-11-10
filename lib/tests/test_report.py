@@ -7,7 +7,6 @@
 盤面に置いて見る。版の一覧の行（Task 18・19）はこの枝に無いので試験も無い。
 """
 import pathlib
-import re
 import sys
 import tempfile
 import unittest
@@ -133,16 +132,6 @@ class InnerWordCase(unittest.TestCase):
         hits = report.inner_word_hits(diff, lambda w: asked.append(w) or False)
         self.assertEqual(asked, ["この周"])
         self.assertEqual([h["line"] for h in hits], [1, 2, 3])
-
-
-class DocCase(unittest.TestCase):
-    def test_listed_names_exist(self):
-        """docstring の一覧が挙げる名は、全部このモジュールに在る（移した・消した口を挙げ続けない）"""
-        listed = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)(?=\()|\b([A-Z][A-Z0-9_]{3,})\b",
-                            "\n".join(line for line in report.__doc__.splitlines() if line.startswith(("- ", "  "))))
-        names = {a or b for a, b in listed}
-        self.assertTrue(names)
-        self.assertEqual(sorted(n for n in names if not hasattr(report, n)), [])
 
 
 if __name__ == "__main__":

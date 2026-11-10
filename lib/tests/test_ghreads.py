@@ -29,7 +29,6 @@ if str(LIB) not in sys.path:
 import ghreads  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
 
-GHREADS = LIB / "ghreads.py"
 GH_ENV = ("GH_CONFIG_DIR", "XDG_CONFIG_HOME", "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
           "GH_REPO", "GH_HOST", "WORKS_FACTORY_GH_ACTIVE")
 # run の中で PATH の頭に在る読むだけの口（works-gh）の置き場。lib/ は bin/ を import しない（パスの字だけを使う）
@@ -166,11 +165,6 @@ class ReadNamedCase(unittest.TestCase):
         self.read([7], [], GH_REPO="ghe.corp.example/o/r")
         self.assertEqual(self.targets(), ["ghe.corp.example/o/r", "ghe.corp.example repos/o/r/pulls/7/comments"])
 
-    def test_edge_names_pass_the_read_only_gh(self):
-        """forge.SEGMENT・forge.HOST が通す名の端（点・下線・大文字の owner・ホストの数字とハイフン）を works-gh の名の形も通す"""
-        doc = self.read([7], [9], GH_REPO="ghe-2.corp.example/Up.Org_1/my_repo.js-x")
-        self.assertEqual((doc["pr"]["7"]["status"], doc["issue"]["9"]["status"]), ("ok", "ok"))
-
     def test_malformed_gh_repo_is_unreadable_without_gh(self):
         doc = self.read([7], [9], GH_REPO="a/b/c/d")
         for got in (doc["pr"]["7"], doc["issue"]["9"]):
@@ -243,11 +237,6 @@ class ReadNamedCase(unittest.TestCase):
         self.read([7], [])
         self.assertEqual(self.targets(), ["github.com/up/r", "github.com repos/up/r/pulls/7/comments"])
 
-    def test_nothing_named_calls_nothing(self):
-        self.remote("origin", "https://gitlab.example/o/r.git")
-        self.assertEqual(self.read([], []), {"version": ghreads.GITHUB_READS_VERSION, "pr": {}, "issue": {}})
-        self.assertEqual(gh_calls(self.calls), [])
-
     def test_without_login_marks_unreadable(self):
         """利用者のログインが見えない（gh は exit 4）と、名指した項に status unreadable と 1 行の理由を残す（止めない）"""
         doc = self.read([7], [9], logged_in=False)
@@ -257,15 +246,6 @@ class ReadNamedCase(unittest.TestCase):
             self.assertTrue(got["reason"].strip())
             self.assertNotIn("\n", got["reason"])
         self.assertNotIn("非公開", json.dumps(doc, ensure_ascii=False))
-
-    def test_file_reading_entry_is_gone(self):
-        """隔離の前に読んでファイルで渡す口（read の CLI・load・adopt・discard_source）は無い"""
-        for name in ("read", "load", "adopt", "discard_source", "DiscardFailed"):
-            self.assertFalse(hasattr(ghreads, name), name)
-        r = subprocess.run([sys.executable, "-I", str(GHREADS), "read", "--repo", str(self.repo), "--out", str(self.tmp / "x")],
-                           capture_output=True, text=True, encoding="utf-8", timeout=60, env=hermetic.child_env())
-        self.assertNotEqual(r.returncode, 0)
-        self.assertFalse((self.tmp / "x").exists())
 
 
 @contextlib.contextmanager

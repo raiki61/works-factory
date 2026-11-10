@@ -135,7 +135,7 @@ class FakeBoard:
         return [(r.pop("op"), r) for r in rows]
 
 
-class KindRowsCase(unittest.TestCase):
+class _ItemsBoardCase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -144,6 +144,8 @@ class KindRowsCase(unittest.TestCase):
     def write_items(self, rows):
         self.b.work(conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
 
+
+class KindRowsCase(_ItemsBoardCase):
     def test_park_keeps_kind_and_traces_it(self):
         conflict.park(self.b, [ITEM], source="fix")
         self.assertEqual(conflict.items(self.b)[0]["kind"], "unnamed_test_broke")
@@ -158,7 +160,7 @@ class KindRowsCase(unittest.TestCase):
         self.assertIn("種類 無し", conflict.human_lines(self.b)[0])
 
 
-class HeldByRulingsCase(KindRowsCase):
+class HeldByRulingsCase(_ItemsBoardCase):
     """直す義務から外す単位の 1 つの決まり（直す裁定でない裁定を受けた単位）と、理由の文"""
 
     def test_one_rule_with_sorted_reasons(self):
