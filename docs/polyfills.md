@@ -220,9 +220,9 @@ Archon の穴でなく、Archon が決めてそうしている振る舞いに合
 - 証拠:
   - `packages/workflows/src/dag/references.ts` の「A binding never falls back to 'if_skipped' for a failed producer」（`resolveBindingDirective` が、落ちた producer を `assertProducerNotFailed` で止める）
 - 上流（`442c90f1` の後の dev の `442c90f10` まで）: 塞がっていない（止めた版が読んだ dev の頭。`2886e883..442c90f10` の 51 commitで `references.ts` を変えた #5361・#5367・#5342 は、待ちの推しの読み・pack の設定の入力・ノードの一覧を足しただけで、落ちた producer を止める形は残る。ただし `52d6374be`（#5361）で、run の全部のノードの状態・落ちた訳・済んだノードの構造の出力を 1 つの JSON で読む `$NODE_OUTCOMES_FILE` が入った。落ちたノードの出力は載らないが、受け皿の代わりに済んだノードの出力を読む口にはなる（下の外す条件））。
-- 埋め: merge の読み戻しのノード `pr-read`（script `workflows/merge/scripts/pr_read.py`）。PR を作る子の run（`pr-open`）の後ろに既定の `trigger_rule` で置き、子の run が落ちれば自分が飛ばされ、出力ノード `merge` が `if_skipped: null` で受けて作らずに止めた訳を返す。メイングラフの受け皿のノード（`<include の id>-out`）は 2026-11-10 に全部消した（読み手は include の出力を直に結び、落ちた後にも走る読み手が結ぶ出力ノードは落ちない形に機械で縛る。`docs/design/line.md` の 13.1。持ち主の決め `returns-never-fail`）。judge と eyes の graph の中の受け皿は、それぞれの graph の埋めとして残る（`docs/design/judge-eyes.md`）。
-- 使う block と graph: merge・judge・eyes
-- 外す条件: 落ちたノードの出力を結ぶ道は見込みが無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。外す道は 2 つ: 決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら、か、読み手が出力を直に結び、結ぶ出力ノードを落ちない形に縛る形に移したら（メイングラフは 2026-11-10 にこの形に移した。`$NODE_OUTCOMES_FILE`〔#5361〕は dry-run と筋書きで空の字になるので採らなかった。`docs/design/line.md` の 13.1）
+- 埋め: merge の読み戻しのノード `pr-read`（script `workflows/merge/scripts/pr_read.py`）。PR を作る子の run（`pr-open`）の後ろに既定の `trigger_rule` で置き、子の run が落ちれば自分が飛ばされ、出力ノード `merge` が `if_skipped: null` で受けて作らずに止めた訳を返す。受け皿のノード（`<include の id>-out`）は 2026-11-10 に、メイングラフの物も judge と eyes の graph の中の物も全部消した（読み手は include の出力を直に結び、落ちた後にも走る読み手が結ぶ出力ノードは落ちない形に機械で縛る。`docs/design/line.md` の 13.1・`docs/design/judge-eyes.md` の 0 章（共通の形）。持ち主の決め `returns-never-fail`）。
+- 使う block と graph: merge
+- 外す条件: 落ちたノードの出力を結ぶ道は見込みが無い（Archon が落ちたノードの出力を `if_skipped` に落とさないと決めている。上の証拠の文）。外す道は 2 つ: 決めが変わって落ちたノードの出力を `if_skipped` の既定に落として読める版が出たら、か、読み手が出力を直に結び、結ぶ出力ノードを落ちない形に縛る形に移したら（メイングラフと judge・eyes の graph は 2026-11-10 にこの形に移した。`$NODE_OUTCOMES_FILE`〔#5361〕は dry-run と筋書きで空の字になるので採らなかった。`docs/design/line.md` の 13.1）
 
 ## 外した
 

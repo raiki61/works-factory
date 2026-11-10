@@ -1165,7 +1165,7 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 
 1. eyes のまとめ（`workflows/eyes/works-factory-eyes.yaml`）に port `means`（同じ形）を足し、`include: works-factory-r2` に渡す。line の `include: works-factory-eyes` に `means: "$fix-in.output.means"` を渡す（案の直しと同じ出どころ）。
 2. eyes のまとめの出力（`workflows/eyes/src/verdict.py` の `build`）に欄 `means_questions`（R2 の出力 `questions`。字か `{text, title}` の行の配列。必須で、無ければ空の配列）を足す。今の欄 `questions` は R4 の問いのまま変えない（R2 の行を混ぜない）。
-   - 出力の型の住処: `workflows/eyes/works-factory-eyes.yaml:220-223`（node `verdict` の `output_format`。`additionalProperties: false` で、`required` に `means_questions` を足す）。R2 の受け皿 `r2-out` の `names`（同じファイルの 154 行）は既に `questions` を持つので変えない。
+   - 出力の型の住処: `workflows/eyes/works-factory-eyes.yaml:220-223`（node `verdict` の `output_format`。`additionalProperties: false` で、`required` に `means_questions` を足す）。R2 の受け皿 `r2-out` の `names`（受け皿は 2026-11-10 に消し、今は `workflows/eyes/scripts/verdict.py` の `R2`）は既に `questions` を持つので変えない。
 3. line は最後の承認ノードの材料（`workflows/line/src/final.py` の `got`）に `means_questions` を足し、次の 4 か所を R4 の問いと分けて扱う。答えに数える扱い（3 の 1 の尾・3 の 3・3 の 4）は、R2 が `redesign-needed` と言った run を除く。その run では差分が当たらない（決め `small-core`・#975）ので、continue は R2 の行への答えに数えず、R2 の行は答えを得なかった run と同じに人待ちに数え、次の run の答えの下書きに載せる。
    - 受け口: line の受け皿 `eyes-out` の `names` に `means_questions` を足した（受け皿は 2026-11-10 に消し、今は返りを読む script の欄の名の並び〔`workflows/line/scripts/eyes_back.py`・`ask_final.py`・`collect.py` の `EYES`〕が持つ。`docs/design/line.md` の 13.1）。
    1. `final.py:376`（R4 の問いの節の「この承認ノードの答えはこの問いに答えない」）: R4 の節は今のまま。R2 の行は別の節「頼みの解き方どおりで独立設計と食い違う所（R2）」に並べ、その節の尾は「この承認ノードの continue は頼みどおりの差分を当てる答え、stop は止める答えになる」と書く。R2 が `redesign-needed` の run では、尾を `R2_KEEPS_OUT`（continue でも当たらない）にする（6.2 の 7）。

@@ -441,7 +441,7 @@ README の 5.3 のまま。この族では:
 - `scripts/intake.py`: port を 1 つずつ `os.environ.get("INPUTS_<名>")` の字のままで読み（名を組んで読まない。README の 4.2）、`ports` の口で値にする（`text` の form は `ports.text`、`json` の form は `ports.json(字, "<schema>")`、依頼の行の `request` は `requestrows.findings(字)`）。読めない（`ValueError`）なら `unreadable` に `f"{名}: {e}"` を入れる。`ports.returns(materialkit.intake(viewpoint, ports.place(), Path.cwd(), values, unreadable))`。
 - `scripts/role_prep.py`: `values, when = materialkit.prompt_inputs(viewpoint, ports.place(), prompt.lang)`、`ports.returns(prompt.emit(viewpoint.NAME, values, when, prompt.round_of(viewpoint.NAME)))`。落ちる時は落とす（10 節）。
 - `scripts/role_accept.py`: `ports.returns(materialkit.accept(viewpoint, ports.place(), Path.cwd(), os.environ.get("INPUTS_REPLY", "")))`。返りは `{ok, done, reason}` の 3 欄だけに絞る。
-- `scripts/finish.py`: `ports.returns(materialkit.finish(viewpoint, ports.place(), ports.pointer))`。
+- `scripts/finish.py`: `ports.run` の中で `materialkit.finish(viewpoint, ports.place(), <ports.pointer の包み>)` を返す。`materialkit` と `src` は守った中で読み、読めない時（lib を読めない時）は標準ライブラリと口だけで `{ok: false, status: failed, reason, material: null, report}` を返す（judge の graph の `verdict` と `diagnose-in` が返りを直に結ぶので、返す節は落ちない形に縛る。落とし穴 K1。`tests/workflows/test_returns_never_fail.py`。2026-11-10）。
 
 `ports` の口の名（`text`・`json`・`place`・`pointer`・`returns`）は土台の PR が決める。ここでは world.md と同じ呼び方で書いた。
 
