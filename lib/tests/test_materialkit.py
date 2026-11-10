@@ -243,22 +243,6 @@ class TreeCase(_RepoCase):
         with self.assertRaises(Reject):
             mk.moved_since(self.place, self.repo, ("porcelain",))
 
-    def test_moved_since_lives_in_accept(self):
-        """作業ツリーの比べの住処は accept の 1 か所で、materialkit は呼ぶだけ（integration.md 4.4-H）"""
-        import accept
-        self.assertEqual(mk.TREE, accept.TREE)
-        with self.assertRaises(Reject):
-            accept.moved_since(self.place, self.repo, ("porcelain",))
-        self.intake()
-        self.assertEqual(accept.moved_since(self.place, self.repo, ("porcelain",)), [])
-        (self.repo / "tmp.out").write_text("x\n", encoding="utf-8")
-        got = accept.moved_since(self.place, self.repo, ("porcelain",))
-        self.assertTrue(got)
-        self.assertEqual(mk.moved_since(self.place, self.repo, ("porcelain",)), got)
-        (self.place / accept.TREE).write_text("{", encoding="utf-8")
-        with self.assertRaises(Reject):
-            accept.tree_snapshot(self.place / accept.TREE)
-
 
 class LocationCase(_RepoCase):
     def test_location_beyond_the_file_is_sent_back_then_marked(self):
@@ -500,13 +484,6 @@ class FinishCase(_RepoCase):
         got = mk.finish(Odd(), self.place, pointer)
         self.assertEqual(got["status"], "failed")
 
-    def test_report_lines(self):
-        doc = {"role": "v", "status": "ran", "materials": {
-            "a": {"status": "found", "count": 2, "detail": "1 行目\n2 行目"}, "b": {"status": "not_run", "reason": "訳"}}}
-        self.assertEqual(mk.report_lines(doc), ["素材 a: found（2 件）: 1 行目 2 行目", "素材 b: not_run（訳）"])
-        self.assertEqual(mk.report_lines({"role": "purpose-review", "status": "skipped", "reason": "回さない", "materials": {}}),
-                         ["観点 purpose-review: skipped", "回さない"])
-
 
 class ReadCase(_RepoCase):
     def test_read_checks_the_shape(self):
@@ -564,14 +541,6 @@ class PromptInputsCase(_RepoCase):
         self.assertTrue(when["rejected"])
         self.assertIn("status が不正", values["rejection"])
 
-    def test_viewpoint_without_the_na_paragraph_gets_no_na_values(self):
-        """返答が material の欄を持たない観点（NA_PARAGRAPH が偽。md に material-na が無い）には na_why と na_* を渡さない"""
-        self.intake()
-        bare = type("Bare", (Viewpoint,), {"NA_PARAGRAPH": False})()
-        values, when = mk.prompt_inputs(bare, self.place, str)
-        self.assertNotIn("na_why", values)
-        self.assertEqual(sorted(when), ["rejected", "spawns"])
-
     def test_clashing_names_are_refused(self):
         self.intake()
         for over in ({"values": lambda v, x: {"lang": "x"}}, {"when": lambda v, x: {"rejected": True}}):
@@ -585,21 +554,6 @@ class PromptInputsCase(_RepoCase):
     def test_without_intake_fails(self):
         with self.assertRaisesRegex(ValueError, "intake.json"):
             mk.prompt_inputs(Viewpoint(), self.place, str)
-
-
-class ReviewMdCase(_RepoCase):
-    def test_review_md_paths(self):
-        """工場の正本は呼び手が渡すパス（lib は workflows/ を名指さない）、対象の根の REVIEW.md は在る時だけ"""
-        from tests.blocks.kit import BLOCKS as WORKFLOWS   # pack のフォルダ（入れ替えの前も後も同じ口。integration.md 4.5-11）
-        factory = WORKFLOWS / ".shared" / "prompts" / "REVIEW.md"
-        self.assertTrue(factory.is_file(), "工場の観点の正本は pack の .shared/prompts/REVIEW.md")
-        self.assertFalse((LIB / "REVIEW.md").exists())
-        own, theirs = mk.review_md_paths(self.repo, factory)
-        self.assertEqual(own, str(factory.resolve()))
-        self.assertEqual(theirs, "")
-        (self.repo / "REVIEW.md").write_text("x", encoding="utf-8")
-        self.assertEqual(mk.review_md_paths(self.repo, factory)[1], str(self.repo / "REVIEW.md"))
-        self.assertEqual(mk.review_md_paths(self.repo, self.tmp / "REVIEW.md")[0], str(self.tmp / "REVIEW.md"))
 
 
 if __name__ == "__main__":

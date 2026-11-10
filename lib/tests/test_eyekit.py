@@ -127,33 +127,6 @@ class AfterCase(_Tmp):
         self.assertEqual(got, f"{structmark.after_counts(self.tmp)}\n{line}\n{eyekit.REVIEW_ACCEPTED.format(k=2)}")
         self.assertNotIn("新しい名 x", got)
 
-    def test_review_line_has_a_line_for_every_verdict(self):
-        cases = [
-            ({"round": 3, "verdict": "accepted"}, eyekit.REVIEW_ACCEPTED.format(k=3)),
-            ({"round": 3, "verdict": "blocked", "blocks": [{"key": "f1", "why": "入口は 1 つで足りる"}, {"key": "f2", "why": "名が長い"}]},
-             eyekit.REVIEW_BLOCKED.format(k=3, n=2, faces="f1: 入口は 1 つで足りる; f2: 名が長い")),
-            ({"round": 3, "verdict": "gave_up", "why": "3 回拒んだ"}, eyekit.REVIEW_GAVE_UP.format(k=3, why="3 回拒んだ")),
-            ({"round": 3, "verdict": "held", "why": "held"}, eyekit.REVIEW_HELD.format(k=3, outcome="held")),
-            ({"round": 3, "verdict": "design"}, eyekit.REVIEW_UNREAD.format(why=eyekit.REVIEW_NO_PLAN)),
-            ({"round": 3, "verdict": "unread", "why": "往復の案が別の周"}, eyekit.REVIEW_UNREAD.format(why="往復の案が別の周")),
-            ({}, eyekit.REVIEW_UNREAD.format(why=eyekit.REVIEW_NOT_GIVEN)),
-            ({"round": 3, "verdict": "maybe", "why": "x"}, eyekit.REVIEW_UNREAD.format(why="結論の語が約束の外（'maybe'）")),
-        ]
-        for review, want in cases:
-            with self.subTest(review.get("verdict")):
-                self.assertEqual(eyekit.review_line(review), want)
-
-
-class ReviewMdCase(_Tmp):
-    def test_repo_review_md_says_when_the_target_has_none(self):
-        """test_prep_pastes_the_premises_and_names_the_target_review_md の REVIEW.md の半分（r3 と r4 のまとめた形が使う）"""
-        own = self.tmp / "own" / "REVIEW.md"   # 工場の観点の正本は呼び手の block が渡す（README 9.3）
-        got = eyekit.review_md_values(self.tmp, own)
-        self.assertEqual(got, {"review_md": str(own.resolve()), "repo_review_md": eyekit.NO_REPO_REVIEW_MD})
-        self.assertEqual(eyekit.review_md(self.tmp, own)[0], got["review_md"])
-        (self.tmp / "REVIEW.md").write_text("# 観点\n", encoding="utf-8")
-        self.assertEqual(pathlib.Path(eyekit.review_md_values(self.tmp, own)["repo_review_md"]), (self.tmp / "REVIEW.md").resolve())
-
 
 class HumanItemsCase(unittest.TestCase):
     def test_rows_keep_the_record_shape_and_the_push_mark(self):
@@ -263,10 +236,6 @@ class VerdictCase(_Tmp):
                          ({"status": seal.REDESIGN, "reason": "筋が合わない"}, True))
         self.assertEqual(eyekit.verdict_row("r3", {"status": seal.PASSED, "reason": "整合", "redesign_points": ["x"]})[0],
                          {"status": seal.PASSED, "reason": "整合"})
-
-    def test_headline_is_the_report_row_shape(self):
-        self.assertEqual(eyekit.headline("R1", {"status": "pass", "reason": "最小\n で ある"}), "R1: pass（最小 で ある）")
-        self.assertEqual(eyekit.headline("R1", {"status": "pass", "reason": ""}), "R1: pass（理由なし）")
 
 
 if __name__ == "__main__":

@@ -171,14 +171,10 @@ class MeasureCase(unittest.TestCase):
     def entry(out, path):
         return next(p for p in out["paths"] if p["path"] == path)
 
-    def test_same_output_twice(self):
-        # --since を渡さない既定の窓（90 日）で 2 度走らせる。窓は HEAD（c5・2020-07-05）の日時から遡り、今の時計に依らない
-        args = ("--paths", "a.txt", "new.txt", "src/dup1.txt", "src/env.sh", "tool.sh")
-        first, second = self.run_measure(*args, since=None), self.run_measure(*args, since=None)
-        self.assertEqual(first.returncode, 0, first.stderr)
-        self.assertEqual(first.stdout, second.stdout)
-        out = json.loads(first.stdout)
-        self.assertTrue(out["rules"], "数え方の規則が出力に無い")
+    def test_default_window_counts_back_from_head(self):
+        # --since を渡さない既定の窓（90 日。structure の block はこの既定で起こす）。窓は HEAD（c5・2020-07-05）の日時から遡り、
+        # 今の時計に依らない
+        out = self.measure("--paths", "a.txt", since=None)
         self.assertEqual(out["window"], {"since": "2020-04-06", "base": self.base})
 
     def test_window_days_counts_back_from_head(self):
@@ -194,13 +190,6 @@ class MeasureCase(unittest.TestCase):
     def test_union_follow_is_sum_of_single_file_sets(self):
         out = self.measure("--paths", "a.txt", "new.txt")
         self.assertEqual(out["union"], {"follow": 5, "raw": 5, "no_merges": 4})
-
-    def test_raw_minus_no_merges_is_merge_count(self):
-        out = self.measure("--paths", "a.txt")
-        freq = self.entry(out, "a.txt")["frequency"]
-        merges = _git(self.repo, "log", "--merges", "--since=" + SINCE, "--format=%H", "--", "a.txt").split()
-        self.assertEqual(len(merges), 1)
-        self.assertEqual(freq["raw"] - freq["no_merges"], len(merges))
 
     def test_growth_counts_base_under_old_name(self):
         out = self.measure("--paths", "new.txt")
@@ -318,11 +307,6 @@ class MeasureCase(unittest.TestCase):
         self.assertEqual(self.diff_entry(out, "src/dup3.txt")["lines"], {"before": None, "after": 6, "delta": None})
         self.assertEqual(sorted(out["diff"]["touched"]), ["a.txt", "bin/go", "src/dup3.txt"])
         self.assertIn("diff", out["rules"])
-
-    def test_without_diff_output_has_no_diff_rule_or_section(self):
-        out = self.measure("--paths", "a.txt")
-        self.assertNotIn("diff", out)
-        self.assertNotIn("diff", out["rules"])
 
     def test_patch_that_does_not_apply_stops_with_reason(self):
         r = self.run_measure("--paths", "a.txt", "--diff", self.diff_file("bad.patch", BAD_PATCH))

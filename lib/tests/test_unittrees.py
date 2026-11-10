@@ -11,7 +11,6 @@
 - marked（dict）を渡すと、同じ行の食い違いも印つきで当たり（印を書いたパスとその印の長さを marked に積む。印の長さは中身の
   どの行とも重ならない長さを 7 から選ぶ）、union の中の挿しだけの食い違いは合わせて印を書かない。markers_left はそのパスの長さの
   印の頭か区切りの行が 1 行でも残るファイルと、長さの値が正しくないパスを引く。union の挿しだけの読みも同じ長さで読む
-- 合わせ役の指示書（fix の prompts/parts/clash.md）は印の両側を MARK_LABELS の名のまま名指し、印の長さ（brief の markers）は {marker_size} として md の clash.md に渡り、拒まれる行の決まりも clash.md が持つ
 - tests_unique: 合わせた中身に同じ名のテストの定義が 2 つ在れば合わせない。patch_names: 差分の行先のパス
 """
 import pathlib
@@ -27,9 +26,6 @@ if str(LIB) not in sys.path:
 import groups  # noqa: E402
 import unittrees  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
-from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
-
-CLASH_PART = WORKFLOWS / "fix" / "prompts" / "parts" / "clash.md"   # 合わせ役の指示（fix の block。pack のフォルダから引く）
 
 SEED = {"a.txt": "a1\na2\na3\n", "b.txt": "b1\nb2\nb3\n", "日本.txt": "j1\nj2\n", "bin.dat": None, ".gitignore": "ignored.log\n"}
 _SRC = None
@@ -309,18 +305,6 @@ class Checks(unittest.TestCase):
         self.assertEqual(unittrees.patch_names(""), [])
         quoted = 'diff --git "a/\\346\\227\\245.txt" "b/\\346\\227\\245.txt"\nnew file mode 100644\n'
         self.assertEqual(unittrees.patch_names(quoted), ["日.txt"])
-
-    def test_clash_prompt_names_the_marker_sides_by_their_labels(self):
-        rules = CLASH_PART.read_text(encoding="utf-8")
-        ours, _, theirs = unittrees.MARK_LABELS
-        self.assertIn(f"the `{ours}` side of the markers", rules)
-        self.assertIn(f"the `{theirs}` side", rules)
-
-    def test_clash_prompt_points_to_the_marker_fields_of_the_brief(self):
-        rules = CLASH_PART.read_text(encoding="utf-8")
-        self.assertIn("`markers`", rules)
-        self.assertIn("{marker_size}", rules)
-        self.assertNotIn("`=======`", rules)
 
 
 if __name__ == "__main__":

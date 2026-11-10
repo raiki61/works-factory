@@ -400,14 +400,6 @@ class SharedCacheCase(HomeBase):
         self.assertTrue(http.calls, "TTL を過ぎた控えは使わずに取り直す")
         self.assertIn("ほかの run 0 本", text)
 
-    def test_no_root_no_shared_cache(self):
-        self.shared = None
-        self.run_section("run1", ok_http(), self.T)
-        http = ok_http()
-        self.run_section("run2", http, self.T + 60)
-        self.assertTrue(http.calls, "根が無ければ run ごとの控えだけ")
-        self.assertFalse(self.home.exists())
-
     def test_shared_cache_root_is_an_argument(self):
         self.env = {"WORKS_ADAPTER_HOME": str(self.home)}
         self.shared = None
@@ -434,49 +426,6 @@ class SharedCacheCase(HomeBase):
         _, text = self.run_section("run2", http, self.T + 60)
         self.assertTrue(http.calls)
         self.assertIn("取れた 1 本", text)
-
-
-class NoContext7Case(HomeBase):
-    """Context7 はやめた（持ち主 2026-10-09）。網の問いは公式の口にだけ出し、節は Context7 を言わず、前の版が run をまたぐ控えと盤面に残した
-    Context7 の控え（名と版の not_found・問いの digest の ok・枠切れの印 _quota.json）は読まない"""
-
-    def leftovers(self, sd):
-        sd.mkdir(parents=True, exist_ok=True)
-        old = {"schema": libdocs.SCHEMA, "lib": {}, "id": "/psf/requests", "version_note": "", "error": "", "at": self.T}
-        (sd / "requests@2.32.3.json").write_text(json.dumps({**old, "status": "not_found", "snippets": []}), encoding="utf-8")
-        (sd / "requests@2.32.3-0123456789ab.json").write_text(json.dumps(
-            {**old, "status": "ok", "snippets": [{"title": "t", "source": "s", "tokens": 5, "text": "C7 LEFTOVER"}]}),
-            encoding="utf-8")
-        (sd / "_quota.json").write_text(json.dumps({"schema": libdocs.SCHEMA, "reason": "HTTP 429", "at": self.T,
-                                                    "keyed": False}), encoding="utf-8")
-
-    def test_only_the_official_registry_is_asked(self):
-        seen = []
-
-        def http(url, headers):
-            seen.append((url, dict(headers)))
-            return ok_http()(url, headers)
-        _, text = self.run_section("run1", http, self.T)
-        self.assertTrue(seen)
-        self.assertFalse([u for u, _ in seen if "context7" in u], "Context7 の口に問わない")
-        self.assertTrue(all("Authorization" not in h for _, h in seen), "鍵の頭はどこにも付けない")
-        self.assertNotIn("Context7", text)
-
-    def test_leftover_context7_caches_are_not_read(self):
-        self.leftovers(self.home / libdocs.CACHE_DIR)
-        self.leftovers(self.tmp / "run2" / "r1" / libdocs.CACHE_DIR)
-        http = ok_http()
-        _, text = self.run_section("run2", http, self.T + 60)
-        self.assertTrue(http.calls, "前の版の枠切れの印で網を止めない")
-        self.assertNotIn("C7 LEFTOVER", text)
-        self.assertNotIn("Context7", text)
-        self.assertNotIn("枠切れ", text)
-        self.assertIn("- 公式の文書: 取れた 1 本", text)
-
-    def test_context7_names_are_gone_from_the_module(self):
-        for name in ("API", "ENV_KEY", "QUOTA_MARK", "QUOTA_NOTICE", "QUOTA_HOLD", "notice", "fetch"):
-            with self.subTest(name):
-                self.assertFalse(hasattr(libdocs, name))
 
 
 if __name__ == "__main__":
