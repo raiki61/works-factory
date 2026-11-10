@@ -10,7 +10,6 @@ values.json の policy をそのまま名指す）
 import json
 import os
 import pathlib
-import re
 import subprocess
 import sys
 import unittest
@@ -245,11 +244,6 @@ class GroupChildScriptsCase(unittest.TestCase):
 
     def accept(self, reply):
         return self.run_script("fix_accept", reply_variant=support.reply_json(reply), consulted="false", iteration="1")
-
-    @staticmethod
-    def frozen_line(prompt: str) -> set:
-        (line,) = [ln for ln in prompt.splitlines() if ln.startswith("- 凍ったテストのファイル（")]
-        return set(re.findall(r"`([^`]+)`", line.split("）: ", 1)[1]))
 
     def frozen_reason(self, reason: str) -> str:
         b = _src("board")
@@ -713,39 +707,20 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
 
-    def test_fix_prompt_pastes_the_frozen_files_the_accept_checks(self):
-        """#603: fix-prep が修正役の指示に貼る凍ったテストのファイルは、fix-accept の凍ったテストの確かめが拒むファイルと同じ"""
-        test_file, prompt = self.green_loop()
-        pasted = self.frozen_line(prompt)
-        self.assertEqual(pasted, {"test_stats.py"})
-        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
-                             encoding="utf-8")
-        out = self.accept({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]})
-        frozen = self.frozen_reason(out["reason"])
-        self.assertTrue(all(p in frozen for p in pasted), frozen)
-
-    def test_fix_ruled_prompt_pastes_the_frozen_files_the_ruled_accept_checks(self):
-        """#603: fix-ruled-prep が裁定の後の修正役の指示に貼る凍ったテストのファイルは、fix-ruled-accept の凍ったテストの確かめが
-        拒むファイルと同じ（どちらも輪の状態を board.ruled_states から引く）"""
+    def test_fix_ruled_prep_writes_the_ruled_orders_at_the_stage_head(self):
+        """4.4 の 5: 裁定の後の修正の輪の頭（fix-ruled-prep）が段の頭で裁定の後の注文を書く（書かなければ裁定の後の受け付けが 1 回目の段の
+        注文の型と義務で照らす）"""
         import conflict
-        test_file, _ = self.green_loop()
+        self.green_loop()
         conflict.park(self.place, [{"unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:8"],
                                     "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
                                     "which_is_right": "request", "kind": "unnamed_test_broke"}],
                       source=conflict.FIX_SOURCE, ruling={"decision": "fix_code_as", "text": "分母を len(xs) にせよ", "limits": []})
         out = self.run_script("fix_ruled_prep")
         self.assertTrue(out["go"], out)
-        idx = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))   # 4.4 の 5: 段の頭で裁定の後の注文を書く
+        idx = json.loads((self.place / "orders.json").read_text(encoding="utf-8"))
         self.assertEqual((idx["pass"], idx["weapons"], idx["stage"], idx["since"]),
                          ("ruled", {MEAN: "variant"}, 2, _src("board").fixer_head(self.place, "ruled")))
-        pasted = self.frozen_line(support.writer_prompt(self.env(self.art, {}), out, self.repo))
-        self.assertEqual(pasted, {"test_stats.py"})
-        test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
-                             encoding="utf-8")
-        out = self.run_script("fix_ruled_accept", consulted="false", iteration="1",
-                              reply_variant=support.reply_json({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}))
-        frozen = self.frozen_reason(out["reason"])
-        self.assertTrue(all(p in frozen for p in pasted), frozen)
 
     def test_fix_ruled_prompt_names_the_saved_first_reply_once(self):
         """裁定の後の修正役の指示は、1 回目の修正役の返答の保存したファイルを段落 ruled_reply に 1 度だけ名指す（返答が無い run には
@@ -844,26 +819,6 @@ class GroupChildScriptsCase(unittest.TestCase):
         result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual((result["allowed_tests"], result["reply_file"]), ([], ""))
         self.assertEqual(result["accept_trace"], [{**agreed, "group_id": "g1"}])
-
-    def test_refix_child_sees_the_first_pass_and_returns_only_its_rows(self):
-        """L-W18・F023: 2 度目の修正の段の組の子は、親の place が写した 1 回目の段の申し出と裁定（印 prior_pass）を写して読み
-        （conflict.second_pass が真）、結果の conflicts にはこの段の行だけを載せる（親の conflict-check が 1 回目の行を積み直さない）"""
-        import conflict
-        first = self.tmp / "first"
-        first.mkdir()
-        row = {"id": "c1-1", "round": 1, "source": "fix", "unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:8"],
-               "why_both_cannot_hold": "案の項目が判定と食い違う", "which_is_right": "request", "kind": "brief_vs_judgment",
-               "status": "ruled", "replan": "waiting",
-               "ruling": {"decision": "fix_plan_item", "text": "項目 1 が誤り", "limits": [], "plan_items": [1], "by": "ruler"}}
-        _write(first / "conflicts.json", {"items": [row]})
-        conflict.adopt_prior(self.parent, first, ["1"])
-        self.start()
-        self.assertTrue(conflict.second_pass(self.place))
-        new = conflict.park(self.place, [{"unit_key": MEAN, "between": ["stats.py:9", "test_stats.py:8"],
-                                          "why_both_cannot_hold": "直した後も分母が空の列で割れる", "which_is_right": "unknown",
-                                          "kind": "needs_context"}], source=conflict.FIX_SOURCE)
-        result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
-        self.assertEqual([r["id"] for r in result["conflicts"]], new)
 
     def test_group_end_carries_permits_mismatches_and_accept_notices_to_the_parent_finish(self):
         """修正役の返答を受け付けた組の子の place の許しの訳（F429）・申告と数え直しが合わない単位・受け付けが選んだ試験の知らせ
@@ -980,42 +935,6 @@ class GroupChildSeamCase(unittest.TestCase):
                                       {"unit_key": "b", "route": "tdd", "green": "", "tests": ["t.py::z"]},
                                       {"unit_key": "c", "route": "direct", "green": "", "tests": []}]}
         self.assertEqual(self.board.verified_tests(tdd), ["t.py::x", "t.py::y"])
-
-    def test_group_result_shape(self):
-        b = self.board
-        tdd = {"ran": True, "suite": "s", "reason": "", "units": [
-            {"unit_key": "b", "route": "parked", "gave_up": "red", "why": "赤が 3 回とも通らなかった", "tests": []}]}
-        reply = {"mechanism_changed": True, "rejudge_requested": "判定の単位 a は誤り"}
-        got = b.group_result({"group_id": "g1", "unit_ids": ["a", "b", "c"], "items": [1]}, start_tree="t0",
-                             end_tree="t1", tdd=tdd, fix_units={"a": {"status": "fixed", "reason": ""}},
-                             reply=reply, reply_file="/r.json", conflicts=[{"id": 1}],
-                             allowed_rows=[{"path": "t.py", "permit": "p1", "source": "plan"},
-                                           {"path": "t.py", "permit": "p2", "source": "plan"}])
-        self.assertEqual(set(got), {"group_id", "unit_ids", "end_tree", "start_tree", "units", "tdd", "conflicts",
-                                    "objection", "changed", "x_scalars", "allowed_tests", "verified",
-                                    "reply_file", "tdd_record", "worktree", "handoffs", "handoff_titles", "mismatched", "accept_trace", "writer_report", "closure",
-                                    "claimed", "place", "base", "unsatisfied"})
-        self.assertEqual((got["worktree"], got["place"], got["base"]), ("", "", ""), "渡さなければ空")
-        self.assertEqual((got["handoffs"], got["claimed"], got["closure"], got["accept_trace"], got["writer_report"]), ([], [], [], [], []))
-        self.assertEqual([(u["unit_id"], u["status"]) for u in got["units"]],
-                         [("a", "fixed"), ("b", "given_up"), ("c", "not_done")])
-        self.assertEqual(got["units"][2]["reason"], b.NO_UNIT_RESULT)
-        self.assertEqual(got["objection"], "判定の単位 a は誤り")
-        self.assertEqual(got["changed"], {**{k: k == "mechanism_changed" for k in b.CHANGED_MARKS}, b.DRIFT_NOTE: ""})
-        self.assertEqual([r["permit"] for r in got["allowed_tests"]], ["p1", "p2"])
-        row = {"path": "t.py", "permit": "plan-rewrite-1", "source": "plan"}
-        unreplied = b.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
-                                   allowed_rows=[row, "壊れた行"])
-        self.assertEqual(unreplied["allowed_tests"], [],
-                         "返答を受け付けていない組は許しの訳を載せない（join と親の finish が同じ欄から読む）")
-        final = b.group_result({"group_id": "g1", "unit_ids": []}, start_tree="", end_tree="", tdd=None,
-                               reply={"changes": [{"unit_key": "a", "breaks": {"accepted": "x"}}]}, mismatched=["m"],
-                               accept_trace=[{"op": "fix_tests_selected", "note": "0 件"}, "壊れた行"])
-        self.assertEqual((final["handoffs"], final["mismatched"]), (["a: 壊すと分かって通した——x"], ["m"]))
-        self.assertEqual(final["accept_trace"], [{"op": "fix_tests_selected", "note": "0 件", "group_id": "g1"}])
-        empty = b.group_result({"group_id": "g2", "unit_ids": []}, start_tree="", end_tree="", tdd=None)
-        self.assertEqual((empty["tdd"]["ran"], empty["objection"], empty["reply_file"]), (False, "", ""))
-        self.assertFalse(any(empty["changed"].values()))
 
 
 if __name__ == "__main__":

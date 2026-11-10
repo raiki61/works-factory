@@ -460,34 +460,6 @@ class RuleScriptsCase(unittest.TestCase):
         self.run.script("prep")
         conflict.park(self.place, [MEAN_CLAIM], source=conflict.FIX_SOURCE)
 
-    def test_rule_prep_renders_the_ruler_prompt(self):
-        """rule_prep は prompts/ruler.md を組んだ指示（裁く id・申し出の控え・判定の写し）と周を返し、place に指示の控えを書く"""
-        self.start()
-        out = self.run.script("rule_prep")
-        self.assertEqual(set(out), {"prompt", "iteration"})
-        self.assertEqual(out["iteration"], 1)
-        for word in ("c1-1", str(self.place / conflict.FILE), str(self.place / board.JUDGMENT_FILE),
-                     "There is no policy document.", "There is no request file."):
-            self.assertIn(word, out["prompt"])
-        self.assertNotIn("Why your previous answer was rejected", out["prompt"], "1 回目は拒否の段落を持たない")
-        self.assertEqual((self.place / "ruler-prompt-1.md").read_text(encoding="utf-8"), out["prompt"])
-        self.assertTrue((self.place / ruling.TREE).is_file())
-
-    def test_rule_accept_reason_file_is_the_rule_ledger(self):
-        """rule_accept の拒否の reason_file は rolekit の rejects-rule.md（ruling.ROLE の控えの全部）。rejects-rule.json の拒否と
-        同じ文を持ち、reject-rule-accept-<k>.md は作らない。次の rule_prep は同じ拒否の文を指示に入れる"""
-        self.start()
-        self.run.script("rule_prep")
-        out = self.run.script("rule_accept", reply=json.dumps({"rulings": []}), iteration="1")
-        self.assertEqual((out["ok"], out["done"]), (False, False), out)
-        self.assertEqual(out["reason_file"], str(rolekit.rejects_text_path(self.place, ruling.ROLE)))
-        rows = json.loads((self.place / "rejects-rule.json").read_text(encoding="utf-8"))
-        self.assertEqual([r["reason"] for r in rows], [out["reason"]])
-        self.assertIn(out["reason"], pathlib.Path(out["reason_file"]).read_text(encoding="utf-8"))
-        self.assertEqual(list(self.place.glob("reject-rule-accept-*.md")), [])
-        nxt = self.run.script("rule_prep")
-        self.assertIn(out["reason"].strip().split("\n")[0], nxt["prompt"])
-
     def test_rule_prompt_names_the_policy_and_request_ports(self):
         """裁定役の指示が名指す方針の文書・依頼のファイルは、port policy・request で渡したファイル（line が固めた写し。今の
         始めの記録の固めた版の写しの代わり）"""

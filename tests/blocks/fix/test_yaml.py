@@ -1,5 +1,9 @@
 """修正の block（workflows/fix/works-factory-fix.yaml）の形（docs/design/fix.md の 14.2 の test_yaml.py）: loop の上限が定数と同じ・柵 nodes-ok の
-結び・all_done の node・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・役の起こし方・自分を起こす組の node・指示の受け渡し"""
+結び・組の子を起こす node が落ちた子で止まる・会話を継ぐ役の直前の層・修正役の会話の続きと答えの役の切り離し・書き手の鎖の when と with:・読むだけの役。
+
+2026-11-10 の削りで残したのは、壊すと赤になるのがこの試験だけの物（筋書きは書き手の鎖の型ごとの when の取り違えを通す）。返す node
+finish の all_done と待ちは tests/workflows の全体の検査、起動スクリプトの書き直し役の起こし方は tests/layers が見る。読むだけの役が
+書く印も書く道具も持たないこと（RolesCase）は、tests/layers が印と道具の食い違いだけを見るので残す"""
 import pathlib
 import sys
 import unittest
@@ -69,10 +73,6 @@ class WiringCase(unittest.TestCase):
         self.assertEqual(set(t["nodes-ok"]["depends_on"]), set(t) - {"nodes-ok", "finish", "fix-reads"})
         self.assertNotIn("when", t["nodes-ok"])
 
-    def test_only_finish_and_reads_run_after_all(self):
-        self.assertEqual({nid for nid, n in every().items() if n.get("trigger_rule") == "all_done"}, {"finish", "fix-reads"})
-        self.assertEqual(set(top()["finish"]["depends_on"]), set(top()) - {"nodes-ok", "finish"})
-
     def test_groups_start_this_block_and_stop_on_a_failed_child(self):
         for nid in ("groups-par", "groups-seq"):
             with self.subTest(node=nid):
@@ -80,18 +80,6 @@ class WiringCase(unittest.TestCase):
                 self.assertEqual(n["workflow"], DOC["name"])
                 self.assertEqual(n["fan_out"]["join"], "all_success")
                 self.assertEqual(set(n["with"]), {"mode", "from_tree", "out_dir"})
-
-    def test_every_role_prompt_is_its_loop_prep_output(self):
-        for loop in (n for n in DOC["nodes"] if "loop_group" in n):
-            body = inner(loop)
-            for nid, m in body.items():
-                if not is_ai(m):
-                    continue
-                with self.subTest(node=nid):
-                    ref = m["prompt"]
-                    self.assertRegex(ref, r"^\$[a-z-]+\.output\.prompt$")
-                    self.assertIn(ref[1:].split(".")[0], body, "同じ loop の prep")
-        self.assertEqual({nid for nid, n in every().items() if is_ai(n)}, set(AI_NODES) | set(ADDED_AI_NODES))
 
 
 class ConversationCase(unittest.TestCase):
@@ -157,14 +145,6 @@ class WriterChainCase(unittest.TestCase):
     def chain(self, loop: str) -> list:
         return [m for m in every()[loop]["loop_group"]["nodes"] if "include" in m or is_ai(m)]
 
-    def test_the_chain_has_one_node_per_type_in_the_sequence(self):
-        writers = kit.load("fix", "writers")
-        for pass_, loop, *_ in self.CHAINS:
-            with self.subTest(pass_=pass_):
-                self.assertEqual([m["id"] for m in self.chain(loop)], writers.nodes(pass_))
-                self.assertEqual([m["id"] for m in self.chain(loop)],
-                                 [writers.node(pass_, w) for w in writers.SEQUENCE[pass_]], "node の id は型の順の 1 つずつ")
-
     def test_every_include_follows_the_one_before_and_starts_on_its_own_type(self):
         writers = kit.load("fix", "writers")
         for pass_, loop, prep, *_ in self.CHAINS:
@@ -202,36 +182,15 @@ class WriterChainCase(unittest.TestCase):
                 self.assertEqual(set(body[accept]["with"]) - set(want), {"consulted"})
                 self.assertEqual(set(body[check]["with"]) - set(want) - set(absent), {"pass"})
 
-    def test_the_two_chains_share_one_with_each_and_no_include_is_left_out(self):
-        """鎖ごとの with: は同じ字（YAML の錨 1 つ）で、型が全部 block になっている（鎖の中に block でない書き手の node が無い）"""
-        writers = kit.load("fix", "writers")
-        for pass_, loop, prep, *_ in self.CHAINS:
-            includes = [m for m in self.chain(loop) if "include" in m]
-            with self.subTest(loop=loop):
-                self.assertEqual(len(includes), len(writers.SEQUENCE[pass_]))
-                self.assertEqual(len(includes), len(self.chain(loop)), "書き手の node は全部 include")
-                self.assertEqual(len({str(m["with"]) for m in includes}), 1)
-
 
 class RolesCase(unittest.TestCase):
-    """役の起こし方: 起動スクリプトの書き直し役は試験の関門の書き手と同じ形で起こし、読むだけの役は書く道具を持たない"""
-
-    def test_the_runner_rewriter_is_launched_like_the_gate_runner_writer(self):
-        """起動スクリプトの書き直し役 suite-fix は、試験の関門の書き手 suite-write と同じ群・道具・砂場・期限・返す形で起こす（読むだけの
-        印は持たない。Bash を持ち、denyWrite が Archon の家を塞ぐ）"""
-        doc = yaml.safe_load((kit.BLOCKS / "test-gate" / "works-factory-test-gate.yaml").read_text(encoding="utf-8"))
-        writer = next(m for n in doc["nodes"] for m in [n, *((n.get("loop_group") or {}).get("nodes") or [])] if m["id"] == "suite-write")
-        new = every()["suite-fix"]
-        for k in ("model", "settingSources", "allowed_tools", "sandbox", "idle_timeout", "retry", "output_format"):
-            with self.subTest(key=k):
-                self.assertEqual(new.get(k), writer.get(k))
-        self.assertNotIn("mutates_checkout", new)
-
     def test_readers_do_not_write(self):
+        """裁定役と相談の答えの役は作業ツリーを変えない（mutates_checkout: false・書く道具を持たない）。tests/layers の照らしは印と道具の
+        食い違いだけを見るので、両方を書く側へ替えた YAML はこの 1 本だけが赤にする"""
         for nid in ("ruler", "consult-answer", "ruled-consult-answer"):
             with self.subTest(node=nid):
                 n = every()[nid]
-                self.assertIs(n["mutates_checkout"], False)
+                self.assertIs(n.get("mutates_checkout"), False)
                 self.assertFalse(set(n["allowed_tools"]) & WRITE_TOOLS)
 
 

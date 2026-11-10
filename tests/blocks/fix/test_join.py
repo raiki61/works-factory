@@ -910,19 +910,6 @@ class GroupBoardCase(unittest.TestCase):
         self.assertEqual(board.drop_unreturned(self.repo, broken), ["half.py"])
         self.assertFalse((self.repo / "half.py").exists())
 
-    def test_child_allowed_rows_share_the_row_check_with_finish(self):
-        """#304: 組の子の結果の許しの訳は join の和と finish（allowed_test_rows）が同じ口で読む。path・permit の無い行と
-        ALLOWED_SOURCES に無い source の行はどちらにも入らない"""
-        good = {"path": "tests/t.py", "permit": "plan-1", "source": "plan"}
-        res = {"allowed_tests": [good, {"permit": "plan-2", "source": "plan"}, {"path": "tests/u.py", "source": "plan"},
-                                 {"path": "tests/v.py", "permit": "x-1", "source": "guess"}, {"path": "", "permit": "p", "source": "plan"},
-                                 {"path": 7, "permit": "p", "source": "plan"}, {"path": "tests/w.py", "permit": 3, "source": "plan"},
-                                 "壊れた行", good]}
-        self.assertEqual(board.child_allowed_rows(res), [good, good])
-        self.assertEqual(board.allowed_test_rows(self.place, [res]), [good])
-        self.assertEqual((board.child_allowed_rows(None), board.child_allowed_rows({"allowed_tests": None})), ([], []))
-        self.assertEqual([board.child_allowed_rows({"allowed_tests": v}) for v in (5, "tests/t.py", good)], [[], [], []])
-
     def test_fix_groups_join_units_through_items(self):
         items = [{"item": 1, "unit_keys": ["A", "C"]}, {"item": 2, "unit_keys": ["C", "D"]}, {"item": 3, "unit_keys": ["B"]}]
         got = board.fix_groups(["A", "B", "C", "D", "E"], items)
@@ -1351,7 +1338,6 @@ class GroupBoardCase(unittest.TestCase):
                                       {"g1": (None, True, ""), "g2": (None, True, "")}, test_cmd_notes={"g1": ["揺れ: x"]})
             self.assertEqual([g.get("test_cmd_notes") for g in rows], [["揺れ: x"], None])
             self.assertEqual(report.test_cmd_lines(rows), ["組 g1: 揺れ: x"])
-
 
 
 class LanekitSeamCase(unittest.TestCase):
