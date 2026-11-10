@@ -17,8 +17,8 @@ def compute():
 
 
 def fallback(why: str) -> dict:
-    from src import steps
-    return steps.fallback(ports.place(), why)
+    from src import fallback as fell   # 標準ライブラリだけ（lib を読めない時も返す。落とし穴 K1）
+    return fell.fallen(ports.place(), why)
 
 
 ports.run(compute, fallback)
