@@ -6,9 +6,10 @@ resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProdu
 
 落ちてはいけない節（NeverFail。表を持たず YAML から組む。持ち主の決め shape-checks-only）:
 - どの graph でも、返す節が with:・when:・本文で読む $<id>.output の節（返す節はどれも trigger_rule: all_done で、落ちた節の後にも走る）
-- 落ちた節の後にも走る節（trigger_rule が all_done・one_success か always_run）が include の節の出力を直に読めば、include した
-  block の返す節。loop_group の出力を直に読めば、その loop_group の節（中の節が 1 つ落ちるとその場で落ちるので、script の節でない
-  loop_group は下の照らしで赤になる。輪の返りは輪の後ろの既定の trigger_rule の script が運ぶ。docs/design/line.md の 13 節）
+- 落ちた節の後にも走る節（緩い読み手。trigger_rule が all_done・one_success か always_run）が include の節の出力を直に読めば、include した
+  block の返す節。loop_group か AI の節の出力を直に読めば、その節（loop_group は中の節が 1 つ落ちるとその場で落ち、AI の節は retry の
+  後にも落ちうるので、script の節でないこの 2 つは下の照らしで赤になる。輪の返りは輪の後ろの既定の trigger_rule の script が運ぶ。
+  docs/design/line.md の 13.1）。loop_group の読みは、輪の外の節の出力だけを数える（本体の中の読みは本体の節が自分で読む）
 - ほかの run を workflow: で起こす graph と、起こされる graph（周の鎖・line・fix・merge）の返す節。run の結果を殻と鎖が読む
 - 結ばれた include の節は、その block の返す節に置き換えて同じ照らしを当てる
 
@@ -21,6 +22,9 @@ resolveBindingDirective・output-ref.ts の resolveNodeOutputField・assertProdu
   lib は起動の殻が渡す根から読むので、読めない時が在る）
 - scripts/ から標準出力へ書く道は口（ports.returns）だけ。口を読めない時に直に書く script（口の外の道）は json.dumps(...,
   allow_nan=False) だけを書き、単独で走らせても節の output_format に合う
+- 緩い読み手でない読み手（既定の trigger_rule か none_failed_min_one_success）は、直に読む落ちうる一番上の節（include・loop_group・
+  AI の節）が落ちた run では、待ち方だけで飛ぶ（Archon は落ちた節への with: を if_skipped に落とさず、読んだ節を落とす）。どの graph と
+  block でも、一番上の節を 1 つずつ落とした待ち方の模型（would_run・settled。when: は読まず、走りうる節は走ったと見る）で照らす
 """
 import ast
 import importlib.util
@@ -76,9 +80,16 @@ def return_node(doc: dict) -> dict:
 
 
 def bound_ids(n: dict) -> list[str]:
-    """節が with:・when:・本文で読む $<id>.output の <id>"""
+    """節が with:・when:・本文で読む $<id>.output の <id>。loop_group の節は本体の中の読みも含め、本体の節の id は除く（輪の外の節の
+    出力の読みだけ）"""
     text = yaml.safe_dump({k: v for k, v in n.items() if k != "output_format"}, allow_unicode=True)
-    return sorted(set(BOUND.findall(text)))
+    inner = {m["id"] for m in all_nodes((n.get("loop_group") or {}).get("nodes"))}
+    return sorted(set(BOUND.findall(text)) - inner)
+
+
+def fallible(n: dict) -> bool:
+    """script の節でなく、走って落ちうる節（include・loop_group・AI の節）"""
+    return "include" in n or "loop_group" in n or any(k in n for k in AI_KEYS)
 
 
 def lenient(n: dict) -> bool:
@@ -113,7 +124,7 @@ def never_fail(pack: pathlib.Path = WORKFLOWS) -> dict[tuple[str, str], str]:
                 continue
             for nid in bound_ids(n):
                 m = node(doc, nid)
-                if m is not None and (target(m) in docs or "loop_group" in m):
+                if m is not None and (target(m) in docs or "loop_group" in m or any(k in m for k in AI_KEYS)):
                     add(block, nid, f"{block} の {n['id']}（{n.get('trigger_rule') or 'always_run'}）が ${nid}.output を直に読む")
     called = {n["workflow"][len(PREFIX):] for doc in docs.values() for n in all_nodes(doc["nodes"])
               if isinstance(n.get("workflow"), str) and n["workflow"].startswith(PREFIX)}
@@ -131,6 +142,58 @@ def strict_returns(pack: pathlib.Path = WORKFLOWS) -> list[str]:
         if ret.get("trigger_rule") != RETURN_RULE:
             out.append(f"{block}: 返す節 {ret['id']} の trigger_rule が {ret.get('trigger_rule') or '既定'}（落ちた節の後にも走る"
                        f" {RETURN_RULE} にする）")
+    return out
+
+
+def would_run(n: dict, states: dict) -> bool:
+    """節 n が待つ節（depends_on）の状態 states から、trigger_rule の決まりで走るか。状態は completed・failed・skipped（when などで飛んだ）・
+    skipped_after_failure（前が落ちたので飛んだ）。決まりは Archon の待ち方（packages/workflows/src/dag/trigger-rule.ts の all_success・
+    one_success・none_failed_min_one_success・all_done）と同じ"""
+    upstream = [states[dep] for dep in n["depends_on"]]
+    failed = [s for s in upstream if s in ("failed", "skipped_after_failure")]
+    done = [s for s in upstream if s == "completed"]
+    rule = n.get("trigger_rule") or "all_success"
+    if rule == "all_success":
+        return len(done) == len(upstream)
+    if rule == "one_success":
+        return bool(done)
+    if rule == "none_failed_min_one_success":
+        return not failed and bool(done)
+    if rule == "all_done":
+        return True
+    raise AssertionError(f"知らない待ち方 {rule}")
+
+
+def settled(top: dict, fell: str) -> dict:
+    """一番上の節の表 top（id → 節）で節 fell が落ちた run の、一番上の節の結末（would_run の状態の語）。when: は読まず、走りうる節は走ったと見る"""
+    state: dict = {}
+    todo = list(top)
+    while todo:
+        ready = [k for k in todo if all(d in state for d in top[k].get("depends_on") or [])]
+        if not ready:
+            raise AssertionError(f"待つ先の結末が決まらない節: {todo}")
+        for key in ready:
+            todo.remove(key)
+            deps = top[key].get("depends_on") or []
+            if key == fell:
+                state[key] = "failed"
+            elif not deps or would_run({**top[key], "depends_on": deps}, state):
+                state[key] = "completed"
+            else:
+                state[key] = "skipped_after_failure" if any(state[d] in ("failed", "skipped_after_failure") for d in deps) else "skipped"
+    return state
+
+
+def strict_reads(pack: pathlib.Path = WORKFLOWS) -> list[str]:
+    """緩い読み手でない一番上の節が、直に読む落ちうる一番上の節の落ちた run でも走る所（誤りの行）"""
+    out = []
+    for block in blocks(pack):
+        top = {n["id"]: n for n in load(block, pack)["nodes"]}
+        readers = {k: set(bound_ids(n)) for k, n in top.items() if not lenient(n)}
+        for fell in (k for k, n in top.items() if fallible(n)):
+            state = settled(top, fell)
+            out += [f"{block}: {k} は {fell} が落ちても走り、落ちた {fell} を読む（{fell} を depends_on に入れて待ち方で飛ばす）"
+                    for k, ids in sorted(readers.items()) if fell in ids and state[k] == "completed"]
     return out
 
 
@@ -292,12 +355,17 @@ class ReturnScriptCase(unittest.TestCase):
                 cls.runs[(block, nid)] = (n, *run_alone(script, base / "never" / f"{block}-{nid}"))
 
     def test_never_failing_nodes_are_found(self):
-        """line と周の鎖の返す節・返す節が結ぶ節・include の返す節を拾えなければ、下の照らしは空回りする"""
-        self.assertLessEqual({("line", "result"), ("chain", "result"), ("line", "sweep-children"), ("report", "finish")},
+        """line と周の鎖の返す節・返す節が結ぶ節・include の返す節（judge と eyes の graph が直に読む block の返す節も）を拾えなければ、
+        下の照らしは空回りする"""
+        self.assertLessEqual({("line", "result"), ("chain", "result"), ("line", "sweep-children"), ("report", "finish"),
+                              ("hygiene", "finish"), ("verify", "finish"), ("structure", "finish"), ("r4", "finish")},
                              set(self.table))
 
     def test_every_return_node_runs_after_a_failed_node(self):
         self.assertEqual(strict_returns(), [])
+
+    def test_a_strict_reader_is_skipped_when_what_it_reads_falls(self):
+        self.assertEqual(strict_reads(), [])
 
     def test_never_failing_nodes_are_scripts(self):
         """落ちてはいけない節は script の節（AI の節は retry の後にも落ちうる。承認ノードの答えも script の節で受ける）"""
@@ -407,8 +475,8 @@ class SeedCase(unittest.TestCase):
         self.assertNotEqual(alone_problems(done, schema), [])
 
     def test_seed_bindings_make_never_failing_nodes(self):
-        """返す節が結ぶ節・落ちた後にも走る節が直に読む include の返す節と loop_group・workflow: で起こす graph の返す節を拾い、
-        既定の trigger_rule の節が読む節（輪の後ろで輪の返りを運ぶ節が読む輪も）は拾わない"""
+        """返す節が結ぶ節・落ちた後にも走る節が直に読む include の返す節と loop_group と AI の節・workflow: で起こす graph の返す節を拾い、
+        既定の trigger_rule の節が読む節（輪の後ろで輪の返りを運ぶ節が読む輪も）と、緩い輪の本体が読む本体の中の節は拾わない"""
         pack = self.dir / "pack"
 
         def graph(name: str, doc: dict) -> None:
@@ -426,12 +494,36 @@ class SeedCase(unittest.TestCase):
             {"id": "rounds", "loop_group": {"nodes": [{"id": "turn", "script": "turn"}]}},
             {"id": "carry", "script": "carry", "depends_on": ["rounds"], "with": {"rounds": "$rounds.output"}},
             {"id": "loose", "script": "loose", "trigger_rule": "all_done", "with": {"rounds": "$rounds.output"}},
+            {"id": "ask", "prompt": "x"},
+            {"id": "asked", "script": "asked", "trigger_rule": "one_success", "depends_on": ["ask"], "with": {"a": "$ask.output"}},
+            {"id": "loop", "trigger_rule": "all_done", "loop_group": {"nodes": [
+                {"id": "think", "prompt": "y"}, {"id": "took", "script": "took", "with": {"t": "$think.output"}}]}},
             {"id": "result", "script": "result", "trigger_rule": "all_done",
              "with": {"leaf": "$leaf.output", "other": "$other-in.output.got", "carried": "$carry.output.rounds"}}]})
         graph("caller", {"returns": "done", "nodes": [{"id": "child", "workflow": f"{PREFIX}leaf"},
                                                       {"id": "done", "script": "done", "trigger_rule": "all_done"}]})
-        self.assertEqual(sorted(never_fail(pack)), [("caller", "done"), ("leaf", "end"), ("leaf", "work"), ("top", "carry"),
-                                                    ("top", "other-in"), ("top", "rounds")])
+        self.assertEqual(sorted(never_fail(pack)), [("caller", "done"), ("leaf", "end"), ("leaf", "work"), ("top", "ask"),
+                                                    ("top", "carry"), ("top", "other-in"), ("top", "rounds")])
+
+    def test_seed_strict_reader_that_runs_after_a_fall_is_red(self):
+        """緩い読み手でない読み手が、落ちうる節（include・loop_group・AI の節）を待たずに読み、その節が落ちても走る形は赤。読む節を待つ形と、
+        待つ先が落ちうる節の後ろに在る形は赤にしない"""
+        pack = self.dir / "pack"
+
+        def graph(name: str, nodes: list) -> None:
+            self.seed(f"pack/{name}/{PREFIX}{name}.yaml", yaml.safe_dump({"name": f"{PREFIX}{name}", "returns": "end", "nodes": nodes}))
+
+        end = {"id": "end", "script": "end", "trigger_rule": "all_done", "depends_on": ["reader"]}
+        for name, fallen in (("inc", {"id": "fell", "include": f"{PREFIX}leaf"}), ("ai", {"id": "fell", "prompt": "x"}),
+                             ("loop", {"id": "fell", "loop_group": {"nodes": [{"id": "turn", "script": "turn"}]}})):
+            graph(f"bad-{name}", [fallen, {"id": "gate", "script": "gate", "depends_on": ["fell"], "trigger_rule": "all_done"},
+                                  {"id": "reader", "script": "reader", "depends_on": ["gate"], "with": {"x": "$fell.output.x"}}, end])
+        graph("waits", [{"id": "fell", "prompt": "x"},
+                        {"id": "reader", "script": "reader", "depends_on": ["fell"], "trigger_rule": "none_failed_min_one_success",
+                         "with": {"x": {"from": "$fell.output.x", "if_skipped": None}}}, end])
+        graph("behind", [{"id": "fell", "prompt": "x"}, {"id": "gate", "script": "gate", "depends_on": ["fell"]},
+                         {"id": "reader", "script": "reader", "depends_on": ["gate"], "with": {"x": "$fell.output.x"}}, end])
+        self.assertEqual([p.split(":")[0] for p in strict_reads(pack)], ["bad-ai", "bad-inc", "bad-loop"])
 
     def test_seed_return_node_with_the_default_trigger_rule_is_red(self):
         pack = self.dir / "pack"

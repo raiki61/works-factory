@@ -10,7 +10,18 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
-import materialkit  # noqa: E402  （lib/。ports を読むと lib/ が sys.path に入る）
-from src import viewpoint  # noqa: E402
 
-ports.returns(materialkit.finish(viewpoint, ports.place(), lambda path: ports.pointer(path, "json(shared:material.schema.json)")))
+
+def compute():
+    import materialkit   # lib/（ports を読むと lib/ が sys.path に入る）。lib を読む物は守った中で読む（読めない時も fallback で返す。落とし穴 K1）
+    from src import viewpoint
+    return materialkit.finish(viewpoint, ports.place(), lambda path: ports.pointer(path, "json(shared:material.schema.json)"))
+
+
+def fallback(why: str) -> dict:
+    reason = f"出口が落ちた（{why}）"
+    return {"ok": False, "status": "failed", "reason": reason, "material": None,
+            "report": [f"観点 {Path(__file__).resolve().parents[1].name}: failed", reason]}
+
+
+ports.run(compute, fallback)

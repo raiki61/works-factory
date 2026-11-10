@@ -26,13 +26,16 @@ import launchgroups  # lib/。群の表と群の選びの照らし
 import oneline       # lib/
 import rolekit       # lib/。loop の数え・却下の控え・諦め
 
+from src import fallback as fell   # 出口が落ちた時の返り（標準ライブラリだけ）と 1 か所にする字
 from src import report
 
 INTAKE_FILE = "intake.json"
-RECORD_FILE = "depth-head.json"
+RECORD_FILE = fell.RECORD_FILE
 ROLE = "head-depth"        # 却下の控えの名（rejects-head-depth.json）
 NODE = "head-depth"        # AI の node の id（prompts/head-depth.md）
 LIGHT, STANDARD, HEAVY, HEADS = headdepth.LIGHT, headdepth.STANDARD, headdepth.HEAVY, headdepth.HEADS
+if (fell.STANDARD, headdepth.record(STANDARD, "")) != (STANDARD, {"depth": STANDARD, "why": "", "items": [], "facts": {}, "groups": []}):
+    raise ValueError("src.fallback の段の語か控えの形が lib/headdepth.py と違う")   # 落ちた時の返り（lib を読まない）の字と同じ語と形
 # port thickness の語（choice の語は ASCII だけ。形の検査 FORM）→ 名指しの段（auto は名指さない）。段の並びは HEADS と同じ
 THICKNESS = {"auto": "", "light": LIGHT, "standard": STANDARD, "heavy": HEAVY}
 # 未知の種類の語と種類 → 段の表は diagnose・plan も読むので lib/headdepth に在る（役の output_format の unknown の enum の並び）
@@ -245,10 +248,8 @@ def _result(out, *, status: str, reason: str, doc: dict) -> dict:
 
 
 def fallback(out, why: str) -> dict:
-    """出口が落ちた時: 控えを標準と訳で書き直し、status: failed で返す"""
-    doc = headdepth.record(STANDARD, why)
-    _write_record(out, doc)
-    return _result(out, status="failed", reason=why, doc=doc)
+    """出口が落ちた時: 控えを標準と訳で書き直し、status: failed で返す（lib を読めない時と同じ返り。src/fallback.py）"""
+    return fell.fallen(out, why)
 
 
 def finish(out) -> dict:

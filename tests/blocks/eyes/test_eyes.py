@@ -229,21 +229,17 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(self.run.script("ins", "eyes__ins", run="true", merge="false", head="")["head"], real)
 
     def test_after_in(self):
-        got = {"got": passing()["structure-after"], "why": ""}
+        got = passing()["structure-after"]
         self.assertEqual(self.run.script("after_in", "eyes__after-in", structure_after_out=json.dumps(got))["after"],
                          ptr("structure-after/a.json"))
         self.assertEqual(self.run.script("after_in", "eyes__after-in", structure_after_out="null"), {"after": None, "why": ""})
 
-    def test_returned(self):
-        got = self.run.script("returned", "eyes__r1-out", got=json.dumps(eye("r1")), names="ok verdict report")
-        self.assertEqual(got["got"]["verdict"], {"status": "pass", "reason": "r1 の訳"})
-
-    def receivers(self, got: dict) -> dict:
-        return {f"{name.replace('-', '_')}_out": json.dumps({"got": got[name], "why": ""}) if got.get(name) else "null"
-                for name in ("structure-after", *EYES)}
+    def returns(self, got: dict) -> dict:
+        """with: の入力: include した block の返りまるごと（返らない block は null）"""
+        return {f"{name.replace('-', '_')}_out": json.dumps(got.get(name)) for name in ("structure-after", *EYES)}
 
     def test_verdict_script(self):
-        out = self.run.script("verdict", "eyes__verdict", run="true", merge="false", skip_why="", **self.receivers(passing()))
+        out = self.run.script("verdict", "eyes__verdict", run="true", merge="false", skip_why="", **self.returns(passing()))
         self.assertTrue(out["ok"], out["report"])
         self.assertTrue((self.run.artifacts / "eyes" / "verdict.json").is_file())
 
@@ -270,7 +266,7 @@ class WiringCase(unittest.TestCase):
 
     def test_r4_waits_r1_and_r2_and_runs_when_one_fell(self):
         r4 = self.includes["r4"]
-        self.assertEqual((sorted(r4["depends_on"]), r4["trigger_rule"]), (["after-in", "r1-out", "r2-out"], "none_failed_min_one_success"))
+        self.assertEqual((sorted(r4["depends_on"]), r4["trigger_rule"]), (["after-in", "r1", "r2"], "none_failed_min_one_success"))
         self.assertEqual(r4["with"]["coherence"], "$ins.output.merge")
 
     def test_structure_after_runs_without_when(self):
@@ -285,10 +281,13 @@ class WiringCase(unittest.TestCase):
         for name in ("r1", "r3", "r4"):
             self.assertEqual(self.includes[name]["with"]["after"], "$after-in.output.after")
 
-    def test_verdict_reads_receivers_only(self):
+    def test_verdict_reads_every_include_directly(self):
+        """verdict は include した block の返りを全部、待って直に結ぶ（返す節は落ちない形に縛る。tests/workflows/test_returns_never_fail.py）"""
         verdict = self.nodes["verdict"]
         self.assertEqual(verdict["trigger_rule"], "all_done")
-        self.assertEqual(sorted(verdict["with"]), ["r1_out", "r2_out", "r3_out", "r4_out", "structure_after_out"])
+        self.assertEqual({k: b["from"] for k, b in verdict["with"].items()},
+                         {f"{name.replace('-', '_')}_out": f"${name}.output" for name in self.includes})
+        self.assertLessEqual(set(self.includes), set(verdict["depends_on"]))
 
     def test_include_inputs_are_passed(self):
         """include した block の inputs: の全部が with: で渡る（include した block が要る）"""

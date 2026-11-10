@@ -46,7 +46,7 @@
 - `tier`: `軽量`・`標準`・`重厚` のどれか。どの道でも必ず在る。
 - `why`: 段の根拠の日本語の文（今の判定の出力の `depth_why` と同じ中身。控えの `why`）。
 - `rows`: 受けた返答の行の配列 `[{item, unknown, cause_quote, where?, code_quote?}]`（今の控えの `items`）。受けた返答が無ければ `[]`。
-- `record`: pointer（place の `depth-head.json`）。`lib/headdepth.py` の `read_file`・`cited_files`・`groups_lines` がそのまま読む形。どの道でも必ず書く。
+- `record`: pointer（place の `depth-head.json`）。`lib/headdepth.py` の `read_file`・`cited_files`・`groups_lines` がそのまま読む形。どの道でも必ず書く。指すのは、出口が落ちて形の照らし（lib）も読めない時のほかはいつも（その時だけ null。judge の graph の `verdict` が直に結ぶので、出口は lib を読めない時も標準ライブラリと口だけの `src/fallback.py` で返す。落とし穴 K1。`tests/workflows/test_returns_never_fail.py`）。
 - `report`: 報告の行の配列。1 行だけ: `run の頭の深さ: <tier>（根拠: <why>）`。
 
 今との違い: 今は入力を `judge/request.json` と始めの記録のポインタ（`INPUTS_START`。`lib/headdepth.py:82-90` の `facts` が `test_cmd`・`tdd_suite`・`input.spec`・`design_only`・`thickness` を読む）と止めの記録 `judge/stop.json`（workflows/judge/scripts の `head_depth_prep.py:25-29`）から読み、出口は judge の返す節の欄 `depth`・`depth_why`・`depth_record`（lib の `judge_accept.py:3995-4003` の `head_depth`）だった。止めの記録の確かめは無くし、回すかは graph の `when:` が決める（README の 4.3）。報告の行の「省く物・足した物」（今の `headdepth.report_line` の後半。`lib/headdepth.py:266-272`）は段 → 回す物の表から引く物なので line が組み、この block の `report` には段と根拠だけを置く（8 節の自分で決めた 3）。

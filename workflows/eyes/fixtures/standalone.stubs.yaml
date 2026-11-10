@@ -1,4 +1,4 @@
-# graph の筋書き: include した block ごとに入口と出口の node を台本で差し替え（中は飛ぶ）、graph の script（ins・受け皿・after-in・
+# graph の筋書き: include した block ごとに入口と出口の node を台本で差し替え（中は飛ぶ）、graph の script（ins・after-in・
 # verdict）は本物で回す。block の中の道は各 block の筋書きが見る（docs/design/judge-eyes.md の 2.7 と 3 節の作る時の決め）
 # standalone: 差分の根・目的・単位だけ。4 つの目が pass を返し、verdict が ok: true
 fixture:

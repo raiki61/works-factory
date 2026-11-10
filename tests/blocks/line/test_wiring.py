@@ -13,6 +13,7 @@ import unittest
 import yaml
 
 from tests.blocks import kit
+from tests.workflows.test_returns_never_fail import would_run   # Archon の待ち方の模型（緩くない読み手の照らしもそこが全部の graph に当てる）
 
 BLOCK = "line"
 EYESBACK = kit.BLOCKS / "line" / "src" / "eyesback.py"
@@ -26,55 +27,12 @@ THEME_LOOP = {n["id"]: n for n in TOP["theme-rounds"]["loop_group"]["nodes"]}   
 BODIES = {**LOOP, **THEME_LOOP}   # 輪の本体の節
 NODES = {**TOP, **BODIES}
 INCLUDES = {k: n for k, n in NODES.items() if "include" in n}
-LENIENT = ("all_done", "one_success")   # 落ちた節の後にも走る待ち方（tests/workflows/test_returns_never_fail.py の LENIENT と同じ）
 BOUND = re.compile(r"\$([A-Za-z][\w-]*)\.output\b")
 
 
 def bound_ids(node: dict) -> set[str]:
     """節が with:・when: で結ぶ $<id>.output の <id>（loop_group の本体と output_format は見ない）"""
     return set(BOUND.findall(json.dumps({k: v for k, v in node.items() if k not in ("output_format", "loop_group")}, ensure_ascii=False)))
-
-
-def lenient(node: dict) -> bool:
-    return node.get("trigger_rule") in LENIENT or node.get("always_run") is True
-
-
-def would_run(node: dict, states: dict) -> bool:
-    """node が待つ節（depends_on）の状態 states から、trigger_rule の決まりで走るか。状態は completed・failed・skipped（when などで飛んだ）・
-    skipped_after_failure（前が落ちたので飛んだ）。決まりは Archon の待ち方（all_success・one_success・none_failed_min_one_success・all_done）と同じ"""
-    upstream = [states[dep] for dep in node["depends_on"]]
-    failed = [s for s in upstream if s in ("failed", "skipped_after_failure")]
-    done = [s for s in upstream if s == "completed"]
-    rule = node.get("trigger_rule") or "all_success"
-    if rule == "all_success":
-        return len(done) == len(upstream)
-    if rule == "one_success":
-        return bool(done)
-    if rule == "none_failed_min_one_success":
-        return not failed and bool(done)
-    if rule == "all_done":
-        return True
-    raise AssertionError(f"知らない待ち方 {rule}")
-
-
-def settled(fell: str) -> dict:
-    """一番上の節 fell が落ちた run の、一番上の節の結末（would_run の状態の語）。when: は読まず、走りうる節は走ったと見る"""
-    state: dict = {}
-    todo = list(TOP)
-    while todo:
-        ready = [k for k in todo if all(d in state for d in TOP[k].get("depends_on") or [])]
-        if not ready:
-            raise AssertionError(f"待つ先の結末が決まらない節: {todo}")
-        for key in ready:
-            todo.remove(key)
-            deps = TOP[key].get("depends_on") or []
-            if key == fell:
-                state[key] = "failed"
-            elif not deps or would_run({**TOP[key], "depends_on": deps}, state):
-                state[key] = "completed"
-            else:
-                state[key] = "skipped_after_failure" if any(state[d] in ("failed", "skipped_after_failure") for d in deps) else "skipped"
-    return state
 
 
 class ReturnsCase(unittest.TestCase):
@@ -94,17 +52,6 @@ class ReturnsCase(unittest.TestCase):
         for stage in ("owed", "structure-in", "tiers"):
             with self.subTest(stage=stage):
                 self.assertIn(f"${stage}.output.stop_reason == ''", guard)
-
-    def test_a_strict_reader_is_skipped_when_what_it_reads_falls(self):
-        """緩い読み手（落ちた節の後にも走る節）でない読み手は、結ぶ include（返す節）か輪が落ちた run では、待ち方だけで飛ぶ（Archon は
-        落ちた節への with: を if_skipped に落とさず、読んだ節を落とす。docs/design/line.md の 13 節）。緩い読み手が直に結ぶ include の
-        返す節と輪は tests/workflows/test_returns_never_fail.py が落ちない節として照らす（輪は script の節でないので赤）"""
-        readers = {k: bound_ids(n) for k, n in TOP.items() if not lenient(n)}
-        for fell in (k for k, n in TOP.items() if "include" in n or "loop_group" in n):
-            state = settled(fell)
-            with self.subTest(fell=fell):
-                self.assertEqual(sorted(k for k, ids in readers.items() if fell in ids and state[k] == "completed"), [],
-                                 f"{fell} が落ちても走り、落ちた {fell} を結ぶ節")
 
     def test_loop_returns_reach_the_collect_through_the_node_after_the_loop(self):
         """報告を組む collect（緩い読み手）は輪を結ばず、輪を既定の待ち方で結ぶ直後の script が欄 rounds で運ぶ返りを読む"""

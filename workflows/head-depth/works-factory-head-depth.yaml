@@ -122,8 +122,8 @@ nodes:
               where: {type: string}
               code_quote: {type: string}
         record:
-          description: 'json(shared:depth-record.schema.json): run の頭の深さの控え'
-          type: object
+          description: 'json(shared:depth-record.schema.json): run の頭の深さの控え。出口が落ちて形の照らし（lib）も読めない時だけ null'
+          type: [object, 'null']
           additionalProperties: false
           required: [type, run_id, path]
           properties:

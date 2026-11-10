@@ -1,4 +1,4 @@
-# graph の筋書き: include した block ごとに入口と出口の node を台本で差し替え（中は飛ぶ）、graph の script（ins・受け皿・spec-in・
+# graph の筋書き: include した block ごとに入口と出口の node を台本で差し替え（中は飛ぶ）、graph の script（ins・spec-in・
 # diagnose-in・verdict）は本物で回す。dry-run は include の中の loop の本体に include の道を渡さない（docs/design/README.md の 13 節）ので、
 # block の中の道は各 block の筋書きが見る。graph は配線と止めの順とまとめだけを見る（docs/design/judge-eyes.md の 1.8）
 # standalone: 依頼の行 1 つだけ。どの段も通り、verdict が ok: true・ready: true を返す（裏取りは表が空なので回さない）

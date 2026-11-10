@@ -1,4 +1,4 @@
-"""judge の graph のまとめ（docs/design/judge-eyes.md の 1.4）。include した block の受け皿の got を読み、止めの語の順の最初の物と、
+"""judge の graph のまとめ（docs/design/judge-eyes.md の 1.4）。include した block の返りを読み、止めの語の順の最初の物と、
 line が配る欄と、報告の節を組む。観点の判断はしない（どれも block の出力の欄を運ぶだけ）。
 
 - TITLES: include した block の名 → 報告の節の見出し（並びは 1.3 の順）
@@ -6,7 +6,7 @@ line が配る欄と、報告の節を組む。観点の判断はしない（ど
 - build(received, *, world_on, world_has_rows, notes) -> まとめの出力（purpose_review の欄は script が pointer を入れる。notes は
   script が読めなかった物の行）
 
-received は include した block の名（受け皿の id の -out の前）→ 受け皿の got（返りが無ければ None）。返しの "spec-in"・"diagnose-in" は、その出力（走らなければ None）。
+received は include した block の名 → その block の返りの読む欄（script が ports.picked で選ぶ。返りが無ければ None）。返しの "spec-in"・"diagnose-in" は、その出力（走らなければ None）。
 """
 import headdepth  # lib/。段の語
 import oneline  # lib/

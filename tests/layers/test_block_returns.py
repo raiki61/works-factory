@@ -6,7 +6,7 @@
 - graph が欄つきの参照 `$<include の id>.output.<欄>` で読む欄が返すノードの `output_format` に在るかは Archon の `validate`（`tests/layers/test_archon_validate.py`）が照らすので、ここでは照らさない。まるごとの参照 `$<include の id>.output` は validate が欄を見られないので、受けてよい置き場（script のノードの `with:<鍵>` の直の字か `with:<鍵>.from` の字）と、受けた script が `ports.picked` の口 1 つで読み、宣言した名が `output_format` に在ることをここで照らす。受けた script は環境変数を字のままの鍵でだけ読み、名を組む・回す・写す・渡す読みは赤。
 - 読み手ゼロなら赤（持ち主の決め `declared-io`）。block の返す節の `output_format` の欄は、どこかの graph（その block を include か
   workflow で呼ぶ物。`loop_group` の中と `$LOOP_PREV.` も）が欄つきの参照 `$<id>.output.<欄>` で読むか、まるごとの参照を受けた口
-  `ports.picked` が宣言した名（受け皿の `with:` の `names` と `optional=` を含む）に在る。入口（一番上のグラフ line・chain と、どの graph も
+  `ports.picked` が宣言した名（`with:` の字で渡す名の並びと `optional=` を含む）に在る。入口（一番上のグラフ line・chain と、どの graph も
   呼ばない workflow）の返りは人（`workflow get`）と起動の殻が読むので照らさない。block の `inputs:` の名は、その block の YAML の字の
   `$INPUTS.<名>` か、その block の `scripts/`・`src/` の Python の `INPUTS_<名>` の読みが読む（ほかの名の `with:` の鍵で script に渡した字は
   その名の読みでない）。種 `tests/layers/seeds/e5-unread-return`・`e5-unread-input`。
@@ -45,7 +45,7 @@ READS = (
 GATE_NAMES = 'NAMES = ("ready", "units")\n'
 GATE_CALL = 'got = ports.picked(os.environ.get("INPUTS_GOT"), NAMES)\n'
 GATE = GATE_NAMES + GATE_CALL
-# 受け皿の口（workflows/judge/scripts/returned.py と同じ形）。名の並びは節の with: の names
+# 名の並びを節の with: の字で受ける口（line の返し relay の field と同じ形）。名の並びは節の with: の names
 DECLARED = 'got = ports.picked(os.environ.get("INPUTS_GOT"), ports.text(os.environ.get("INPUTS_NAMES")).split())\n'
 
 
@@ -294,21 +294,21 @@ class BlockReturnsTest(unittest.TestCase):
                 self.assertEqual(len(got), 1, got)
                 self.assertTrue(got[0].startswith(f"{TAKE}:"), got)
 
-    def test_common_field_name_declared_by_a_real_receiver_is_red(self):
-        """本物の木で、判定の graph の受け皿 diagnose-run-out の names にありふれた名（note）を足すと、diagnose の返りに無いので赤
-        （graph の YAML の行を指す）"""
-        graph = "workflows/judge/works-factory-judge.yaml"
+    def test_common_field_name_declared_by_a_real_reader_is_red(self):
+        """本物の木で、判定の graph の返す節 verdict が diagnose の返りを読む名の並びにありふれた名（note）を足すと、diagnose の返りに
+        無いので赤（口の呼びの行を指す）"""
+        script = "workflows/judge/scripts/verdict.py"
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             for part in ("workflows", "lib"):
                 shutil.copytree(ROOT / part, root / part, ignore=shutil.ignore_patterns("tests", "fixtures", "__pycache__"))
             before = scan.problems("E5", root)
-            text = (root / graph).read_text(encoding="utf-8")
-            head = text.index("names: \"", text.index("\n  - id: diagnose-run-out\n")) + len("names: \"")
-            (root / graph).write_text(text[:head] + "note " + text[head:], encoding="utf-8")
+            text = (root / script).read_text(encoding="utf-8")
+            head = text.index("(", text.index("\nDIAGNOSE = ")) + 1
+            (root / script).write_text(text[:head] + '"note", ' + text[head:], encoding="utf-8")
             got = [p for p in scan.problems("E5", root) if p not in before]
         self.assertEqual(len(got), 1, got)
-        self.assertTrue(got[0].startswith(f"{graph}:"), got)
+        self.assertTrue(got[0].startswith(f"{script}:"), got)
         self.assertIn("宣言した欄 note が works-factory-diagnose の返りに無い", got[0])
 
     def test_declared_name_not_in_the_output_format_is_red(self):

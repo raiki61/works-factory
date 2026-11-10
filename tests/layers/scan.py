@@ -760,7 +760,7 @@ def _feeds(tree, node, env: str) -> bool:
 def _declared(root: Path, yaml_path: Path, node, rel: str, tree, gate) -> tuple:
     """口の呼び gate の名の並び。返りは (宣言の場所, 名の tuple)。解けなければ (None, None)。2 つ目の引数の読む形は 3 つだけ:
     module の頭の字の tuple の名（_top_names）・lib の部品の字の tuple の定数 `<部品>.<定数>`・節の with: の字の値を
-    `ports.text(<"INPUTS_<鍵>" の読み>).split()` で読む形（judge・eyes の graph の受け皿の names と line の返し relay の field。名は YAML の
+    `ports.text(<"INPUTS_<鍵>" の読み>).split()` で読む形（line の返し relay の field。名は YAML の
     字で、`$` の参照を持たない。この式を 1 度だけ束ねた名も可）。鍵は `optional=` だけで、値は字の tuple（無くてよい欄。宣言の名には数えない）"""
     if len(gate.args) != 2 or any(k.arg != GATE_OPTIONAL for k in gate.keywords):
         return None, None
