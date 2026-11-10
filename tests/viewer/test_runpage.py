@@ -3,10 +3,14 @@
 書き込みと秘密の値と外への読みを守る物だけを照らす（持ち主の決め tests-guard-writes）。見た目と形は縛らない（E25 の 4）。
 
 - ページは 1 枚で完結する: 雛形と埋める物（viewer/page/ の全部）に、別のファイルや網から読む形（`<script src`・`import(`・`fetch(`）が無い
+- 外への通信を CSP で締める: 雛形の `<head>` に Content-Security-Policy の meta があり、`default-src 'none'` を持ち、どの指令も網の
+  出どころ（`http:`・`https:`・`ws:`・`*`・ホストの名など。引用の付いた語と `data:`・`blob:` の外の物）を許さない。画像・CSS・
+  sendBeacon・XHR・WebSocket の外への通信を止めているのはこの 1 つ
 - Archon の DB は読むだけで開く: 読みの口 runread.connect の上では書けず、入口が小さな run をページにした後も DB の中身が 1 字も変わらない
 - 秘密の値を出さない: run の metadata の run_config に置いた値が、ページに出ない
 - ページに埋めたデータの逃がし: ノードの出力に `</script>` と `<!--` を含む run でも、データの script の中身は記録の字で閉じず、
-  JSON として読み戻せる
+  JSON として読み戻せる。データの script の中身に `<` が 1 字も無い（`</` だけの逃がしでは `<!--` と `<script` が残り、
+  HTML の決まりで script が閉じなくなる）
 
 run の家は WORKS_FACTORY_HOME（E24）で一時のフォルダへ向け、利用者の本物の run の家を読まない。
 """
@@ -28,6 +32,9 @@ OUTSIDE = (re.compile(r"<script\b[^>]*\bsrc\b", re.I), re.compile(r"\bimport\s*\
 DATA = re.compile(r'<script type="application/json" id="data">(.*?)</script>', re.S)
 TRICKY = '{"ok": true, "note": "</script><!-- <script>x</script> </SCRIPT"}'
 SECRET = "run-config-secret-7c1f"
+HEAD = re.compile(r"<head\b[^>]*>(.*?)</head>", re.S | re.I)
+CSP = re.compile(r"""<meta\s+http-equiv=(["'])content-security-policy\1\s+content=(["'])(.*?)\2""", re.I)
+OFFLINE = ("data:", "blob:")
 
 
 class PageCase(unittest.TestCase):
@@ -35,6 +42,16 @@ class PageCase(unittest.TestCase):
         found = {f.name: [p.pattern for p in OUTSIDE if p.search(f.read_text(encoding="utf-8"))] for f in sorted(page.ASSETS.iterdir())}
         self.assertIn(page.TEMPLATE.name, found)
         self.assertEqual({name: hits for name, hits in found.items() if hits}, {})
+
+    def test_the_csp_closes_the_network(self):
+        head = HEAD.search(page.TEMPLATE.read_text(encoding="utf-8"))
+        self.assertIsNotNone(head)
+        policy = CSP.search(head[1])
+        self.assertIsNotNone(policy, "<head> に Content-Security-Policy の meta が無い")
+        rules = {d.split()[0].lower(): d.split()[1:] for d in policy[3].split(";") if d.strip()}
+        self.assertEqual(rules.get("default-src"), ["'none'"])
+        opened = {name: [s for s in srcs if not s.startswith("'") and s.lower() not in OFFLINE] for name, srcs in rules.items()}
+        self.assertEqual({name: srcs for name, srcs in opened.items() if srcs}, {})
 
 
 class EntryCase(unittest.TestCase):
@@ -97,7 +114,9 @@ class EntryCase(unittest.TestCase):
         done = self._entry()
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.lower().count("</script"), page.TEMPLATE.read_text(encoding="utf-8").lower().count("</script"))
-        data = json.loads(DATA.search(done.stdout)[1])
+        body = DATA.search(done.stdout)[1]
+        self.assertNotIn("<", body)
+        data = json.loads(body)
         outputs = [e["output"] for o in data["objs"].values() for e in o["events"] if e.get("output")]
         self.assertIn(TRICKY, outputs)
 
