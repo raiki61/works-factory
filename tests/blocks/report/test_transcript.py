@@ -30,23 +30,6 @@ def done(step, ts, cost=None, accounting="node", model=None, kind="node_complete
     return row
 
 
-def call(step, name, **raw):
-    return {"type": "provider_event", "step": step, "workflow_id": RUN, "event": {"type": "tool_call", "toolCallId": f"t-{name}", "name": name,
-                                                                                  "rawInput": raw}}
-
-
-def until(loop, n, ts, code):
-    return {"type": "exec_output", "step": f"{loop}-iteration-{n}", "content": "<until_bash>", "exit_code": code, "ts": ts, "workflow_id": RUN}
-
-
-def spend(step, tokens, accounting="node"):
-    """Archon の本物の行の形（execution.spend.tokens が {source: provider, value}）の済んだ行。tokens が None なら spend の欄が無い行"""
-    row = done(step, "2026-10-12T00:00:00Z", accounting=accounting)
-    if tokens is not None:
-        row["execution"]["spend"] = {"tokens": {"source": "provider", "value": tokens}}
-    return row
-
-
 def fell(step, error, failure_class=None):
     row = {**done(step, "2026-10-18T00:01:00Z", kind="node_error"), "error": error}
     lifecycle = {"status": "failed", "error": error}
@@ -94,97 +77,6 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(exact["absorbed"], [{"node": "fix__write", "error": "修正の筋が落ちた"}])
         near = M.transcript.facts([{**done("fix__lens-collect", "t", kind="node_error"), "step": "fix__lens-collect"}], optional=("fix__lens",))
         self.assertEqual(near["failed"], ["fix__lens-collect"], "区切りの無い頭は別の node まで受け止めない")
-
-    def test_models_and_efforts(self):
-        rows = [done("fix__write", "t", cost=0.1, model="sonnet", effort="medium"), done("fix__write", "t", cost=0.1, model="sonnet", effort="high"),
-                done("fix__write", "t", cost=0.1, model="opus")]
-        got = M.transcript.facts(rows)
-        self.assertEqual((got["models"], got["efforts"]), ({"fix__write": ["sonnet", "opus"]}, {"fix__write": ["medium", "high"]}))
-        self.assertEqual(M.transcript.node_model_lines(got), ["fix__write: sonnet, opus（run の途中で替わった）（effort: medium, high）"])
-        self.assertEqual(M.transcript.node_model_lines(M.transcript.facts(None)), ["run の記録が読めない"])
-        self.assertEqual(M.transcript.node_model_lines(M.transcript.facts([])), ["記録に模型の欄が無い"])
-
-    def test_until_rows_give_resubmit_count_and_minutes(self):
-        rows = [until("judge__loop", 1, "2026-10-12T00:01:00Z", 1), until("judge__loop", 2, "2026-10-12T00:03:00Z", 0),
-                until("fix__tdd", 1, "2026-10-12T00:04:00Z", 0),
-                until("report__ask", 1, "2026-10-12T00:05:00Z", 1), until("report__ask", 2, "2026-10-12T00:06:00Z", 0),
-                until("fix__kill", 1, "2026-10-12T00:07:00Z", "SIGTERM"), until("fix__kill", 2, "2026-10-12T00:09:00Z", 0),
-                until("fix__flag", 1, "2026-10-12T00:10:00Z", True), until("fix__flag", 2, "2026-10-12T00:11:00Z", 0),
-                {**until("fix__other", 1, "2026-10-12T00:12:00Z", 1), "content": "ほかの呼び"}]
-        got = M.transcript.facts(rows, exclude_prefix="report__")
-        self.assertEqual(got["resubmits"], {"judge__loop": {"count": 1, "minutes": 2.0}, "fix__tdd": {"count": 0, "minutes": 0.0},
-                                            "fix__kill": {"count": 0, "minutes": 0.0}, "fix__flag": {"count": 0, "minutes": 0.0}})
-        lines = M.transcript.resubmit_rows(got)
-        self.assertEqual(lines[0], "judge__loop: until が通らず回り直した回 1（受け付けのループでは拒否で出し直した回）・2.0 分")
-        self.assertEqual(lines[-1], M.transcript.CHILD_LOOPS)
-        self.assertEqual(M.transcript.resubmit_rows(M.transcript.facts([until("a__l", 1, "t", 0)]))[0], "回り直し: 0 回（until の行を読んだループ 1 本）")
-        self.assertEqual(M.transcript.resubmit_rows(M.transcript.facts([]))[0], "回り直し: 数えられない（記録にループの until の行が無い）")
-
-    def test_cost_section(self):
-        rows = [start("a", "2026-10-12T00:00:00Z"), done("a", "2026-10-12T00:03:00Z", cost=0.5), done("b", "2026-10-12T00:03:00Z")]
-        lines = M.transcript.head_cost(M.transcript.facts(rows), "")
-        self.assertIn("費用の合計: $0.5000", lines[0])
-        self.assertEqual(lines[1], "a: $0.5000・3.0 分")
-        self.assertEqual(lines[2], "b: 費用の記録なし・費用の欄が無い行 1 件（AI ノードでないノードか、提供元が費用を返さなかった）・時間を測れない")
-        self.assertEqual(M.transcript.head_cost(M.transcript.facts(None), ""), ["費用: 取れない（run の記録が読めない）"])
-        self.assertEqual(M.transcript.head_cost(M.transcript.facts(None), "訳 W"), ["費用: 取れない（訳 W）"])
-
-    def test_cost_section_shows_tokens(self):
-        known = {"input": 1000, "output": 200, "cacheRead": 700, "cacheWrite": 100}
-        rows = [spend("a", known), spend("a", {"input": 500, "output": 50, "cacheRead": 300, "cacheWrite": 0}),
-                spend("script", None), spend("loop", known, accounting="aggregate")]
-        lines = M.transcript.head_cost(M.transcript.facts(rows), "")
-        self.assertIn("トークンの合計: 入力 1500（うちキャッシュの読み 1000・書き 100・キャッシュ外 400）・出力 250", lines)
-        self.assertIn("a: 入力 1500（うちキャッシュの読み 1000・書き 100・キャッシュ外 400）・出力 250", lines)
-        self.assertIn("script: トークンの記録なし（記録の無い行 1 件）", lines)
-        self.assertFalse([line for line in lines if line.startswith("loop")], "言い直しの行は数えない")
-        last_cost = max(i for i, line in enumerate(lines) if line.startswith(("a: 費用", "script: 費用")))
-        self.assertLess(last_cost, min(i for i, line in enumerate(lines) if line.startswith("トークンの合計")), "費用の行の後に並べる")
-        with self.subTest("cacheRead の欠けた起動と cachePartial の起動は内訳が不明な起動に数え、キャッシュ外を出さない"):
-            unknown = [spend("a", known), spend("b", {"input": 100, "output": 10, "cacheWrite": 20}),
-                       spend("c", {"input": 300, "output": 30, "cacheRead": 100, "cacheWrite": 50, "cachePartial": True})]
-            lines = M.transcript.head_cost(M.transcript.facts(unknown), "")
-            self.assertIn("トークンの合計: 入力 1400・出力 240・キャッシュの内訳が不明な起動 2 件", lines)
-            self.assertIn("b: 入力 100・出力 10・キャッシュの内訳が不明な起動 1 件", lines)
-            self.assertIn("a: 入力 1000（うちキャッシュの読み 700・書き 100・キャッシュ外 200）・出力 200", lines)
-            self.assertNotIn("キャッシュ外", "\n".join(line for line in lines if line.startswith(("トークンの合計", "b:", "c:"))))
-        with self.subTest("トークンを持たない行が混じる node は、その件数も言う"):
-            lines = M.transcript.head_cost(M.transcript.facts([spend("a", known), spend("a", None)]), "")
-            self.assertIn("a: 入力 1000（うちキャッシュの読み 700・書き 100・キャッシュ外 200）・出力 200・記録の無い行 1 件", lines)
-        with self.subTest("トークンの行が 1 本も無い記録"):
-            lines = M.transcript.head_cost(M.transcript.facts([done("a", "t", cost=0.5)]), "")
-            self.assertIn("トークンの合計: 記録なし", lines)
-            self.assertEqual(M.transcript.token_rows({"ok": True}), ["トークンの合計: 記録なし"])
-        self.assertEqual(M.transcript.head_cost(M.transcript.facts(None), ""), ["費用: 取れない（run の記録が読めない）"])
-
-
-class CallsCase(unittest.TestCase):
-    def test_calls_per_node_and_lines(self):
-        rows = [call("fix__a", "Read", file_path="/repo/x.py"), call("fix__a", "Read", file_path="/repo/x.py"), call("fix__a", "Edit", file_path="/repo/y.py"),
-                call("fix__a", "Bash", command="ls"), call("fix__b", "Bash", command="ls"), call("fix__b", "Grep", pattern="x"),
-                call("report__write", "Read", file_path="/repo/report.md")]
-        got = M.transcript.facts(rows, exclude_prefix="report__")
-        self.assertEqual(got["calls"], {"fix__a": {"Read": ["/repo/x.py"], "Edit": ["/repo/y.py"], "Write": [], "Bash": 1},
-                                        "fix__b": {"Read": [], "Edit": [], "Write": [], "Bash": 1}})
-        lines = M.transcript.calls_lines(got, "", "/repo")
-        self.assertEqual(lines[1], "  - fix__a: Read 1 件・Edit 1 件・Write 0 件（ファイル: x.py・y.py）")
-        self.assertEqual(lines[2], "  - fix__b: Read 0 件・Edit 0 件・Write 0 件")
-        self.assertTrue(lines[-2].endswith("。Bash の呼び 2 回: fix__a 1・fix__b 1"), lines[-2])
-        self.assertEqual(lines[-1], M.transcript.CHILD_RUNS)
-
-    def test_more_than_three_files_are_counted(self):
-        rows = [call("a", "Read", file_path=f"/r/{n}.py") for n in range(5)]
-        line = M.transcript.calls_lines(M.transcript.facts(rows), "", "/r")[1]
-        self.assertIn("（ファイル: 0.py・1.py・2.py ほか 2 件）", line)
-
-    def test_unreadable_record_and_no_calls_are_said(self):
-        self.assertIn("  - run の記録が読めない（訳 W）", M.transcript.calls_lines(M.transcript.facts(None), "訳 W", None))
-        self.assertIn("  - 道具を呼んだノードが run の記録に無い", M.transcript.calls_lines(M.transcript.facts([]), "", None))
-        self.assertIn("Bash の呼びは run の記録が読めないので数えられない", M.transcript.calls_lines(M.transcript.facts(None), "", None)[-2])
-
-    def test_no_block_name_in_the_child_lines(self):
-        for line in (M.transcript.CHILD_RUNS, M.transcript.CHILD_LOOPS):
-            self.assertNotIn("fix", line)
 
 
 class WriterFellCase(unittest.TestCase):

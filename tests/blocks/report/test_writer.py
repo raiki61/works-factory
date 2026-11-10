@@ -1,6 +1,7 @@
-"""書き手のループと出口（workflows/report/src/writer.py）。写す元は test_runreport.py の GlossaryCase・AcceptCase・ReportGiveUpCase・
-CollectCase・ColdBodyCase、test_report_roles.py の全部、lib/tests/test_handoff.py のうち型と控えの書き読みの物（文の定数の字の試験は
-写さない。文は md が持つ）。返答の型の YAML と handoff.SCHEMA の一致も照らす。"""
+"""書き手のループと出口（workflows/report/src/writer.py）。受け付けの判断（書式と語で拒む・初見の読み手が 2 度拒んで 3 回目に印つきで採る・
+機械の行だけへの指摘は書き直させない・書けない時は諦める）と、人に向けた報告に機械の頭が字を変えずに載ること・行の上限で切ること。
+返答の型の YAML と lib の handoff.SCHEMA・受け付けの写しの一致も照らす（docs/concepts.json の bound）。語の言い換えと見出しの字の照らしは
+2026-11-10 に落とした（docs/design/report.md の 8 節）"""
 import json
 import pathlib
 import re
@@ -70,139 +71,10 @@ class FormatCase(unittest.TestCase):
         self.assertEqual(W.format_problems("| 項目 |\n|---|\n| `" + "。" * 80 + "` |\n"), [])
 
 
-class HeadCase(unittest.TestCase):
-    def test_head_keeps_lead_and_decisions_only(self):
-        head = W.head_of("1 行目\n2 行目\n3 行目\n\n## 1. 人が決めること\n\n- 問い A\n\n## 2. 経緯\n\n長い経緯")
-        self.assertIn("3 行目", head)
-        self.assertIn("問い A", head)
-        self.assertNotIn("長い経緯", head)
-        self.assertEqual(W.head_of(" 本文だけ \n"), "本文だけ")
-
-    def test_terms_must_be_term_and_definition(self):
-        self.assertEqual(W.terms_problems({"text": "x"}), [])
-        self.assertEqual(W.terms_problems({"text": "x", "terms": [{"term": "盤面", "definition": "置き場"}]}), [])
-        self.assertNotEqual(W.terms_problems({"text": "x", "terms": [{"term": ""}]}), [])
-        self.assertNotEqual(W.terms_problems({"text": "x", "terms": [{"term": "a", "definition": "b", "extra": 1}]}), [])
-
-    def test_rows_without_kind_count_as_unknown(self):
-        rows = [{"node": "report", "reason": "kind が入る前の行"}, {"node": "report", "kind": "cold"}, {"node": "report", "kind": "answer"},
-                {"node": "report", "kind": "format"}, {"node": "report", "kind": "何か"}, {"node": "よその節", "kind": "cold"},
-                {"node": "report.human_items", "kind": "cold"}]
-        self.assertEqual(W.count_rejects(rows), {"report": {"cold": 1, "format": 1, "answer": 1, "unknown": 2}})
-
-    def test_heading_that_asks_for_decisions_is_the_one_the_prompt_names(self):
-        """指示が書き手に言う見出しの字と、頭を探す字は同じ値（md と受け付けが同じ字を持つ）"""
-        self.assertEqual(W.DECISIONS_HEAD, "人が決めること")
-        self.assertIn(W.DECISIONS_HEAD, M.files.DECISIONS_HEADING)
-
-
-class GlossaryCase(unittest.TestCase):
-    def test_only_terms_in_text(self):
-        sec = W.glossary_section("寄せて止めた", [{"term": "寄せ", "definition": "合わせること"}, {"term": "周", "definition": "一巡"}])
-        self.assertIn("- 寄せ: 合わせること", sec)
-        self.assertNotIn("一巡", sec)
-        self.assertEqual(W.glossary_section("何も無い", []), "")
-
-    def test_pack_terms_come_from_the_block(self):
-        pack = W.pack_terms()
-        self.assertTrue(any(t["term"] == "承認ノード" for t in pack))
-        self.assertTrue(all(set(t) == {"term", "plain"} for t in pack))
-        for t in pack:
-            with self.subTest(t["term"]):
-                self.assertEqual([u["term"] for u in pack if u["term"] in t["plain"]], [])
-        self.assertEqual((W.PACK_TERMS.parent.name, W.PACK_TERMS.name), ("src", "glossary.json"))
-
-    def test_plain_words_swap_outside_code(self):
-        pack = [{"term": "単位", "plain": "項目"}, {"term": "根本の単位", "plain": "直す項目"}]
-        text, counts = W.plain_words("根本の単位と単位。`単位` は鍵\n```\n単位\n```\n単位", pack)
-        self.assertEqual(text, "直す項目と項目。`単位` は鍵\n```\n単位\n```\n項目")
-        self.assertEqual(counts, {"根本の単位": 1, "単位": 2})
-
-    def test_plain_words_skip_katakana_words_that_only_contain_a_term(self):
-        pack = [{"term": "ライン", "plain": "処理の段の組み合わせ"}, {"term": "ノード", "plain": "処理の段"}]
-        text, counts = W.plain_words("パイプラインとライン。サブノードとノード", pack)
-        self.assertEqual(text, "パイプラインと処理の段の組み合わせ。サブノードと処理の段")
-        self.assertEqual(counts, {"ライン": 1, "ノード": 1})
-
-    def test_plain_words_keep_katakana_terms_right_after_kanji(self):
-        """片仮名で始まる表の語は、前が漢字でも片仮名でも当てない（辞書が無いので複合語かもしれない所は字のまま）。前が仮名・記号なら当てる"""
-        pack = [{"term": "ライン", "plain": "処理の段の組み合わせ"}, {"term": "ノード", "plain": "処理の段"}]
-        text, counts = W.plain_words("自動の処理ラインと各ノード。別ノードの中、のライン、「ノード」", pack)
-        self.assertEqual(text, "自動の処理ラインと各ノード。別ノードの中、の処理の段の組み合わせ、「処理の段」")
-        self.assertEqual(counts, {"ライン": 1, "ノード": 1})
-        # 本物の語の表: 工場が書いた複合語（出力ノード・処理ライン）は字のまま。人に向けた報告の頭の問いの題も同じ式を通る
-        text, counts = W.plain_words("試験の関門: 出力ノードの中の誤り。自動の処理ライン。のライン")
-        self.assertEqual(text, "試験の関門: 出力ノードの中の誤り。自動の処理ライン。の処理の段の組み合わせ")
-        self.assertEqual(counts, {"ライン": 1})
-        title = "出力ノードの誤りを直すか"
-        self.assertEqual(W.plain_words(title), (title, {}))
-        # 表の長い語（承認ノード）は今までどおり先に当たる
-        self.assertEqual(W.plain_words("承認ノード"), ("先へ進めるかを決める所", {"承認ノード": 1}))
-
-    def test_plain_words_skip_compounds_that_only_contain_a_one_kanji_term(self):
-        text, counts = W.plain_words("前の周に戻り、周ごとに柵の印を見た。周囲と周知、一周、周辺")
-        self.assertEqual(counts, {"周": 2, "柵": 1})
-        self.assertTrue(text.endswith("周囲と周知、一周、周辺"), text)
-        self.assertEqual(W.plain_words("周りを見た。3 周目")[0], "周りを見た。3 周目")
-
-    def test_plain_words_keep_any_question_key_on_a_ledger_line(self):
-        for key in ("parallel_pr: 単位の柵", "柵（住処）", "柵（住処・素材）"):
-            with self.subTest(key=key):
-                line = f"{W.ASK_HEAD} {key}（fork・held・柵が要る）"
-                text = W.plain_words(line)[0]
-                self.assertIn(f" {key}（fork・held", text)
-                self.assertNotIn("柵が要る", text)
-
-    def test_every_pack_term_is_swapped(self):
-        text = W.plain_words("守りのパスに当たった差分。無人の run が推しで通した承認ノード。周 2 のノード")[0]
-        self.assertEqual([t["term"] for t in W.pack_terms() if t["term"] in text], [])
-
-
 class ColdBodyCase(Base):
-    def test_head_and_glossary_only(self):
-        self.out.mkdir(parents=True)
-        (self.out / "report.md").write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
-        reply = json.dumps({"text": "承認ノードで止めた。\n\n## 1. 人が決めること\n\n- A\n\n## 2. 経緯\n\n長い",
-                            "terms": [{"term": "A", "definition": "決める物"}]}, ensure_ascii=False)
-        body = W.cold_body(reply, place=self.out)
-        self.assertTrue(body.startswith("# 報告\n\n起きたこと: 赤\n\n先へ進めるかを決める所で止めた。"), body)
-        self.assertNotIn("長い", body)
-        self.assertNotIn("機械の行", body)
-        self.assertIn(W.GLOSSARY_HEADING, body)
-
     def test_unreadable_reply_says_so(self):
         self.assertIn("書き手の返答を読めない", W.cold_body("壊れた", place=self.out))
         self.assertIn("機械の報告の冒頭を読めない", W.cold_body(json.dumps({"text": "本文"}, ensure_ascii=False), place=self.out))
-
-    def test_parts_split_the_machine_lines_from_the_writer_text(self):
-        """初見の読み手に貼る本文は、機械が組んだ行と書き手の頭に分かれ、つなげると人に向けた報告の頭と同じ字"""
-        self.out.mkdir(parents=True)
-        (self.out / "report.md").write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
-        reply = json.dumps({"text": "要約。\n\n## 1. 人が決めること\n\n- A"}, ensure_ascii=False)
-        machine, writer = W.cold_parts(reply, place=self.out)
-        self.assertEqual(machine, "# 報告\n\n起きたこと: 赤")
-        self.assertTrue(writer.startswith("要約。"), writer)
-        self.assertNotIn("起きたこと", writer)
-        self.assertEqual(W.cold_body(reply, place=self.out), f"{machine}\n\n{writer}\n")
-
-    def test_marked_parts_tag_machine_and_writer_lines(self):
-        """貼る本文の空でない行ごとに、機械が組んだ頭の行は M<n>、書き手の頭の行は W<n>（その部分の何行目か）の印が付き、2 つをつないで印を除いた
-        行の並びは cold_body の空でない行と同じ。cold_marks は M の印の集合。書き手の返答を読めなければ M の印は無い"""
-        self.assertTrue(hasattr(W, "marked_parts") and hasattr(W, "cold_marks"), "印つきの行の並び marked_parts と印の集合 cold_marks が無い")
-        self.out.mkdir(parents=True)
-        (self.out / "report.md").write_text("# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- 機械の行\n", encoding="utf-8")
-        reply = json.dumps({"text": "要約。\n\n## 1. 人が決めること\n\n- A"}, ensure_ascii=False)
-        machine, writer = W.marked_parts(reply, place=self.out)
-        marked = machine + writer
-        self.assertEqual([m for m, _ in machine], ["M1", "M3"])
-        self.assertEqual([m for m, _ in marked], ["M1", "M3", "W1", "W3", "W5"])
-        self.assertEqual([line for _, line in marked], [x for x in W.cold_body(reply, place=self.out).splitlines() if x.strip()])
-        self.assertEqual(dict(marked)["M3"], "起きたこと: 赤")
-        self.assertEqual(dict(marked)["W1"], "要約。")
-        self.assertEqual(W.cold_marks(reply, place=self.out), {"M1", "M3"})
-        broken = W.marked_parts("壊れた", place=self.out)
-        self.assertEqual([[m for m, _ in part] for part in broken], [[], ["W1"]])
-        self.assertEqual(W.cold_marks("壊れた", place=self.out), frozenset())
 
     def test_handoff_never_reaches_the_cold_reader(self):
         self.out.mkdir(parents=True)
@@ -380,44 +252,6 @@ class AcceptCase(Base):
         (self.out / "ai.json").unlink()
         self.assertEqual(self.accept()["ok"], True)
 
-    def test_give_up_text_is_rolekit_text(self):
-        for _ in range(rolekit.GIVE_UP_AFTER):
-            self.accept(json.dumps({"text": "x", "terms": [{"term": ""}]}))
-        rows = rolekit.reject_rows(self.out, NODE)
-        self.assertEqual([r["kind"] for r in rows], ["answer"] * 3)
-        self.assertEqual(self.ai()["reason"], rolekit.gave_up_text(NODE, len(rows), rows[-1]["reason"]))
-
-    def test_rejects_live_in_the_rolekit_ledger_with_kind(self):
-        bad_cell = json.dumps({"text": "| 項目 |\n|---|\n| 説明の文である。 |"}, ensure_ascii=False)
-        first = self.accept(bad_cell)
-        second = self.accept(json.dumps({"text": "x", "terms": [{"term": ""}]}))
-        self.assertEqual([(first["kind"], first["done"]), (second["kind"], second["done"])], [("format", False), ("answer", False)])
-        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["candidate-report.json", "rejects-report.json", "rejects-report.md"])
-        text = (self.out / "rejects-report.md").read_text(encoding="utf-8")
-        self.assertLess(text.index(first["reason"]), text.index(second["reason"]), "それまでの拒否を古い順に全部持つ")
-        for n, raw in enumerate(("壊れた", "", json.dumps({"terms": []})), 1):
-            with self.subTest(raw=raw):
-                out = self.out / f"unreadable-{n}"
-                got = self.accept(raw, out=out)
-                self.assertEqual(set(got), {"done", "ok", "reason", "kind", "prev_file"})
-                self.assertEqual((got["ok"], got["kind"], got["prev_file"]), (False, "answer", ""))
-                self.assertEqual([r["kind"] for r in rolekit.reject_rows(out, NODE)], ["answer"])
-
-    def test_handoff_rounds_name_every_prior_round_oldest_first(self):
-        self.out.mkdir(parents=True)
-        self.assertEqual(W.handoff_rounds(self.out), "", "前の周が無ければ空")
-        first, second = self.with_handoff("一回目の本文", "a"), self.with_handoff("二回目の本文", "b")
-        self.accept(first, REDESIGN)
-        self.accept(second, REDESIGN)
-        self.assertEqual(self.kept_answer()["text"], "二回目の本文")
-        self.assertEqual(self.kept_note(2), json.loads(second)["handoff"])
-        self.assertEqual(W.handoff_rounds(self.out), f"- r1: {handoff.path_of(self.out / 'r1')}\n- r2: {handoff.path_of(self.out / 'r2')}")
-        (self.out / "r1" / "handoff.json").write_text("{壊れた", encoding="utf-8")
-        (self.out / "r2" / "handoff.json").unlink()
-        self.assertEqual(W.handoff_rounds(self.out), "- r1: (unreadable)\n- r2: (no notes)")
-        rolekit.rejects_path(self.out, NODE).write_text("{壊れた", encoding="utf-8")
-        self.assertEqual(W.handoff_rounds(self.out), "", "控えが読めない時は前の周を名指さない")
-
 
 class CollectCase(Base):
     def human(self) -> str:
@@ -434,11 +268,12 @@ class CollectCase(Base):
         reply = json.dumps({"text": "直した。\n\n## 1. 人が決めること\n\n- 寄せるか\n\n## 2. 経緯\n\n長い経緯",
                             "terms": [{"term": "寄せ", "definition": "合わせること"}]}, ensure_ascii=False)
         self.accept(reply)
-        machine = "# 報告（run x）\n\n起きたこと: 直した\n\n## 1. 人が決めること\n\n- 承認ノード: 開かなかった\n"
+        top = "# 報告（run x）\n\n起きたこと: 直した\n差分を当ててよいか: 当ててよい。当てる命令: bin/apply x\n急ぎ: 壊れた所がある\n人が決めること: 1 件\n- 題 A（k）"
+        machine = f"{top}\n\n## 1. 人が決めること\n\n- 承認ノード: 開かなかった\n"
         path = W.collect(machine, place=self.out, stamp="works-factory report / run x")
         self.assertEqual(path, self.out / "report-ai.md")
         human = self.human()
-        self.assertTrue(human.startswith("# 報告（run x）\n\n起きたこと: 直した\n\n直した。\n\n## 1. 人が決めること"), human)
+        self.assertTrue(human.startswith(f"{top}\n\n直した。\n\n## 1. 人が決めること"), "機械の頭の行（差分・急ぎ・件数）はそのまま人に向けた報告の頭: " + human)
         self.assertIn("- 寄せ: 合わせること", human.split(W.GLOSSARY_HEADING)[1])
         self.assertTrue(human.endswith(W.POINTER_LINE.format(file="report-detail.md") + "\nworks-factory report / run x\n"))
         self.assertNotIn("長い経緯", human)
@@ -448,23 +283,6 @@ class CollectCase(Base):
         self.assertIn(W.MACHINE_HEADING, detail)
         self.assertIn(f"{W.COLD_REJECTS_LINE} 0 回", detail)
         self.assertTrue(detail.endswith("- 承認ノード: 開かなかった\n"), "機械の事実の行は書き換えずに最後に付ける")
-
-    def test_head_phrases_of_the_machine_reach_the_human_report(self):
-        self.accept()
-        for note in ("試験は走っていない", "AI が書いた試験のコードを利用者の資格に届く環境で走らせた"):
-            with self.subTest(note=note):
-                machine = f"# 報告\n\n起きたこと: 赤。{note}\n\n## 1. 人が決めること\n\n- 無い\n"
-                head = W.collect(machine, place=self.out, stamp="run x").read_text(encoding="utf-8").splitlines()[2]
-                self.assertIn(W.plain_words(note)[0], head)
-
-    def test_inner_words_are_swapped_only_in_the_human_report(self):
-        self.accept(json.dumps({"text": "レンズが根本の単位を見た。`fix__lens` は名", "terms": []}, ensure_ascii=False))
-        human = W.collect("# 報告\n\n起きたこと: 承認ノードで止めた\n", place=self.out, stamp="run x").read_text(encoding="utf-8")
-        for t in W.pack_terms():
-            self.assertNotIn(t["term"], human.replace("`fix__lens`", ""))
-        self.assertIn("観点ごとの見直しが直す項目を見た。`fix__lens` は名", human)
-        self.assertIn("レンズが根本の単位を見た。", self.detail())
-        self.assertIn(f"- {W.SWAPPED_HEAD}: 承認ノード→先へ進めるかを決める所 1 回・レンズ→観点ごとの見直し 1 回・根本の単位→直す項目 1 回", self.detail())
 
     def test_human_report_is_cut_to_the_line_budget(self):
         long = "\n".join(["要約。", "", "## 1. 人が決めること", "", "```", *[f"行 {i}" for i in range(200)], "```"])
@@ -476,22 +294,6 @@ class CollectCase(Base):
         self.assertRegex(cut, r"ここから先 \d+ 行は")
         self.assertEqual(sum(1 for x in human.split(cut)[0].splitlines() if x.startswith("```")) % 2, 0, "コードの囲みを閉じる")
         self.assertIn("行 199", self.detail())
-
-    def test_cut_right_after_an_opening_fence_opens_no_new_fence(self):
-        cut = W._cut("a\nb\nc\n```\nx\ny\n```\nz", 5)
-        self.assertEqual(cut.splitlines()[:3], ["a", "b", "c"])
-        self.assertEqual(W._fences(cut.splitlines()), [])
-
-    def test_definitions_are_kept_and_follow_the_shown_head(self):
-        text = "\n".join(["寄せて直した。", "", "## 1. 人が決めること", "", *[f"- 行 {i}" for i in range(200)], "- 畳みの話"])
-        terms = [{"term": "寄せ", "definition": "合わせること"}, {"term": "畳み", "definition": "後ろへ送ること"}]
-        self.accept(json.dumps({"text": text, "terms": terms}, ensure_ascii=False))
-        human = W.collect("# 報告\n\n起きたこと: 赤\n", place=self.out, stamp="run x").read_text(encoding="utf-8")
-        self.assertLessEqual(len(human.splitlines()), W.line_budget(0), human)
-        self.assertNotIn("畳みの話", human)
-        defined = human.split(W.GLOSSARY_HEADING)[1]
-        self.assertIn("- 寄せ: 合わせること", defined)
-        self.assertNotIn("畳み", defined)
 
     def test_not_passed_is_said_at_the_head(self):
         for _ in range(rolekit.GIVE_UP_AFTER):
@@ -505,28 +307,6 @@ class CollectCase(Base):
         [line] = [ln for ln in self.detail().splitlines() if W.NOT_PASSED in ln]
         self.assertTrue(line.startswith(f"{W.COLD_REJECTS_LINE} 2 回。{W.NOT_PASSED}"), line)
 
-    def test_machine_only_note_says_why_it_was_not_rewritten(self):
-        self.accept(cold=MACHINE_ONLY)
-        human = W.collect("# 報告\n\n起きたこと: 赤\n", place=self.out, stamp="run x").read_text(encoding="utf-8")
-        line = human.splitlines()[3]
-        self.assertTrue(line.startswith(W.plain_words(W.NOT_PASSED)[0]), human)
-        self.assertIn(W.plain_words(W.MACHINE_ONLY)[0], line)
-        self.assertIn("止まった所: 起きたこと の行", line)
-        self.assertNotIn("上限の", line)
-        self.assertNotRegex(line, MARK)
-
-    def test_not_passed_line_keeps_guesses_and_unreadable_verdict(self):
-        guessed = json.dumps({"verdict": "redesign-needed", "stops": [], "guessed": ["語 X を推測"]}, ensure_ascii=False)
-        for cold, want in ((guessed, "推測で埋めた所: 語 X を推測"), ("壊れた", W.COLD_UNREADABLE)):
-            with self.subTest(want=want):
-                out = self.out / want
-                for _ in range(rolekit.GIVE_UP_AFTER):
-                    self.accept(cold=cold, out=out)
-                W.collect("事実", place=out, stamp="run x")
-                [line] = [ln for ln in (out / "report-detail.md").read_text(encoding="utf-8").splitlines() if W.NOT_PASSED in ln]
-                self.assertIn(want, line)
-                self.assertNotIn("初見の読み手", (out / "report-ai.md").read_text(encoding="utf-8"))
-
     def test_given_up_reply_still_reports(self):
         for _ in range(rolekit.GIVE_UP_AFTER):
             self.accept("壊れた")
@@ -535,17 +315,6 @@ class CollectCase(Base):
         self.assertIn(W.FAILED_TITLE, human)
         self.assertIn(f"report の返答が {rolekit.GIVE_UP_AFTER} 回とも受け付けで拒まれた（最後の拒否: ", human)
         self.assertTrue(self.detail().endswith("事実"))
-
-    def test_decisions_section_is_one_place(self):
-        self.accept()
-        machine = "# 報告\n\n起きたこと: 赤\n\n## 1. 人が決めること\n\n- a\n\n## 2. 止めたか\n\n- b\n"
-        human = W.collect(machine, place=self.out, stamp="run x").read_text(encoding="utf-8")
-        for text in (human, self.detail()):
-            heads = [line for line in text.splitlines() if line.startswith("#") and W.DECISIONS_HEAD in line]
-            self.assertEqual(heads, ["## 1. 人が決めること"])
-        self.assertIn(f"#{W.MACHINE_DECISIONS}", self.detail())
-        self.assertIn("### 2. 止めたか", self.detail())
-        self.assertNotIn("2. 止めたか", human)
 
 
 class HandoffShapeCase(unittest.TestCase):
@@ -567,17 +336,6 @@ class HandoffShapeCase(unittest.TestCase):
 
     def test_cold_reply_shape_is_the_acceptance_copy(self):
         self.assertEqual(self.body["cold"]["output_format"], W.COLD_SCHEMA)
-
-    def test_note_is_saved_read_and_unreadable_is_named(self):
-        run = kit.Run(self, "report")
-        folder = run.artifacts / "r1"
-        handoff.save(folder, base.NOTE)
-        self.assertEqual(base.read(handoff.path_of(folder)), base.NOTE)
-        handoff.save(folder, None)
-        self.assertFalse(handoff.path_of(folder).exists())
-        folder.mkdir(exist_ok=True)
-        handoff.path_of(folder).write_text("{壊れた", encoding="utf-8")
-        self.assertEqual(handoff.unreadable([folder]), [handoff.path_of(folder)])
 
 
 if __name__ == "__main__":

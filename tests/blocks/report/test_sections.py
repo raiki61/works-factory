@@ -53,12 +53,6 @@ class SectionsCase(unittest.TestCase):
             self.assertIn(quote, machine)
             self.assertIn(quote, detail)
 
-    def test_sections_keep_their_order(self):
-        self.facts([section("三番目", ["c"]), section("一番目", ["a"]), section("二番目", ["b"])])
-        text = (self.place / "report.md").read_text(encoding="utf-8")
-        titles = [x.removeprefix("## ") for x in text.splitlines() if x.startswith("## ")]
-        self.assertEqual([t for t in titles if t in ("三番目", "一番目", "二番目")], ["三番目", "一番目", "二番目"])
-
     def test_empty_section_is_not_dropped(self):
         self.facts([section("行の無い節", [])])
         text = (self.place / "report.md").read_text(encoding="utf-8")

@@ -247,6 +247,12 @@ bin/works-factory workflow run works-factory-merge \
 - 指示の比べ（README 11.4）: AI の node を持たないので無い。
 - keep-essence と封じた差分の守りの試験は 8 節。
 
+2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込み・封じ・apply・PR の道の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
+- `ShapeTest` の `test_header`・`test_nodes_are_place_the_pr_path_and_the_return`・`test_only_archon_pr_is_started_as_a_child`・`test_output_format_is_the_contract`。頭の `returns`・`outcome_field`・`interactive` は tests/layers の `test_block_returns.py`・`test_gates.py`、`mutates_checkout` の印は `test_readonly_nodes.py`、起こす子が `archon-pr` だけなのは `test_no_asf.py`、返りの形は script の試験が毎回 `output_format` で照らす（`run_node`）。`test_inputs_are_the_contract` は、照らしの節が答え・緑・目・R2・封じた hash を同じ名の入力から受ける 1 行だけを `test_place_reads_each_input_under_its_own_name` に残した（筋書きは節 `place` を stub で差すので、別の入力を結ぶ誤りはここだけが見る）。PR の道が語 pr の照らしの後だけ走る `test_pr_path_runs_only_after_the_check_for_the_word_pr` は、`mode != 'seal'`（封じの時に push しない）を見るのがこれだけなので残した。
+- `NeverFailsTest` の `test_lib_missing`。入力も lib も無い木で返す節が落ちず形に合うことは tests/workflows の `test_returns_never_fail.py` が全部の返す節に当てる。空の mode と知らない mode を封じの形の ok: false に倒して書かない（空の mode を check に倒すと、承認を照らさずに apply.diff を置ける）・base が空・R2 が読めない・答えが読めない・出口の語・git でない木の 7 本は封じと apply の判断なので残した。入力 `mode` が既定の値を持たず必須であることは `test_place_reads_each_input_under_its_own_name` に残した。
+- `ReportTest` の `test_not_ok_names_the_mode_and_the_reason`・`test_pr_made_stopped_and_unconfirmed`・`test_default_word_has_no_pr_lines_and_no_hit_or_apply_lines`（報告の行の字。判断は欄 `ok`・`deliver` が運び、`HandedTest` が見る）。封じた差分が消すファイルを名指す行と、読めない差分を名指す行の 2 本は、人が当てるかの判断の材料なので残した。
+- `FixturesTest` の全部（筋書きの数と形。筋書きが通るかは tests/layers の `test_block_shape.py` の `ArchonCase`）。筋書きは 1 本も消していない。
+
 ## 12 未確認
 
 - 5 節の命令の正確な形。
