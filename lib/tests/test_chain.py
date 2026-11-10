@@ -1,12 +1,10 @@
 """周の鎖の決め lib/chain.py と、結末の種の表 report.OUTCOME_KINDS の検査（純粋な関数を直に呼ぶ。ファイル・git は使わない）。
 
-今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/tests/test_chain.py の Decide・NextRequest・Fences を元の試験名のまま写した。
+今の works（版 2aa7c66cf7abe1fe09699ac2942d107123214168）の works/tests/test_chain.py の Decide・NextRequest を元の試験名のまま写した（語と import の柵 Fences は落とした）。
 起こした次の周の状態を読む 2 本（test_launched_pending_waits_while_child_lives・test_relaunch_is_capped_and_names_the_child_log）は、
 起動と待ちをグラフの側が持つようになったので写さない。
 """
-import ast
 import pathlib
-import re
 import sys
 import unittest
 
@@ -122,14 +120,6 @@ class Decide(unittest.TestCase):
         self.assertEqual(self.go([row(1, cost=0.0, cost_read=False)], budget_usd=100.0)["word"], "cost_unread")   # 0 と読まない
         self.assertEqual(self.go(unread)["act"], "launch")                       # 上限が無ければ読めなくても止めない
         self.assertEqual(self.go(rows)["act"], "launch")
-
-    def test_stops_table_is_not_stopby(self):
-        """鎖の止めの語は run の中の止めの理由（stopby）とは別の表。起動を殻が持った時の 2 語は持たない"""
-        import stopby
-        self.assertFalse(set(chain.STOPS) & set(getattr(stopby, "REASONS", {})))
-        self.assertEqual(set(chain.STOPS), {"rounds_reached", "closed", "halted", "human", "no_change", "same_items", "budget",
-                                            "cost_unread"})
-
 
 class Step(unittest.TestCase):
     def test_error_halts_with_the_reason(self):
@@ -281,13 +271,6 @@ class Render(unittest.TestCase):
 
 
 class OutcomeKindsTest(unittest.TestCase):
-    def test_keys_match_outcomes_and_values_are_kinds(self):
-        """結末の種の表は結末の語の 10 語ちょうどを鍵に持ち、値は鎖の 5 つの種のどれか"""
-        import report
-        self.assertEqual(set(report.OUTCOME_KINDS), set(report.OUTCOMES))
-        self.assertEqual(len(report.OUTCOMES), 10)
-        self.assertLessEqual(set(report.OUTCOME_KINDS.values()), set(chain.KINDS))
-
     def test_kinds_group_the_outcomes(self):
         """種の分け方は鎖の安全に効く: open だけが次の周を起こし、closed だけが閉じ、人の止めは止まり、要確認は人へ回る"""
         import report
@@ -299,22 +282,6 @@ class OutcomeKindsTest(unittest.TestCase):
             chain.KIND_WAIT: {"interrupted"},
             chain.KIND_HALTED: {"stopped_by_request", "stopped_by_human", "stopped_by_line", "record_invalid"},
         })
-
-
-class Fences(unittest.TestCase):
-    def test_chain_names_no_outcome_word(self):
-        """結末の語を字で持てるのは結末の住処だけ。鎖は種（OUTCOME_KINDS）だけを引く"""
-        import report
-        text = (LIB / "chain.py").read_text(encoding="utf-8")
-        for word in report.OUTCOMES:
-            self.assertIsNone(re.search(rf"[\"']{word}[\"']", text), word)
-
-    def test_layer_one_imports(self):
-        """chain は標準ライブラリと持ち越しの住処 carry・見出しの宣言 promptsection だけを import する"""
-        tree = ast.parse((LIB / "chain.py").read_text(encoding="utf-8"))
-        names = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
-        names |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
-        self.assertLessEqual(names - set(sys.stdlib_module_names), {"carry", "promptsection"})
 
 
 if __name__ == "__main__":

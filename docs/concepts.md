@@ -75,7 +75,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 - 住処: 入口の変換 `lib/entryshape.py`（差分の根の名指しの解き `change_base`・差分も依頼の行も無い入力の拒み `refuse_empty`・入口の入力の形を作る `build`・依頼の文 `request_text`・名指した PR と issue の読み `github_reads`・PR の添え物の置き `write_pr_file`）
 - 約束: 入口の入力の形（`build` が返す `{base, head_rev, diff, requests, request_file, pr, spec}`）。後ろのノードはこの中身——差分が空か・依頼の行の数・PR の添え物・仕様の段を挟むか——だけを読み、入口の種類を見ない
 - 知ってよい所: 住処と、メイングラフの始めのノードの script `workflows/line/scripts/start.py`（メイングラフの入力 `INPUTS_BASE`・`INPUTS_PR` を住処へ渡す）と、周の鎖の始めのノードの script `workflows/chain/scripts/chain_start.py`（鎖の入力 `INPUTS_BASE`・`INPUTS_PR` を 1 周目の子へ写し、1 周目に名指した PR の番号を次の依頼で運ぶ）。入口の種類で分かれる形と消した種の名は住処だけ
-- 今: 柵は、差分の根の名指しを読む・渡す形と、入口の種類で分かれる形・消した種の名の 2 本。試験 `lib/tests/test_concept_fences.py` の `FenceCase` が表のこの行を読み、柵が本当に当たることも見る。殻の `bin/_lib/startpoint.py` の `SKIP_FLAGS` の行は Archon の旗 `--base` を名指す写しで、入口の入力ではないので結んだ写し（bound）として数えない。試験 `tests/shared/test_archon_contract.py` が並びを Archon の旗に照らし、写しの行がその 1 行だけである事を縛る
+- 今: 柵は、差分の根の名指しを読む・渡す形と、入口の種類で分かれる形・消した種の名の 2 本。柵が本当に当たるかを照らす試験は無い（照らしていた `FenceCase` は 2026-11-10 の削りで消した。持ち主の決め `tests-guard-writes`）。殻の `bin/_lib/startpoint.py` の `SKIP_FLAGS` の行は Archon の旗 `--base` を名指す写しで、入口の入力ではないので結んだ写し（bound）として数えない。試験 `tests/shared/test_archon_contract.py` が並びを Archon の旗に照らし、写しの行がその 1 行だけである事を縛る
 
 ### `web-get` 機械の web の取得と run をまたぐ控え
 
@@ -237,7 +237,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 - 状態: 住処あり
 - 住処: `workflows/test-gate/src/certify.py`（証拠の文 `test-gate/<mode>/evidence.md` の走らせ方・ログの行の頭 `RUN_ROW`・`LOG_ROW`。lib は workflows を import できない（E3）ので、書き手の block の `src/` が持ち、返す node の script `workflows/test-gate/scripts/result.py` がそれを通して書く。持ち主の決め `evidence-prefix-one-home`）
 - 約束: 行の値は出力の欄 `suites_line`・`log` と同じ字。報告と最後の承認ノードは証拠の文を開かずに出力の欄を `lib/declared_checks.py` の `gate_values` で読む
-- 知ってよい所: 住処だけ。柵の外の試験と通しの照らし（`tests/e2e/evidence.json`）は `tests/blocks/test_gate/test_test_gate.py` の `EvidenceRowsCase` が住処の定数から引くことを縛る
+- 知ってよい所: 住処だけ。柵の外の試験と通しの照らし（`tests/e2e/evidence.json`）が住処の定数から引くことを縛る試験は無い（2026-11-10 の削りで消した。人が見る）
 - 今: 既知の漏れは、2026-11-05 の数え直しで載せた `workflows/line/src/final.py`・`workflows/test-gate/src/certify.py` の 2 ファイル 2 行（`workflows/line/scripts/ask_final.py` の `tests_lines` の行は消えていた）
 
 ### `accept-round` 受け付けの回（返答を読む・拒否を控えに積む・上限で諦める・最後の回か）

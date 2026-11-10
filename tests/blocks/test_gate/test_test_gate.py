@@ -124,20 +124,9 @@ class YamlCase(unittest.TestCase):
                     self.assertIsNone(re.search(word, text), word)
 
 
-class EvidenceRowsCase(unittest.TestCase):
-    """証拠の文の行の頭（走らせ方・ログ）の持ち主は src/certify.py の RUN_ROW・LOG_ROW だけ（持ち主の決め evidence-prefix-one-home）。
-    試験と通しの照らしはここから引く"""
-    # 同じ字の頭を持つ別の文（最後の承認ノードの文の行。ask_final.tests_lines）を照らす試験
-    FINAL_GATE_TESTS = {"tests/workflows/test_gate_head.py", "tests/workflows/test_line.py"}
-
-    def test_tests_draw_the_prefixes_from_certify(self):
-        certify = kit.load("test-gate", "certify")
-        for path in sorted((ROOT / "tests").rglob("*.py")):
-            rel = path.relative_to(ROOT).as_posix()
-            text = path.read_text(encoding="utf-8")
-            prefixes = (certify.RUN_ROW,) if rel in self.FINAL_GATE_TESTS else (certify.RUN_ROW, certify.LOG_ROW)
-            with self.subTest(rel):
-                self.assertEqual([p for p in prefixes if p in text], [])
+class ReservedCaseCase(unittest.TestCase):
+    """試験の道具が 1 件ごとの結末を書く前に終わった回の予約の 1 件（baseline_red の SYNTH_*）を、試験を走らせた回と読まない
+    （未実行を緑と数えない）"""
 
     def test_a_run_of_only_the_reserved_case_is_a_red_without_outcomes(self):
         """試験の道具が 1 件ごとの結末を書く前に赤で終わった回（予約の 1 件だけ）は、試験 1 件を走らせた回と書かず、元と今を試験ごとに比べない"""
@@ -186,17 +175,6 @@ class EvidenceRowsCase(unittest.TestCase):
         material = certify.runner_material("final", run)
         self.assertEqual(material["status"], "found")
         self.assertIn(baseline_red.SYNTH_CAUSE, material["detail"])
-
-    def test_e2e_evidence_rows_start_with_the_prefixes(self):
-        certify = kit.load("test-gate", "certify")
-        rows = json.loads((ROOT / "tests" / "e2e" / "evidence.json").read_text(encoding="utf-8"))
-        heads = [p.removeprefix("- ") for p in (certify.RUN_ROW, certify.LOG_ROW)]
-        texts = [r["text"] for r in rows if str(r.get("where", "")).endswith("/evidence.md")
-                 and str(r.get("where")).startswith(("parent/test-gate-base/", "parent/test-gate-final/")) and any(h in str(r.get("text")) for h in heads)]
-        self.assertTrue(texts)
-        for text in texts:
-            with self.subTest(text):
-                self.assertTrue(text.startswith((certify.RUN_ROW, certify.LOG_ROW)), text)
 
 
 class ScriptCase(unittest.TestCase):

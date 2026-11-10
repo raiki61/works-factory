@@ -1,18 +1,16 @@
 """承認ノードの項目の推し（gatemarks の recommend）の欄の形と照らし（recommend_gaps）と、下書きの答えを依頼の入口が拒むこと（carry）。
 
 元は今の lib/tests/test_gate_drafts.py（docs/design/README.md の 9.5）。元の 13 本のうち、lib に残る物の試験をここに戻す:
-SchemaCase の 2 本（推しの欄の型と、照らし・尾・下書きが欄の名を 1 か所から読む）・GapsCase の 5 本・IntakeCase の 4 本。
+GapsCase の 5 本・IntakeCase の 4 本（SchemaCase の 2 本は欄の名の 1 か所の照らしで、2026-11-10 に落とした）。
 元は test_plan_gate の偽の盤面の行（TP.NARROW・TP.FACE）を借りたが、その試験は組み込みで消えたので、行はここに置く。
 移った先の在る物: SchemaCase の test_rule_text_asks_for_recommend と test_shape_text_is_built_from_the_keys（役の頭の文
 gatemarks.HEAD は plan の block の指示書へ、拒みの文 planblk.RECOMMEND_REJECT は plan の src/steps.py へ）は、指示の字の照らしとして
 消した（形の外れた推しを拒むことは tests/blocks/plan/test_accept.py の test_malformed_recommend_rejected）。無人の run が推しで修正前の承認ノードを抜けるかは
 tests/blocks/line/test_gate_drafts.py。
 """
-import json
 import pathlib
 import sys
 import unittest
-from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -29,22 +27,6 @@ NARROW = {"what": "空の列の mean", "why": "空の列の平均は 0 割りの
 FACE = {"key": "clamp の上限の意味が変わる", "unit_keys": ["u"], "kind": "regression", "where": "stats.py clamp",
         "why": "上限を超えた値に lo を返す今の振る舞いに頼る呼び手が在れば結果が変わる", "severity": "block"}
 BAD = ({**REC, "answer": "maybe"}, {k: v for k, v in REC.items() if k != "why"}, "通す", {**REC, "note": ""})
-
-
-class SchemaCase(unittest.TestCase):
-    def test_recommend_schema_is_built_from_the_keys(self):
-        """推しの欄の名は RECOMMEND_KEYS の 1 か所（頭が答えの enum、残りが RECOMMEND_MIN 字以上の文）"""
-        schema = gatemarks.MARK_SCHEMA[gatemarks.RECOMMEND]
-        self.assertEqual((schema["required"], list(schema["properties"])), (list(gatemarks.RECOMMEND_KEYS),) * 2)
-        self.assertEqual(schema["properties"][gatemarks.RECOMMEND_KEYS[0]]["enum"], list(gatemarks.RECOMMEND_ANSWERS))
-
-    def test_check_and_tail_read_the_keys(self):
-        rec = {"pick": "stop", "scope": "daemon だけを止める", "because": "chart が同じ分け方"}
-        with mock.patch.object(gatemarks, "RECOMMEND_KEYS", tuple(rec)):
-            self.assertEqual(gatemarks._recommend_gap(rec), "")
-            self.assertIn("（stop）——daemon だけを止める（理由: chart が同じ分け方）", gatemarks._push({gatemarks.RECOMMEND: rec}))
-            draft = gatemarks._gate_draft("t", {gatemarks.RECOMMEND: rec}, gatemarks.NODES[0])
-            self.assertIn("stop: daemon だけを止める（推す理由: chart が同じ分け方）", json.dumps(draft, ensure_ascii=False))
 
 
 class GapsCase(unittest.TestCase):

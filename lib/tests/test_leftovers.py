@@ -1,10 +1,8 @@
-"""lib/leftovers.py の試験（元 test_fix_seams の TestLeftovers と test_blk_fix の TestLeftoversModule。integration.md 4.2-6・4.2-7）。
+"""lib/leftovers.py の試験（元 test_fix_seams の TestLeftovers。integration.md 4.2-6）。
 
 - record_ignored・remove_new_ignored: 控えに無かった無視されるファイルだけを消し、前から在った無視されるフォルダの中は残し、
   除くパスの頭の下は消さない。既定の () では除かない。控えは置き場のフォルダに置く
-- leftovers は標準ライブラリだけを読む
 """
-import ast
 import json
 import pathlib
 import sys
@@ -156,17 +154,6 @@ class TestLeftovers(TempCase):
             with self.assertRaisesRegex(leftovers.Unreadable, "dirs"):
                 leftovers.remove_new_ignored(self.place, self.repo, skip=SKIP)
             self.assertTrue((self.repo / "__pycache__" / "x.pyc").exists())
-
-
-class TestLeftoversModule(unittest.TestCase):
-    def test_leftovers_is_stdlib_only(self):
-        """標準ライブラリだけ（lib のほかのモジュールは読まない。消した物のファイルの名も自分で持つ）"""
-        tree = ast.parse((LIB / "leftovers.py").read_text(encoding="utf-8"))
-        self.assertFalse(any(isinstance(n, ast.ImportFrom) and n.level for n in ast.walk(tree)))
-        names = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
-        names |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level == 0}
-        self.assertTrue(names)
-        self.assertEqual(sorted(names - set(sys.stdlib_module_names)), [])
 
 
 if __name__ == "__main__":

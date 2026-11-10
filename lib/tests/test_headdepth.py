@@ -1,7 +1,6 @@
 """run の頭の深さの語と控えの読み（lib/headdepth.py。issue #441）の検査。関数を直に呼び、一時の置き場に控えを書くだけ。
 
 見る物:
-- 段の語と並び（前は depth.py。integration.md 4.5-6）と控えの名（integration.md 4.3-5）
 - 控えが無い・壊れた時は標準。控えは群の選びを持つ
 - 報告の ## 模型 の群の選びの行
 行ごとの未知の種類・機械の止め・引用の照らしは head-depth の試験、報告の冒頭 2 の行は line の試験へ移った。
@@ -19,13 +18,6 @@ if str(LIB) not in sys.path:
 
 import headdepth  # noqa: E402
 import launchgroups  # noqa: E402
-
-
-class WordsTest(unittest.TestCase):
-    def test_tier_words_and_record_name(self):
-        self.assertEqual(headdepth.HEADS, (headdepth.LIGHT, headdepth.STANDARD, headdepth.HEAVY))
-        self.assertEqual(headdepth.HEADS, ("軽量", "標準", "重厚"))
-        self.assertEqual(headdepth.RECORD, "depth-head.json")
 
 
 class RecordTest(unittest.TestCase):

@@ -1,8 +1,8 @@
 """次の run への持ち越しの住処（.shared/core/carry.py。考え carry-over）の検査。
 
-書き手（報告）と読み手（依頼の入口）が同じ欄の名と同じ JSON Schema を引くこと・住処の外に持ち越しの字が漏れないこと・
+推しの印が答えの印であること・読み手が prior_failures の行を Schema で照らすこと・
 下書きの行の作りと依頼の解き方が往復すること・行の鍵の決まりを見る（計画 docs/plans/2026-10-09-chained-rounds.md の Task 1）。
-関数を直に呼ぶだけ（一時の置き場のファイルのほか、git・盤面・子のプロセスなし。柵の照らしは git ls-files を読む）。
+関数を直に呼ぶだけ（一時の置き場のファイルのほか、git・盤面・子のプロセスなし）。
 """
 import pathlib
 import sys
@@ -20,28 +20,7 @@ def carry():
     return m
 
 
-class Fence(unittest.TestCase):
-    def test_ghreads_keeps_only_github_reads(self):
-        """ghreads は名指した PR・issue の読みだけを持つ（依頼の容器の形は carry へ移った）"""
-        import ghreads
-        for name in ("KEYS", "ANSWER_KEYS", "DRAFT_KEYS", "PRIOR_KEYS", "CI_WHERE", "request_parts", "without_prior", "carry_ci"):
-            self.assertFalse(hasattr(ghreads, name), name)
-
-
 class Contract(unittest.TestCase):
-    def test_constants_match_schemas(self):
-        """欄の名の定数が約束の Schema の欄と揃う（書き手と読み手が同じ約束を読む）"""
-        c = carry()
-        nxt, prior = c.schema(c.NEXT_SCHEMA), c.schema(c.PRIOR_SCHEMA)
-        self.assertEqual(tuple(prior["items"]["properties"]), c.PRIOR_KEYS)
-        self.assertEqual(nxt["properties"][c.PRIOR]["items"], prior["items"])
-        self.assertEqual(set(nxt["required"]), {c.FINDINGS, c.PRIOR})
-        self.assertLessEqual(set(nxt["properties"]), set(c.KEYS))
-        for key in (c.FINDINGS, c.ANSWERS):
-            self.assertLessEqual(set(c.DRAFT_KEYS), set(nxt["properties"][key]["items"]["properties"]), key)
-        self.assertEqual(c.DRAFT_KEYS, (c.DRAFT, c.SOURCE))
-        # ANSWER_KEYS（人が見直した答えの欄）と Schema の answers（下書きの欄）は別の物で、揃えない
-
     def test_pushed_mark_is_the_answer_mark(self):
         """answers の推しの印の欄は lib/answer.py の PUSHED と同じ名（続きの run の依頼で、推しの行が推しのまま読まれる）。配列でなければ拒む"""
         import answer
