@@ -15,7 +15,7 @@ Words used below: a *step* is one part of the work (a check, a review, a fix); t
 
 - **Do not change the facts.** Every number that exists in the facts you were given is written with the same value. A number you counted yourself names where you counted it from. Do not rewrite an outcome that was already decided.
 - **Do not repeat what is appended anyway.** If the facts are attached to the report as they are, do not list them again in the body; add what happened and what a person should decide.
-- **Do not rewrite or copy fixed head lines.** If some head lines are fixed sentences built from the record before your text, do not rewrite them or copy them into your text. They carry no reasons; your summary supplies them.
+- **Do not rewrite or copy fixed head lines.** If some head lines are fixed sentences that the reporting machinery builds from the record and places before your text, do not rewrite them or copy them into your text. They carry no reasons; your summary supplies them.
 - **Do not recommend a new option yourself.** Give only the options and recommendations that the record already holds, with their reasons and where they come from. If the record holds none, say that it holds none.
 - **A question written only in internal vocabulary cannot be decided.** Labels, step names, internal marks, stable keys and ids must be replaced with plain words.
 - **When there is nothing to decide, say nothing about it.** Do not write a stock phrase that there is nothing to decide, not in the summary either, and do not put an empty decisions section. Asking nothing tells the reader no input is awaited.
@@ -43,7 +43,7 @@ Gather every decision in one place right after the summary. Do not scatter quest
 - Keep "needs a fix" and "needs a redesign" apart; "needs a fix" is not a reason to discard the change.
 - A sign that a correct fix may have been dropped (for example a group removed because it turned red on a re-check) is an item too.
 - Do not point into internals in an item (`<path>:<line>`, positions in a record, internal keys, row ids, record file names). Say in plain words what the thing is; leave references to later sections and name those sections by heading.
-- A choice phrased as "pass" or "do not pass", or a command shown without its consequence: say what is being passed, what happens after each choice, and what happens if nobody chooses.
+- A choice phrased as "pass" or "do not pass", or a command shown without what happens after it is chosen: say what is being passed, what happens after each choice, and what happens if nobody chooses.
 - A bare reference (an issue or pull request number, a file name, a command): say in a few words what it is and what a person does with it.
 - Several findings that may or may not be the same decision: say whether they are separate, which comes first, and who does it (a person or the next piece of work).
 - A notice that is not a decision: say in one sentence what it means for the reader, and what to do if they must act.
@@ -57,7 +57,7 @@ Fold the details briefly under headings; do not narrate progress or your own wor
 - How the work was entered and every request it carried, with origins and counts; do not lump a person's request and a machine's request together, and drop none. If no review looked beyond the request before the fix, say so even if the work looks finished.
 - The outcome and the step that stopped the work, as the facts give them.
 - For each part of the work, what was done or why nothing was needed; the defects accepted to be fixed later.
-- The verdict and reason of each independent review, unchanged, with an explanation for the reader; what the review of the code comments the change added removed and what it kept. If a review did not run, say so.
+- The verdict and reason of each independent review, copied unchanged, with an explanation for the reader. For the review that checks the code comments the change added, also the comments it removed and the comments explaining why that it kept. If a review did not run, say so.
 - The state of each open question and the grounds it was settled or the reason it went to a person.
 - The raw answer of the judgment, copied as it is, the source of the original purpose, and the version before the fix.
 - Observation of the main path: what was run where and what was observed. "The tests are green" is not an observation.
@@ -95,14 +95,14 @@ Return the body of the report in this order: the plain summary, the decisions se
 
 ## Example
 
-Input: the record of a fix says the tests passed, a review found one capability lost (export to a file no longer works), and the record recommends restoring it.
+Input: the record of a fix not yet applied says the tests passed, a review found one capability lost (once the fix is applied, export to a file no longer works), and the record recommends restoring it.
 
 Reply:
 ```
-Fixed the date shown in the order list. Nothing is broken now, but exporting to a file stopped working; one decision, not urgent.
+Fixed the date shown in the order list. The fix is not applied yet, so nothing is broken now; but applying it stops exporting to a file from working. One decision, not urgent.
 
 ## What to decide (1, not urgent)
-Restore exporting to a file? Restoring is a small fix; leaving it means users export by hand. The record recommends restoring (a reviewer's note). If nobody decides, exporting stays off.
+Restore exporting to a file within the fix? Restoring is a small fix; applying the fix without it means users export by hand. The record recommends restoring (a reviewer's note). If nobody decides, the fix stays unapplied.
 ```
 
 ## Works well with

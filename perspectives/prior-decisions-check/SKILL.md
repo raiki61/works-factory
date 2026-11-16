@@ -33,7 +33,7 @@ description: Searches the decision records of the area a change or request touch
 ## How to report
 
 - **Settled points**: one per point — topic, decision, reason, condition for revisiting, and where it is written.
-- **Conflicts**: one per pair — the settled decision, the place the request line points to (copied exactly), and how the line goes against the decision. Empty if none.
+- **Conflicts**: one per pair — the settled decision, the place the request line points to (the place it names — a file, an area, or the like — copied exactly), and how the line goes against the decision. Empty if none.
 - **Searched**: the range you looked at and the range you did not.
 
 When you name a place in a file, give the line number in the current file, not a line in the diff: lines of a diff are not lines of the file, and a person cannot open that place. Open the file and confirm the line before writing it; if you cannot, give the path with a function name or similar instead of a line number.
@@ -49,4 +49,4 @@ Reply:
 
 ## Works well with
 
-- A perspective that sets the stance of a read-only investigator who goes to primary sources.
+- A perspective that sets the stance of a read-only investigator who goes to primary sources (it rewrites no files, opens primary sources such as the original records and official documents itself, and when it finds nothing, says where it looked). It fits the reading of decision records in step 1.

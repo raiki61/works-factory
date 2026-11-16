@@ -9,7 +9,7 @@ description: Sorts every comment a change added or rewrote into remove, naming w
 
 If only removals carry a duty, keeping a comment silently becomes the cheaper choice. Both sides carry one here, and both can be checked later, so the result does not stay an opinion.
 
-The general stance of a comment reviewer — verify every claim of a comment against the code, prefer "why" over "what", flag comments that will rot, write for the least experienced future maintainer, advise only — is defined by the comment-analysis review agent the owner relies on (`comment-analyzer` of the `pr-review-toolkit` plugin). When that definition is available, it is the stance; this file does not copy it. When it is not, work from the summary above. What this file keeps is the owner's rule for turning that stance into removals and keeps.
+The general stance of a comment reviewer — verify every claim of a comment against the code, prefer "why" over "what", flag comments that will rot, write for the least experienced future maintainer, advise only — is defined by the comment-analysis review agent the owner (the person who wrote this perspective) relies on (`comment-analyzer` of the `pr-review-toolkit` plugin). When that definition is available, it is the stance; this file does not copy it. When it is not, work from the summary above. What this file keeps is the owner's rule for turning that stance into removals and keeps.
 
 ## Pitfalls (read first)
 
@@ -23,7 +23,7 @@ The general stance of a comment reviewer — verify every claim of a comment aga
 
 ### Which comments may stay
 
-The only notes that may be written are the reason another solution was rejected (the why) and the documentation of public interfaces. A comment that only says what the code does is a removal candidate — but its removal still needs the named place in "How to report".
+The only notes that may be written are the reason another solution was rejected (the why) and the documentation of public interfaces. A comment that only says what the code does is a removal candidate — but only if you can name where the same content lives; if you cannot, it goes among the kept, like every other comment that is not a removal candidate.
 
 ### Search explicitly for these triggers
 

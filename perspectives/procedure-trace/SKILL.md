@@ -29,7 +29,7 @@ Missing prerequisites and the wrong environment slip past reading; they are usua
 ## Done when
 
 - Every changed procedure was followed from the initial state, step by step, with the state tracked.
-- Each step was run, or returned as unmeasured with the command and how it was refused or why it was not run.
+- Each step was either run or returned as unmeasured. Each unmeasured step carries the command and how it was refused, or why it was not run.
 - Each finding has: **the mechanism** (one sentence on the causal chain); **a measurement** (run what can be run; otherwise say "unmeasured" and present it as a hypothesis); **a self-refutation** done first (if you cite a rule, check that its condition applies and read the surrounding reality; submit only what you could not kill); and **a false-positive estimate** (one line on when the finding would be wrong).
 
 ## How to report
@@ -44,4 +44,4 @@ Reply: Finding: a first-time reader following from the top fails at step 3, beca
 
 ## Works well with
 
-- A stance for a read-only investigator who goes to primary sources.
+- A stance for a read-only investigator who goes to primary sources (it rewrites no files, opens primary sources such as the original records and official documents itself, and when it finds nothing, says where it looked).

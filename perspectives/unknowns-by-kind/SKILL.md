@@ -1,13 +1,13 @@
 ---
 name: unknowns-by-kind
-description: Names, for each request line, the one kind of unknown left (none, cause, shape, or scope), each backed by a verbatim quote, so the heaviest kind decides what happens next. Use when a request is about to be fixed, or when asked "do we know enough to fix this yet". Not for remeasuring the request's numeric claims.
+description: Names, for each request line, the one kind of unknown left (none, cause, shape, or scope), each backed by a verbatim quote, so the heaviest kind decides what happens next. Use when a request is about to be fixed, or when asked "do we know enough to fix this yet". Not for remeasuring whether the counts and presence claims written in a request still hold.
 ---
 
 # Name the kind of unknown in each request line, and do what that kind asks
 
 **Core rule: a request line is not equally clear everywhere. Name what is unknown about it, and do the work that kind of unknown asks — no more, no less. Give a lighter kind only where you can show it with quotes; when in doubt, choose "cause".**
 
-Why the asymmetry: light handling is only for a request where the place to fix and the way to fix it are known on every line. A request wrongly handled lightly hides, until after the fix, holes that should have been found before it. Standard handling, wrongly chosen, only costs more and does no harm. Heavier handling (a second check of the judgment, a per-item review of the plan) costs much more again. The heaviest kind among the lines decides the handling of the whole request.
+Why the asymmetry: light handling is only for a request where the place to fix and the way to fix it are known on every line. A request wrongly handled lightly hides, until after the fix, holes that should have been found before it. Standard handling, wrongly chosen, only costs more and does no harm. Heavier handling (a second check of the judgment, a per-item review of the plan) costs much more again. The heaviest kind among the lines decides the handling of the whole request. From lightest up: none gets light handling, cause and shape get standard handling, and scope gets heavier handling.
 
 ## Pitfalls (read first)
 

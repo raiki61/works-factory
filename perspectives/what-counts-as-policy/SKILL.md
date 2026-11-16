@@ -25,7 +25,7 @@ Only from these:
 3. people's answers when the work stopped to ask them;
 4. the settled points an earlier check listed.
 
-When work goes on with no person to answer, the recommendations it took where it stopped to ask, or for a question a judgment held open for a person, are not a person's decision, but they are conditions that work follows, and count the same way.
+One more thing counts as recorded policy in the same way. When work goes on with no person there to answer, it takes its own recommendation in place of a person's answer: where it stopped to ask, or on a question a judgment left open for a person. Such a recommendation is not a person's decision, but it is a condition that work chose to follow.
 
 ### How to use it
 
