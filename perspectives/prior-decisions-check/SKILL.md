@@ -1,6 +1,6 @@
 ---
 name: prior-decisions-check
-description: Searches the decision records of the area a change or a request touches (ADRs, the ledger of deliberate deferrals, rejected issues and pull requests, closed issues) and lists the settled points — topic, decision, reason, condition for revisiting, and where it is written — then names every request line that would overturn one of them. Use before changing an area that has history, before accepting a request, or when asked "was this already decided", "did we reject this before", "check this against earlier decisions".
+description: Searches the decision records of the area a change or request touches (ADRs, ledgers of deliberate deferrals, rejected issues and pull requests) and names every request line that would overturn a settled point. Use when the area to change has a history, or when asked "did we reject this before". Not for checking whether a change's cited grounds existed before it.
 ---
 
 # Check a change or a request against earlier decisions
@@ -18,10 +18,35 @@ description: Searches the decision records of the area a change or a request tou
 - **Say what you searched and what you did not.**
 - **Read only.**
 
+## Steps
+
+1. Search the decision records of the area the change touches — decision records such as ADRs, the ledger of deliberate deferrals, rejected issues and pull requests, closed issues — or, when there is no diff yet, of the places the request points to.
+2. List each settled point with its topic, decision, reason, condition for revisiting, and where it is written.
+3. For each request line, compare what it asks with the settled points, and note every line that would overturn one.
+
+## Done when
+
+- Every settled point carries where it is written.
+- Every request line that would overturn a settled point is named. Whether it overturns one was judged by what the line asks, not by where it points.
+- The range you searched and the range you did not are written down; if you could not search, that is said instead of "no settled points".
+
 ## How to report
 
 - **Settled points**: one per point — topic, decision, reason, condition for revisiting, and where it is written.
 - **Conflicts**: one per pair — the settled decision, the place the request line points to (copied exactly), and how the line goes against the decision. Empty if none.
 - **Searched**: the range you looked at and the range you did not.
 
-Works well with (optional; this file does not need it): a perspective that sets the stance of a read-only investigator who goes to primary sources.
+When you name a place in a file, give the line number in the current file, not a line in the diff: lines of a diff are not lines of the file, and a person cannot open that place. Open the file and confirm the line before writing it; if you cannot, give the path with a function name or similar instead of a line number.
+
+## Example
+
+Input: a request line "remove the limit on upload retries". A decision record in the area says: retry uploads at most three times, because the storage provider blocks clients that retry more; revisit if the provider changes.
+
+Reply:
+- Settled points: upload retries — at most three — the provider blocks clients that retry more — revisit if the provider changes — the decision record on upload retries.
+- Conflicts: the request line "remove the limit on upload retries" asks for no limit, which overturns the three-retry decision.
+- Searched: decision records and closed issues about uploads. Not searched: rejected pull requests.
+
+## Works well with
+
+- A perspective that sets the stance of a read-only investigator who goes to primary sources.

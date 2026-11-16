@@ -1,13 +1,15 @@
 ---
 name: objection-rejudge
-description: Reconsiders a binding review judgment when the fixing side objects to it, as the judge in a fresh context — letting the objection through only on a new fact, checking each claimed fact against the real code and records, never accepting or rejecting unchecked, keeping the authority to rewrite the judgment, never lowering a label, and admitting the judge's own mistakes. Use when someone pushes back on a triage or review verdict, or when asked "they disagree with the judgment", "re-judge this objection", "is this pushback valid".
+description: Reconsiders a binding review verdict when the fixing side objects, letting the objection through only on a new fact checked against the real code, never lowering a label, and admitting the judge's own mistakes. Use when someone pushes back on a verdict, or when told "they disagree with the judgment". Not for giving a first judgment.
 ---
 
 # Re-judge an objection to a judgment
 
 **Core rule: an objection passes only if it brings a new fact, and you check that fact yourself. Accepting without checking and rejecting without checking are both forbidden.**
 
-Why: a written discipline said "if you object to a judgment, do not overturn it yourself; have a role in a different context re-judge it", but nothing closed that loop on the record. In practice the exchange happened in side conversations and left no trace, so a record could not tell it from a step that passed on the first try (measured once: five exchanges happened in one run and only one was left; in two of them the judging code itself changed while the judgment was being made). Going through a re-judgment leaves the exchange itself on the record.
+Why: a written discipline said "if you object to a judgment, do not overturn it yourself; have a role in a different context re-judge it", but nothing closed that loop on the record. In practice the exchange happened in side conversations and left no trace, so a record could not tell it from a judgment that passed on the first try (measured once: five exchanges happened in one piece of work and only one was left; in two of them the code of the system running the judgment itself changed while the judgment was being made). Going through a re-judgment leaves the exchange itself on the record.
+
+Here a unit is one item of the judgment: a bundle of findings with its label and its way to fix.
 
 ## Pitfalls (read first)
 
@@ -18,7 +20,11 @@ Why: a written discipline said "if you object to a judgment, do not overturn it 
 - **Do not lower a label** (from block to suggest, for example).
 - **How you answer does not change with how many times you have been asked.** Counting the exchanges is someone else's job.
 
-## What to do
+## Steps
+
+"What to do" applies every time; read "When the input is not enough" when what you need to check the objection is missing, and "If your own prescription was wrong, say so" when your check shows the first judgment erred.
+
+### What to do
 
 1. Check each fact the objection gives **against the real thing**: the lines concerned, a reproduction of the measurement, a search. If you cannot run anything, reproduce by reading the records (logs, materials) and the code, and see whether the value comes out the same.
 2. For a fact you cannot check — including one that cannot be checked without running something — say so: start with "Cannot check:" and write what you could not read and what you could not compare. That is a check result, not a refusal to check. **Do not use an unchecked fact as a ground for accepting.**
@@ -26,14 +32,40 @@ Why: a written discipline said "if you object to a judgment, do not overturn it 
 4. Rewrite only the units that need to change, but hand back the whole set of units, including the ones you did not change, so nothing disappears by omission.
 5. Give, in one line, why you judged so.
 
-## When the input is not enough
+If a policy applies, judge the objection against it too, and do not let through on your own anything that cannot hold without changing it.
+
+### When the input is not enough
 
 If what you need to check the objection (its sentence, the lines it points at, a file) is in neither the materials nor the repository, there is no ground to change the judgment: reject, keep the units as they were, and say "Not enough:" with what is missing and what you could not check. This is a reply that says it could not check, not a rejection without checking. If not even one fact of the objection could be checked, it is the same.
 
-## If your own prescription was wrong, say so
+### If your own prescription was wrong, say so
 
-It has happened: a zero prescription the judge wrote (the smallest fix: withdraw, or settle it with one existing mechanism) lacked one word, and the step that applied it on the fixing side went red. A judgment that admits its mistake works better in the next round than one that does not.
+It has happened: a zero prescription the judge wrote (the smallest fix: withdraw, or settle it with one existing mechanism) lacked one word, and the fixing side's attempt to apply it failed. A judgment that admits its mistake works better in the next judgment than one that does not.
 
-If a policy applies, judge the objection against it too, and do not let through on your own anything that cannot hold without changing it.
+## Done when
 
-Works well with: a perspective that first sorts a fix request and its review findings into root-cause units, each with a label and a fix.
+- Every fact the objection gives has been checked against the real thing, or marked "Cannot check:" with what could not be read or compared.
+- The verdict rests only on checked facts.
+- No label is lowered.
+- The whole set of units is in hand, changed and unchanged.
+
+## How to report
+
+- The verdict: accept, reject, or accept in part.
+- For each fact of the objection, what you checked and what you saw, or "Cannot check:" with what you could not read and compare; "Not enough:" first when the input was missing.
+- The whole set of units, with only those that needed to change rewritten.
+- One line on why you judged so.
+
+## Example
+
+Input: the fixing side objects that a block unit is wrong because "this function is never called with an empty list", and cites a search that found two callers.
+
+Reply:
+- Verdict: reject.
+- Checked: the cited search finds the two callers, but a third caller on another path passes the result of a filter that can be empty (its path and line).
+- Units: all returned; none changed; the block stays a block.
+- Why: the new fact claimed does not hold in the code.
+
+## Works well with
+
+- A perspective that first sorts a fix request and its review findings into root-cause units, each with a label and a fix.

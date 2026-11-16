@@ -1,6 +1,6 @@
 ---
 name: merge-parallel-fixes
-description: Reconciles a fix that was made in parallel with others and broke when merged on top of them (tests went red, or the text conflicted), by finding which premise of this fix the earlier fix broke, keeping the earlier fix intact, adding this fix's intent, and touching only the files this fix changed — or by saying plainly that the two cannot hold together. Use when parallel branches or worktrees are merged and tests go red, when resolving conflict markers between two fixes, or when asked to "make these two fixes work together", "resolve this merge without reverting the other fix".
+description: Reconciles a fix made in parallel that broke when merged on top of others, by finding which premise the earlier fix broke, keeping the earlier fix intact, and touching only this fix's files. Use when parallel branches conflict, or when "tests went red after merging both branches". Not for checking open pull requests for overlap before anything is merged.
 ---
 
 # Make a parallel fix hold together with the fixes merged before it
@@ -17,16 +17,42 @@ Fixes made in separate working trees are applied one after another. When this fi
 - **Stay inside the files this fix changed** (plus any files you were explicitly allowed). Remove files that running the tests produced.
 - **Leave no conflict marker.** Remove every marker line, and do not write a line that looks like one (such as a heading underline of the same length).
 
-## How to reconcile
+## Steps
+
+The subsections apply both to a first merge and to a merge retried after someone ruled how to fix the clash; the retried case adds one rule in "How to reconcile".
+
+### How to reconcile
 
 - In conflicted files, keep the side that is already in the working tree (the earlier fix) and add the intent of the side being applied (this fix).
-- If a ruling already decided how to fix it, follow the ruling's text.
+- If someone has already ruled how to fix the clash, follow the text of that ruling.
 - Run the tests of both fixes and the tests the red output names yourself, and confirm green before you return.
 
-## When it cannot hold
+### When it cannot hold
 
-If, however you fix within the files you may touch, the earlier fix and this fix cannot both hold — or the test's expectation itself is wrong, or the way the problem was cut or planned is wrong — say so without changing anything (put back what you changed). Write why they cannot hold together and name the places (`<path>:<line>`). That goes to someone who rules on it.
+If, however you fix within the files you may touch, the earlier fix and this fix cannot both hold — or the test's expectation itself is wrong, or the way the problem was cut or planned is wrong — say so without changing anything (put back what you changed).
 
-## What to report
+## Done when
 
-What you fixed and how, the tests you ran and their results, and every file whose content you changed (including files written by a command, with why).
+- The tests of both fixes and the tests the red output names are green, run by you.
+- The earlier fix is intact, and no test was loosened.
+- You changed only the files this fix changed (plus any you were explicitly allowed), no conflict marker or marker-like line is left, and files produced by running the tests are removed.
+- Or, when the two cannot hold, everything you changed is put back.
+
+## How to report
+
+What you fixed and how, the tests you ran and their results, and every file whose content you changed (including files written by a command, with why). When the two cannot hold, write why they cannot hold together and name the places (`<path>:<line>`).
+
+## Example
+
+Input: an earlier fix made `load` return an empty list instead of nothing for a missing file. This fix, applied after it, adds a caller that checks for nothing, and `test/report_test:12` goes red.
+
+Reply:
+
+- What broke: this fix assumed `load` returns nothing for a missing file; the earlier fix changed that.
+- Fix: the new caller at `src/report:30` now checks for an empty list. The earlier fix is unchanged.
+- Tests run: the tests of both fixes and `test/report_test:12` — all green.
+- Files changed: `src/report`.
+
+## Works well with
+
+- A read-only view that rules which side gives way when two fixes cannot be made to hold together.
