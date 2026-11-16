@@ -56,3 +56,4 @@ A query you send to a service that does not hold the target (search words, URLs,
 - To check a word used only inside the target (in-house jargon), look up its definition restated in general words and the candidate standard terms, not the word itself.
 - Do not run a lookup that cannot be done without the owner's names. Say that it was not run because it needs the target's names, and leave it for a person.
 - A query to a place that already holds the target (its own repository host) is not an outside query.
+- If you start a sub-agent, put these rules, word for word, into its instructions. They do not reach it otherwise.
