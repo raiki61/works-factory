@@ -32,12 +32,13 @@ By default a run asks you at the start and at the end, and in between only when 
 
 ## Requirements
 
-The entry script checks Python, `bun`, Claude Code and the plugins when it starts; if one is missing, it prints what to install (one line each) and stops.
+The entry script checks Python, `bun`, `uv`, Claude Code, the authentication and the plugins when it starts; if something is missing, it prints what to install (one line each) and stops. The checks that stop it (`bun`, `node` while the Archon source is not yet in the cache, `uv`, Claude Code and the authentication) all run before it fetches the source or starts Archon, and it lists every one that fails in a single stop. A tool counts as working when `<tool> --version` exits 0 where the script runs it (version-manager shims choose a version per directory); for one that does not, the line shows its real path, the exit code and the first lines of its standard error, which is where a version manager prints its fix.
 
 - macOS, Linux, or Linux inside WSL2 on Windows. On Windows without WSL2 the entry scripts (`bin/works-factory`, `bin/apply`) stop with a one-line message: there Claude Code runs commands outside its sandbox, so the factory's write limits would silently stop applying, and Archon needs WSL2 for git worktrees and shell steps. Install WSL2 (`wsl --install`), clone the factory inside the Linux side, and run it from there (owner decision `windows-via-wsl2`).
 - Python 3.12 or later (the entry script `bin/works-factory` refuses older versions).
 - git.
 - `bun` (https://bun.sh). The script uses it to start Archon.
+- `uv` (https://docs.astral.sh/uv/). Archon's script nodes run with it, so commands that run a workflow need it.
 - A clone of this repository: `git clone https://github.com/raiki61/works-factory`.
 - Network access to GitHub on the first start: the script clones the Archon source at the pinned commit (`factory/pack.json`) into a cache and reuses it after that.
 - Claude Code (the `claude` command), logged in. Your normal login is used; for long runs see `CLAUDE_CODE_OAUTH_TOKEN` under "Usage".
@@ -88,7 +89,7 @@ The entry point is a single shell script, `bin/works-factory`, and you type Arch
 - Kept TDD runners: when a run omits the input `tdd_suite`, a TDD runner that passed the check is kept once per user, keyed by the text of `test_cmd`, and reused across targets. It lives in `<home>/suites/` when you pass `WORKS_FACTORY_HOME`, otherwise in `${XDG_STATE_HOME:-~/.local/state}/works-factory/suites/`. To drop them, delete the folder (the next run has the AI write a runner again).
 - A marker the target repository can rely on: the role's claude and its children (such as the target's tests started by the role's Bash) get `GRAPHLOOPS_ENGINE_CHILD=1`. A target's heavy suites (such as e2e) can use this value to recognize a start from an AI role and refuse. It is not set for what script nodes run, such as the main graph's final tests.
 - Login credentials expire after a few hours, so for long runs put a token made with `claude setup-token` in `CLAUDE_CODE_OAUTH_TOKEN` when starting the script (or name a command that prints it in `WORKS_FACTORY_OAUTH_TOKEN_COMMAND`).
-- When the script stops for authentication, its line gives the reason first, then the short fix for your OS and situation, then the general list of ways to authenticate.
+- When the script stops for authentication, its line gives the reason first, then the short fix for your OS and situation, then the general list of ways to authenticate. When other start checks fail too, the authentication item in the list keeps only the reason and the short fix and points here for the general list.
 
 From Claude Code, the same will be possible with `/works` (the works plugin of raiki61/claude-plugins).
 

@@ -19,7 +19,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -273,8 +272,12 @@ def git_fetch(repo: str, commit: str, dest: Path) -> None:
 
 
 def bun_install(source: Path) -> None:
-    """源の bun.lock のとおりに依存を入れる。lock は書き換えない"""
-    subprocess.run(["bun", "install", "--frozen-lockfile"], cwd=source, check=True)
+    """源の bun.lock のとおりに依存を入れる。lock は書き換えない。落ちたら、bun の標準エラーの末尾を載せた 1 行の RuntimeError"""
+    done = subprocess.run(["bun", "install", "--frozen-lockfile"], cwd=source, stderr=subprocess.PIPE, text=True,
+                          encoding="utf-8", errors="replace")
+    if done.returncode != 0:
+        tail = " ".join(done.stderr.split())[-300:]
+        raise RuntimeError(f"bun install が終了の値 {done.returncode} で落ちた" + (f": {tail}" if tail else ""))
 
 
 def bun_build(entry: Path, out: Path) -> None:
@@ -310,11 +313,10 @@ def forge_plugin(pack: dict, source: Path, cache: Path, build: Build = bun_build
 def archon_source(pack: dict, cache: Path, fetch: Fetch = git_fetch, install: Install = bun_install) -> Path:
     """Archon の源を archon_folder(cache, commit) に取り、依存を入れて返す。在れば照らしてから使い、取らない。
 
-    bun が無い・取れない・依存が入らない・本体か ASF のグラフが源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
+    取れない・依存が入らない・本体か ASF のグラフが源に無ければ、途中まで取った物を残さず（前に取った物は残す）、
     何が取れなかったかを 1 行の RuntimeError で言う。在った物が照らしに合わなければ、消して取り直す案内つきの RuntimeError。
+    bun が起きるかは、殻が副作用の前にまとめて確かめる（bin/_lib/launcher.py の preflight）。
     """
-    if shutil.which("bun") is None:
-        raise RuntimeError("bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh")
     archon = pack["archon"]
     dest = archon_folder(cache, archon["commit"])
     if dest.is_dir():

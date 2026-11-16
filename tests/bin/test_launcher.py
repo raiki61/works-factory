@@ -1,7 +1,7 @@
 """入口の殻 bin/works-factory（bin/_lib/launcher.py）の試験。
 
 殻を子のプロセスとして、tests/bin/fakelaunch.py の使い捨ての木（偽の Archon の源）で走らせる。PATH には偽の bun・claude・gh・
-security と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
+security・uv と、python3・git だけを置く。偽の bun は受けた引数と環境を JSON に書き、試験がそれを照らす（トークンは在るかだけを見る。環境は名の一覧で照らし、落ちた時に値を
 試験の出力に出さない）。
 """
 import hashlib
@@ -47,6 +47,9 @@ if service and service == os.environ.get("FAKE_SECURITY_SERVICE") and os.environ
 sys.exit(44)
 """
 
+# 起動の前の確かめの uv --version だけに答え、ほかの起こし方は落ちる（表を名指さない起動が uv で何も走らせないことも照らす）
+FAKE_UV = "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'uv 0.0.0 (fake)'; exit 0; fi\necho \"fake uv: not for $*\" >&2\nexit 3\n"
+
 
 # 利用者の --config を読む bun -e だけ本物の bun に回し、ほかは FAKE_BUN と同じに記録する
 def read_with_real_bun(bun: str) -> str:
@@ -81,6 +84,7 @@ class LauncherTest(unittest.TestCase):
         write_fake_claude(self.fake)
         self.gh = put(self.fake / "gh", FAKE_GH)
         put(self.fake / "security", FAKE_SECURITY)
+        put(self.fake / "uv", FAKE_UV)
         self.target = self.tmp / "target"
         (self.target / "sub").mkdir(parents=True)
         git(self.target, "init", "-q")
@@ -1314,15 +1318,17 @@ class LauncherTest(unittest.TestCase):
             "    sys.exit(0 if p.is_file() else 1)\n" + FAKE_BUN.split("\n", 2)[2])
         # 偽の uv は、この試験の Python（PyYAML を持つ）で script を回す（本物の uv は script の宣言から PyYAML を入れる）
         put(self.fake / "uv", "#!/usr/bin/env python3\nimport os, sys\nargs = sys.argv[1:]\n"
+            "if args == ['--version']:\n    print('uv 0.0.0 (fake)')\n    sys.exit(0)\n"
             f"assert args[:2] == ['run', '--script'], args\nos.execv({sys.executable!r}, [{sys.executable!r}, *args[2:]])\n")
         return {"FAKE_RECORDS": str(records)}
 
-    def test_runs_without_a_spec_table_read_no_table_and_need_no_uv(self):
-        """表を名指さない起動は表も審査の記録も読まず、uv も起こさない（PATH に uv が無くても今どおり起こす）。run の層も今のまま"""
+    def test_runs_without_a_spec_table_read_no_table(self):
+        """表を名指さない起動は表も審査の記録も読まず、uv で何も走らせない（偽の uv は --version のほかは落ちる）。run の層も今のまま"""
         argv = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))["argv"]
         self.assertEqual(self.layer(argv), self.factory_layer())
 
     def test_spec_table_without_uv_stops_before_archon(self):
+        (self.fake / "uv").unlink()
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "spec_table=t.yaml"))
         self.assertIn("uv が要る", err)
 
@@ -1369,7 +1375,9 @@ class LauncherTest(unittest.TestCase):
                 f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
             done = self.launch("workflow", "cancel", run_id, "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
             self.assertEqual(done.returncode, 3, done.stderr)
-            got = [argv[argv.index(entry) + 1:] for argv in map(json.loads, calls.read_text(encoding="utf-8").splitlines())]
+            first, *rest = map(json.loads, calls.read_text(encoding="utf-8").splitlines())
+            self.assertEqual(first, ["--version"])   # 起動の前の確かめ（launcher.preflight）
+            got = [argv[argv.index(entry) + 1:] for argv in rest]
             self.assertEqual(got, [["workflow", "get", run_id, "--json", "--cwd", str(self.target)],
                                    ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
                                    ["workflow", "cancel", run_id, "--json", "--cwd", str(self.target)]])
@@ -1454,6 +1462,60 @@ class LauncherTest(unittest.TestCase):
         done = self.launch("workflow", "status")
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertFalse(mark.exists(), "対象の bunfig.toml の preload が走った")
+
+    def broken(self, name: str) -> pathlib.Path:
+        """どの引数にも終了 1 と決まった字を標準エラーに出す偽の道具（版管理の shim が、その場所の版を選べない時の代わり）"""
+        return put(self.fake / name, f"#!/bin/sh\necho 'fake {name}: no version is set here' >&2\n"
+                                     f"echo 'fix: pick a {name} version' >&2\nexit 1\n")
+
+    def test_preflight_lists_every_missing_tool_and_auth_at_once(self):
+        """起動の前の確かめ（計画 docs/plans/2026-11-16-start-preflight.md の 2 章 (a)）: 源がまだ無い時、bun・node が起きず認証も無ければ、
+        3 つを 1 つの止まりに箇条で並べ、源を取りに行かない（取り置きの置き場に源のフォルダを作らない）"""
+        self.broken("bun")
+        self.broken("node")
+        empty = self.tmp / "empty-cache"
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "request=x",
+                                       ANTHROPIC_API_KEY=None, XDG_CACHE_HOME=str(empty)))
+        lines = err.strip().splitlines()
+        self.assertTrue(lines[0].startswith(f"{launcher.NAME}: "), err)
+        bullets = [line for line in lines if line.startswith("- ")]
+        self.assertTrue(any(line.startswith("- bun") and "終了の値 1" in line for line in bullets), err)
+        self.assertTrue(any(line.startswith("- node") and "終了の値 1" in line for line in bullets), err)
+        self.assertTrue(any(line.startswith("- 認証の確かめ: ") for line in bullets), err)
+        # 箇条の認証は訳と短い直し方だけで、一般の文（auth_launch.HOWTO）は README を指す 1 行に替える（計画の 2 章 (c) の C2）
+        self.assertNotIn(auth_launch.HOWTO, err)
+        self.assertIn("README", lines[-1])
+        for name in ("bun", "node"):
+            self.assertIn(f"fake {name}: no version is set here", err)
+            self.assertIn(os.path.realpath(self.fake / name), err)
+        self.assertFalse((empty / "works-factory" / "archon").exists(), "止まるはずが源を取りに行った")
+
+    def test_preflight_one_problem_is_one_line(self):
+        """足りない物が 1 つなら、止まりは今のとおり 1 行（見出しと箇条にしない）"""
+        self.broken("bun")
+        err = self.stopped(self.launch("workflow", "status"))
+        self.assertEqual(len(err.strip().splitlines()), 1, err)
+        self.assertIn("bun", err)
+        self.assertIn("fake bun: no version is set here", err)
+
+    def test_preflight_missing_node_does_not_stop(self):
+        """node が見つからない時は止めない（bun install に任せる）。源がまだ無いので、取りに行って起こす"""
+        empty = self.tmp / "empty-cache"
+        self.assertIsNone(shutil.which("node", path=self.env["PATH"]))
+        self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x", XDG_CACHE_HOME=str(empty)))
+        self.assertTrue((empty / "works-factory" / "archon" / self.source.name).is_dir())
+
+    def test_preflight_skips_node_when_the_source_is_held(self):
+        """源が取り置き済みなら node は起こさないので見ない"""
+        self.broken("node")
+        self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))
+
+    def test_preflight_needs_uv_for_executing_commands(self):
+        """Archon の script のノードが uv を起こすので、実行する命令は uv が無ければ起こす前に止まる。読むだけの命令は uv を見ない"""
+        (self.fake / "uv").unlink()
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))
+        self.assertIn("uv が要る", err)
+        self.assertEqual(self.reached(self.launch("workflow", "status"))["argv"][-2:], ["workflow", "status"])
 
     def test_bun_missing_stops_with_one_line(self):
         self.bun.unlink()
