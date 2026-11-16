@@ -2,7 +2,9 @@
 """bin/ の起動が Claude Code の認証を拾い、Archon を起こす起こし役（標準ライブラリだけ・3.9）。
 
 順:
-1. 前の段: WORKS_FACTORY_KEYCHAIN_ITEM を名指していれば、その項目を claude_auth の read_keychain で読む。取れなければ次へ進まず止まる
+1. 前の段: WORKS_FACTORY_KEYCHAIN_ITEM を名指していれば、その項目を claude_auth の read_keychain で読む。取れなければ次へ進まず止まる。
+   keychain は macOS だけなので、ほかの OS では security を起こさず、この変数を外す訳と代わりの道を言って止まる（下の段へ飛ばさない。
+   持ち主の決め oauth-token-command）
 2. 真ん中: claude_auth の auth_env を丸ごと呼ぶ（受け継いだ認証 → CLAUDE_KEYCHAIN_SERVICE で名指した項目）。
    claude_auth の部品をここで並べ直さない
 2.5. apiKeyHelper の段: 真ん中が足せなかった時（親の環境の CLAUDE_CODE_OAUTH_TOKEN だけが認証の時も。Claude Code 自身の優先順は
@@ -22,6 +24,11 @@
    替えている見込みの注意を添える）。終了コードが 0 でない・JSON が読めない・authMethod が無いか none の時は成り立たないので、保存済みの
    ログインへ進まず、起動方法のパス・訳・逃げ道を言って止まる（ラッパーが鍵を置けなかった時に、役が黙って既定のアカウントで走らない）。
    CLAUDE_BIN_PATH が無い道は門を通らない。email・組織名は返さず、出さない
+2.6. トークンを出すコマンドの段（門の前。親の環境の CLAUDE_CODE_OAUTH_TOKEN と同じ位置で、それが在ればそちらを採って起こさない）:
+   WORKS_FACTORY_OAUTH_TOKEN_COMMAND（シェルのコマンドの字。空の字は無いもの）が在れば、apiKeyHelper と同じく利用者の HOME・XDG・
+   CLAUDE_CONFIG_DIR でシェルに渡して起こし、標準出力の前後の空白を除いた字を CLAUDE_CODE_OAUTH_TOKEN として子に渡す（値は表示も保存も
+   しない。標準エラーは端末へ流す。期限は付けない）。起こすのは exec の 1 回だけで、check は出どころの名だけを返す。失敗したらほかの段へ
+   落ちず、変数の名を言って止まる。子の環境からこの変数を外す（持ち主の決め oauth-token-command）
 3. 後ろの段: 真ん中と apiKeyHelper の段が足せなかった時だけ（起動方法の門を通らなかった時だけ）、Claude Code 自身の保存済みのログインを読む。macOS では keychain の項目、
    ほかの OS では利用者の <CLAUDE_CONFIG_DIR>/.credentials.json（隔離の前の値。無ければ <HOME>/.claude）。
    子の CLAUDE_CONFIG_DIR は隔離した置き場のままなので（claude_auth の段 3 は隔離の下では効かない）、トークンを
@@ -66,18 +73,27 @@ else:
 
 OAUTH = "CLAUDE_CODE_OAUTH_TOKEN"
 ITEM_ENV = "WORKS_FACTORY_KEYCHAIN_ITEM"   # 前の段で名指す keychain の項目名の置き場
+TOKEN_COMMAND_ENV = "WORKS_FACTORY_OAUTH_TOKEN_COMMAND"   # トークンを出すコマンドの置き場（段 2.6。子には渡さない）
 HOWTO = ("認証が無いか、確かめられない。API キーで使うなら ANTHROPIC_API_KEY（ゲートウェイなら ANTHROPIC_BASE_URL も）を環境に置いて起動する"
          "（設定の env に書いた接続の値——接続先・資格・proxy・証明書・alias と、選んだ Bedrock・Mantle・Vertex の公式の名——は子に運ぶ。"
          "設定の明示の資格は親の資格より勝つ。フック・権限・プラグインは運ばない）。API キーを返すコマンドを settings.json の apiKeyHelper に"
-         "書いていれば、それを起こしてキーを得る。keychain にトークンの項目が既に在るなら、その項目名を %s か CLAUDE_KEYCHAIN_SERVICE に"
+         "書いていれば、それを起こしてキーを得る。トークンを出すコマンドを %s に書けば、起動のたびにそれを起こしてトークンを得る"
+         "（設定の env に書けば、Claude Code の会話の中からでも毎回の手の配線が要らない）。macOS の keychain にトークンの項目が既に在るなら、その項目名を %s か CLAUDE_KEYCHAIN_SERVICE に"
          "設定する（毎回付けずに済ますなら、Claude Code の設定の置き場の settings.json の env に"
          " \"%s\": \"<項目の名>\" の組を書く）。項目の名は推して試さず、"
          "macOS なら security find-generic-password -s <項目の名> で在るかを確かめる（値を出す -w は付けない）。"
          "無ければ claude にログインするか、"
          "claude setup-token で作ったトークンを CLAUDE_CODE_OAUTH_TOKEN に置く。"
          "Bedrock・Mantle・Vertex を使うなら、公式の旗（CLAUDE_CODE_USE_BEDROCK など）を環境か設定の env に置く。"
-         "ラッパーを CLAUDE_BIN_PATH で渡せる") % (ITEM_ENV, ITEM_ENV)
-# CLAUDE_BIN_PATH を置いた時の逃げ道の住処。起動方法の門で止める 1 行は HOWTO（理由）の形で、理由がこれを持つ
+         "ラッパーを CLAUDE_BIN_PATH で渡せる") % (TOKEN_COMMAND_ENV, ITEM_ENV, ITEM_ENV)
+# keychain の無い OS で ITEM_ENV を名指した時の訳（項目の名を埋める）
+KEYCHAIN_MAC_ONLY = ("%s（keychain の項目 %%s）を名指しているが、keychain は macOS だけ。この OS ではこの変数を外す"
+                     "（設定の env に書いたなら、この OS の設定から外す）。トークンは %s か %s で渡せる") % (ITEM_ENV, TOKEN_COMMAND_ENV, OAUTH)
+# macOS 以外で受け継いだ認証も保存済みのログインも無い時の、この場面の短い直し方（訳のすぐ後、HOWTO の前に言う）
+IN_SESSION_WAY = ("Claude Code の会話の中の Bash には、その会話のログインのトークンが渡らない（claude auth status の loggedIn が false に"
+                  "なる）。claude setup-token で作った長期のトークンを出すコマンドを、設定の env の %s に書く（毎回の手の配線が要らない）か、"
+                  "打つ命令の前で %s に置く") % (TOKEN_COMMAND_ENV, OAUTH)
+# CLAUDE_BIN_PATH を置いた時の逃げ道の住処。起動方法の門で止める 1 行は stop_line の形（訳。HOWTO）で、訳がこれを持つ
 RUNTIME_ESCAPES = ("逃げ道は、ラッパーに鍵を環境変数で置かせる・CLAUDE_CODE_OAUTH_TOKEN を置く・"
                    "CLAUDE_BIN_PATH を外して PATH の claude を使う（CLAUDE_BIN_PATH を置いた時は保存済みのログインへ切り替えない）")
 CLAUDE_AI_NOTE = ("注意: ラッパーが CLAUDE_CONFIG_DIR か HOME を替えている見込み。役は利用者の設定（hooks・permissions・plugins）で走りうる。"
@@ -561,6 +577,13 @@ def runtime_auth(runtime, env):
     return method, None
 
 
+def user_token_runner(command, home, config):
+    """トークンを出すコマンド（TOKEN_COMMAND_ENV）を利用者の HOME・XDG・CLAUDE_CONFIG_DIR で起こす（apiKeyHelper と同じ起こし方。
+    設定のファイルの env は重ねない: この変数自体が設定の env から殻の env に来ている）"""
+    env = dict(helper_base_env(os.environ), HOME=home, CLAUDE_CONFIG_DIR=config)
+    return user_command(command, env, "%s のコマンドを起こしてトークンを得る" % TOKEN_COMMAND_ENV, shell=True)
+
+
 def run_helper(command, home, config, helper_runner):
     """(キー, 失敗の理由)。値は理由に入れない"""
     try:
@@ -574,14 +597,17 @@ def run_helper(command, home, config, helper_runner):
 
 
 def resolve(env, user_home, user_config, platform=sys.platform, runner=None, helper_runner=None, managed_dir=None, fetch=True,
-            runtime=None, probe=runtime_auth):
+            runtime=None, probe=runtime_auth, token_runner=None):
     """(子に足す認証の変数, 出どころの名, 止まる理由)。取れた時は止まる理由が None、取れない時は変数が None。
     fetch が偽（check）なら apiKeyHelper は起こさず、出どころの名とパスだけを返す（変数は空）。起こすのは exec の 1 回だけ。
     runtime は利用者が CLAUDE_BIN_PATH で置いた起動方法（無ければ None）。在れば、保存済みのログインの直前に probe(runtime, env)（試験で
     差し替える口。既定は runtime_auth）で起動方法の認証を確かめる門を置く。成り立てば子に何も足さず、成り立たなければ保存済みの
-    ログインへ進まずに止める。名指し・受け継いだ認証・CLAUDE_KEYCHAIN_SERVICE・apiKeyHelper・環境の OAuth の段は、今のまま門より上に効く"""
+    ログインへ進まずに止める。名指し・受け継いだ認証・CLAUDE_KEYCHAIN_SERVICE・apiKeyHelper・環境の OAuth・トークンを出すコマンドの段は、
+    今のまま門より上に効く。token_runner はトークンを出すコマンドを起こす口（試験で差し替える。既定は user_token_runner）"""
     runner = runner or user_runner(user_home)
     named = env.get(ITEM_ENV)
+    if named and platform != "darwin":   # keychain は macOS だけ。security を起こさず、外す訳で止める
+        return None, "keychain の項目 " + named, KEYCHAIN_MAC_ONLY % named
     if named:
         tok, note = claude_auth.read_keychain(named, runner)
         if not tok:
@@ -620,6 +646,15 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
         return {"ANTHROPIC_API_KEY": key}, "apiKeyHelper（%s）" % source, None
     if claude_auth.added(note):   # 設定の無い OAuth トークンだけの認証
         return {k: out[k] for k in claude_auth.INHERITED if claude_auth.active(k, out.get(k))}, OAUTH, None
+    token_command = env.get(TOKEN_COMMAND_ENV) or ""
+    if token_command.strip():   # 環境の CLAUDE_CODE_OAUTH_TOKEN と同じ位置。上の段が勝った時は起こさない
+        source = "トークンを出すコマンド（%s）" % TOKEN_COMMAND_ENV
+        if not fetch:
+            return {}, source, None
+        tok, miss = run_helper(token_command, user_home, config, token_runner or user_token_runner)
+        if not tok:
+            return None, source, "%s のコマンドが失敗した: %s" % (TOKEN_COMMAND_ENV, miss)
+        return {OAUTH: tok}, source, None
     if runtime:   # 起動方法を置いた時は、保存済みのログインへ切り替えない（ラッパーが鍵を置けなかった時に既定のアカウントで走らない）
         method, miss = probe(runtime, env)
         source = "起動方法 %s" % runtime
@@ -636,7 +671,7 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
     tok, miss = read_credentials(path)
     if tok:
         return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の保存済みのログイン %s" % path, None
-    return None, None, "%s、Claude Code の保存済みのログイン %s は%s" % (note, path, miss)
+    return None, None, "%s、Claude Code の保存済みのログイン %s は%s。%s" % (note, path, miss, IN_SESSION_WAY)
 
 
 def credential_export(home, config, source="", aws="", profile=""):
@@ -663,10 +698,16 @@ def credential_export(home, config, source="", aws="", profile=""):
 
 def child_env(env, got, named):
     """子の環境: 受けた環境（隔離した HOME・CLAUDE_CONFIG_DIR のまま）に認証の変数だけを足す。名指しで決めた時は、
-    それより上に効く資格を外す（外さないと名指しが効かない）"""
-    out = {k: v for k, v in env.items() if not (named and k in ABOVE_TOKEN)}
+    それより上に効く資格を外す（外さないと名指しが効かない）。トークンを出すコマンドの名（TOKEN_COMMAND_ENV）はいつも外す
+    （子はトークンを受けるので要らない。役の Bash が利用者のパスワードの置き場を打つ道を残さない事故の柵で、堅い境ではない）"""
+    out = {k: v for k, v in env.items() if not (named and k in ABOVE_TOKEN) and k != TOKEN_COMMAND_ENV}
     out.update(got)
     return out
+
+
+def stop_line(caller, why):
+    """止まる時の 1 行: 訳（この OS とこの場面の短い直し方を持つ時はそれも）→ 一般の文（HOWTO）の順"""
+    return "%s: %s。%s" % (caller, why, HOWTO)
 
 
 def main(argv):
@@ -703,7 +744,7 @@ def main(argv):
                              managed_dir=pathlib.Path(managed) if managed else None,
                              fetch=a.cmd == "exec", runtime=a.runtime or None)
     if got is None:
-        print("%s: %s（%s）" % (a.caller, HOWTO, why), file=sys.stderr)
+        print(stop_line(a.caller, why), file=sys.stderr)
         return 2
     if a.cmd == "check":
         print(name)
