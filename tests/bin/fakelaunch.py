@@ -16,7 +16,7 @@ from tests.bin.gitkit import git
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ENTRY = "packages/cli/src/cli.ts"
 
-# 殻の起動の前の確かめ（bun --version）には版を答えるだけで、FAKE_BUN_LOG に書かない。
+# 殻の起動の前の確かめ（bun --version）には版を、実体のパスの問い（-e "console.log(process.execPath)" で終わる起こし方）には自分の実パスを答えるだけで、FAKE_BUN_LOG に書かない。
 # FAKE_BUN_BREAK が在れば、run の記録を書いた後にそのフォルダを消して 1 で終わる（起こした後に origin に届かなくなって落ちた Archon の代わり）。
 # 殻が run の後に打つ記録の読み（workflow runs / get --json）は、run の記録（FAKE_BUN_LOG）を上書きせず、FAKE_BUN_LOG.reads に足す。
 # workflow get は FAKE_BUN_RUN_ROOT が在る時だけ（殻の外の get の試験は、いつもどおり FAKE_BUN_LOG に書く）。FAKE_BUN_RUN_ROOT が在れば、記録は「FAKE_BUN_LOG に書いた run の番号を持ち主にする run が、その置き場を持つ」と答え、無ければ run は 0 件
@@ -24,6 +24,9 @@ FAKE_BUN = """#!/usr/bin/env python3
 import json, os, sys
 if sys.argv[1:] == ["--version"]:
     print("0.0.0-fake")
+    sys.exit(0)
+if sys.argv[-2:] == ["-e", "console.log(process.execPath)"]:
+    print(os.path.realpath(sys.argv[0]))
     sys.exit(0)
 if sys.argv[3:5] in (["workflow", "runs"], ["workflow", "get"]) and "--json" in sys.argv \\
         and (sys.argv[4] == "runs" or os.environ.get("FAKE_BUN_RUN_ROOT")) and os.path.exists(os.environ["FAKE_BUN_LOG"]):

@@ -15,6 +15,8 @@
 - read_gh_first(env) -> None: 起動の殻が READ_GH_ENV で渡した読むだけの gh の置き場を env の PATH の頭に置く（無ければ何もしない）。
   script のノードの PATH の頭は利用者のログインを継ぐ書ける gh の口なので、対象のコマンド（AI が書いた試験のコードも走る）には
   役と同じ読むだけの口を先に見せる（持ち主の決め roles-read-only-gh。事故の柵で、堅い境ではない）
+- BUN_LINK_ENV: 起動の殻が子の PATH に足す、bun の実体を指すリンクを 1 つだけ置いた置き場の名（HOME・XDG を run の置き場へ向けた env では
+  版管理の shim が起きないため）。対象のコマンドは利用者の PATH で走るので、tree_run.outside_env がこの置き場を PATH から外し、名も残さない
 - ROOT_ENV: 起動の殻が script のノードに渡す工場の根の名。ports が import の時にこの値の先の lib/ を sys.path に足すので、対象のコマンドには
   継がない（tree_run.outside_env が外す）
 """
@@ -28,6 +30,7 @@ RAN_DIR_ENV = "WORKS_FACTORY_USER_ENV_RAN_DIR"
 RAN_FILE = "user-env-ran"
 MARK = "WORKS_FACTORY_USER_ENV_MARK"   # 戻した env にだけ在る、印のパス。子には渡さない
 READ_GH_ENV = "WORKS_FACTORY_READ_GH"   # 読むだけの gh の置き場（起動の殻が置く）
+BUN_LINK_ENV = "WORKS_FACTORY_BUN_LINK"   # 隔離した env のための bun の実体のリンクの置き場（起動の殻が置く。対象のコマンドの PATH からは外す）
 ROOT_ENV = "WORKS_FACTORY_ROOT"   # 起動の殻が script のノードに渡す工場の根。ports が import の時にこの値の先の lib/ を sys.path に足すので、対象のコマンドには継がない
 CONTROL = (RECORD, RAN_DIR_ENV, MARK)   # 工場が置く制御の変数。継いだ値は起動の殻（bin/_lib/isolate.py）と restore が外す
 NOTE = "AI が書いた試験のコードを、あなたの HOME・XDG（設定・認証の置き場）で走らせた。毎回の決まりで、あなたの操作は要らない"

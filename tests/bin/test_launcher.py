@@ -51,9 +51,9 @@ sys.exit(44)
 FAKE_UV = "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 'uv 0.0.0 (fake)'; exit 0; fi\necho \"fake uv: not for $*\" >&2\nexit 3\n"
 
 
-# 利用者の --config を読む bun -e だけ本物の bun に回し、ほかは FAKE_BUN と同じに記録する
+# 利用者の --config を読む bun -e だけ本物の bun に回し（実体のパスの問いは FAKE_BUN が自分のパスを答える）、ほかは FAKE_BUN と同じに記録する
 def read_with_real_bun(bun: str) -> str:
-    return (f"#!/usr/bin/env python3\nimport os, sys\nif '-e' in sys.argv:\n    os.execv({bun!r}, [{bun!r}, *sys.argv[1:]])\n"
+    return (f"#!/usr/bin/env python3\nimport os, sys\nif '-e' in sys.argv and sys.argv[-1] != {launcher.EXEC_PATH!r}:\n    os.execv({bun!r}, [{bun!r}, *sys.argv[1:]])\n"
             + FAKE_BUN.split("\n", 1)[1])
 
 
@@ -1142,14 +1142,14 @@ class LauncherTest(unittest.TestCase):
         self.assertFalse((empty / "role-cache").exists(), "片付けが根を作った")
 
     def test_fence_denies_what_later_launches_run_outside_the_sandbox(self):
-        """後の役の起動と次の起動が sandbox の外で走らせる物（殻・gh の口・本物の claude・包みを起こす Python・取り置いた Archon の源・
+        """後の役の起動と次の起動が sandbox の外で走らせる物（殻・gh の口・bun のリンク・本物の claude・包みを起こす Python・取り置いた Archon の源・
         TDD の実行器の取り置き〔次の run の試験の関門が走らせる〕・工場の checkout の根の全体〔根に置いた .py も次の起動の import に勝つ〕）は、
         禁じる一覧に入る"""
         env = self.reached(self.launch("workflow", "run", "works-factory-line"))["env"]
         argv = self.fence_of(env)
         own = {argv[i + 1] for i, a in enumerate(argv) if a == "--own"}
         home = self.default_home(self.target)
-        self.assertEqual(own, {str(home / launcher.FENCE_DIR), str(home / launcher.HOST_GH_DIR),
+        self.assertEqual(own, {str(home / launcher.FENCE_DIR), str(home / launcher.HOST_GH_DIR), str(home / launcher.BUN_LINK_DIR),
                                str(self.cache_home / "works-factory"),
                                str(self.home / ".local" / "state" / "works-factory" / launcher.SUITE_KEEP),
                                str(self.repo),
@@ -1372,11 +1372,15 @@ class LauncherTest(unittest.TestCase):
             run_id = unique_run_id()
             calls = self.tmp / f"bun-calls-{n}.jsonl"
             put(self.fake / "bun", "#!/usr/bin/env python3\nimport json, os, sys\n"
-                f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\nsys.exit(3 if 'cancel' in sys.argv else 0)\n")
+                f"open({str(calls)!r}, 'a').write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                f"if sys.argv[-2:-1] == ['-e']:\n    print(os.path.realpath(sys.argv[0]))\n"
+                "sys.exit(3 if 'cancel' in sys.argv else 0)\n")
             done = self.launch("workflow", "cancel", run_id, "--json", "--cwd", str(self.target), ANTHROPIC_API_KEY=None)
             self.assertEqual(done.returncode, 3, done.stderr)
-            first, *rest = map(json.loads, calls.read_text(encoding="utf-8").splitlines())
-            self.assertEqual(first, ["--version"])   # 起動の前の確かめ（launcher.preflight）
+            seen = list(map(json.loads, calls.read_text(encoding="utf-8").splitlines()))
+            # 起動の前の確かめ（launcher.preflight）: 利用者の env の版・実体のパスの問い・隔離した env の版
+            self.assertEqual([argv for argv in seen if entry not in argv], [["--version"], list(launcher.ASK_REAL), ["--version"]])
+            rest = [argv for argv in seen if entry in argv]
             got = [argv[argv.index(entry) + 1:] for argv in rest]
             self.assertEqual(got, [["workflow", "get", run_id, "--json", "--cwd", str(self.target)],
                                    ["workflow", "runs", "--all", "--limit", "1000", "--json", "--cwd", str(self.target)],
@@ -1522,6 +1526,58 @@ class LauncherTest(unittest.TestCase):
         err = self.stopped(self.launch("workflow", "status"))
         self.assertEqual(len(err.strip().splitlines()), 1, err)
         self.assertIn("bun が無い", err)
+
+    def shim(self, name: str, real: pathlib.Path | None = None) -> pathlib.Path:
+        """HOME が殻を起こした時の利用者の値でなければ、終了 1 と決まった字を標準エラーに出して落ちる偽の版管理の shim（HOME・XDG を run の
+        置き場へ向けた env で設定を見失う shim の代わり。計画 docs/plans/2026-11-16-start-preflight.md の 1 章の 5）。利用者の HOME なら real を起こす
+        （real が無ければ --version にだけ答える）"""
+        run = f"os.execv({str(real)!r}, [{str(real)!r}, *sys.argv[1:]])" if real else "print('0.0.0-fake')"
+        return put(self.fake / name, "#!/usr/bin/env python3\nimport os, sys\n"
+                                     f"if os.environ.get('HOME') != {str(self.home)!r}:\n"
+                                     f"    print('fake {name} shim: config files are not trusted', file=sys.stderr)\n"
+                                     "    sys.exit(1)\n" + run + "\n")
+
+    def test_archon_runs_the_real_bun_that_the_shim_names(self):
+        """計画の 2 章 (d) の D1: bun が版管理の shim で、隔離した env（HOME・XDG を run の置き場へ向けた env）では起きない時も、殻は利用者の env で
+        bun 自身に実体のパスを聞き、Archon をその実体で起こす。名で bun を起こす script のノード（archon-pr の runtime: bun）のために、run の
+        置き場の下の、実体を指す bun のリンクを 1 つだけ置いたフォルダを子の PATH に足し、その置き場を userenv.BUN_LINK_ENV で渡す
+        （対象のコマンドの PATH からは tree_run.outside_env が外す）。後の役が書き換えないよう、書き込みの柵の禁じる一覧にも入れる"""
+        real = put(self.tmp / "real-bun" / "bun", FAKE_BUN)
+        self.shim("bun", real)
+        got = self.reached(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))
+        self.assertEqual(got["argv"][0], str(real))
+        env = got["env"]
+        link = pathlib.Path(env[userenv.BUN_LINK_ENV])
+        folders = env["PATH"].split(os.pathsep)
+        first = next(pathlib.Path(folder) for folder in folders if shutil.which("bun", path=folder))
+        self.assertEqual(first, link, "子の PATH で最初に見える bun がリンクの置き場の物でない")
+        self.assertEqual(os.listdir(link), ["bun"])
+        self.assertEqual(os.path.realpath(link / "bun"), str(real))
+        self.assertTrue(link.is_relative_to(self.default_home(self.target)))
+        argv = self.fence_of(env)
+        own = [argv[i + 1] for i, a in enumerate(argv) if a == "--own"]
+        self.assertTrue(any(link.is_relative_to(path) for path in own), own)
+
+    def test_preflight_says_why_a_tool_that_wakes_for_the_user_fails_in_the_isolated_env(self):
+        """計画の 2 章 (d): uv は自分の実体のパスを言う口が無い。利用者の env では起きるのに隔離した env で起きない時は、Archon を起こさずに止め、
+        訳（HOME・XDG を run の置き場へ向けた env では shim が設定を見失う）と、道具の標準エラーの頭を言う。読むだけの命令は uv を見ない"""
+        self.shim("uv")
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "request=x"))
+        self.assertIn("uv", err)
+        self.assertIn("HOME・XDG を run の置き場へ向けた env では、版管理の shim が設定を見失って起きない", err)
+        self.assertIn("fake uv shim: config files are not trusted", err)
+        self.reached(self.launch("workflow", "status"))
+
+    def test_preflight_lists_isolated_failures_with_the_others(self):
+        """隔離した env でだけ起きない道具も、ほかの足りない物と同じ止まりの箇条に並ぶ"""
+        self.shim("uv")
+        self.broken("node")
+        empty = self.tmp / "empty-cache"
+        err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--input", "request=x",
+                                       XDG_CACHE_HOME=str(empty)))
+        bullets = [line for line in err.splitlines() if line.startswith("- ")]
+        self.assertTrue(any(line.startswith("- uv") and "HOME・XDG を run の置き場へ向けた env" in line for line in bullets), err)
+        self.assertTrue(any(line.startswith("- node") for line in bullets), err)
 
 
 if __name__ == "__main__":

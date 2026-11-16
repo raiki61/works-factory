@@ -536,6 +536,18 @@ class OutsideEnvCase(unittest.TestCase):
                 rest = ["/rw-gh"] if uv else [ours, "/rw-gh"]
                 self.assertEqual(env["PATH"], os.pathsep.join(["/ro-gh", *rest]))
 
+    def test_bun_link_folder_leaves_the_path(self):
+        """起動の殻が渡した bun のリンクの置き場（userenv.BUN_LINK_ENV。隔離した env のための物）は、対象のコマンドの PATH から外し、名も残さない。
+        対象のコマンドは利用者の PATH で、下の階の設定が選ぶ版の bun を起こす（計画 docs/plans/2026-11-16-start-preflight.md の 2 章 (d)）"""
+        ours = os.path.dirname(sys.executable)
+        for uv in ({}, {"UV_RUN_RECURSION_DEPTH": "1"}):
+            with self.subTest(uv=uv):
+                env = tree_run.outside_env({"PATH": os.pathsep.join([ours, "/rw-gh", "/bun-link", "/usr/bin"]),
+                                            userenv.BUN_LINK_ENV: "/bun-link", **uv})
+                rest = ["/rw-gh", "/usr/bin"] if uv else [ours, "/rw-gh", "/usr/bin"]
+                self.assertEqual(env["PATH"], os.pathsep.join(rest))
+                self.assertNotIn(userenv.BUN_LINK_ENV, set(env))
+
     def test_does_not_touch_given_mapping(self):
         src = {"UV_RUN_RECURSION_DEPTH": "1", "PATH": ""}
         tree_run.outside_env(src)

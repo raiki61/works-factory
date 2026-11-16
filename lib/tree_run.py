@@ -109,6 +109,8 @@ def outside_env(environ):
       頭だけを見て、同じフォルダは 1 度だけ外す（元の PATH に同じフォルダが在っても後ろの物は残る）
     - UV_RUN_RECURSION_DEPTH と、sys.prefix を指す VIRTUAL_ENV（uv が起こした環境。対象の .venv もここ）
     uv run の外で起こされた（UV_RUN_RECURSION_DEPTH が無い）ときは、下の UV_NO_CONFIG のほかは外さない。
+    - 起動の殻が渡した bun のリンクの置き場（userenv.BUN_LINK_ENV の値）はいつも PATH から外し、名も外す。殻は隔離した env で版管理の
+      shim が起きないので、対象の根で選んだ実体を指すリンクを置く。対象のコマンドは利用者の PATH の shim で、その場所の設定が選ぶ版を起こす
     外した後、起動の殻が渡した読むだけの gh の置き場を PATH の頭に置く（userenv.read_gh_first。script のノードの PATH の頭は書ける gh の口）。
     - UV_NO_CONFIG はいつも外す。利用者が実行基盤の環境に立てていても、テストのコマンド（`uv run <試験の実行器>` など）には対象の
       [tool.uv]（私的な index など）を読ませる。渡すと公開の PyPI から解決して、偽の赤と依存の取り違えの口になる
@@ -128,6 +130,7 @@ def outside_env(environ):
     env.pop("UV_NO_CONFIG", None)
     if env.pop("UV_RUN_RECURSION_DEPTH", None) is not None:
         _drop_uv(env)
+    _drop_bun_link(env)
     userenv.read_gh_first(env)
     return env
 
@@ -141,6 +144,13 @@ def _drop_uv(env) -> None:
     venv = env.get("VIRTUAL_ENV")
     if venv and os.path.realpath(venv) == os.path.realpath(sys.prefix):
         del env["VIRTUAL_ENV"]
+
+
+def _drop_bun_link(env) -> None:
+    link = env.pop(userenv.BUN_LINK_ENV, None)
+    if link:
+        env["PATH"] = os.pathsep.join(part for part in env.get("PATH", "").split(os.pathsep)
+                                      if not (part and os.path.realpath(part) == os.path.realpath(link)))
 
 
 _ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
