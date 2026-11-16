@@ -1,6 +1,6 @@
 ---
 name: recount-blind-premise
-description: When an eye that had no tools concluded that the question to solve does not stand, finds the one assumption outside the purpose text that the conclusion rests on and re-counts it against the actual state of the repository — refuting it with evidence when it is false, and stopping to ask a person when it is true or cannot be refuted by measurement, because all remaining work depends on that answer. Use when an independent design or a blind review says "this is already solved", "the premise is false", "no change is needed", or when asked to "check that assumption against the repo".
+description: Recounts against the repository the one assumption outside the purpose on which a tool-less eye rested its conclusion that the problem does not exist. Use when a design or review made without looking says "this is already solved". Not for producing such a design.
 ---
 
 # Re-count the assumption behind "the question does not stand"
@@ -18,7 +18,9 @@ Here "the purpose text" is the text, given when the work was requested, that say
 - **The fix made in this same piece of work is not something to ask about.** Where the working tree differs from the version before the fix, use the list of files the fix changed (if you were given one) to tell whether a difference is that fix or the change under review (for example a pull request's own diff); do not turn it into a question for a person.
 - **Base the judgment on what you were given, what you read yourself in the repository, and primary sources.** Try to refute, not to confirm.
 
-## Re-count
+## Steps
+
+### Re-count
 
 1. Read the conclusion and its grounds, the original purpose, and the measured constraints.
 2. Name the assumption.
@@ -28,9 +30,34 @@ Here "the purpose text" is the text, given when the work was requested, that say
    - When the change is measured from the version a pull request branched from and comes out empty, the fix may have undone the pull request's own changes; it does not mean nothing was fixed.
 4. Write the evidence that decided it: the files and lines you read, the primary sources you read.
 
-## Outcome
+### Outcome
 
-- **The assumption is false**, and the conclusion falls with it: state the fact you showed and the measurements to add to the constraints. The design is then made again with those measurements, in a later pass; the question stays held until that later pass is judged.
+- **The assumption is false**, and the conclusion falls with it: state the fact you showed and the measurements to add to the constraints. The design should then be made again with those measurements added; the question is not settled until that new design has been judged.
 - **The assumption is true, or the grounds close inside the purpose text** and cannot be refuted by measurement: stop and ask a person, whatever other blockers there are, because all the remaining work depends on that answer. State the question in one sentence: what it decides.
 
-Works well with (optional; this file is complete without them): a separate, general stance for any reviewer whose verdict the caller cannot overrule (judge only from what was given and read, try to refute, say when input is missing, leave nothing out silently).
+## Done when
+
+- One load-bearing assumption is named.
+- It was checked against the actual state, and the evidence that decided it is written.
+- The outcome is one of the two in "Outcome", or the input was missing and that is said.
+
+## How to report
+
+- The assumption you named.
+- The outcome: false (with the fact you showed and the measurements to add to the constraints), or a question to a person in one sentence (what it decides). When an assumption was shown false but the conclusion still stands on the others, say which you showed false and which remained.
+- The evidence: the files and lines you read, the primary sources you read.
+- When input was missing: what is missing.
+
+## Example
+
+Input: a blind review concluded "no change is needed: one deploy is one repository, so the config is already shared". The purpose text says nothing about how many repositories a deploy uses.
+
+Reply:
+- Assumption: one deploy is one repository.
+- Outcome: false. The deploy file in the repository pulls two repositories, and each holds its own copy of the config.
+- Evidence: the deploy file and the two config files, with their lines.
+- Measurement to add to the constraints: a deploy spans two repositories.
+
+## Works well with
+
+- A general stance for any reviewer whose verdict the caller cannot overrule: judge only from what was given and read, try to refute, say when input is missing, leave nothing out silently.

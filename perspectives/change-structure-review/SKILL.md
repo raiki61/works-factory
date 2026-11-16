@@ -1,6 +1,6 @@
 ---
 name: change-structure-review
-description: Reviews the implementation and design of a change — conventions of its language, framework, and lint settings, code left without a reason to exist, less code and fewer abstractions for the same purpose, fit with existing patterns and names, followability for a newcomer, architecture boundaries, who owns each added abstraction and what it fails to constrain, outer details leaking inward, root cause versus patch, the same problem elsewhere, and the one highest-leverage improvement. Use when reviewing a diff's code and design, or when asked "is this well designed", "does this cross a layer", "is there a simpler way".
+description: "Reviews a change's implementation and design: conventions, code and abstractions with no reason to exist, fit with existing patterns, boundaries, and root cause versus patch. Use when asked for a design-level code review, such as \"is this over-engineered\". Not for purpose-free hygiene checks of a diff, nor for consistency across the whole repository."
 ---
 
 # Review a change's implementation and design
@@ -13,7 +13,9 @@ description: Reviews the implementation and design of a change — conventions o
 - **Before raising a boundary violation, check whether it already existed at the base**: separate what this change brought in from what was already there.
 - **If no dependency table is found, infer it from the actual imports nearby and say it is inferred.**
 
-## Implementation
+## Steps
+
+### Implementation
 
 - Fit with the conventions of the language, framework, and lint (as far as the package manifest and lint settings tell).
 - Code and abstractions that lost their reason to exist in this diff but were not deleted.
@@ -21,7 +23,7 @@ description: Reviews the implementation and design of a change — conventions o
 - Fit with existing patterns and names; no new pattern brought in.
 - Whether a first-time developer can follow the intent and flow without getting lost.
 
-## Design
+### Design
 
 - **Architecture boundaries**: violations of layer dependencies and module boundaries. Look for a dependency table in the README, documents, and lint settings, and compare.
 - **Ownership of abstractions**: for each interface, abstract base, or port the diff adds, who defines it — the side that uses it or the side that implements it? If the implementing side defines it, the dependency is not inverted. Also name what the abstraction **fails to constrain** (it returns an untyped value, it does not fix the shape of the return): an abstraction that constrains the name but not the shape lets the places that actually break pass straight through.
@@ -29,3 +31,24 @@ description: Reviews the implementation and design of a change — conventions o
 - Is it a root-cause solution rather than an ad-hoc patch?
 - Does the same problem exist elsewhere, to be solved together?
 - Name **only one** highest-leverage improvement this change prompts (existing code included, outside the change's scope allowed).
+
+## Done when
+
+- Conventions a lint rule or CI job already enforces were only confirmed green, not checked again.
+- Every boundary violation raised says whether this change brought it in or it existed at the base, and an inferred dependency table is marked as inferred.
+- Exactly one highest-leverage improvement is named.
+
+## How to report
+
+Findings under implementation and under design, each with where and what is wrong. For a boundary violation, add whether this change brought it in or it was already at the base, and whether the dependency table was found or inferred. End with the one highest-leverage improvement.
+
+## Example
+
+Input: a diff adds an interface for a storage backend inside the module that implements it; its read method returns an untyped value.
+
+Reply: Design, ownership of abstractions: the interface is defined by the implementing side, so the dependency is not inverted; define it on the side that uses it. It also fails to constrain the shape of the read result: it returns an untyped value. Brought in by this change (not at the base).
+
+## Works well with
+
+- A view that learns the target's own conventions from its primary sources before review points are applied.
+- A view that sets the bar a review finding must clear before it is raised.

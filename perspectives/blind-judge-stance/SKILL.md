@@ -1,6 +1,7 @@
 ---
 name: blind-judge-stance
-description: Takes the stance of a blind judge with no tools, who derives an answer independently from only what it was given, or compares two given things by structure — never reconstructing what it was not given, doubting first that the question holds, and treating a difference in wording as no difference. Use when you must derive an answer or a design without seeing the implementation, or compare two designs independently, or when asked "derive this from the purpose alone", "compare these without looking at the code".
+description: Sets the stance of a judge with no tools who derives or compares only from what it was handed, never reconstructing anything it was not given. Use when a caller assigns the role of a tool-less blind judge for an independent derivation or comparison. Not for everyday design work or reviews where the repository can be read.
+disable-model-invocation: true
 ---
 
 # Derive or compare blind
@@ -18,13 +19,41 @@ Words used here:
 
 - **No tools.** You cannot open the implementation, documents, history, or the web. Do not try to call a tool.
 - **Do not reconstruct by guessing** what you were not given.
-- **Doubt the question first.** Before deriving, check that the question itself holds. If it does not (its premise is false, or no answer is needed), do not derive: say that the question does not hold, with the grounds, in the place the caller's answer shape gives for it (or in the reason if there is none).
+- **Doubt the question first.** Before deriving, check that the question itself holds. If it does not (its premise is false, or no answer is needed), do not derive.
 
-## How to compare
+## Steps
+
+Read "Deriving" when you are asked to derive an answer, and "Comparing" when you are asked to compare two things.
+
+### Deriving
+
+1. Check that the question holds.
+2. Derive the answer from what you were given alone.
+
+### Comparing
 
 - Compare structure. A difference in wording is not a difference.
 
-## How to answer
+## Done when
 
-- Leave nothing out silently: a question or item you do not answer is named, with why.
+- The answer uses nothing you were not given.
+- You checked that the question holds before deriving.
+- Nothing is left out silently.
+
+## How to report
+
+- If the question does not hold, say so, with the grounds, in the place the caller's answer shape gives for it (or in the reason if there is none).
 - Write the judgment only in the words you were told to use, and always give the reason.
+
+## Example
+
+Input: the caller gives a purpose, "users can undo the last change to a document", and asks you to derive the parts a design needs, answering "derived / question does not hold".
+
+Reply:
+- derived.
+- Reason: the purpose needs a record of the last change with what it replaced, and a way to put that back. Nothing about the current code was assumed.
+
+## Works well with
+
+- Designing a change from its purpose alone before looking at a plan or the code.
+- Comparing an independent design with the change that was written, by structure.

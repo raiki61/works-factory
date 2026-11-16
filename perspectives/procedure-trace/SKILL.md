@@ -1,6 +1,6 @@
 ---
 name: procedure-trace
-description: Traces the procedures a change touches — procedure documents such as a README, scripts, and CI definitions — by running them where they can be run without changing state, and by simulating the rest in your head, step by step from the initial state as a first-time reader would — tracking at each command whether its prerequisites (resources, installed tools, environment variables, working directory) were set up by earlier steps, what happens when implicit environment state (current cluster context, logged-in account, default branch) differs from what was assumed, and how far a run in the wrong environment would reach — and returns every step that could not be confirmed on a real machine as an unmeasured hypothesis. Use when a change edits setup or run instructions, scripts, or CI, or when asked "would these steps work from scratch", "trace this procedure", "does the README still run", "does this script assume something".
+description: Traces the procedures a change touches (README steps, scripts, CI definitions) by running what can safely be run and simulating the rest from a clean start, checking each command's prerequisites. Use when asked "do these setup steps still work from scratch". Not for running a user-visible code path to observe its values.
 ---
 
 # Trace a changed procedure by running it
@@ -17,17 +17,31 @@ Missing prerequisites and the wrong environment slip past reading; they are usua
 - **When a command is refused or stopped**, return that step as unmeasured, with the command you ran and how it was refused. Do not respell the command to get it through.
 - **Do not install or download to make a run possible.** Run with the tools already present.
 
-## What to trace
+## Steps
 
+### What to trace
+
+- If the target repository has its own review guide, read it too.
 - **Step by step from the initial state**: assume a first-time reader with no context runs the steps from the top in order. At each command, check that its prerequisites (resources, installed tools, environment variables, working directory) were established by earlier steps, tracking the state as you go.
 - **Implicit environment state**: list the state a command silently relies on (the current context of a cluster tool, the logged-in account, the default branch, and the like) and ask what happens if it runs in a state different from the one assumed.
 - **Blast radius**: how far the damage reaches when the procedure runs in the wrong environment, and whether a guard (a check before running, an explicit context) prevents it.
 
-## Before submitting a finding
+## Done when
 
-- **Mechanism**: one sentence on the causal chain.
-- **Measurement**: run what can be run; otherwise say "unmeasured" and present it as a hypothesis.
-- **Refute it yourself first**: if you cite a rule, check that its condition applies and read the surrounding reality; submit only what you could not kill.
-- **False-positive estimate**: one line on when the finding would be wrong.
+- Every changed procedure was followed from the initial state, step by step, with the state tracked.
+- Each step was either run or returned as unmeasured. Each unmeasured step carries the command and how it was refused, or why it was not run.
+- Each finding has: **the mechanism** (one sentence on the causal chain); **a measurement** (run what can be run; otherwise say "unmeasured" and present it as a hypothesis); **a self-refutation** done first (if you cite a rule, check that its condition applies and read the surrounding reality; submit only what you could not kill); and **a false-positive estimate** (one line on when the finding would be wrong).
 
-Works well with (optional; this file does not need it): a perspective that sets the stance of a read-only investigator who goes to primary sources.
+## How to report
+
+The findings, each with the four items above, and every step you could not confirm on a real machine as an unmeasured hypothesis, with the command and how it was refused. Point to a place by its path and a line number in the current file, confirmed by reading it — not a line inside a patch; if you cannot read the file, give the path and a function name instead.
+
+## Example
+
+Input: a change edits a README's setup steps. Step 3 runs the database migration; the step that creates the database was moved below it, to step 5.
+
+Reply: Finding: a first-time reader following from the top fails at step 3, because the database it needs is created only in step 5. Mechanism: the move put the creation after its first use. Measurement: unmeasured (the migration changes state), a hypothesis. False positive if: a database exists by default in a fresh environment. Where: the step 3 line of the README in the current file.
+
+## Works well with
+
+- A stance for a read-only investigator who goes to primary sources (it rewrites no files, opens primary sources such as the original records and official documents itself, and when it finds nothing, says where it looked).
