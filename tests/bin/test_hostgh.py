@@ -192,5 +192,47 @@ class ShimCase(unittest.TestCase):
         self.assertNotIn(os.path.dirname(first), text)
 
 
+    def wrapper_gh(self, bindir: pathlib.Path) -> pathlib.Path:
+        """利用者の gh の包みの偽物（2026-11-16 の run 2f08b32f・5196f102 で口と呼び合った gh-route の形）: PATH から自分の置き場だけを
+        抜いて最初の gh を起こす。呼び合いで試験が止まらないよう、4 段目で 99 で終わる"""
+        bindir.mkdir(parents=True, exist_ok=True)
+        gh = bindir / "gh"
+        gh.write_text("#!/bin/sh\n"
+                      'depth=$(( ${FAKE_ROUTE_DEPTH:-0} + 1 )); export FAKE_ROUTE_DEPTH=$depth\n'
+                      '[ "$depth" -gt 3 ] && { echo "route loop" >&2; exit 99; }\n'
+                      'here=${0%/*}; rest=; IFS=:\n'
+                      'for d in $PATH; do [ "$d" = "$here" ] || rest=${rest:+$rest:}$d; done\n'
+                      'unset IFS; PATH=$rest; export PATH\n'
+                      'exec gh "$@"\n', encoding="utf-8")
+        gh.chmod(0o755)
+        return gh
+
+    def test_users_wrapper_does_not_call_back_into_the_shim(self):
+        """利用者の gh が PATH から自分だけを抜いて本物を探す包みでも、口と呼び合わずに本物の gh に届く（2026-11-16 の
+        run 2f08b32f・5196f102。口の置き場が子の PATH の頭に在ったので、包みは口を本物と取り違え、口が包みを、包みが口を起こし続けた）。
+        口は本物を探した利用者の PATH（口の置き場と読むだけの口を除く）で利用者の gh を起こす"""
+        wrap = self.wrapper_gh(self.tmp / "wrap bin")
+        shim = self.write(path=os.pathsep.join([str(wrap.parent), str(self.real.parent), "/usr/bin", "/bin"]))
+        env = self.isolated_env(shim)
+        env["PATH"] = os.pathsep.join([os.path.dirname(shim), str(wrap.parent), str(self.real.parent), "/usr/bin", "/bin"])
+        r = subprocess.run(["gh", "auth", "status"], env=env, capture_output=True, text=True, encoding="utf-8", timeout=10)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.log.read_text(encoding="utf-8").splitlines()[-1].split("|")[2], "auth status")
+
+    def test_call_back_into_the_shim_stops_at_once(self):
+        """口の先の gh がどんな形で口を呼び返しても、口は回らずに訳の 1 行で止まる（回り続ける子を、期限でなく形で止める。
+        持ち主の決め no-timeouts）"""
+        back = self.tmp / "back bin"
+        back.mkdir()
+        gh = back / "gh"
+        gh.write_text('#!/bin/sh\nexec "$SHIM_UNDER_TEST" "$@"\n', encoding="utf-8")
+        gh.chmod(0o755)
+        shim = self.write(path=os.pathsep.join([str(back), "/usr/bin", "/bin"]))
+        env = {**self.isolated_env(shim), "SHIM_UNDER_TEST": shim}
+        r = subprocess.run(["gh", "pr", "list"], env=env, capture_output=True, text=True, encoding="utf-8", timeout=10)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("呼び返", r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
