@@ -1004,6 +1004,24 @@
 - 足す置き場（E10）: 足さない（受け皿の 38 個と、line の script `returned` を消す）。
 - 当て方: `on-archon-only` の当て方（2026-11-10 の行）。設計は `docs/design/line.md` の 13.1。決めの対象を judge と eyes の graph の中の受け皿（judge 18 個・eyes 5 個と、2 本の script `returned`）にも広げて消した（2026-11-10。片付けの候補「部品 judge と eyes の中に残る受け皿を消す」に持ち主が「どうぞ」。設計は `docs/design/judge-eyes.md` の 0 章（共通の形））。
 
+## 2026-11-16 の決め（会話の中から打つ時の起動の認証）
+
+出典: 受付 20261116-001019-dd5cea の頼み（計画 `docs/plans/2026-11-16-start-preflight.md` の残る問い 2 つへの持ち主の答えを、窓口が伝えた）。
+
+### `oauth-token-command` トークンを出すコマンドを env で名指す口を足し、keychain の無い OS で keychain の名指しを見たら止める
+
+- 持ち主への問い（計画の 5 章〔答えの前の版〕の要約）: 1. Claude Code の会話の中の Bash には、その会話のログインのトークンが渡らない。トークンを出すコマンドを名指す env（`WORKS_FACTORY_OAUTH_TOKEN_COMMAND`）を足し、殻が起こした標準出力を `CLAUDE_CODE_OAUTH_TOKEN` として子に渡すか。足さないなら、会話の中から打つ人は命令の前で `CLAUDE_CODE_OAUTH_TOKEN` を置く。2. keychain の無い OS で `WORKS_FACTORY_KEYCHAIN_ITEM` を見た時、止める (1) か、告げて下の段へ飛ばす (2) か。推しは (1)。
+- 持ち主の言葉: なし（窓口の頼みが伝えた答えの要約: 問い 1 は「足す」、問い 2 は (1)。止まる訳は「keychain は macOS だけ。この OS ではこの変数を外す」。窓口は持ち主の Linux の設定からこの変数を外し、配っている設定の雛形も macOS でだけ置く形に直した〔リポジトリの外〕）。
+- 決め:
+  1. env `WORKS_FACTORY_OAUTH_TOKEN_COMMAND`（値はシェルのコマンドの字。空の字は無いもの）を足す。殻は exec の 1 回だけ、Archon を起こす直前に、利用者の HOME・XDG（殻が控えた隔離の前の値）と `CLAUDE_CONFIG_DIR` でシェルに渡して起こし、標準出力の前後の空白を除いた字を `CLAUDE_CODE_OAUTH_TOKEN` として子に渡す。値は表示も保存もしない。標準エラーは端末へ流す。待ちの上限は付けない（`no-timeouts`）。check は起こさず、出どころの名だけを返す（`api-key-helper-relay` の `apiKeyHelper` と同じ）。
+  2. 段の位置は、環境の `CLAUDE_CODE_OAUTH_TOKEN` と同じ所（`apiKeyHelper` の後、`runtime-auth-gate` の起動方法の門の前）。環境に `CLAUDE_CODE_OAUTH_TOKEN` も在れば環境の値を採り、コマンドは起こさない。名指し・受け継いだ認証・`CLAUDE_KEYCHAIN_SERVICE`・`apiKeyHelper` は今のまま先に効く（Claude Code 自身の優先順に合わせた `api-key-helper-relay` の並び）。
+  3. コマンドが起こせない・終了の値が 0 でない・出力が空の時は、ほかの段（起動方法の門・保存済みのログイン）へ落ちず、変数の名と訳を言って止まる（値とコマンドの字は出さない）。
+  4. 子（Archon と役）の env からはこの変数を外す（子はトークンを受けるので要らない。事故の柵で、堅い境ではない）。
+  5. `WORKS_FACTORY_KEYCHAIN_ITEM` が在り、OS が macOS でない時は、`security` を起こさずに止める。訳は「keychain は macOS だけ。この OS ではこの変数を外す」と、代わりの道（`WORKS_FACTORY_OAUTH_TOKEN_COMMAND` か `CLAUDE_CODE_OAUTH_TOKEN`）。告げて下の段へ飛ばす道は採らない（`api-key-helper-relay` の、選んだ経路を黙って別の口に差し替えない向き）。
+- 訳: `others-may-use` と E14。`claude /login` しただけの Linux の人が Claude Code の会話の中から殻を打つと、会話のログインのトークンが Bash に渡らず、`.credentials.json` も無ければ毎回の起動でトークンを手で配線することになる。macOS と Linux で同じ設定の `env` を使う人は、keychain の名指しが Linux で `keychain-error(FileNotFoundError)` の字で止まり、訳が読めなかった。
+- 足す置き場（E10）: 新しい層・置き場・常駐の仕組みは足さない。選べる道として env の名を 1 つ足す（`bin/_lib/auth_launch.py` の段に 1 つ。起こし方は `apiKeyHelper` の部品を使う）。
+- 当て方: `bin/_lib/auth_launch.py`（`resolve`・`child_env`・`HOWTO`）・`tests/bin/test_auth_launch.py`・README の環境変数の項。設計と実装の手順は計画 `docs/plans/2026-11-16-start-preflight.md` の 2 章 (c) と 6 章の 1。
+
 ## 2026-11-16 の決め（観点を工場から切り離して残す）
 
 出典: 2026-11-16 の持ち主と窓口の会話（受付 20261116-003452-2bfede の頼み）。

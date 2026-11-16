@@ -8,7 +8,11 @@
 - python3 -I で起こした check は起こし役のフォルダ（試験の持つ写し）に __pycache__ を作らない（-I は PYTHONDONTWRITEBYTECODE を
   見ず、__pycache__ は .gitignore に隠れて git status に出ない）。共有の bin/_lib/ はどの試験も見ない（別の実行の残り物で揺れる）。
   試験自身の import の分は各試験の頭の sys.dont_write_bytecode に任せ、試験では縛らない
-- 認証が無い時の案内は、名を settings.json の env に置く道と、値を出さずに項目の在りかを確かめる命令を言う
+- 認証が無い時の案内は、名を settings.json の env に置く道と、値を出さずに項目の在りかを確かめる命令を言う。止まる 1 行は
+  訳（この OS とこの場面の短い直し方を持つ時はそれも）→ 一般の文 HOWTO の順（StopLine）
+- keychain の無い OS で WORKS_FACTORY_KEYCHAIN_ITEM を名指せば、security を起こさずに外す訳で止まる（KeychainOffMac）。
+  トークンを出すコマンドの口 WORKS_FACTORY_OAUTH_TOKEN_COMMAND は exec の 1 回だけ利用者の HOME で起こし、失敗したら止まり、
+  子に渡さない（TokenCommand。持ち主の決め oauth-token-command）
 - 利用者の settings.json に apiKeyHelper が在れば、利用者の HOME で起こしてキーを得て ANTHROPIC_API_KEY として子に渡す。
   受け継いだ認証・名指し・CLAUDE_KEYCHAIN_SERVICE の項目の後、Claude Code 自身のログインの前に効く。失敗したら黙って
   ほかの段へ移らず、apiKeyHelper を名指して止まる。キーの値は出さない（#795）
@@ -867,7 +871,8 @@ class ApiKeyHelper(unittest.TestCase):
                             "print('started')"],
                            env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         self.assertEqual((r.returncode, r.stdout), (2, ""))
-        self.assertTrue(r.stderr.splitlines()[-1].startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
+        last = r.stderr.splitlines()[-1]
+        self.assertTrue(last.startswith("bin/start: ") and last.endswith(auth_launch.HOWTO), r.stderr)
         self.assertIn("apiKeyHelper（", r.stderr.splitlines()[-1])
 
 
@@ -925,6 +930,186 @@ class NoRealManagedDir(unittest.TestCase):
         patch = mock.patch.object(auth_launch, "default_managed_dir", lambda platform=None: empty)
         patch.start()
         self.addCleanup(patch.stop)
+
+
+class KeychainOffMac(NoRealManagedDir):
+    """keychain の無い OS で WORKS_FACTORY_KEYCHAIN_ITEM を名指した時は、security を起こさずに止まり、keychain は macOS だけと
+    この変数を外すことと代わりの道を言う（持ち主の決め oauth-token-command の 5）。告げて下の段へ飛ばさない"""
+
+    def test_named_item_off_mac_stops_without_running_security(self):
+        tmp = hermetic.tmpdir(self)
+        write_credentials(tmp / ".claude")
+        for platform in ("linux", "win32"):
+            with self.subTest(platform=platform):
+                run = keychain({"named": TOKEN})
+                got, name, why = auth_launch.resolve({"WORKS_FACTORY_KEYCHAIN_ITEM": "named", "CLAUDE_CODE_OAUTH_TOKEN": TOKEN},
+                                                     str(tmp), "", platform=platform, runner=run)
+                self.assertIsNone(got)
+                self.assertEqual(run.calls, [])
+                for word in ("keychain は macOS だけ", "この変数を外す", "named", auth_launch.TOKEN_COMMAND_ENV, "CLAUDE_CODE_OAUTH_TOKEN"):
+                    self.assertIn(word, why)
+                self.assertNotIn("keychain-error", why)
+
+    def test_named_item_on_mac_still_reads_the_keychain(self):
+        run = keychain({"named": TOKEN})
+        got, _name, why = auth_launch.resolve({"WORKS_FACTORY_KEYCHAIN_ITEM": "named"}, "/u", "", platform="darwin", runner=run)
+        self.assertIsNone(why)
+        self.assertEqual((got, run.calls), ({"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, ["named"]))
+
+
+def token_command(stdout=TOKEN, returncode=0, error=None):
+    """偽のトークンを出すコマンドの runner（呼ばれた時の command・HOME・CLAUDE_CONFIG_DIR は calls に残る）"""
+    return helper(stdout=stdout, returncode=returncode, error=error)
+
+
+class TokenCommand(NoRealManagedDir):
+    """トークンを出すコマンドの口 WORKS_FACTORY_OAUTH_TOKEN_COMMAND（持ち主の決め oauth-token-command）。段の位置は環境の
+    CLAUDE_CODE_OAUTH_TOKEN と同じ（apiKeyHelper の後、起動方法の門・保存済みのログインの前）。起こすのは exec の 1 回だけで、
+    check は出どころの名だけ。失敗したらほかの段へ落ちず変数の名を言って止まる。子にこの変数を渡さない"""
+
+    NAME = "WORKS_FACTORY_OAUTH_TOKEN_COMMAND"
+
+    def setUp(self):
+        super().setUp()
+        self.tmp = hermetic.tmpdir(self)
+        self.managed = self.tmp / "managed"
+        self.managed.mkdir()
+
+    def resolve(self, env, fetch=True, runner=None, helper_runner=None, cfg=""):
+        return auth_launch.resolve(env, str(self.tmp), cfg, platform="linux", runner=keychain({}), helper_runner=helper_runner,
+                                   token_runner=runner, managed_dir=self.managed, fetch=fetch)
+
+    def test_the_name_lives_next_to_the_keychain_item(self):
+        self.assertEqual(auth_launch.TOKEN_COMMAND_ENV, self.NAME)
+
+    def test_check_names_the_command_without_running_it(self):
+        r = token_command()
+        got, name, why = self.resolve({self.NAME: "print-token"}, fetch=False, runner=r)
+        self.assertIsNone(why)
+        self.assertEqual((got, r.calls), ({}, []))
+        self.assertIn(self.NAME, name)
+        self.assertNotIn("print-token", name)
+
+    def test_exec_hands_the_output_as_the_oauth_token(self):
+        r = token_command(stdout="  %s\n" % TOKEN)
+        got, name, why = self.resolve({self.NAME: "print-token"}, runner=r)
+        self.assertIsNone(why)
+        self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
+        self.assertIn(self.NAME, name)
+        self.assertEqual(r.calls, [("print-token", str(self.tmp), str(self.tmp / ".claude"))])
+
+    def test_failure_stops_naming_the_variable_without_the_saved_login(self):
+        write_credentials(self.tmp / ".claude")
+        for r in (token_command(returncode=1), token_command(stdout=" \n"), token_command(error=OSError("x"))):
+            with self.subTest():
+                got, _name, why = self.resolve({self.NAME: "secret-cmd --pass hunter2"}, runner=r)
+                self.assertIsNone(got)
+                self.assertIn(self.NAME, why)
+                self.assertNotIn("hunter2", why)
+                self.assertNotIn(TOKEN, why)
+
+    def test_stages_above_it_win_without_running_it(self):
+        write_settings(self.tmp / ".claude", {"apiKeyHelper": "print-key"})
+        cases = (({"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-env"}, None, {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-env"}),
+                 ({"ANTHROPIC_API_KEY": "env-key"}, None, {"ANTHROPIC_API_KEY": "env-key"}),
+                 ({}, helper(), {"ANTHROPIC_API_KEY": KEY}))
+        for extra, h, want in cases:
+            with self.subTest(env=list(extra)):
+                if h is None:
+                    (self.tmp / ".claude" / "settings.json").unlink(missing_ok=True)
+                else:
+                    write_settings(self.tmp / ".claude", {"apiKeyHelper": "print-key"})
+                r = token_command()
+                got, _name, why = self.resolve({self.NAME: "print-token", **extra}, runner=r, helper_runner=h)
+                self.assertIsNone(why)
+                self.assertEqual(got, want)
+                self.assertEqual(r.calls, [])
+
+    def test_empty_value_is_absent(self):
+        write_credentials(self.tmp / ".claude")
+        r = token_command()
+        got, name, why = self.resolve({self.NAME: ""}, runner=r)
+        self.assertIsNone(why)
+        self.assertEqual(got, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN})
+        self.assertIn("保存済みのログイン", name)
+        self.assertEqual(r.calls, [])
+
+    def test_child_env_drops_the_variable(self):
+        env = {"HOME": "/iso", self.NAME: "print-token"}
+        for named in (False, True):
+            with self.subTest(named=named):
+                self.assertNotIn(self.NAME, set(auth_launch.child_env(env, {"CLAUDE_CODE_OAUTH_TOKEN": TOKEN}, named)))
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の 1 行")
+    def test_a_launch_runs_the_command_once_in_exec_with_the_users_home(self):
+        """check は起こさず、exec は 1 回だけ利用者の HOME（隔離した HOME でない）で起こし、子にトークンを渡し、子にこの変数を渡さない。
+        殻の標準出力・標準エラーに値は出ない"""
+        count = self.tmp / "count"
+        script = self.tmp / "token.sh"
+        script.write_text('#!/bin/sh\necho "$HOME" >> "%s"\necho %s\n' % (count, TOKEN))
+        script.chmod(0o755)
+        user = self.tmp / "user"
+        record = json.dumps({"HOME": str(user), "XDG_CONFIG_HOME": None, "XDG_DATA_HOME": None,
+                             "XDG_CACHE_HOME": None, "XDG_STATE_HOME": None})
+        env = hermetic.child_env(HOME=str(self.tmp / "iso"), WORKS_FACTORY_USER_ENV=record, **{self.NAME: str(script)})
+        base = ["--user-home", str(user), "--managed-dir", str(self.managed)]
+        run = lambda args: subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), *args],
+                                          env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        r = run(["check", *base])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(self.NAME, r.stdout)
+        self.assertFalse(count.exists())
+        probe = ("import os; print(os.environ.get('CLAUDE_CODE_OAUTH_TOKEN') == %r, %r in os.environ, os.environ['HOME'])"
+                 % (TOKEN, self.NAME))
+        r = run(["exec", *base, "--", sys.executable, "-I", "-c", probe])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.split(), ["True", "False", str(self.tmp / "iso")])
+        self.assertNotIn(TOKEN, r.stdout + r.stderr)
+        self.assertEqual(count.read_text().split(), [str(user)])
+
+    @unittest.skipIf(sys.platform == "win32", "SKIP windows: sh の 1 行")
+    def test_exec_stops_when_the_command_fails(self):
+        write_credentials(self.tmp / "user" / ".claude")
+        env = hermetic.child_env(HOME=str(self.tmp / "iso"), **{self.NAME: "exit 3"})
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "exec", "--for", "bin/start",
+                            "--user-home", str(self.tmp / "user"), "--managed-dir", str(self.managed), "--",
+                            sys.executable, "-c", "print('started')"],
+                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual((r.returncode, r.stdout), (2, ""))
+        last = r.stderr.splitlines()[-1]
+        self.assertIn(self.NAME, last)
+        self.assertNotIn("exit 3", last)
+
+
+class StopLine(NoRealManagedDir):
+    """止まる時の 1 行は、訳 → この OS とこの場面の短い直し方 → 一般の文（HOWTO）の順。macOS 以外で受け継いだ認証も保存済みの
+    ログインも無い時は、会話の中の Bash にはログインのトークンが渡らないことと、トークンを出すコマンドの口を訳のすぐ後に言う"""
+
+    def test_off_mac_without_a_login_names_the_in_session_way_before_the_howto(self):
+        tmp = hermetic.tmpdir(self)
+        env = hermetic.child_env(HOME=str(tmp / "iso"))
+        r = subprocess.run([sys.executable, "-I", str(CORE / "auth_launch.py"), "check", "--for", "bin/start",
+                            "--user-home", str(tmp), "--managed-dir", str(tmp / "managed")],
+                           env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        line = r.stderr.strip().splitlines()[-1]
+        self.assertTrue(line.startswith("bin/start: "), line)
+        self.assertTrue(line.endswith(auth_launch.HOWTO), line)
+        head = line[:-len(auth_launch.HOWTO)]
+        if sys.platform != "darwin":
+            self.assertIn(str(tmp / ".claude" / ".credentials.json"), head)
+            for word in ("会話の中の Bash", "claude setup-token", auth_launch.TOKEN_COMMAND_ENV):
+                self.assertIn(word, head)
+            self.assertLess(head.index(".credentials.json"), head.index("会話の中の Bash"))
+
+    def test_mac_stop_has_no_in_session_hint(self):
+        got, _name, why = auth_launch.resolve({}, str(hermetic.tmpdir(self)), "", platform="darwin", runner=keychain({}))
+        self.assertIsNone(got)
+        self.assertNotIn("会話の中の Bash", why)
+
+    def test_howto_names_the_token_command_and_keychain_is_mac_only(self):
+        self.assertIn(auth_launch.TOKEN_COMMAND_ENV, auth_launch.HOWTO)
+        self.assertIn("macOS の keychain にトークンの項目", auth_launch.HOWTO)
 
 
 class ResolveOrder(NoRealManagedDir):
@@ -1121,7 +1306,8 @@ class IsolatedLaunch(unittest.TestCase):
                 self.assertEqual(r.returncode, 2)
                 self.assertEqual(r.stdout, "")
                 self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
-                self.assertTrue(r.stderr.startswith("bin/start: " + auth_launch.HOWTO), r.stderr)
+                self.assertTrue(r.stderr.startswith("bin/start: "), r.stderr)
+                self.assertTrue(r.stderr.strip().endswith(auth_launch.HOWTO), r.stderr)
 
     @unittest.skipIf(sys.platform == "darwin", "SKIP macos: 資格のファイルの段は macOS 以外だけ")
     def test_exec_off_darwin_hands_the_saved_login_to_the_isolated_child(self):
@@ -1244,7 +1430,7 @@ class IsolatedLaunch(unittest.TestCase):
                     self.assertEqual(done.returncode, 2, done.stderr)
                     self.assertEqual(done.stdout, "")
                     lines = done.stderr.strip().splitlines()
-                    self.assertTrue(lines[-1].startswith("bin/start: " + auth_launch.HOWTO), done.stderr)
+                    self.assertTrue(lines[-1].startswith("bin/start: ") and lines[-1].endswith(auth_launch.HOWTO), done.stderr)
                     self.assertEqual(len(lines), 2, done.stderr)   # 起動方法を待つ 1 行と、止める 1 行
                     for word in (str(runtime), "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_BIN_PATH"):
                         self.assertIn(word, lines[-1])
