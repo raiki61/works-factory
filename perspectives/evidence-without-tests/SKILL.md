@@ -18,9 +18,9 @@ description: Gives evidence for a change no test can show red-to-green (document
 ### Checks by kind of change
 
 - **Documents**: search to confirm that the names and paths you wrote exist. Links reach their targets (the file and the heading). Re-read from the top as a first-time reader who does not know the premises, and the text makes sense on its own (a cold read).
-- **Instructions to an AI (prompts)**: actually render them, with the rendering mechanism if there is one, and see that every hole is filled and nothing breaks. If copies of the same text exist elsewhere, all of them match. Say that the changed instructions take effect from the next time they are used and do not reach work already under way.
+- **Instructions to an AI (prompts)**: actually render them into the finished text with their values filled in, with the rendering mechanism if there is one, and see that every hole (a slot where a value goes) is filled and nothing breaks. If copies of the same text exist elsewhere, search for all of them and confirm that every one matches. Say that the changed instructions take effect from the next time they are used and do not reach work already under way.
 - **Settings, workflow definitions, CI**: run the validator of the tool that reads them and the repository's own settings checks, and they pass.
-- **Notes and types**: run the static checks the repository has (type checks, lint, and so on), and they pass.
+- **Code notes (comments) and types**: run the static checks the repository has (type checks, lint, and so on), and they pass.
 
 ## Done when
 

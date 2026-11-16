@@ -28,7 +28,7 @@ Work in this order, and keep each step apart.
 
 1. **Question and purpose**: restate the question in one to three sentences, and what the design is for.
 2. **Premises**: a premise the person decided names where they decided it (their answer, or a line of the theme). A premise you assumed says why you assumed it. When the design would change if an assumed premise turned out wrong, ask about it.
-3. **What exists now**: before you design, list each thing the design touches or could reuse, with its place in the repository (path and lines).
+3. **What exists now**: before you design, list each thing the design touches or could reuse, with its place in the target's repository (path and lines).
 4. **Parts**: one entry for each part you add or change.
 5. **Reuse**: for each new part, the existing things you looked at first and why they are not enough. When you found nothing to reuse, say where you looked.
 6. **Policy checks**: when the target's policy documents require checks before something is added, answer each, naming the rule and where the design answers it.
@@ -70,6 +70,6 @@ Reply:
 
 ## Works well with
 
-- deciding what counts as recorded policy and how to treat a person's standing policy;
+- deciding what counts as recorded policy (decisions the owner wrote down in documents; code comments and docstrings are not) and how to treat a person's standing policy — used in "Policy checks" and "a question a rule already settles" to decide which documents you cite as rules;
 - comparing a request's means with how practitioners solve the same kind of work;
 - keeping outside queries free of the target's names, and writing questions to a person so a first-time reader can decide from the text alone.

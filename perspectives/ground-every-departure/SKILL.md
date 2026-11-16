@@ -19,7 +19,7 @@ The general structure of a kind of system is how practitioners commonly split su
 
 ### The only two grounds
 
-1. **A rule the target decided in writing**: its constitution, rules, and design documents (its instruction files and the canonical documents they point to), the policy for this piece of work, and a person's earlier decisions (answers a person gave when the work stopped to ask them, and recorded decisions). Such a rule wins over the general structure. Code comments and docstrings are not such rules.
+1. **A rule the target (the repository the change is made in) decided in writing**: its constitution, rules, and design documents (the instruction files kept in that repository that write down its rules, such as `AGENTS.md`, and the documents those files point to as canonical), the policy for this piece of work, and a person's earlier decisions (answers a person gave when the work stopped to ask them, and recorded decisions). Such a rule wins over the general structure. Code comments and docstrings are not such rules.
 2. **An outside fact that cannot be moved**: the specification of an outside tool or service, a law, or a contract.
 
 ### What else to write for a departure

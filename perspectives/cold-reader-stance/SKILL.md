@@ -16,7 +16,7 @@ Words used here:
 ## Pitfalls (read first)
 
 - **No tools.** You cannot open files or the web. Do not try to call a tool.
-- **No "reasonable for its purpose".** You were not told what it is for; do not justify anything that way.
+- **No "reasonable for its purpose".** You were not told what the given text is for. So do not accept a gap or flaw in the text as "reasonable for the text's purpose".
 - **Do not fill what cannot be decided with a guess.**
 
 ## Steps
@@ -27,7 +27,7 @@ Words used here:
 ## Done when
 
 - Every point is sorted into what the text alone decides and what it does not.
-- No gap was filled with a guess or excused as reasonable for its purpose.
+- No gap was filled with a guess (content you added that the text does not write), and none was accepted as "reasonable for the text's purpose".
 - Nothing is left out silently.
 
 ## How to report
