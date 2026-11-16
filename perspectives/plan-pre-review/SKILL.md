@@ -69,7 +69,7 @@ An independent design is one made from the purpose alone, without seeing the pla
 - Show a disagreement with quotes from both sides, word for word. A point you cannot quote from the design is not a disagreement (the design knows nothing of the implementation's circumstances).
 - A mechanism with no pair in the design, and a gap in size, are disagreements; for a gap in size, give the smaller alternative.
 - The independent design does not win on its own either: it is one more input to refute.
-- When the one who designed returned that the purpose's question itself does not hold (the problem the purpose asks to solve is not a real problem, or rests on a false premise), do not raise that as a hole here (whether it holds is checked against reality after the fix) and review without comparing with a design. But if the plan leans on what that reason denies (the problem it calls not real, or the premise it calls false), raise it as a hole.
+- When the one who made the independent design returned that the purpose's question does not stand (the problem the purpose asks to solve is not a real problem or rests on a false premise), read the reason it gave for why the question does not stand. For a plan, do not raise whether the question stands as a hole: that is checked against reality after the change. When the thing under review is a design draft (not the independent design), if the draft rests on what that reason denies (the problem it calls not real, or the premise it calls false), raise it as a hole. In either case review without comparing with a design.
 - When there is no independent design, review without comparing with one.
 
 ## Reading a plan
