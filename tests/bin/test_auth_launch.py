@@ -31,6 +31,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -1200,6 +1201,21 @@ class ResolveOrder(NoRealManagedDir):
                 got, _name, why = auth_launch.resolve({}, str(tmp), "", platform="linux", runner=keychain({}))
                 self.assertIsNone(got)
                 self.assertIn(str(tmp / ".claude" / ".credentials.json"), why)
+
+    def test_stop_reason_speaks_words_not_stage_labels(self):
+        """認証が無くて止まる訳は、claude_auth の段の名（none・keychain-miss など、記録向けの短い名）でなく、何が無かったかを字で言う"""
+        labels = re.compile(r"\bnone\b|keychain-(unnamed|miss|malformed|error)")
+        cases = (("linux", {}, {}), ("darwin", {}, {}), ("darwin", {"CLAUDE_KEYCHAIN_SERVICE": "svc"}, {}),
+                 ("darwin", {"CLAUDE_KEYCHAIN_SERVICE": "svc"}, {"svc": "not-a-token"}))
+        for platform, env, items in cases:
+            with self.subTest(platform=platform, env=env, items=items):
+                tmp = hermetic.tmpdir(self)
+                got, _name, why = auth_launch.resolve(env, str(tmp), "", platform=platform, runner=keychain(items))
+                self.assertIsNone(got)
+                self.assertNotRegex(why, labels)
+                self.assertTrue(why.startswith("環境に認証の変数（CLAUDE_CODE_OAUTH_TOKEN"), why)
+                if env:
+                    self.assertIn("CLAUDE_KEYCHAIN_SERVICE の keychain の項目 svc", why)
 
     def test_named_item_beats_inherited_auth(self):
         """WORKS_FACTORY_KEYCHAIN_ITEM は受け継いだ CLAUDE_CODE_OAUTH_TOKEN・ANTHROPIC_API_KEY より先に効く"""

@@ -93,6 +93,10 @@ KEYCHAIN_MAC_ONLY = ("%s（keychain の項目 %%s）を名指しているが、k
 IN_SESSION_WAY = ("Claude Code の会話の中の Bash には、その会話のログインのトークンが渡らない（claude auth status の loggedIn が false に"
                   "なる）。claude setup-token で作った長期のトークンを出すコマンドを、設定の env の %s に書く（毎回の手の配線が要らない）か、"
                   "打つ命令の前で %s に置く") % (TOKEN_COMMAND_ENV, OAUTH)
+# 受け継いだ認証も保存済みのログインも無くて止まる訳の頭。claude_auth.auth_env の段の名（none・keychain-miss など）は記録向けの
+# 短い名なので、止まる 1 行には出さず、何が無かったかを字で言う
+INHERITED_NONE = "環境に認証の変数（%s）が無く" % "・".join(claude_auth.INHERITED)
+KEYCHAIN_MISSED = {"keychain-miss": "無いか空", "keychain-malformed": "トークンの形でない"}
 # CLAUDE_BIN_PATH を置いた時の逃げ道の住処。起動方法の門で止める 1 行は stop_line の形（訳。HOWTO）で、訳がこれを持つ
 RUNTIME_ESCAPES = ("逃げ道は、ラッパーに鍵を環境変数で置かせる・CLAUDE_CODE_OAUTH_TOKEN を置く・"
                    "CLAUDE_BIN_PATH を外して PATH の claude を使う（CLAUDE_BIN_PATH を置いた時は保存済みのログインへ切り替えない）")
@@ -666,12 +670,12 @@ def resolve(env, user_home, user_config, platform=sys.platform, runner=None, hel
             tok, _ = claude_auth.read_keychain(service, login_json_runner(runner))
             if tok:
                 return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の keychain の項目 " + service, None
-        return None, None, "%s、Claude Code の keychain の項目 %s にも無い" % (note, " ".join(claude_code_items(user_config)))
+        return None, None, "%s、Claude Code の keychain の項目 %s にも無い" % (missed(note), " ".join(claude_code_items(user_config)))
     path = pathlib.Path(config) / CREDENTIALS
     tok, miss = read_credentials(path)
     if tok:
         return {"CLAUDE_CODE_OAUTH_TOKEN": tok}, "Claude Code の保存済みのログイン %s" % path, None
-    return None, None, "%s、Claude Code の保存済みのログイン %s は%s。%s" % (note, path, miss, IN_SESSION_WAY)
+    return None, None, "%s、Claude Code の保存済みのログイン %s は%s。%s" % (missed(note), path, miss, IN_SESSION_WAY)
 
 
 def credential_export(home, config, source="", aws="", profile=""):
@@ -703,6 +707,15 @@ def child_env(env, got, named):
     out = {k: v for k, v in env.items() if not (named and k in ABOVE_TOKEN) and k != TOKEN_COMMAND_ENV}
     out.update(got)
     return out
+
+
+def missed(note):
+    """claude_auth.auth_env が認証を足せなかった時の段の名を、止まる訳の頭の字にする"""
+    if note in ("none", "keychain-unnamed"):   # keychain-unnamed は macOS で CLAUDE_KEYCHAIN_SERVICE が無い時
+        return INHERITED_NONE
+    label, _, service = note[:-1].rpartition("(")   # 形は <段の名>(<項目の名>)。段の名にも括弧が在りうる（keychain-error(...)）
+    return "%s、CLAUDE_KEYCHAIN_SERVICE の keychain の項目 %s は%s" % (
+        INHERITED_NONE, service, KEYCHAIN_MISSED.get(label, "読めない（security を起こせない）"))
 
 
 def stop_line(caller, why):
