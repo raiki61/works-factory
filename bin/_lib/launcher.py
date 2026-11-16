@@ -1,8 +1,8 @@
 """入口の殻 bin/works-factory の中身: 利用者の環境から認証と隔離を整え、止めた Archon を bun で起こし、引数をそのまま渡す。
 
 Archon の命令の別名は作らない（持ち主の決め one-launcher）。持つのはつなぎだけで、認証・隔離・プラグインの選び・gh の口・源の取り寄せ・
-run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。順は今の works の works/dev/archon.sh と同じ（土台の足し・メイングラフ・入口の殻の計画の
-B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
+run の作業ツリーの起点は bin/_lib/ の部品を呼ぶ（E15）。副作用の順は今の works の works/dev/archon.sh と同じ（土台の足し・メイングラフ・入口の殻の計画の
+B の「約束」1〜11。約束 7 の後半——道具の信頼を子の環境に足す当て物——は消した。場所ごとの信頼は対象の宣言の setup で取り戻す）。止まる所の確かめは副作用の前に preflight でまとめる。止まる時は Archon を起こさない。トークンは読まない・出さない（auth_launch.py が持つ）。
 """
 import fnmatch
 import functools
@@ -121,7 +121,6 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     refuse_sandbox_writable(cache_from, cache)
     try:
         loaded = pack.load(ROOT)
-        source = place.archon_source(loaded, cache)
     except (RuntimeError, ValueError) as error:
         raise Stop(str(error)) from None
 
@@ -152,15 +151,13 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     shim = hostgh.write(home / HOST_GH_DIR, user.get("PATH", ""), user_home, hostgh.config_dir(user))
     if shim:
         child.update(hostgh.relay(user))
-    # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）
-    child["PATH"] = os.pathsep.join(filter(None, [str(Path(shim).parent) if shim else "", forge_folder(loaded, source, cache, user),
-                                                  user.get("PATH")]))
+    # gh の無い利用者には口も置かない（並行 PR の確かめが「gh が無い → 役に任せる」の道を通る）。forge の置き場は源を取った後に足す
+    heads = [str(Path(shim).parent)] if shim else []
+    child["PATH"] = os.pathsep.join(filter(None, [*heads, user.get("PATH")]))
     role_heads = [str(hostgh.NO_POST_BIN)] if shim else []
     if shim:
         child[userenv.READ_GH_ENV] = str(hostgh.NO_POST_BIN)
     child.update(ARCHON_TELEMETRY_DISABLED="1", DO_NOT_TRACK="1", **{place.PROVIDER_ENV: place.DEFAULT_PROVIDER})
-    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは place.archon_source が確かめ済み
-    child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
 
     if executing and workflow is None:
         # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
@@ -180,20 +177,20 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         elif place.flow_cap_unread(Path(child["ARCHON_HOME"])):
             print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
                   file=sys.stderr)
-    real = None
-    if executing:
-        real = real_claude(user)
-        if not real:
-            raise Stop("本物の claude（隔離した設定にプラグインを入れ、役を起こす）が見つからない。CLAUDE_BIN_PATH に絶対パスを設定する")
-        if user.get(CLAUDE_BIN_ENV):   # 利用者が起動方法（ラッパー）を置いた時だけ、その認証を check・exec が確かめる（読むのは殻のまま）
-            auth_user += ["--runtime", user[CLAUDE_BIN_ENV]]
-    if executing and not no_auth:
-        # 隔離した子の環境で確かめる（exec と同じ見え方。役と同じ環境で起動方法の認証を確かめる）
-        check = subprocess.run([*auth, "check", *auth_user], env=dict(child), stdout=subprocess.PIPE, text=True,
-                               encoding="utf-8")
-        if check.returncode != 0:
-            raise Stop(code=check.returncode)
-        print(f"{NAME}: 認証は {check.stdout.strip()} から拾う（値は出さない）", file=sys.stderr)
+    real = real_claude(user) if executing else None
+    if executing and user.get(CLAUDE_BIN_ENV):   # 利用者が起動方法（ラッパー）を置いた時だけ、その認証を check・exec が確かめる（読むのは殻のまま）
+        auth_user += ["--runtime", user[CLAUDE_BIN_ENV]]
+    said = preflight(user, here, target, place.archon_folder(cache, loaded["archon"]["commit"]), executing=executing, real=real,
+                     auth=[*auth, "check", *auth_user] if executing and not no_auth else None, child=child)
+    if said:
+        print(f"{NAME}: 認証は {said} から拾う（値は出さない）", file=sys.stderr)
+    try:
+        source = place.archon_source(loaded, cache)
+    except RuntimeError as error:
+        raise Stop(str(error)) from None
+    child["PATH"] = os.pathsep.join(filter(None, [*heads, forge_folder(loaded, source, cache, user), user.get("PATH")]))
+    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは preflight が確かめ済み
+    child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
     if executing or argv[:1] == ["validate"]:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
     if executing:
@@ -241,6 +238,86 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         why = (lambda: startpoint.unreachable(target, child, tries=1, configured=remote)) if start else None
         return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME, why)
     os.execve(command[0], command, child)
+
+
+def preflight(user: Mapping[str, str], here: Path, target: Path, source: Path, *, executing: bool, real: str | None,
+              auth: list[str] | None, child: Mapping[str, str]) -> str | None:
+    """副作用（源の取り寄せ・依存を入れる・Archon を起こす）の前に、止まる所の確かめを全部打ち、足りない物を 1 つの Stop に並べる
+    （計画 docs/plans/2026-11-16-start-preflight.md の 2 章 (a)。並べ方は spec_reviews の止め方）。1 つなら 1 行で止まる。
+    通れば認証の出どころの名（auth が None なら None）を返す。
+
+    - bun: すべての命令。Archon を起こす打った場所 here と、源 source がまだ無ければ bun install を打つ取り置きの置き場で起きるか。
+    - node: 源がまだ無い時だけ、取り置きの置き場で。見つからなければ止めない（bun install に任せる）。見つかるのに起きない時だけ並べる。
+    - uv: 実行する命令。Archon の script のノードが起こす。対象の根 target で起きるか。
+    - 本物の claude: 実行する命令。
+    - 認証: auth（auth_launch.py check の命令）を隔離した子の env child で打ち、止まる時の訳（標準エラー）を受けて並べる。
+    起きるかは利用者の env で `<道具> --version` を打ち、終了の値が 0 かで決める。版管理の shim は打った場所ごとに版を選ぶので、その道具を
+    起こす場所で打つ。待ちの上限は付けない（持ち主の決め no-timeouts）"""
+    held = source.is_dir()
+    install_at = nearest_folder(source)
+    problems: list[str] = []
+    found, why = woken("bun", user, [here] + ([] if held else [install_at]))
+    problems.append(why or ("" if found else "bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh"))
+    if not held:
+        problems.append(woken("node", user, [install_at])[1] or "")
+    if executing:
+        found, why = woken("uv", user, [target])
+        problems.append(why or ("" if found else "uv が要る（Archon の script のノードが起こす）が PATH に無い。"
+                                                  "入れ方は https://docs.astral.sh/uv/"))
+        if not real:
+            problems.append("本物の claude（隔離した設定にプラグインを入れ、役を起こす）が見つからない。CLAUDE_BIN_PATH に絶対パスを設定する")
+    said, alone = None, ""
+    if auth:
+        # 隔離した子の環境で確かめる（exec と同じ見え方。役と同じ環境で起動方法の認証を確かめる）。止まる時の 1 行（訳 → 短い直し方 →
+        # 一般の文 auth_launch.HOWTO）を受け、箇条には一般の文を除いた短い形を入れる
+        check = subprocess.run(auth, env=dict(child), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                               encoding="utf-8", errors="replace")
+        if check.returncode == 0:
+            said = check.stdout.strip()
+        else:
+            alone = " ".join(check.stderr.split()).removeprefix(f"{NAME}: ") or f"auth_launch.py check が終了の値 {check.returncode} で落ちた"
+            problems.append(f"認証の確かめ: {alone.removesuffix(f'。{auth_launch.HOWTO}')}")
+    problems = [line for line in problems if line]
+    if len(problems) == 1:   # 1 つなら今までの 1 行（認証なら auth_launch.py の止まりの 1 行のまま）
+        raise Stop(alone or problems[0])
+    if problems:
+        raise Stop(f"起動の前の確かめで足りない物が {len(problems)} つある（源を取りに行かず、Archon を起こさずに止めた）:\n"
+                   + "\n".join(f"- {line}" for line in problems)
+                   + ("\n認証の道の一覧は README の Usage の環境変数の項" if alone else ""))
+    return said
+
+
+def woken(name: str, env: Mapping[str, str], places: list[Path]) -> tuple[str | None, str | None]:
+    """env の PATH で name を探し、places のそれぞれで `<name> --version` を打つ。(見つけたパス, 起きない時の 1 行) を返す。見つからなければ
+    (None, None)、どこでも起きれば (パス, None)。起きない時の行は、見つけた実のパス（shim ならその置き場）・終了の値・道具の標準エラーの
+    頭の数行（版管理の道具なら直し方の 1 行がここに入る）・打った場所を載せ、同じ落ち方の場所は 1 つの行にまとめる"""
+    found = shutil.which(name, path=env.get("PATH", ""))
+    if not found:
+        return None, None
+    real = os.path.realpath(found)
+    failed: dict[str, list[str]] = {}
+    for where in dict.fromkeys(places):
+        try:
+            done = subprocess.run([found, "--version"], env=dict(env), cwd=where, stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                  errors="replace")
+        except OSError as error:
+            failed.setdefault(f"起こせない: {error}", []).append(str(where))
+            continue
+        if done.returncode != 0:
+            head = " / ".join([line.strip() for line in done.stderr.splitlines() if line.strip()][:3])
+            failed.setdefault(f"`{name} --version` に終了の値 {done.returncode} で落ちた"
+                              + (f"。標準エラーの頭: {head}" if head else ""), []).append(str(where))
+    if not failed:
+        return found, None
+    return found, "。".join(f"{name}（{real}）が {why}（打った場所: {'・'.join(at)}）" for why, at in failed.items())
+
+
+def nearest_folder(path: Path) -> Path:
+    """path か、その上の階で、在る中で一番近いフォルダ（まだ作っていない置き場で道具を打つ場所）"""
+    while not path.is_dir() and path != path.parent:
+        path = path.parent
+    return path
 
 
 def forge_folder(loaded: dict, source: Path, cache: Path, user: Mapping[str, str]) -> str | None:

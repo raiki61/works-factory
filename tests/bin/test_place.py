@@ -2,6 +2,7 @@
 import ast
 import copy
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -88,9 +89,6 @@ class ArchonSourceTest(unittest.TestCase):
         self.tmp = pathlib.Path(tmp.name)
         self.cache = self.tmp / "cache"
         self.installed = []
-        which = mock.patch.object(place.shutil, "which", return_value="/bin/bun")
-        self.which = which.start()
-        self.addCleanup(which.stop)
         self.pack = self.upstream("up", {place.ENTRY: b"cli", ASF_YAML: b"a"})
 
     def upstream(self, name, files_by_path):
@@ -151,15 +149,21 @@ class ArchonSourceTest(unittest.TestCase):
                     self.source()
                 self.assertIn(f'rm -rf "{source}"', str(caught.exception))
 
-    def test_without_bun_stops_before_fetching(self):
-        self.which.return_value = None
-
-        def fetch(repo, commit, dest):
-            self.fail("bun が無いのに fetch を呼んだ")
-
-        with self.assertRaisesRegex(RuntimeError, r"bun が無い.*https://bun\.sh"):
-            self.source(fetch=fetch)
-        self.assertFalse(self.cache.exists())
+    def test_failed_bun_install_says_the_tail_of_its_stderr(self):
+        """本物の bun_install を偽の bun（標準エラーを出して終了 1）で打つ。落ちた訳の 1 行に、bun の標準エラーの末尾が載る"""
+        fake = self.tmp / "fake-bin"
+        fake.mkdir()
+        bun = fake / "bun"
+        bun.write_text("#!/bin/sh\necho 'resolving dependencies' >&2\n"
+                       "echo 'error: lockfile had changes, but lockfile is frozen' >&2\nexit 1\n", encoding="utf-8")
+        bun.chmod(0o755)
+        with mock.patch.dict(os.environ, {"PATH": f"{fake}{os.pathsep}{os.environ.get('PATH', '')}"}):
+            with self.assertRaises(RuntimeError) as caught:
+                place.archon_source(self.pack, self.cache, place.git_fetch, place.bun_install)
+        said = str(caught.exception)
+        self.assertNotIn("\n", said)
+        self.assertIn("lockfile had changes, but lockfile is frozen", said)
+        self.assertFalse((self.cache / "archon" / self.pack["archon"]["commit"]).exists())
 
     def test_incomplete_source_is_refused(self):
         for missing in (place.ENTRY, ASF_YAML):
