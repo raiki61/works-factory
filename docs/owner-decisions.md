@@ -1033,6 +1033,7 @@
 - 足す置き場（E10）: 根の直下の `perspectives/`（窓口の既定案。持ち主が変えれば従う）。一覧と元の指示のファイルと写した版は `perspectives/README.md`。
 - E11 の 3 つ: Archon は持っていない（指示は block ごとの md で、工場の外で使う形は持たない）。ASF も持っていない（ASF の役の指示は ASF のグラフの中に在るだけ）。要るか: 工場の仕組みには足さない文書の置き場で、keep-essence の観点そのものを工場の外へ残すため（持ち主の言葉）。
 - 当て方: 根の `AGENTS.md` の「リポジトリの形」。写す時は、工場の指示の今の版から写し、その版を `perspectives/README.md` に書く。
+- 残り全部へ広げる: 持ち主の言葉「もっとあるよ私のアセット」。試しの形のまま、`workflows/*/prompts/` の残りと共通の断片 `workflows/.shared/prompts/` の観点を全部写す。共通の断片の観点はそれぞれ独立の観点にし、観点どうしは名前で指さない（最後に「一緒に使うと良いもの」の参考の 1 行だけ）。流れのつなぎだけの graph（line・chain・judge・eyes・merge・policy-check・spec-driven）からは写さない。観点でない断片は `perspectives/README.md` の「写さなかった物と訳」に並べる。
 
 ## 引き継いだ決め
 

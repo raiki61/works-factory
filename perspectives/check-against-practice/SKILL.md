@@ -15,7 +15,7 @@ A request usually arrives already shaped as a means ("add X so that Y is judged"
 - **Restate before you look at the target.** Reading the target's code first pulls the restatement down into its mechanism. Do the restatement from the request text alone (or have an eye that cannot see the target do it).
 - **Never paraphrase an excerpt.** An excerpt is copied word for word from a page you actually opened. A paraphrase or a summary presented as a quote is not evidence.
 - **Never cite a page you did not open.** A URL that only appeared in a search result list is not a source.
-- **Never put the target's names into an outside query** (see "Queries to outside services").
+- **Never put the target's names into an outside query.** A query sent to a service that does not hold the target stays in its records.
 
 ## 1. Restate each request line as a problem class
 
@@ -31,7 +31,7 @@ For every line of the request:
 ## 2. Find the practice
 
 - Search with the queries; you may add queries, without the target's names.
-- Go to primary sources first: standards documents, official documentation and guides, original texts, official repositories, and widely cited practitioner documents. Prefer them over blog posts and other secondary sources. Check that a source is not about an old version. If you find only secondary sources, say so.
+- Prefer primary sources (standards, official documentation, original texts) over secondary ones.
 - Check that a source fits the situation of this request, not just its keywords.
 - Bring back excerpts copied word for word from the pages you opened, long enough to carry the point.
 - State the practice in one to three sentences, from the excerpts, without the target's names.
@@ -46,14 +46,4 @@ For each class:
 - **Verdict on the means**: the same as the practice, different from it, or no means proposed.
 - **When it differs**, name the difference and recommend the practice, in this form: "The request does X; the practice is Y. Choose Y unless …". The "unless" names what would have to be true for the request's means to win.
 
-## Queries to outside services
-
-A query you send to a service that does not hold the target (search words, URLs, command arguments) stays in that service's records. Treat the target as possibly private even when it looks public; do not decide for yourself that it is public.
-
-- Write a query as the general problem, restated in a few words: the general name of the mechanism, not the name of an internal module.
-- Leave out the owner's names (company, product, internal code names, repository and branch names, paths, the target's own identifiers) and the target's text (code fragments, diffs, sentences from its documents).
-- Third-party names (open-source software, standards, and vendor products the target uses, and the general form of public error messages) may be included; primary sources need them. Treat a name you cannot place as the owner's name.
-- To check a word used only inside the target (in-house jargon), look up its definition restated in general words and the candidate standard terms, not the word itself.
-- Do not run a lookup that cannot be done without the owner's names. Say that it was not run because it needs the target's names, and leave it for a person.
-- A query to a place that already holds the target (its own repository host) is not an outside query.
-- If you start a sub-agent, put these rules, word for word, into its instructions. They do not reach it otherwise.
+Works well with: a perspective that keeps the names and text of the target out of queries sent to outside services (web search, web fetch, and the like) and goes to primary sources first.
