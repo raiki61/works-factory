@@ -227,6 +227,35 @@ line から「本当に毎回通っている段」を抜く手順:
 - 外す: `bin/_lib/place.py`（Archon の源の取り寄せ）・`bin/_lib/launcher.py` の Archon を起こす部分・`bin/_lib/runstop.py`・`bin/_lib/recordroot.py`・埋め（`docs/polyfills.md`）・`workflows/` の YAML の全部。
 - `viewer/` のトレースとページの部品は、読む記録を Archon の run から殻の run のフォルダと Claude Code の会話の記録に替えれば使える見立て（源は読んでいない）。
 
+### 5.12 `lib/` から持っていく物（2026-11-16 に選んだ。持ち主の「本当によさそうなやつだけ持っていこう」）
+
+選びの基準は 3 つを全部満たすこと: 工場の流れと Archon に頼らない・自分の試験を持つ・工場の中の多くの所で使われてきた（本物の run で通ってきた）。数は 2026-11-16 の main で数えた（試験は `lib/tests/` の `test_<名>*.py` の `def test_` の数、使う所はそのモジュールを import するファイルの数）。中身は読み直していない。写すのは新しい形の置き場ができた時で、元の名前のまま写し、どこから写したかを commit に書く（E18 と同じ）。
+
+殻の関門へ:
+
+- `lib/seal.py`（194 行・試験 32・使う所 13）: 差分の封じと、封じた差分を置いてよいかの決まり。一緒に要る物は `lib/answer.py`・`lib/changemap.py`・`lib/listcut.py`。
+- `lib/baseline_red.py`（403 行・試験 36・使う所 16）: 元から赤の試験の区別（結果は JUnit XML で取る）。一緒に要る物は `lib/leftovers.py`・`lib/tree_run.py`。
+- `lib/tree_run.py`（975 行・試験 57・使う所 14）: コマンドを自分のプロセスグループで走らせ、止める時は木ごと止める。一緒に要る物は `lib/unittrees.py`・`lib/userenv.py`・`lib/webget.py`。
+- `lib/reads.py`（245 行・試験 22・使う所 17）: 読んだ証拠の記録の読み。一緒に要る物は `lib/jsonfile.py`・`lib/oneline.py`・`lib/writelog.py`。
+
+AI が途中で打つ道具（プログラム付きのスキルにする。頼る部品はスキルのフォルダに一緒に置く）:
+
+- `lib/impact.py` と `lib/changemap.py`（合わせて 2,224 行・試験 43・使う所 19）: 変える所から、関わるファイルと試験を辿る地図。拡張子と言語の表を持ってよい例外のファイル（E13）。
+- `lib/cite.py`（504 行・試験 10・使う所 24）: 名指しの出どころが現物に在るかの確かめ。ほかの部品に頼らない。
+
+次点（使う場面が来たら取りに行く）:
+
+- `lib/libdocs.py`・`lib/libdocs_local.py`・`lib/libdocs_web.py`: ライブラリの署名と説明を手元の版と公式の文書から引く。試験は合わせて 88 と厚いが、使う所が 4。
+
+持っていかない（訳）:
+
+- `lib/measure.py`: 工場の中で import する所が無い。
+- `lib/querytest.py`: 自分の試験を持たない。
+- `lib/protect.py`: 使う所が 3 で、受け付けの口 `lib/accept.py` に頼る。守りのファイルの照らしは関門 1 の形で書き直す方が小さい。
+- `lib/writes.py`: 工場の fix の置き場 `lib/fixboard.py` に頼る。
+- `lib/green_cert.py`・`lib/declared_checks.py`: 工場の承認の項目の決め `lib/gatemarks.py`（1,431 行）に頼り、ほどくのが重い。
+- ほかの `lib/` と block の中のコード: 工場の流れか Archon の記録の形に結びつく。git の履歴に置いたままにし、要る場面が来たら取りに行く。
+
 ## 6. 書き直しが要る持ち主の決め（E10）
 
 次の形は、今の決めのいくつかと向きが違う。作り始める前に、持ち主の言葉つきで決めを書く。
