@@ -12,9 +12,10 @@ Why: a hole a fix created that is carried over to the next round is raised by th
 ## Pitfalls (read first)
 
 - **Answer every hole, once.** Each raised hole and each claimed-closed hole the review found still open gets exactly one answer: fixed (what you fixed and how, and the files whose content you changed) or left (why; if it is a false positive, where in the real thing you can show it is wrong). Leave none out.
-- **Do not bend anything to get green.** Do none of: loosening a test, fitting an expected value to the implementation, rereading the request, adding a branch that passes only specific inputs. If the request, a test, and the code cannot all hold, do not fix that hole: leave it, and write the places that diverge (two or more, with lines), why both cannot hold at the same time, and which you judge to be right (the request, the test, the code, or unknown).
+- **Do not bend anything to get green.** Do none of: loosening a test, fitting an expected value to the implementation, reinterpreting the request, adding a branch that passes only specific inputs. If the request, a test, and the code cannot all hold, do not fix that hole: leave it, and write the places that diverge (two or more, with lines), why both cannot hold at the same time, and which you judge to be right (the request, the test, the code, or unknown).
 - **Stay inside the allowed paths.** A hole that needs a change outside what you may touch is not fixed: leave it and say why. What is marked as not to be touched beats a permitted path. Delete files that running tests produced.
-- **Do not fix toward what a ruling took out.** An item or unit a ruling removed from the duty to fix is left, with the ruling as the reason.
+- **Fix a departure from the plan as the plan's item says.** When the review raised a hole because the fix departs from an item of the approved fix plan, fix it the way that item says — not the way that seems better to you now. Answer it as compliance with that item.
+- **Do not fix toward what a ruling took out.** A ruling is a decision made earlier, by someone reading a stuck fix, about which side gives way; it can take a whole item of the fix plan, or one root-cause defect (a unit) within an item, out of what must be fixed now. If a hole asks for a fix toward such an item or unit, leave it, with the ruling as the reason.
 - **Do not let through a conflict with the recorded policy on your own judgment.** Leave the hole and say which item of the policy it conflicts with. Do not rewrite the policy.
 
 ## How to fix

@@ -24,7 +24,8 @@ Here "the purpose text" is the text, given when the work was requested, that say
 2. Name the assumption.
 3. Check it against the actual state: the files and lines, the measured test outcomes, the primary sources.
    - A line that gives only a count of tests whose names were not shown is evidence neither that existing tests cover a point nor that they do not. Do not read it either way.
-   - Red to green, green to green, and the other transitions of the measured tests mean what they say; when the change is measured from the version a pull request branched from and comes out empty, the fix may have undone the pull request's own changes; it does not mean nothing was fixed.
+   - Red to green, green to green, and the other transitions of the measured tests mean what they say. Red to green (fails before the fix, passes after) means a test that prevents a regression already exists. Green to green (passes before and after) means, when the fix does not change behaviour, that the existing tests kept confirming that behaviour. Green to red is a test the fix broke.
+   - When the change is measured from the version a pull request branched from and comes out empty, the fix may have undone the pull request's own changes; it does not mean nothing was fixed.
 4. Write the evidence that decided it: the files and lines you read, the primary sources you read.
 
 ## Outcome

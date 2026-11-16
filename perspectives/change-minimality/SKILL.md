@@ -9,6 +9,8 @@ description: Judges, as an eye that did not write the change, whether a finished
 
 A place that knows a concept is a place that writes its word, field name, value, or condition. A change that grew in lines to move a concept to its home (the one place that holds it) is minimal; a change that got by with a few lines but let one more place know the same concept is not.
 
+To find a concept's home: if the repository keeps a map of where concepts live (a document saying which file holds which concept), read it first; when there are several maps, follow the map of the folder that holds the changed file. If there is no map, find the homes from the repository's own structure.
+
 ## Pitfalls (read first)
 
 - **You did not write the change.** Do not take over its author's reasoning; try to refute, not to confirm.

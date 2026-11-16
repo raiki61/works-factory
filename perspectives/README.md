@@ -78,7 +78,7 @@
 
 - 元の block: fix
 - 元の指示: `workflows/fix/prompts/parts/tdd.md`（`tdd.md`・`tdd-new.md`・`route.md` はこれを差し込むだけ）・共通の断片 `workflows/.shared/prompts/brief-head.md`・`workflows/.shared/prompts/brief.md`（とそれが差し込む `workflows/.shared/prompts/brief-reading.md`）・`workflows/.shared/prompts/writer-rules.md`（とそれが差し込む `workflows/.shared/prompts/sandbox-shell.md`）・`workflows/.shared/prompts/query-rule.md`（`brief.md` と `writer-rules.md` の観点の文は `do-not-bend-to-green`・`fix-at-the-root` ほかに写した。`brief-head.md`・`brief-reading.md`・`sandbox-shell.md` は工場のつなぎなので写していない。`query-rule.md` は別の観点 `outside-query-hygiene` として写した）
-- 落とした物: 段ごとの JSON の形・段の名の enum・機械が赤と緑を決めて差し戻す仕組み・仮の実装を凍らせるかのファイルの種類の細目・JUnit XML の置き場と環境変数・走らせ方の行・前の単位からの引き継ぎの行。借りた座（superpowers の `test-driven-development` を Skill で読ませる所）と無人の読み替え（`lib/borrow/unattended.md`）は第三者の文と工場の仕組みなので写していない。差し戻しの時に段を丸ごとやり直す決まりと、戻ってきた指摘の後の回で前の回の受け入れの試験を使い回さない決まりは残した。
+- 落とした物: 段ごとの JSON の形・段の名の enum・機械が赤と緑を決めて差し戻す仕組み・仮の実装を凍らせるかのファイルの種類の細目・JUnit XML の置き場と環境変数・走らせ方の行・前の単位からの引き継ぎの行。借りた座（superpowers の `test-driven-development` を Skill で読ませる所）と無人の読み替え（`lib/borrow/unattended.md`）は第三者の文と工場の仕組みなので写していない。戻ってきた指摘の後の回で前の回の受け入れの試験を使い回さない決まりは残した。差し戻しの時に段を丸ごとやり直す決まりは、共通の断片 `workflows/.shared/prompts/rejected.md` と同じく機械の受け付けの検査への出し直しの仕組みなので写していない。
 
 ### `repair-test-wrapper` 単独なら通る試験を壊す、試験の包みを直す
 
@@ -92,7 +92,7 @@
 
 - 元の block: plan
 - 元の指示: `workflows/plan/prompts/plan-writer.md`（計画の役。観点の本体）・`workflows/plan/prompts/plan-writer-fix.md`（差し戻しで出し直す時の項目の扱いは、plan-writer.md の差し戻しの所と合わせて「計画が差し戻された時」に写した）・`workflows/plan/prompts/parts/ripple-notes.md`（多くのファイルに当たる名と、消す名への参照の読み方を「波及を追う」に写した）、共通の断片 `workflows/.shared/prompts/` の `deviation-grounds.md`（一般の構造から離れる訳）・`ask-cases.md`（人に聞く 3 つの場合）・`query-rule.md`（外への問い合わせの決まり）・`recorded-policy.md`（記録された決めの出どころ）・`policy.md`（人の方針）・`concept-map.md`・`concept-map-found.md`・`concept-map-none.md`（考えの住処の地図）・`plain-ask.md`（人に聞く文の書き方）・`unknown-asks.md`（依頼の行ごとの分からない所）・`prior-failures.md`（前の run で通らなかった物）・`handoff.md`（周の間の引き継ぎの控え）（どれも別の観点として写した。中身はここに写していない）
-- 落とした物: 差し込み口・計画の項目の欄の名と JSON の形・受け付けの検査（字数の下限・拒否の条件・機械が差分から名を探す話）・責めの印の語・承認ノードと無人の run の通し方・直す組の分け方・判定の記録の引き方（絶対パスと行）・周の間の控えの書き方。計画の項目の「書いてよい範囲」「触らない物」「依存」「直しの種類」は欄の形を落とし、何を書くかだけを残した。
+- 落とした物: 差し込み口・計画の項目の欄の名と JSON の形・受け付けの検査（字数の下限・拒否の条件・機械が差分から名を探す話）・責めの印の語・承認ノードと無人の run の通し方・直す組の分け方・判定の記録の引き方（絶対パスと行）・周の間の控えの書き方。計画の項目の「書いてよい範囲」「触らない物」「依存」「直しの種類」は欄の形を落とし、何を書くかだけを残した。`plan-writer.md` 自身の文のうち、確かめが疑った単位を計画から落とさない（`:150`）・世の中の定石の行に従うか従わない訳を出典つきで書く（`:120`）・依頼者の手段から離れる時は勧めを書かない（`:128`）・spec が試験先行の所を決める（`:172`）・読んだ文書の版を書く（`:269`）・並ぶ pull request の範囲に触らない（`:56`）は、本文に写した。
 
 ### `zero-based-design` 計画を見る前に、目的だけから設計する
 
@@ -112,7 +112,7 @@
 
 - 元の block: delta-review
 - 元の指示: `workflows/delta-review/prompts/refix-1.md`（1 回目の手直し）・`workflows/delta-review/prompts/refix-2.md`（2 回目の手直し。もう審査されない話）・`workflows/delta-review/prompts/parts/refix-rules.md`（この輪の読み替えと手直しだけの決まり）・`workflows/delta-review/prompts/parts/refix-before.md`（触ってよいパスと触るなの強さ）、共通の断片 `workflows/.shared/prompts/writer-rules.md`（直しを書く時の決まり。`fix-at-the-root`・`do-not-bend-to-green` ほかに写した）・共通の断片 `workflows/.shared/prompts/query-rule.md`（外への問い合わせ。別の観点 `outside-query-hygiene` として写した）・共通の断片 `workflows/.shared/prompts/rejected.md`（出し直しの仕組みなので写していない）
-- 落とした物: 差し込み口・brief の欄の名（`owed`・`ties`・`compliance` など）・返す欄（`handled`・`how`・`files`・`bash_writes`）と字数の下限・writer-rules の返す欄の読み替えの表（`changes`・`not_done`・`conflicts` などは無い、の話）・書いた物を書き込みの記録か申告に載せよという受け付けの検査・借りた skill の座（superpowers の receiving-code-review、`{seat_skill}`・当たる所と当たらない所の一覧）・方針の文書と依頼のファイルを先に読めの差し込み・範囲の値の表の差し込み・言語の指定。「works の中の語」は、変更を作った道具や工程の中の語に言い直した。
+- 落とした物: 差し込み口・brief の欄の名（`owed`・`ties`・`compliance` など。`compliance` は欄の名だけを落とし、審査が挙げた計画からのずれを承認された計画の項目のとおりに直す決まりは本文に写した）・返す欄（`handled`・`how`・`files`・`bash_writes`）と字数の下限・writer-rules の返す欄の読み替えの表（`changes`・`not_done`・`conflicts` などは無い、の話）・書いた物を書き込みの記録か申告に載せよという受け付けの検査・借りた skill の座（superpowers の receiving-code-review、`{seat_skill}`・当たる所と当たらない所の一覧）・方針の文書と依頼のファイルを先に読めの差し込み・範囲の値の表の差し込み・言語の指定。「works の中の語」は、変更を作った道具や工程の中の語に言い直した。
 
 ### `multi-lens-collect` いくつもの審査の目を 1 つの差分に当て、見つけた物を集める
 
@@ -131,7 +131,7 @@
 ### `report-for-decision` 戻ってきた読み手が決められる報告を書く
 
 - 元の block: report
-- 元の指示: `workflows/report/prompts/write.md`（書き手の役。却下の後の書き直しの段落も含む）・`workflows/report/prompts/cold.md`（初見の読み手の役。止まった所・推測した所・決められるかを返す所だけ）。共通の断片 `workflows/.shared/prompts/rejected.md`（却下の後に全部を返し直す。別の観点として写した）・`workflows/.shared/prompts/query-rule.md`（外への問い合わせの決まり。別の観点として写した）・`workflows/.shared/prompts/role-cold-reader.md`（初見の読み手の構え。別の観点として写した）・`workflows/.shared/prompts/report-head-check.md`（頭の確かめ。別の観点として写した）
+- 元の指示: `workflows/report/prompts/write.md`（書き手の役。却下の後の書き直しの段落も含む）・`workflows/report/prompts/cold.md`（初見の読み手の役。止まった所・推測した所・決められるかを返す所だけ）。共通の断片 `workflows/.shared/prompts/rejected.md`（却下の後に全部を返し直す。出し直しの仕組みなので写していない）・`workflows/.shared/prompts/query-rule.md`（外への問い合わせの決まり。別の観点 `outside-query-hygiene` として写した）・`workflows/.shared/prompts/role-cold-reader.md`（初見の読み手の構え。別の観点 `cold-reader-stance` として写した）・`workflows/.shared/prompts/report-head-check.md`（頭の確かめ。別の観点 `first-time-reader-check` に写した）・`workflows/.shared/prompts/handoff.md`（周の間の引き継ぎの控え。別の観点 `handoff-notes` として写した）
 - 落とした物: 機械が組む冒頭 3 行の作り方と、人に向けた報告と詳細のファイルへの割り振り・行の切り詰め・語の置き換え・来歴の行・事実のファイルの見出しの字・表のセルの字数の数値・返す JSON の形（本文・語の定義・引き継ぎのメモ）・行の印（`M2`・`W5`）・結末の語（`stopped_by_request` など）の名。outline の 1〜10 は「頭の後ろの本文」の節にまとめた。
 
 ### `prune-added-comments` 変更が足したコメントを、消すか残すかに訳つきで分ける
@@ -462,7 +462,7 @@
 - `workflows/plan/prompts/parts/structure-rows.md`: 構造の目の行への答え方（従う・離れる訳）の配線だけで、観点は構造の目の側に在る
 - `workflows/plan/prompts/parts/lib-docs.md`: 共通の断片 `lib-docs.md` を差し込み、機械が取った文書の行を貼るだけ
 - `workflows/independent-design/prompts/design.system.md`: 共通の断片 `role-blind-judge.md` を差し込むだけ
-- 共通の断片 `workflows/.shared/prompts/lib-docs.md`: 機械が取ったライブラリの文書の置き場と読み方の案内だけ
+- 共通の断片 `workflows/.shared/prompts/lib-docs.md`: 置き場と取り寄せの仕組みは写していない。「API の使い方は、入っている版の文書と公式の文書で確かめる」の観点は `plan-pre-review`・`fix-at-the-root`・`fix-plan-writing` の落とし穴に写した
 - 共通の断片 `workflows/.shared/prompts/rejected.md`・`workflows/.shared/prompts/resubmit.md`: 機械の受け付けに拒まれた時の出し直しの手順（理由の貼り付けと、返す欄の合わせ方）だけ
 - 共通の断片 `workflows/.shared/prompts/reply-types.md`: 出力の JSON の型の決まりだけ
 - 共通の断片 `workflows/.shared/prompts/brief-reading.md`: 機械が書く項目ごとの指示書のファイルの読み方だけ
@@ -531,11 +531,11 @@
 - `workflows/.shared/prompts/eye-diff.md`: 累積の差分のファイル・base・変わったファイルの差し込み口だけ。
 - `workflows/.shared/prompts/eye-frozen.md`: run が作業ツリーを凍らせる仕組みと、読むだけのノードの道具の話。読むだけの構えは `inspector-stance` に在る。
 - `workflows/.shared/prompts/eye-green.md`: 最後の試験の認証が通らなかった事を知らせる 1 行で、承認ノードの仕組み。
-- `workflows/.shared/prompts/lib-docs.md`: 機械が取ってきたライブラリの文書の置き場と読み方。工場の取り寄せの仕組み。
+- `workflows/.shared/prompts/lib-docs.md`: 置き場と取り寄せの仕組みは写していない。「API の使い方は、入っている版の文書と公式の文書で確かめる」の観点は `plan-pre-review`・`fix-at-the-root`・`fix-plan-writing` の落とし穴に写した。
 - `workflows/.shared/prompts/material-na.md`: 受け付けの検査が `not_applicable` を断るかの条件の差し込み。
 - `workflows/.shared/prompts/material-readonly.md`: 受け付けの検査が作業ツリーをスナップショットと比べて断る話。読むだけの構えは `inspector-stance` に在る。
 - `workflows/.shared/prompts/material-status.md`: `material` の状態の enum と `carried_over` の話で、出力の形。「見て何も無かったなら何を見たかを書く」は `inspector-stance` に在る。
-- `workflows/.shared/prompts/prior-failures.md`: 前の run の落ちと前の周の作り直しの穴を貼る差し込み口。「同じ試験を赤くしない直しを出す」は差し込んだ行を読む指示で、観点としての中身が無い。
+- `workflows/.shared/prompts/prior-failures.md`: 前の run の落ちと前の周の作り直しの穴を貼る差し込み口の仕組みは写していない。「前の試みの後に CI が赤くした試験は前の直しが原因と見て、同じ試験を赤くしない」「前の試みで機械の検査が断った物は、直す欠陥でなく同じ所でまた断られないための注意」の観点は `root-cause-triage`・`fix-plan-writing`・`fix-at-the-root` の落とし穴に写した。
 - `workflows/.shared/prompts/rejected.md`: 機械の受け付けの検査が前の答えを断った時の出し直しの指示（全部の点を直して全部を返す）。審査の 2 回目からの決まりではなく、答えの形の仕組み。
 - `workflows/.shared/prompts/reply-types.md`: JSON Schema の型の決まりで、出力の形。
 

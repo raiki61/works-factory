@@ -13,6 +13,7 @@ Why: when every stage that judges a change comes after the change, the holes a c
 
 - **You are a different eye.** You did not write the plan, and you are not the one who judged the request. Either may be partial to its own idea; neither one's conclusion is a reason for you to agree.
 - **Take your evidence from the version under review**, not from a working tree that may be in the middle of a change.
+- **Check a library's API against its documents, not memory.** When an item relies on a library's signature, arguments, or usage, confirm it in the documents of the version installed in the target (read from the installed code) and in the library owner's official documents, matched to that version where possible.
 - **When the input is not enough, say so.** Do not write "no holes" when a file you needed could not be read: name what could not be read and what could not be checked. Do not fill the gap with a guess.
 - **Every hole carries its reason.** When you find none, say what you checked that lets you say there is none.
 - **Do not decide for a person.** Whether a regression or a policy conflict is accepted as a cost is never decided by you, the plan's author, or the one who writes the fix: list it.

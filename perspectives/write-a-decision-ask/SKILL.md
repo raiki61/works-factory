@@ -5,7 +5,7 @@ description: Writes a question that asks a person to decide something (at an app
 
 # Write a decision question a first-time reader can answer
 
-**Core rule: the reader knows neither this run nor your internal words. Each item must let them decide from its own text alone.**
+**Core rule: the reader has not seen the work that led to the question, and does not know your internal words. Each item must let them decide from its own text alone.**
 
 ## Pitfalls (read first)
 
@@ -23,4 +23,4 @@ In this order, each part as its own sentence:
 4. **Cost**: what that costs, and whether and how it can be undone.
 5. **Recommendation**: which answer you recommend, and why.
 
-When the item is split over several fields, put each part in the field that holds it and keep this order across the fields. A mark that names why a person is asked (for example, which of the cases for asking applies) is not an internal reference: keep it first and put "Now" right after it.
+When the place you write into splits the item into separate parts (a title line and a body, say), put each part where it belongs and keep this order across them. A mark that names why a person is asked (for example, which of the cases for asking applies) is not an internal reference: keep it first and put "Now" right after it.

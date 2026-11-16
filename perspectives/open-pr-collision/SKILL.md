@@ -16,7 +16,7 @@ description: Checks, read-only, whether open pull requests in the target reposit
 - **An empty change set checks nothing.** Do not write "no collision"; say what was empty.
 - **A stand-in set is not the change.** When the set of changed files stands in for a diff that could not be measured (for example it was taken from the places a request names), an empty intersection says nothing about the real change: hand it to a person with the reasons.
 - **An unchecked result is never clean.** If the network or the tool refused and you could not check, say so with the refused command and its output.
-- **Do not decide yourself whether the host holds pull requests.** That is decided before you start.
+- **Check whether the host holds pull requests before anything else, from the remote alone.** When there is no remote, the remote is a local path, or the host has no pull requests, the check does not apply: say that it does not apply and why (what the remote was). Do not guess it from a failed query; a query refused by the network is unchecked, not "does not apply".
 
 ## Steps
 

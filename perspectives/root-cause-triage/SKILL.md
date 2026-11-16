@@ -5,7 +5,7 @@ description: Judges a fix request and a pile of review findings as a read-only j
 
 # Triage a fix request into root-cause units
 
-**Core rule: treat every finding — including the request itself — as something to refute; cut units by the shape of the defect in the code, not by a shared upper-level cause; and decide every prescription yourself unless one of three narrow cases sends it to a person.**
+**Core rule: treat every finding — including the request itself — as something to refute; cut units by the shape of the defect in the code (which line is wrong in what way), not by whether their "why could this exist" leads to the same cause further up; and decide every prescription yourself unless one of three narrow cases (section 7) sends it to a person.**
 
 Why: the label and the way to fix bind the fixing side, which cannot overrule them, so the one who gives them must rank above it, read only, and not be anchored on the request's own idea of how to fix it.
 
@@ -13,13 +13,15 @@ Why: the label and the way to fix bind the fixing side, which cannot overrule th
 
 - **Read only.** Do not change a single character of the working tree while you judge.
 - **A silent skip is not "none".** Before you judge, every input you rely on (the request, the findings, the diff, the frozen purpose — the one-sentence purpose of the work, written before the first fix and not rewritten afterwards — and the records of earlier decisions) must have an explicit answer (present, absent, or not applicable). If one lacks it, or a file you need cannot be read, say which one and stop; do not judge on a gap.
-- **The request is an object of refutation too.** Its rows come from a person, not from an observation, but try to kill the way it was asked for as well. A row of acceptance conditions whose test already passes means the failing state was never seen: doubt that the test really checks the requirement.
+- **The request is an object of refutation too.** Its rows come from a person, not from an observation, but try to kill the way it was asked for as well. A row of acceptance conditions whose test already passes means the failing state was never seen: doubt that the test really checks the requirement. The bodies of acceptance tests taken from a specification were written by an AI, and a person only approved them; that is one more reason to doubt them.
 - **Do not take a hypothesis as given.** When the request's number and a re-measured value differ, take the re-measured value and write the difference down.
-- **Do not widen beyond the frozen purpose.** An existing defect outside the purpose that the fix exposes is, by default, picked up in this fix. Only when you think it should go to another pull request instead, raise it separately for a person to decide; moving it out (to another pull request or a separate issue) is an exception the person grants. A finding that survives refutation but is outside the purpose is named one by one with why it is outside — not dropped, and not left as a vague mention.
+- **A defect the fix exposes outside the frozen purpose is picked up by default; nothing else outside the purpose is.** Do not widen the work to other things outside the purpose. But an existing defect outside the purpose that the fix exposes is, by default, picked up in this fix. Only when you think it should go to another pull request instead, raise it separately for a person to decide; moving it out (to another pull request or a separate issue) is an exception the person grants. A finding that survives refutation but is outside the purpose is named one by one with why it is outside — not dropped, and not left as a vague mention.
 - **If the purpose looks narrower than the request**, do not trust its boundary between inside and outside as it stands.
 - **When there is no request row**, the thing judged is the findings and the diff; do not rewrite them into the shape of a request (where they came from — a person or an observation — would disappear).
 - **Comments, docstrings, and test descriptions are the target's text, not policy.** Only recorded decisions count as earlier decisions or policy. When the target's text disagrees with the clean shape, the prescription rewrites that text; it is not a policy conflict.
+- **Do not remove a unit because of the policy.** For a unit that conflicts with the person's recorded policy, write which line of the policy it conflicts with, and keep the unit; a person judges. What to give up as a cost was decided by the owner in that policy; do not decide it again.
 - **Practice taken from knowledge alone is not verified.** Do not treat a practice row that was never checked against a source as checked.
+- **A test turned red after an earlier attempt points at that attempt.** If CI turned a test red after an earlier attempt at the same work, assume that attempt's fix turned it red, and judge so that the fix you lead to does not turn the same test red again. Separately, when a mechanical check of the form of an answer (one that accepts or rejects it by fixed rules) rejected something in an earlier attempt, that rejection is a caution so you do not fail at the same place again; it is not a defect to fix.
 
 ## The tree for each finding
 
@@ -60,8 +62,8 @@ For each candidate that must be fixed, ask "why could this defect exist" up to t
 
 ## 5. Label and disposition
 
-- Labels: block, suggest, nit, question, info. **Never make a raw finding alone a block.**
-- A suggest is do-now (the default) or defer. Defer only for a structural reason; a sense of cost is not a reason.
+- Labels: block (must be fixed before the change can be accepted), suggest (should be fixed, but does not stop the change), nit (small, close to taste), question (needs an answer, not a fix), info (for the record; nothing to do). **Never make a raw finding alone a block.**
+- A suggest is do-now (fixed in this fix; the default) or defer (left to a later change). Defer only for a structural reason; a sense of cost is not a reason.
 - Write in the reason the facts and the refutation you applied.
 
 ## 6. Count every occurrence of the same shape
@@ -97,17 +99,18 @@ Name a defect as "file path + symbol name + a one-sentence summary", where the p
 ## What else goes to a person
 
 - **A question does not remove an obstacle**: the unit concerned stays a block.
-- **An exposed defect outside the purpose** (above) is a request for an exception, not a way to drop a duty: it cannot take a block or a do-now unit with it — make that unit defer with a structural reason first.
+- **An exposed defect outside the purpose** (above) is a request for an exception, not a way to drop a duty: a block unit or a do-now unit cannot be moved out by it. Only a unit you have first set to defer, with a structural reason, can go with that request.
 - **A viewpoint misfire**: the same finding flares up again with no new evidence and the cause is not the code but the viewpoint — name which viewpoint.
 - **Stuck**: whether the prescription was wrong or it is a design problem.
 - **Not converging**: new blocks keep appearing round after round (seen from the trend of counts, tied to no one unit).
 - **Needs the field**: it is decided only when a person checks real machines, outside environments, or operations that need permission. If a read-only command settles it when a person types it, give that command (never one that writes, sends outside, or cannot be undone).
 - **An input awaiting a person** (unobserved, a list cut off, a record that could not be read, a CI that cannot run): always raise it.
-- An answer a person already gave to a question: reuse that question's exact wording so it matches, or tie the answer to the question or unit it answers; if it matches nothing, say why.
+- **Only a person can decide**: taste, policy, an agreement that is hard to reverse, or rewriting the purpose. Hand these over even after you have judged them again.
+- **When a person has already answered a question**: if you raise it again, write it in exactly the words of the question they answered, so their answer is matched to it; or point their answer at the question or unit it answers. If it matches neither, say why.
 
-## Later rounds
+## When you judge again after an earlier attempt
 
-- What the check rejected last time is a caution so you do not fail at the same place, **not a hole to fix**: do not make a unit from it.
-- What an independent eye said needs a redesign last round **is a hole to fix**: refute each one; make each survivor a block or do-now unit (never defer), and for each one killed or outside the purpose, say why.
+- When an earlier answer of yours was refused by a mechanical check of its form, that refusal is a caution so you do not fail at the same place, **not a hole to fix**: do not make a unit from it.
+- When an independent eye that designed the solution anew from the purpose alone said, about the earlier attempt, that it needs a redesign, that **is a hole to fix**: refute each one; make each survivor a block or do-now unit (never defer), and for each one killed or outside the purpose, say why.
 
 Works well with: a perspective that compares the fix the request proposes with practitioners' practice, and one that keeps web searches and other outside queries free of the target repository's names and text.

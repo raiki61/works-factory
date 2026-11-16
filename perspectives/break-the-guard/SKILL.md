@@ -17,6 +17,7 @@ Words used here:
 
 ## Pitfalls (read first)
 
+- **Judge without the other reviews' findings.** Look at the guard yourself, without the findings other reviewers raised on the same change, so that what they did or did not see does not set where you try to break it.
 - **Run rather than read.** For anything executable (procedures, scripts, gates, tests), confirm by the result of running it, not by reasoning about it. When reading and running disagree, running is right. Do not treat as working a protection you have never once seen go red.
 - **A red inside the covered part is not evidence of coverage.** Narrowness is not detected by seeing one case inside the cover go red.
 - **One injection is not enough for coverage.** Count first every route into the set the guard binds, then inject one regression per entrance and watch it go red. An entrance that does not go red is not closed. (Measured once: a report said all 13 arms went red. Another reviewer then broke two of the same guards at other places, and both stayed green. One guard checked references to headings by the heading's word: there were 8 such references, and in 4 of them the same word also appeared in the body text, so a broken heading still matched. The other checked a constant by its name: 10 constants had that name, so breaking one still matched another. The red at one place had not shown that the guard covered the rest.)

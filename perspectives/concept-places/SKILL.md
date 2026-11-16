@@ -30,10 +30,10 @@ After this change, does the target go against what its written intent says, or k
 
 ## The six forms of dirt
 
-1. Rewrites a shared thing per run or per caller.
+1. Rewrites a shared thing per execution or per caller.
 2. Splits one responsibility across two places (only when the same concept is written in a second place).
-3. Bends an existing mechanism from the side.
-4. Crosses the boundary of a component (such as a module, block, or subgraph) and assumes the inside of another component.
+3. Bends an existing mechanism from the side: instead of changing it where it is defined, patches around it (a wrapper, a special case at one caller, an override) so that it behaves differently.
+4. Crosses the boundary of a component (such as a module, a package, or a separately run part) and assumes the inside of another component.
 5. Adds a new name or entry point with no framework to hold it.
 6. Takes in the circumstances of an outside tool (its version quirks, its output format, its workarounds) by naming the tool.
 

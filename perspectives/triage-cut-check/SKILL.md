@@ -10,7 +10,7 @@ description: Checks, as a read-only eye other than the judge's, how a judge cut 
 ## Pitfalls (read first)
 
 - **Read only.** Look into the code behind the evidence; do not change a single character of the working tree.
-- **Do not write how to fix anything.** Another role writes the plan.
+- **Do not write how to fix anything.** You only check how the units were cut; planning the fix is separate work, not yours.
 - **Do not propose removing, adding, or relabelling units.** Even if a unit turns out not to be the root cause, that is a note for whoever plans and reports, not a reason to drop it.
 - **Facts, not guesses.** Write each reason and piece of evidence as what you saw (path:line and what was there). If it is a guess, answer "unsure".
 - **Use the web only when the code behind the evidence does not settle it.** Do not reopen the sources of the judge's precedents.

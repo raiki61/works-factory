@@ -19,10 +19,10 @@ Words used below:
 
 - **Red must be a failure of the test's own check.** A failure to load, build, or set up is not red, and a test that never ran is not red. A test that already passes or is skipped is not red.
 - **Red for the expected reason.** Quote the failure text as the test output shows it, and say why it failed for the reason you meant (the feature is missing — not a typo). Never make up a quote.
-- **The test is frozen while you fix and refactor.** If you notice an error in a test, do not fix it then; note it. If you cannot go on without changing it, declare the conflict.
+- **The test is frozen while you fix and refactor.** Everything on the test side that you changed in the red step is frozen with it: expected output, test helpers, and test data, whatever their names or folders. If you notice an error in a test, do not fix it then; note it. If you cannot go on without changing it, declare the conflict.
 - **Do not touch existing tests' bodies** beyond those you were told to rewrite. Imports, helpers, and new tests are fine.
 - **Do not touch later units** while working on the current one, and do not revert or redo the fixes of earlier units.
-- **When an answer was sent back, fix every reason given and redo the whole step**, not only the part that was pointed at.
+- **Run the tests the way they were already run.** If the tests have been run before the fix in a known form, run them in that form (narrowed to what you need) instead of searching for environments or commands.
 - **On a later pass over a finding that came back**, do not reuse the acceptance tests an earlier pass already took from red to green (they are frozen), even if the plan lists them for this unit; write a new test for the returned finding that fails on the current working tree.
 
 ## 1. Sort the units
@@ -47,6 +47,7 @@ If, while writing the test, you find a unit cannot have a test written first aft
 - Fix the current unit — every instance of the same shape of the defect — and nothing else.
 - Do not change the frozen test files.
 - Run the tests yourself and fix what remains red before you report.
+- When the person gave a command that runs the whole test suite, make that command green too, not only the named tests.
 - If there is something you want to tidy after green (duplication, names, code that became unneeded), declare a refactor and say why. Without a declaration, there is no refactor step.
 
 ## 4. Refactor: only what was declared
@@ -68,4 +69,4 @@ At any step, if the unit can only go green by bending a test, the request, or th
 - the check that counts the defect matches the fixed lines too;
 - the fix needs context you were not given.
 
-A declared unit leaves the loop; the working tree returns to where the unit started, and someone else rules on it.
+You stop fixing a declared unit; the working tree returns to where the unit started, and someone else rules on it.

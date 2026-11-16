@@ -15,7 +15,8 @@ Why: if rows could be left out, a lens that was never started passes in the same
 - **Pass the target to every detector explicitly.** If you do not, each one rebuilds its own default target, and empty findings about something else enter the record in the same form as "looked and found nothing". A version range does not include the working tree; pass file paths when the change is in the working tree.
 - **Only collect; do not score, settle labels, or weed out false positives.** Weeding out is the job of a later refutation. Do not carry a lens's own verdict into the findings, not even inside the text.
 - **Change nothing.** Call any lens that can go as far as fixing only in a form that forbids fixing, and do not call a lens whose job is to apply changes instead of reporting them. Forbid fixing with the sentence "do not change the working tree" — do not write the spelling of a forbidden flag (the command-line option of the tool that posts comments or applies fixes, typically a word starting with `--`), not even inside a sentence that says not to use it: the tool may read it as the flag (seen once: a fix flag written inside a prohibition was taken).
-- **Do not turn something missing into "not applicable".** A lens whose call failed is a failure, written with the call you made and the error it returned.
+- **Do not read the request.** The one who collects is given only the diff, the list of changed files, and the review viewpoints — neither the request nor any other material — so that what the lenses look at is not narrowed to what the request expected.
+- **Do not turn something missing into "not applicable". A lens whose call failed is a failure, written with the call you made and the error it returned.
 
 ## One row per lens
 
@@ -25,11 +26,12 @@ Why: if rows could be left out, a lens that was never started passes in the same
 - **Started and found nothing**: say that it was started and found nothing, and what it looked at. A row with neither findings nor a reason cannot be told from a lens that was not started.
 - **Not started, or does not apply**: say why.
 - **Started, but its answer did not reach you** (for example the tool reports only that it completed): say that the text did not arrive and what target you passed. Do not write "found nothing" — that makes something not seen look like zero findings. Do not start it again just to get the same form back.
+- **An optional lens whose call failed**: write the failure in its row, and mark the collection as waiting for a person to decide about that lens, with the reason.
 - **A lens that must run and whose call failed**: start it again. Do not hand it to a person on your own; handing over is decided by whoever runs you, after repeated failures.
 
 ## What each finding must carry
 
-Writing submission criteria in a viewpoints file does not make them reach a lens. Put them into the instructions you give each lens:
+Read the review viewpoints (labels and viewpoints come from there); if the target repository has its own review viewpoints, read those too. Writing submission criteria in a viewpoints file does not make them reach a lens. Put them into the instructions you give each lens:
 
 - **Mechanism**: one sentence on the cause in the code.
 - **Measurement**: run what can be run; if you cannot, say "not measured" and submit it as a hypothesis.

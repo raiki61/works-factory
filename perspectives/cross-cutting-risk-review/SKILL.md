@@ -15,7 +15,7 @@ description: Looks, after a change is written, not inside the diff but in the ar
 - **A silent omission is forbidden.** When the inventory of capabilities is triggered, say explicitly whether a capability is gone — "none" is said, not implied.
 - **Do not decide for a person.** Whether to accept a lost capability, and whether to let a conflict with a person's policy through, is a person's decision. List them; do not count them toward your own verdict on whether the change needs a redesign (doing so would decide before the person does).
 - **Pre-existing and unrelated risks do not stop the change.** Tell them; do not block on them.
-- **Do not reword what a person already passed.** If you see the same lost capability or the same policy conflict that a person already let through, write it in the same words, so it is not asked again.
+- **Do not reword what a person already passed.** If you see the same lost capability or the same policy conflict that a person already let through, write it in the same words, so it is not asked again. A loss that goes beyond the conditions the person passed, or a different capability, is new: write it in your own words, not in the passed words.
 
 ## Risks to check
 

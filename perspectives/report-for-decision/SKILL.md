@@ -23,6 +23,7 @@ Words used below: a *run* is one execution of the work; a *stage* is one step of
 ## The head
 
 - **Plain summary, 2 to 3 lines, no jargon**: what the task was (what was wrong, in the request's own words), what was found and what changed, the gist of why it ended as it did, what to decide (if several, how many and the most urgent one), and whether it is urgent — and whether anything is broken now. Lines built by a machine carry no reasons; the summary supplies them.
+- **Urgency is your answer.** "No stage fell" only says that nothing failed inside the checks that ran; it does not say that the target works outside the tests. Decide and say whether it is urgent yourself.
 - **For danger or failure, say first whether it is broken now or only could break.**
 - **Gloss every term the fixed head lines use** that only the work itself knows (stage and role names, the request's own domain words, identifiers from the diff) in one plain phrase, in the order they appear. A gloss that lives only in a later section does not count for a reader who reads only the head.
 
@@ -42,16 +43,18 @@ Gather every decision in one place right after the summary. Do not scatter quest
 - Several findings that may or may not be the same decision: say whether they are separate, which comes first, and who does it (a person or the next run).
 - A notice that is not a decision: say in one sentence what it means for the reader, and what to do if they must act.
 
+Questions that the record already settled go in their own section right after the decisions section and before the rest of the body, each with the grounds it was settled on.
+
 ## The body after the head
 
-Fold the details briefly under headings; do not narrate progress or your own work. Useful sections, after the head (each only when it applies):
+Fold the details briefly under headings; do not narrate progress or your own work. Useful sections, after the head and the settled questions (each only when it applies; none of them goes before the head):
 
 - How the work was entered and every request it carried, with origins and counts; do not lump a person's request and a machine's request together, and drop none. If no review looked beyond the request before the fix, say so even if the work looks finished.
 - The outcome and the stopping stage, as the facts give them.
 - For each unit of work, what was done or why nothing was needed; the defects accepted to be fixed later.
 - The verdict and reason of each independent review, unchanged, with an explanation for the reader; what the review of the code comments the change added removed and what it kept. If a review did not run, say so.
 - The state of each open question and the grounds it was settled or the reason it went to a person.
-- The raw answer of the judgment, copied as it is (in a code fence), the source of the original purpose, and the version before the fix.
+- The raw answer of the judgment, copied as it is, the source of the original purpose, and the version before the fix.
 - Observation of the main path: what was run where and what was observed. "The tests are green" is not an observation.
 - An inventory, without judging, of the new mechanisms the change introduces (build settings, environment variables, CI jobs, template knobs, scripts).
 - If the premises drifted, the re-measured constraints and why the earlier ones became false.
@@ -60,6 +63,7 @@ Fold the details briefly under headings; do not narrate progress or your own wor
 
 - Write symbols, abbreviations, paths, and made-up labels as "content (symbol)" at first use, so a reader who starts in the middle can resolve them. Name things inside the system with the words of the request or general words.
 - Tables only for short values of a few words (states, counts, dates). **No explanatory sentences in cells**: a terminal table gives each column a share of the width and folds a long cell into unreadable pieces. If you need to explain, use bullets or prose. Number the steps.
+- Everything you copy as it is (a raw answer of a judgment or of a reviewer, a quoted record) goes in a code fence.
 - Use established IT terms in the report's language; avoid consulting jargon, literal translations, and elaborate metaphors.
 - No references that rely on context outside the text ("the one mentioned earlier", "the section above").
 - Write in the report's language even if the sources are in another; keep keys, enum values, identifiers, paths, commands, and error messages as they are.
