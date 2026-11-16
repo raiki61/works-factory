@@ -27,6 +27,9 @@ FAKE_BUN = """#!/usr/bin/env python3
 import json, os, subprocess, sys
 if sys.argv[1:] == ["--version"]:
     sys.exit(0)
+if sys.argv[-2:] == ["-e", "console.log(process.execPath)"]:
+    print(os.path.realpath(sys.argv[0]))
+    sys.exit(0)
 args = sys.argv[sys.argv.index("workflow"):]
 with open(os.environ["FAKE_BUN_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({"args": args, "archon_home": os.environ.get("ARCHON_HOME")}) + "\\n")

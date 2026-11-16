@@ -77,6 +77,13 @@ class IsolateCase(unittest.TestCase):
         self.assertEqual(set(userenv.CONTROL) & set(child), {userenv.RECORD})
         self.assertNotEqual(child[userenv.RECORD], "stale")
 
+    def test_inherited_launcher_heads_are_dropped(self):
+        """起動の殻が子の PATH に足す置き場の名（読むだけの gh の userenv.READ_GH_ENV・bun のリンクの userenv.BUN_LINK_ENV）の継いだ値は
+        子に残さない（殻がこの起動の値を置き直す）"""
+        env = {"HOME": "/u", userenv.READ_GH_ENV: "stale", userenv.BUN_LINK_ENV: "stale"}
+        child = isolate.isolate(env, self.run_home)
+        self.assertFalse({userenv.READ_GH_ENV, userenv.BUN_LINK_ENV} & set(child))
+
     def test_relative_run_home_is_refused(self):
         """相対の置き場は cd した子で別の所を指すので、何も作らずに止める"""
         with self.assertRaises(ValueError):

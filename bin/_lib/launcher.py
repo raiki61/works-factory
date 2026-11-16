@@ -35,6 +35,14 @@ READING = frozenset({"validate", "version", "help"})
 HOME_ENV = "WORKS_FACTORY_HOME"   # 利用者が選ぶ家（run_home）
 NO_AUTH_ENV = "WORKS_FACTORY_NO_AUTH"   # 認証の要らない起動（lib/entryshape.py の NO_AUTH_ENV と同じ名）
 HOST_GH_DIR = "host-gh"
+# 隔離した env のための bun の実体のリンクを置く置き場（run の置き場の下。実体ごとに 1 つのフォルダに bun のリンクを 1 つだけ置く）
+BUN_LINK_DIR = "bun-link"
+# bun に実体のパスを言わせる -e の字（計画 docs/plans/2026-11-16-start-preflight.md の 2 章 (d) の D1）。bun は打った場所の bunfig.toml の
+# preload と .env を読むので、空の設定を名指し、env のファイルを読ませない（対象の物を走らせない。place.archon と同じ訳）
+EXEC_PATH = "console.log(process.execPath)"
+ASK_REAL = (f"--config={os.devnull}", "--no-env-file", "-e", EXEC_PATH)
+# 利用者の env では起きる道具が、隔離した env（HOME・XDG を run の置き場へ向けた env）で起きない時の訳と直し方
+ISOLATED_WHY = "HOME・XDG を run の置き場へ向けた env では、版管理の shim が設定を見失って起きない。実体の置き場を PATH の頭に足して打つ"
 FENCE_DIR = "claude-fence"
 FENCE = ROOT / "workflows" / ".shared" / "fence.py"
 # TDD の実行器の取り置きの根を script のノードに渡す名（workflows/.shared/ports.py の SUITE_KEEP_ENV と同じ名）
@@ -180,7 +188,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
     real = real_claude(user) if executing else None
     if executing and user.get(CLAUDE_BIN_ENV):   # 利用者が起動方法（ラッパー）を置いた時だけ、その認証を check・exec が確かめる（読むのは殻のまま）
         auth_user += ["--runtime", user[CLAUDE_BIN_ENV]]
-    said = preflight(user, here, target, place.archon_folder(cache, loaded["archon"]["commit"]), executing=executing, real=real,
+    said, bun = preflight(user, here, target, place.archon_folder(cache, loaded["archon"]["commit"]), executing=executing, real=real,
                      auth=[*auth, "check", *auth_user] if executing and not no_auth else None, child=child)
     if said:
         print(f"{NAME}: 認証は {said} から拾う（値は出さない）", file=sys.stderr)
@@ -188,8 +196,11 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         source = place.archon_source(loaded, cache)
     except RuntimeError as error:
         raise Stop(str(error)) from None
-    child["PATH"] = os.pathsep.join(filter(None, [*heads, forge_folder(loaded, source, cache, user), user.get("PATH")]))
-    bun = shutil.which("bun", path=child.get("PATH"))  # 在ることは preflight が確かめ済み
+    # 名で bun を起こす script のノード（archon-pr の runtime: bun）にも、preflight が bun 自身に聞いた実体を見せる。対象のコマンドの PATH からは
+    # tree_run.outside_env が外す（置き場は userenv.BUN_LINK_ENV で渡す）
+    link = bun_link(home, bun)
+    child[userenv.BUN_LINK_ENV] = link
+    child["PATH"] = os.pathsep.join(filter(None, [*heads, link, forge_folder(loaded, source, cache, user), user.get("PATH")]))
     child[ARCHON_CLI_ENV] = json.dumps(place.archon(bun, source))
     if executing or argv[:1] == ["validate"]:
         install_toolset(child, target, filled_config, claude=real if not no_auth else None)
@@ -241,14 +252,17 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
 
 
 def preflight(user: Mapping[str, str], here: Path, target: Path, source: Path, *, executing: bool, real: str | None,
-              auth: list[str] | None, child: Mapping[str, str]) -> str | None:
+              auth: list[str] | None, child: Mapping[str, str]) -> tuple[str | None, str]:
     """副作用（源の取り寄せ・依存を入れる・Archon を起こす）の前に、止まる所の確かめを全部打ち、足りない物を 1 つの Stop に並べる
     （計画 docs/plans/2026-11-16-start-preflight.md の 2 章 (a)。並べ方は spec_reviews の止め方）。1 つなら 1 行で止まる。
-    通れば認証の出どころの名（auth が None なら None）を返す。
+    通れば (認証の出どころの名〔auth が None なら None〕, bun の実体のパス) を返す。
 
     - bun: すべての命令。Archon を起こす打った場所 here と、源 source がまだ無ければ bun install を打つ取り置きの置き場で起きるか。
+      起きれば here で bun 自身に実体のパスを聞き（ASK_REAL。版管理の道具を知らずに引ける。2 章 (d) の D1）、
+      隔離した子の env child で、その実体が here で起きるか。
     - node: 源がまだ無い時だけ、取り置きの置き場で。見つからなければ止めない（bun install に任せる）。見つかるのに起きない時だけ並べる。
-    - uv: 実行する命令。Archon の script のノードが起こす。対象の根 target で起きるか。
+    - uv: 実行する命令。Archon の script のノードが起こす。対象の根 target で起きるか。起きれば、隔離した子の env child でも起きるか
+      （uv には bun の -e のように自分だけで実体のパスを言う口が無いので、起きなければ訳 ISOLATED_WHY を添えて並べる）。
     - 本物の claude: 実行する命令。
     - 認証: auth（auth_launch.py check の命令）を隔離した子の env child で打ち、止まる時の訳（標準エラー）を受けて並べる。
     起きるかは利用者の env で `<道具> --version` を打ち、終了の値が 0 かで決める。版管理の shim は打った場所ごとに版を選ぶので、その道具を
@@ -258,12 +272,18 @@ def preflight(user: Mapping[str, str], here: Path, target: Path, source: Path, *
     problems: list[str] = []
     found, why = woken("bun", user, [here] + ([] if held else [install_at]))
     problems.append(why or ("" if found else "bun が無い。Archon の源は bun で起こす。入れ方は https://bun.sh"))
+    bun = ""
+    if found and not why:
+        bun, why = real_bun(found, user, here)
+        problems.append(why or isolated(woken("bun", child, [here], path=bun)[1]))
     if not held:
         problems.append(woken("node", user, [install_at])[1] or "")
     if executing:
         found, why = woken("uv", user, [target])
         problems.append(why or ("" if found else "uv が要る（Archon の script のノードが起こす）が PATH に無い。"
                                                   "入れ方は https://docs.astral.sh/uv/"))
+        if found and not why:
+            problems.append(isolated(woken("uv", child, [target], path=found)[1]))
         if not real:
             problems.append("本物の claude（隔離した設定にプラグインを入れ、役を起こす）が見つからない。CLAUDE_BIN_PATH に絶対パスを設定する")
     said, alone = None, ""
@@ -284,14 +304,49 @@ def preflight(user: Mapping[str, str], here: Path, target: Path, source: Path, *
         raise Stop(f"起動の前の確かめで足りない物が {len(problems)} つある（源を取りに行かず、Archon を起こさずに止めた）:\n"
                    + "\n".join(f"- {line}" for line in problems)
                    + ("\n認証の道の一覧は README の Usage の環境変数の項" if alone else ""))
-    return said
+    return said, bun
 
 
-def woken(name: str, env: Mapping[str, str], places: list[Path]) -> tuple[str | None, str | None]:
-    """env の PATH で name を探し、places のそれぞれで `<name> --version` を打つ。(見つけたパス, 起きない時の 1 行) を返す。見つからなければ
-    (None, None)、どこでも起きれば (パス, None)。起きない時の行は、見つけた実のパス（shim ならその置き場）・終了の値・道具の標準エラーの
-    頭の数行（版管理の道具なら直し方の 1 行がここに入る）・打った場所を載せ、同じ落ち方の場所は 1 つの行にまとめる"""
-    found = shutil.which(name, path=env.get("PATH", ""))
+def isolated(why: str | None) -> str:
+    """隔離した env で起きない時の行に訳 ISOLATED_WHY を添える（起きれば ""）"""
+    return f"{why}。{ISOLATED_WHY}" if why else ""
+
+
+def real_bun(found: str, env: Mapping[str, str], where: Path) -> tuple[str, str | None]:
+    """env で、打った場所 where で、bun（found。shim でもよい）自身に実体のパスを聞く。(実体のパス, 聞けない時の 1 行) を返す。版を選ぶのは
+    利用者の env と、その場所の設定のまま（工場は版管理の道具を知らない）"""
+    try:
+        done = subprocess.run([found, *ASK_REAL], env=dict(env), cwd=where, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    except OSError as error:
+        return "", f"bun（{os.path.realpath(found)}）に実体のパスを聞けない: {error}"
+    said = done.stdout.strip()
+    if done.returncode == 0 and os.path.isabs(said) and os.path.isfile(said) and os.access(said, os.X_OK):
+        return said, None
+    head = " / ".join([line.strip() for line in done.stderr.splitlines() if line.strip()][:3])
+    return "", (f"bun（{os.path.realpath(found)}）に `{shlex.join(['bun', *ASK_REAL])}` で実体のパスを聞いたが、在る実行ファイルのパスが返らない"
+                f"（終了の値 {done.returncode}・標準出力 {said[:200]!r}" + (f"・標準エラーの頭: {head}" if head else "")
+                + f"。打った場所: {where}）")
+
+
+def bun_link(home: Path, real: str) -> str:
+    """run の置き場の下に、実体 real を指す bun のリンクを 1 つだけ置いたフォルダを作り、そのパスを返す。実体ごとに別のフォルダなので、
+    同じ置き場で別の版の bun を選んだ起動が並んでも、走っている run のリンクを替えない。置き換えは名を替えて 1 度に行う"""
+    folder = home / BUN_LINK_DIR / hashlib.sha256(real.encode()).hexdigest()[:16]
+    folder.mkdir(parents=True, exist_ok=True)
+    if os.path.realpath(folder / "bun") != os.path.realpath(real) or not (folder / "bun").is_symlink():
+        staged = home / BUN_LINK_DIR / f".bun-{os.getpid()}"
+        staged.unlink(missing_ok=True)
+        staged.symlink_to(real)
+        os.replace(staged, folder / "bun")
+    return str(folder)
+
+
+def woken(name: str, env: Mapping[str, str], places: list[Path], path: str | None = None) -> tuple[str | None, str | None]:
+    """env の PATH で name を探し（path を渡せばそのパスを使う）、places のそれぞれで `<name> --version` を打つ。(見つけたパス, 起きない時の 1 行)
+    を返す。見つからなければ (None, None)、どこでも起きれば (パス, None)。起きない時の行は、見つけた実のパス（shim ならその置き場）・終了の値・
+    道具の標準エラーの頭の数行（版管理の道具なら直し方の 1 行がここに入る）・打った場所を載せ、同じ落ち方の場所は 1 つの行にまとめる"""
+    found = path or shutil.which(name, path=env.get("PATH", ""))
     if not found:
         return None, None
     real = os.path.realpath(found)
@@ -677,7 +732,7 @@ def names_key(path: Path, key: str) -> bool:
 def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, keep: Path, path_heads: list[str]) -> str:
     """Archon が役を起こす claude の前に置く包み（埋め P5。workflows/.shared/fence.py）の殻を書き、そのパスを返す。値は env でなく
     殻に焼く（Archon は claude に渡す env を掃除する）。-B は Archon がバイトで照らす workflows/ に __pycache__ を作らないため。
-    --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude・
+    --own は、同じ run の後の役の起動が sandbox の外で走らせる物（この殻・gh の口・bun のリンク〔script のノードが名で起こす〕・包みを起こす解釈系〔sys.prefix と sys.base_prefix〕・本物の claude・
     child の PATH の絶対の置き場にある claude を全部〔real がラッパーの時にラッパーが起こす claude も、ラッパー自身が PATH の先頭で本物が後ろの
     置き場に在る時の本物も守る。相対の置き場を退ける決まりは on_absolute_path の 1 か所〕）と、
     次の起動が sandbox の外で走らせる物（取り置き cache〔Archon の源〕・TDD の実行器の取り置き keep・工場の checkout の根 ROOT 全体）。根は丸ごと禁じる。bin/works-factory は
@@ -688,7 +743,7 @@ def write_fence(home: Path, real: str, child: Mapping[str, str], cache: Path, ke
     top = home / FENCE_DIR
     real = os.path.realpath(real)
     on_path = [found for folder in child.get("PATH", "").split(os.pathsep) if (found := on_absolute_path("claude", folder))]
-    own = [top, home / HOST_GH_DIR, sys.prefix, sys.base_prefix, real, *map(os.path.realpath, on_path), cache, keep, ROOT]
+    own = [top, home / HOST_GH_DIR, home / BUN_LINK_DIR, sys.prefix, sys.base_prefix, real, *map(os.path.realpath, on_path), cache, keep, ROOT]
     body = ("#!/bin/sh\n"
             "# works-factory の起動（bin/_lib/launcher.py）が書いた包み: sandbox の掛かった役の claude の sandbox に、起こす直前に組んだ\n"
             "# 書き込みを禁じるパスの一覧（読むだけの役）と、その起動の cache の置き場（書き込みを許す）を足す\n"
