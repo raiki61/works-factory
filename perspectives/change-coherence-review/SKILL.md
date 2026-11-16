@@ -7,6 +7,8 @@ description: "Reviews whether a finished diff lines up with the rest of the repo
 
 **Core rule: does the whole become simpler, while it still meets the purpose and the guarding mechanisms keep working? Measure simplicity not by line count but by the number of places that know a design concept.**
 
+This rule is the axis for judging; this review does not count those places itself. It uses a count only when one is given to it (the last item of "Homes of concepts").
+
 Coherence here means the range the diff touched: whether what changed lines up with what already exists (naming, conventions, interfaces, documents kept in step). Cross-cutting risks the diff did not touch are a different perspective.
 
 Two checks are done independently of each other: (1) consistency across the repository; (2) bypasses of standard mechanisms, where the change does by hand what the code around it does through a shared mechanism.
