@@ -421,10 +421,7 @@ def _fresh(b) -> dict:
 
 def read(b) -> dict:
     """今の周の控え。無い・読めない・形が違う・周が違うなら往復の無い控え"""
-    try:
-        doc = json.loads(b.work(RECORD).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return _fresh(b)
+    doc = jsonfile.read_or(b.work(RECORD))
     if (not isinstance(doc, dict) or doc.get("round") != b.round or not isinstance(doc.get("passes"), list)
             or not all(isinstance(p, dict) for p in doc["passes"]) or not isinstance(doc.get("open", {}), dict)):
         return _fresh(b)
