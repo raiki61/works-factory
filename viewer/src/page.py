@@ -141,10 +141,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return f"{s/60:.0f}分" if s >= 60 else f"{s:.0f}秒"
 
 
-    def esc(s):
-        return str(s).replace("\\", "\\\\").replace('"', '\\"')
-
-
     # ── 会話の記録（Claude Code の jsonl を viewer/src/session.py が読んだ物）と、プロンプトの中の値
     texts, sessions = data["texts"], run.get("sessions") or {}
     pack = Path(run["copy"]) / pack_name if run.get("copy") else None
