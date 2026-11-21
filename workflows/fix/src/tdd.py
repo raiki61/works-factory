@@ -715,7 +715,7 @@ def _vanished(head: dict, refs: list, now: dict, args: list, scope, skip, whole=
         if o != "passed" or (scope is not None and module not in scope):
             continue
         case["name"] = case["name"].split("[", 1)[0]
-        if any(rules().match_case(_id_base(i), [case]) for i in skip):
+        if any(rules().match_cases(_id_base(i), [case]) for i in skip):
             continue
         got = now.get(k)
         if got == "skipped" or (got is None and (any(k in r.get("outcome", {}) for r in same) or module in whole)):
@@ -807,7 +807,7 @@ def _test(st, reply, repo) -> list:
     cases, code = _run(st, repo, tests)
     probs, unchecked = red_check(tests, cases, code, st["baseline"], quotes, st["last_run"]["log"],
                                  base_synth=base_synth_of(st))
-    if probs and any((c := rules().match_case(t, cases)) is None or c["outcome"] == "error" for t in tests):
+    if probs and any((c := rules().worst_case(t, cases)) is None or c["outcome"] == "error" for t in tests):
         probs.append(NOT_RAN)
     probs = probs or _vanished_problems(st, u, cases, tests, repo)
     if probs:

@@ -326,12 +326,13 @@ def named_facts(repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathl
         base, why = _base_run(repo, rev, suite, need, copy, work)
         if base is None:
             return None, [f"{NO_RUN}（base の木: {'; '.join(why)}）"]
-        seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_case(i, base) for i in need}}
+        seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_cases(i, base) for i in need}}
         jsonfile.write(cache, seen)
     out = {}
     for i in ids:
-        base = [seen[keys[i]]] if seen.get(keys[i]) else []   # base の木の結末のうちこのテストに当たる行（無ければ空）
-        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": base[0] if base else None,
+        base = seen.get(keys[i]) or []   # base の木の結末のうちこのテストに当たる行の全部（雛形の名は展開した行。無ければ空）
+        base = [base] if isinstance(base, dict) else base   # 1 行だけを控えた前の形の控え
+        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": rules.worst_case(i, base),
                   "probs": common.red_check([i], base, None, None)[0]}
     return out, []
 
@@ -343,7 +344,7 @@ def named_rows(tests: list, now: list, facts: dict) -> tuple[list, list]:
     rules = common.rules()
     rows, guards = [], []
     for t in tests:
-        c = rules.match_case(t["id"], now)
+        c = rules.worst_case(t["id"], now)
         if c is None or c["outcome"] != "passed":
             rows.append(_row("red_green", t["id"], f"今の木で {c['outcome'] if c else '一式の結末に居ない'}（受け入れのテストが緑でない）",
                              t["unit_keys"]))

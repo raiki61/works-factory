@@ -269,7 +269,7 @@ class DutyTableCase(unittest.TestCase):
             self.assertEqual(len(duties.check("tidy", {**f, "vanished": [outside]})), 1, outside)
 
     def test_keep_same_result_tail_match_passes_deeper_same_tail(self):
-        """許しより深いディレクトリに在る、後ろ側の段が同じ試験の消えは、同じ試験として通る（match_case の後ろ側の一致）"""
+        """許しより深いディレクトリに在る、後ろ側の段が同じ試験の消えは、同じ試験として通る（match_cases の後ろ側の一致）"""
         permits = [{"kind": "remove", "test": "test_changed.py::ChangedTest::test_a"}]
         self.assertEqual(duties.keep_same_result(
             {"vanished": ["tests.sub.test_changed.ChangedTest::test_a"], "permits": permits}), [])
@@ -355,6 +355,18 @@ class WeaponDutiesCase(unittest.TestCase):
     def test_pin_twice_reads_the_run(self):
         self.assertEqual(pin.twice({"twice": None}), [])
         self.assertEqual(pin.twice({"twice": ["2 回目に落ちた"]}), ["2 回目に落ちた"])
+
+    def test_twice_reads_every_expanded_row(self):
+        """足した試験を 2 回走らせる確かめ（duties._twice）は、雛形の名の試験を展開した行の全部が通る時だけ通ったと見る。1 つ目の行が
+        通っても 2 つ目が落ちれば、その回の「通らない」の文にする（最初の 1 行だけを見ると、2 つ目の落ちを見落とす）"""
+        import baseline_red
+        added = ["src/select.test.ts::%s で選択肢の面が不透明"]
+        ran = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"},
+               {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure"}]
+        with tempfile.TemporaryDirectory() as d, unittest.mock.patch.object(baseline_red, "run_suite", return_value=(ran, 1, [])):
+            got = duties._twice({"exe": "run"}, d, added, pathlib.Path(d) / "w")
+        self.assertEqual(len(got), 2, got)
+        self.assertTrue(all("通らない" in t for t in got), got)
 
     def test_remove_in_permits(self):
         f = {"removed": ["t.py::a"], "permits": [{"kind": "remove", "test": "t.py::a"}]}

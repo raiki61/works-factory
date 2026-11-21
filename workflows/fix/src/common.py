@@ -77,7 +77,7 @@ class Broken(Exception):
 
 
 def rules():
-    """赤・緑の判定の正本のモジュール（lib/baseline_red。red_problems・green_problems・match_case・parse_junit）。元は写しの TDD 版の
+    """赤・緑の判定の正本のモジュール（lib/baseline_red。red_problems・green_problems・match_cases・worst_case・parse_junit）。元は写しの TDD 版の
     rules（review-loop-tdd.py）を盤面の graph から読んだ"""
     return baseline_red
 
@@ -201,7 +201,7 @@ def red_check(named: list, cases: list, code, baseline, quotes=None, log=None, b
     given = {_norm_id(k): v for k, v in (quotes or {}).items() if isinstance(k, str)}
     unchecked = []
     for t in named:
-        c = rules().match_case(t, cases)
+        c = rules().worst_case(t, cases)   # 展開した行が 1 つでも failure でなければ red_problems が拒む
         if c is None or c["outcome"] != "failure":
             continue
         entry = given.get(_norm_id(t))
@@ -253,7 +253,7 @@ def red_rerun(tree, u: dict, exe: str, work: pathlib.Path, n, baseline=None) -> 
     if cases is None:
         return None, why
     if baseline is None:
-        cases = [c for t in tests if (c := rules().match_case(t, cases)) is not None]
+        cases = [c for t in tests for c in rules().match_cases(t, cases)]   # 雛形の名は展開した行の全部
     return red_check(tests, cases, code, baseline)[0], []
 
 

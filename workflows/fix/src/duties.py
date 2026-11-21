@@ -96,7 +96,7 @@ change_named_or_gone.paragraph = "rules_named"   # 書き手に evidence.named �
 def keep_same_result(f: dict) -> list:
     """変えない段の箱の義務（2.4 の同じ結果の照らしのうち、居なくなった試験）: 起点で通っていて返した木の同じ選びの回に居ない試験は、
     どれも permits の remove の行の試験と同じ試験の時だけ通す（受け付けの新しい赤の照らしは今の selected_problems が持つ）。
-    同じ試験かは baseline_red.match_case の後ろ側の一致で見る（居なくなった試験の鍵は JUnit の classname::name で、classname は
+    同じ試験かは baseline_red.match_cases の後ろ側の一致で見る（居なくなった試験の鍵は JUnit の classname::name で、classname は
     モジュールの名でもパスでも、許しはファイルのパス形でも当たる）。場合の許し（`t.py::test_x[1]`）はその場合だけ、関数の許し
     （`t.py::test_x`）は全部の場合を覆う"""
     import baseline_red   # lib/
@@ -106,7 +106,7 @@ def keep_same_result(f: dict) -> list:
     def permitted(k: str) -> bool:
         case = common._case_of(k)
         cases = [case, {**case, "name": case["name"].split("[", 1)[0]}]
-        return k in allowed or any(baseline_red.match_case(i, cases) for i in allowed)
+        return k in allowed or any(baseline_red.match_cases(i, cases) for i in allowed)
 
     gone = [k for k in f.get("vanished") or [] if not permitted(k)]
     return [f"起点で通っていた試験が返した木で居なくなった: {gone[:10]}（振る舞いを変えない段は試験を消さない。消すのは消す名の許しの中だけ）"] \
@@ -198,7 +198,7 @@ def _twice(base: dict | None, repo, added: list, work) -> list | None:
         if ran is None:
             out.append(f"足した試験を {n} 回目に走らせられない（{'; '.join(why)[:200]}）")
             continue
-        bad = [t for t in added if (c := baseline_red.match_case(t, ran)) is None or c.get("outcome") != "passed"]
+        bad = [t for t in added if (c := baseline_red.worst_case(t, ran)) is None or c.get("outcome") != "passed"]
         if bad:
             out.append(f"足した試験 {bad[:10]} が {n} 回目に通らない（今の振る舞いを留める試験は 2 回とも通る）")
     return out
@@ -380,7 +380,7 @@ def unit_facts(place, repo, rev: str, key: str, weapon: str, rows: list, *, orde
             mine = None if outcomes is None else {t: outcomes[t] for t in named if t in outcomes}
         if named:
             after = None if cases is None else \
-                {t: (c["outcome"] if (c := baseline_red.match_case(t, cases)) else "missing") for t in named}
+                {t: (c["outcome"] if (c := baseline_red.worst_case(t, cases)) else "missing") for t in named}
         removes = _ids(unit.get("removes") or [])
         gone = gone_of(repo, rev, removes) if removes else []
     return {"unit": key, "weapon": weapon, "files": files, "test_files": tests, "kind_by_path": kind_by_path,

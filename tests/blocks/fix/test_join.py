@@ -1152,6 +1152,22 @@ class GroupBoardCase(unittest.TestCase):
                 self.assertFalse(board.same_red(t, [before] if before else [], [after] if after else []))
         self.assertFalse(board.same_red(t, [{"outcome": "error", "fail_message": y}, "x"], [row("error", y)]), "形の崩れた元の行は当たらない")
 
+    def test_same_red_reads_every_expanded_row(self):
+        """雛形の名の名指しは値ごとの行に展開される。「前から同じ形で赤」と見るのは、当てた後の展開した行の全部が、同じ classname と
+        name の直す前の行と組で同じ error の時だけ。1 行目だけが前と同じ error で、2 行目が failure か前に居ない行なら偽（最初の 1 行で
+        見ると、後の組が 2 行目を壊した赤を「前から赤」にして組を戻さない）"""
+        def row(name, outcome, message=""):
+            return {"classname": "src/select.test.ts", "name": name, "outcome": outcome, "fail_message": message}
+        t = "src/select.test.ts::%s で選択肢の面が不透明"
+        y = "Cannot find module 'theme'"
+        dark, light = "dark で選択肢の面が不透明", "light で選択肢の面が不透明"
+        before = [row(dark, "error", y), row(light, "error", y)]
+        self.assertTrue(board.same_red(t, before, [row(dark, "error", y), row(light, "error", y)]))
+        for name, after, old in (("2 行目が failure", [row(dark, "error", y), row(light, "failure", "m")], before),
+                                 ("2 行目が前に居ない", [row(dark, "error", y), row(light, "error", y)], before[:1])):
+            with self.subTest(name):
+                self.assertFalse(board.same_red(t, old, after))
+
     def test_rerun_problem_does_not_blame_named_tests_red_the_same_way_before(self):
         """#837: 確かめ直しで名指しが赤でも、直す前の結末 cases で同じ形の赤（same_red）なら戻す理由にせず old_red に名指す。
         失敗の文が違う・直す前に緑・居ないなら、今と同じに戻す理由"""
@@ -1177,6 +1193,18 @@ class GroupBoardCase(unittest.TestCase):
                 got = board.rerun_problem(self.place, self.repo, str(exe), cases, named, name="other", old_red=kept)
                 self.assertIn("test_mean_of_three", got)
                 self.assertEqual(kept, [])
+
+    def test_rerun_problem_reads_every_expanded_row(self):
+        """雛形の名の名指しは、確かめ直しの 1 段目で展開した行の全部が緑の時だけ通す。1 つ目の行が通っても 2 つ目が failure なら、
+        1 段目の「名指しのテストが緑でない」で戻す（最初の 1 行だけを見ると 1 段目を素通りする）"""
+        exe = self.tmp / "expanded.py"
+        exe.write_text("import sys\nopen(sys.argv[1], 'w').write('<testsuite>"
+                       "<testcase classname=\"test_stats.TestStats\" name=\"test_mean_a\"/>"
+                       "<testcase classname=\"test_stats.TestStats\" name=\"test_mean_b\"><failure message=\"m\">t</failure></testcase>"
+                       "</testsuite>')\nsys.exit(1)\n", encoding="utf-8")
+        got = board.rerun_problem(self.place, self.repo, str(exe), [], ["test_stats.py::TestStats::test_mean_%s"], name="expanded")
+        self.assertTrue(got.startswith("当てた後の木で名指しのテストが緑でない"), got)
+        self.assertIn("test_mean_b", got)
 
     def test_rerun_problem_is_empty_without_suite_or_names(self):
         self.assertEqual(board.rerun_problem(self.place, self.repo, "", [], ["t.py::x"]), "")
