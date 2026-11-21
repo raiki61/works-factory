@@ -572,13 +572,13 @@ def _fall_back(root: pathlib.Path, test_cmd: str, log_dir: pathlib.Path, runs: l
     if ran:
         log.write_bytes(b"".join(pathlib.Path(ran[k]).read_bytes() for k in ("out", "err")
                                  if ran.get(k) and pathlib.Path(ran[k]).is_file()))
-        launched = {"how": ran.get("how")}
-        material = _reused_material(_cmd_material(ran["exit"], log, ran["argv"], launched["how"]), ran)["material"]
+        how = ran.get("how")
+        material = _reused_material(_cmd_material(ran["exit"], log, ran["argv"], how), ran)["material"]
     else:
         launched = {}
         material = local_checks_material(root, test_cmd, log, launched=launched, reuse=reuse)["material"]
-    return {**out, "by": ROLE, "material": material, "log": str(log),
-            "test_cmd_how": launched.get("how")}
+        how = launched.get("how")
+    return {**out, "by": ROLE, "material": material, "log": str(log), "test_cmd_how": how}
 
 
 # ---------------------------------------------------------------- 任せ先の役の素材
