@@ -21,12 +21,11 @@ import yaml
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-from tests.blocks.fix.support import write
+from tests.blocks.fix.support import MARKS, result, write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 YAML_PATH = kit.BLOCKS / "fix" / "works-factory-fix.yaml"
-MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed", "path_changed")
 JUDGMENT = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"},
                       {"key": "C", "label": "suggest", "disposition": "do-now"}], "questions": []}
 
@@ -43,16 +42,6 @@ def lib_report():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def result(gid, unit_ids, end_tree, start_tree, **extra) -> dict:
-    """組の子が out_dir/<gid>/result.json に書く結果（board.group_result の形）"""
-    doc = {"group_id": gid, "unit_ids": unit_ids, "end_tree": end_tree, "start_tree": start_tree,
-           "units": [{"unit_id": k, "status": "fixed", "reason": ""} for k in unit_ids],
-           "tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}, "conflicts": [], "objection": "",
-           "changed": {k: False for k in MARKS}, "allowed_tests": [], "verified": []}
-    doc.update(extra)
-    return doc
 
 
 TDD_ROW = {"unit_key": "A", "route": "tdd", "why": "", "tests": ["test_stats.py::test_mean"], "test_files": [],

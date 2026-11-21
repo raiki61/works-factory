@@ -193,3 +193,17 @@ def record(log, path, tool="Edit"):
     with open(log, "a", encoding="utf-8") as f:
         f.write(json.dumps({"tool_name": tool, "path": real,
                             "file_sha": hashlib.sha256(pathlib.Path(real).read_bytes()).hexdigest()}) + "\n")
+
+
+# 組の子の結果の changed の欄の名（board.CHANGED_MARKS の写し）
+MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed", "path_changed")
+
+
+def result(gid, unit_ids, end_tree, start_tree, **extra) -> dict:
+    """組の子が out_dir/<gid>/result.json に書く結果（board.group_result の形）"""
+    doc = {"group_id": gid, "unit_ids": unit_ids, "end_tree": end_tree, "start_tree": start_tree,
+           "units": [{"unit_id": k, "status": "fixed", "reason": ""} for k in unit_ids],
+           "tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}, "conflicts": [], "objection": "",
+           "changed": {k: False for k in MARKS}, "allowed_tests": [], "verified": []}
+    doc.update(extra)
+    return doc
