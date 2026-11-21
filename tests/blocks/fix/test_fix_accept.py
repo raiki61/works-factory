@@ -116,7 +116,6 @@ _l_FIELDS = [{"unit_keys": [_l_MEAN], "route": "tdd", "route_why": "", "tests": 
            "refactor": {"declared": False, "why": ""}}]
 _l_MEAN_FIX = {"return sum(xs) / (len(xs) - 1)": "return sum(xs) / len(xs)"}
 _l_THREE_EDIT = ("self.assertEqual(mean([1, 2, 3]), 2)", "self.assertEqual(mean([1, 2, 3]), 2.0)")   # 既存のテストの期待の書き換え
-_l_HALVE = {"def clamp(x, lo, hi):": "def halve(x):\n    return x / 2\n\n\ndef clamp(x, lo, hi):"}   # 今の木で足す関数
 _l_TWO_ID = "test_two.py::TestTwo::test_halve"
 _l_TWO_FILE = ("import unittest\n\nfrom stats import halve\n\n\nclass TestTwo(unittest.TestCase):\n    def test_halve(self):\n"
             "        self.assertEqual(halve(4), 2)\n")   # base では読み込みで落ちる（halve が無い）新しいテストのファイル
