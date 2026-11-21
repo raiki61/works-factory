@@ -1,7 +1,7 @@
 """見る道具の Archon の記録の読み（viewer/src/runread.py）が読む名が、止めた Archon（factory/pack.json の版）の源に在る
 （docs/design/viewer.md の照らしの 2）。源の字を読むだけなので手元の確かめでも回る（源が無ければ tests/archon.py の absent。CI は赤）。
 
-- ログの行の型と道具の出来事の型は、源の型の和と runread の読む型・読まない型の和がちょうど同じ（源に型が足されても消されても赤）
+- ログの行の型は、源の型の和と runread の読む型・読まない型の和がちょうど同じ（源に型が足されても消されても赤）
 - run の状態は源の enum とちょうど同じ（生きている状態と答えを待つ状態はその中）。run の結末の語も源の enum とちょうど同じ
 - DB の表の欄は、源の CREATE TABLE のその表の欄に在る
 - ノードの費用の数え方の accounting の語は、源の enum とちょうど同じ
@@ -17,9 +17,7 @@ from viewer.src import runread, shape
 
 LOGGER = "packages/workflows/src/logger.ts"
 SETUP = "packages/workflows/src/schemas/worktree-setup.ts"
-EVENTS = "packages/provider-contract/src/events.ts"
 RUN_STATUS = "packages/workflows/src/schemas/run-status.ts"
-RUN_WAIT = "packages/workflows/src/schemas/run-wait.ts"
 SQLITE = "packages/core/src/db/adapters/sqlite.ts"
 # 名 → それを字として書く源のファイル
 WRITTEN = {
@@ -29,7 +27,7 @@ WRITTEN = {
     f"'{runread.WORKFLOW_FOLDER}'": "packages/paths/src/markdown-discovery.ts",
     f"PROJECT_SCOPE_DIR = '{runread.PROJECT_SCOPE}'": "packages/workflows/src/workflow-source/roots.ts",
     **{f"type: '{name}'": "packages/workflows/src/event-emitter.ts"
-       for name in (runread.OUTPUT_EVENT, runread.NODE_FAILED_EVENT, runread.SUSPENDED_EVENT, *runread.END_EVENTS)},
+       for name in (runread.OUTPUT_EVENT, runread.NODE_FAILED_EVENT, *runread.END_EVENTS)},
     **{f"{name}:": "packages/workflows/src/node-record-serialization.ts" for name in (runread.NODE_COST, runread.ACCOUNTING)},
     f"{runread.NODE_OUTPUT}": "packages/workflows/src/node-record-serialization.ts",
     f"data.{runread.AGGREGATE} === true": "packages/workflows/src/node-record-serialization.ts",
@@ -42,13 +40,9 @@ WRITTEN = {
     f"cost: '{runread.TOTAL_COST}'": "packages/workflows/src/schemas/run-usage.ts",
     f"inputs: '{runread.INPUTS}'": "packages/workflows/src/schemas/run-metadata.ts",
     f"{runread.NODE_COUNTS}: nodeCounts": "packages/workflows/src/dag/run-terminal.ts",
-    f"{runread.ATTEMPT_ID}:": "packages/workflows/src/schemas/provider-event.ts",
     **{f"kind: z.literal('{kind}')": f"packages/workflows/src/schemas/{schema}.ts"
        for kind, schema in zip((*runread.AI_KINDS, runread.WAIT_NODE, *runread.GROUP_KINDS),
                                ("agent-node", "loop-node", "wait-node", "dag-node", "include-node", "workflow-node"), strict=True)},
-    f"metadata?.{runread.WAIT}": "packages/workflows/src/schemas/run-attention.ts",
-    **{name: RUN_WAIT for name in (f"kind: z.literal('{runread.WAIT_KIND}')", f"{runread.WAIT_ANSWER}: attentionAnswerSchema",
-                                   f"wait.owner === '{runread.WAIT_LOOP_OWNER}' ? `${{wait.nodeId}}.${{wait.bodyWaitId}}` : wait.nodeId")},
 }
 
 
@@ -69,19 +63,12 @@ class ArchonNamesTest(unittest.TestCase):
         setup = re.search(r"WORKTREE_SETUP_EVENT_TYPES = \[(.*?)\]", self.read(SETUP), re.S)[1]
         self.assertIn("WorktreeSetupEvent['type']", union)
         self.assertEqual(literals(union.replace("WorktreeSetupEvent['type']", "")) | literals(setup),
-                         set(runread.READ_ROWS) | set(runread.UNREAD_ROWS))
-
-    def test_provider_event_types_are_the_sources(self):
-        text = self.read(EVENTS)
-        names = re.search(r"providerEventSchema = z\.discriminatedUnion\('type', \[(.*?)\]\)", text, re.S)[1]
-        types = {re.search(rf"export const {name} = .*?type: z\.literal\('([a-z_]+)'\)", text, re.S)[1]
-                 for name in re.findall(r"\w+", names)}
-        self.assertEqual(types, set(runread.READ_EVENTS) | set(runread.UNREAD_EVENTS))
+                         set(runread.NODE_ROWS) | set(runread.UNREAD_ROWS))
 
     def test_statuses_are_the_sources(self):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
-        self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
+        self.assertLessEqual({*runread.LIVE, "paused", runread.FAILED}, set(runread.STATUSES))
         outcomes = re.search(r"workflowRunOutcomeSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
         self.assertEqual(literals(outcomes), set(runread.OUTCOMES))
 

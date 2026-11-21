@@ -98,12 +98,12 @@ import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・�
 from src import board as fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as fixnames  # noqa: E402
 from src import rules as fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
-import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
+import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
-import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
 import writelog  # noqa: E402
-import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
+import writes  # noqa: E402  （lib/。書き込みの出どころの突き合わせ）
 import oneline  # noqa: E402
 from leftovers import git, git_names  # noqa: E402
 # 型を問わない部品（src/common.py。輪の中の名は変えない）
@@ -170,12 +170,16 @@ def _duty(board_dir: pathlib.Path, owed=None, withheld_by=None, returned=()):
 def plan_contract(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> dict[str, dict]:
     """単位 → 承認済みの修正案の約束（planmarks.unit_contract。約束の無い単位は載せない）。置き場 board_dir に凍結した欄の控え
     （plan-fields.json と trace.jsonl の凍結の印）が無い run は {}。欄の控えが凍結の印と食い違う（conflict.frozen_fields の
-    ValueError）なら、理由の文のまま Broken（約束を黙って空にしない）。元は盤面を開いて読んだ"""
+    ValueError）なら、理由の文のまま Broken（約束を黙って空にしない）。返した段で前の段の人に回した裁定から直しへ戻した単位は、
+    裁定が名指した受け入れの試験を約束の tests から外す（fixboard.stopped_tests）。元は盤面を開いて読んだ"""
     try:
         fields = conflict.frozen_fields(pathlib.Path(board_dir), round_)
     except ValueError as e:
         raise Broken(str(e)) from None
-    return {k: {**c, "creates": _plan_creates(fields, k)} for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
+    stops = fixboard.stopped_tests(board_dir)   # 返した段で、人に回した裁定が名指した試験の赤の義務は止めたまま
+    return {k: {**c, "tests": [t for t in c.get("tests") or [] if t.get("id") not in stops.get(k, ())],
+                "creates": _plan_creates(fields, k)}
+            for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
 
 
 def _plan_creates(fields, key) -> list[str]:
@@ -483,7 +487,7 @@ def _paths(v, name) -> tuple:
     out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
     if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
-    bad = [x for x in out if x.startswith("/") or x == ".." or x.startswith("../")]
+    bad = [x for x in out if x.startswith(("/", "../")) or x == ".."]
     return out, ([f"{name} はリポジトリの根からの相対パス（{bad}）"] if bad else [])
 
 
@@ -551,7 +555,7 @@ def _close_covered(st) -> None:
         if not by:
             return
         src = st["units"][by[0]]
-        tests = [t["id"] for t in _plan_tests(st, k)] + [i for i in _plan_rewrites(st, k)]
+        tests = [t["id"] for t in _plan_tests(st, k)] + list(_plan_rewrites(st, k))
         want = {_norm_id(x) for x in tests}
         proven = [v for v in st["units"].values() if v.get("route") == "tdd" and v.get("green") == "ok"]   # 確かめた単位の全部から
         quotes = {t: q for v in proven for t, q in (v.get(QUOTES_FIELD) or {}).items() if _norm_id(t) in want}

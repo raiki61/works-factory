@@ -319,7 +319,7 @@ def _request(raw, defaults: list) -> tuple[str, str]:
         return "", ""
 
 
-def _texts(d: pathlib.Path, raw: dict, defaults: list) -> dict:
+def _texts(d: pathlib.Path, raw: dict) -> dict:
     """3 つの形が共に読む物: 目的・世界の解の行・方針・記録された方針・読む版と BASE・言語"""
     world = _read("world_rows", raw.get("world_rows"), lambda v: ports.file(v, "jsonl(lib:world-row.schema.json)"))
     rows = _port("world_rows", lambda: _copy_world(d, world))
@@ -467,7 +467,7 @@ def intake(out, repo, **raw) -> dict:
         defaults: list = []
         if not _blank(raw.get("theme_doc")):
             form = "theme"
-            doc = _theme_doc(d, repo, raw, defaults, _texts(d, raw, defaults))
+            doc = _theme_doc(d, repo, raw, defaults, _texts(d, raw))
             jsonfile.write(d / files.INTAKE, doc)
             return {"due": True, "form": form, "tree": False, "k": doc["k"], "reason": ""}
         if ports.text(raw.get("proposal_file")).strip():
@@ -475,7 +475,7 @@ def intake(out, repo, **raw) -> dict:
         else:
             form, proposal = proposal_form(proposal_of(raw))
         form = "replan" if form == "plan" and not _blank(raw.get("ruling")) else form
-        common = _texts(d, raw, defaults)
+        common = _texts(d, raw)
         if form == "text":
             doc = {"form": "text", "k": 0, "round": 0, "proposal_text": proposal, "purpose": common["purpose"],
                    "world": common["world"], policy.RECORDED_KEY: common[policy.RECORDED_KEY],
@@ -527,7 +527,7 @@ def _tree_items(d: pathlib.Path) -> int:
     return len(list((d / files.ITEMS_DIR).glob("item-*.md")))
 
 
-def _finish_text(d: pathlib.Path, doc: dict) -> dict:
+def _finish_text(d: pathlib.Path) -> dict:
     gave = rolekit.given_up_reason(d, files.TEXT_NODE)
     if gave:
         why = GIVEN_UP_FACES + gave
@@ -590,7 +590,7 @@ def finish(out) -> dict:
         err = err if isinstance(err, dict) else {}
         got = result("failed", str(err.get("why") or NO_INTAKE), form=str(err.get("form") or ""))
     elif doc.get("form") == "text":
-        got = _finish_text(d, doc)
+        got = _finish_text(d)
     elif doc.get("form") == "theme":
         got = _finish_theme(d, doc)
     else:

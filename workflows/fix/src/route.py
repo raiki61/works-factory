@@ -60,14 +60,17 @@ def _top_words(fields, keys) -> dict:
 
 def _redrawn(place, fields, keys, words: dict) -> dict:
     """返した段で、返した項目に結ばれた単位 → 表 KIND_WORDS で引き直した計画の語（元の語から変わった単位だけ。語無しのままの単位と、
-    消す名で remove に引く単位は載せない）。返した項目の種は values.json の item_kinds（空なら {}）。表に無い組は Broken"""
+    消す名で remove に引く単位は載せない）。返した項目の種は values.json の item_kinds（空なら {}）。前の段の人に回した裁定の単位を
+    直しへ戻した時（board.ruled_stops）は、その単位の直す返した項目の種だけを数える。表に無い組は Broken"""
+    from src import board
     rows = runvals.read(place)["item_kinds"]
+    back = board.returned_units(place) if rows else {}
     kinds: dict = {}
     for row in rows:
         n = row["item"]
         f = fields[n - 1] if isinstance(n, int) and 1 <= n <= len(fields) else None
         for k in (f.get("unit_keys") or []) if isinstance(f, dict) else []:
-            if k in keys:
+            if k in keys and (k not in back or {"item": n, "kind": row["kind"]} in back[k]["rows"]):   # 裁定が止めた試験の項目の作り残しは数えない
                 kinds.setdefault(k, set()).add(row["kind"])
     removes = _removes(fields, keys)
     out: dict = {}
@@ -216,7 +219,7 @@ def prep(state_file, sources=None) -> dict:
 
 
 def _route(st, reply, repo) -> list:
-    """振り分けの返答を確かめる（今の tdd._route のまま。振る単位は状態の open_units から外れた単位を除いた物）。通れば単位ごとの
+    """振り分けの返答を確かめる（元の tdd._route のまま。振る単位は状態の open_units から外れた単位を除いた物）。通れば単位ごとの
     行（tdd・direct）を置いて段を ROUTED にする"""
     rows = reply.get("units")
     if not isinstance(rows, list) or not all(isinstance(r, dict) and isinstance(r.get("unit_key"), str) for r in rows):

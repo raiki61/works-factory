@@ -26,12 +26,12 @@ SKIP_FLAGS = ("--from", "--from-branch", "--branch", "--base", "--no-worktree", 
 # 枝の短い名 -b（-b 値・-b値・-b=値と、真偽の短い名と組んだ -vb 値。Archon の parseArgs が受ける形）
 SKIP_SHORT = re.compile(r"-[A-Za-z]*b")
 WRAP_MESSAGE = "works-factory: 起動の殻が包んだ対象の手元の姿（run の作業ツリーの起点）"
-# 包んだ commit の作者と commit した者。利用者の git の名の設定に頼らない
 # origin への問い合わせを打つ回数と、打ち直しの前の待ち（秒。i 回目の後に WAITS[i-1]）
 TRIES = 3
 WAITS = (1.0, 2.0)
 # 端末で資格を尋ねない（Archon の packages/git/src/credentials.ts の gitCredentialOptions と同じ）
 QUIET_ENV = {"GIT_TERMINAL_PROMPT": "0"}
+# 包んだ commit の作者と commit した者。利用者の git の名の設定に頼らない
 WRAP_IDENTITY = {"GIT_AUTHOR_NAME": "works-factory", "GIT_AUTHOR_EMAIL": "works-factory@localhost",
                  "GIT_COMMITTER_NAME": "works-factory", "GIT_COMMITTER_EMAIL": "works-factory@localhost"}
 

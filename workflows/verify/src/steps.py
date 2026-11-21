@@ -28,7 +28,7 @@ import jsonfile   # lib/
 import materialkit   # lib/。moved_since（作業ツリーの写しとの比べ）
 import oneline    # lib/
 import stopby     # lib/
-from judgmark import is_open, open_units   # lib/。開いた単位の選び（diagnose・fix と共に読む判定の行の形）
+from judgmark import open_units   # lib/。開いた単位の選び（diagnose・fix と共に読む判定の行の形）
 from engine.schema import validate_schema   # lib/graphloops/engine/schema.py
 from engine.util import Reject              # lib/graphloops/engine/util.py
 

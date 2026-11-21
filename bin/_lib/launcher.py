@@ -171,20 +171,18 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
         child[ROOT_ENV] = str(ROOT)
     if executing:
+        archon_home = Path(child["ARCHON_HOME"])
         refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
-                             for name in ARCHON_CWD_ENV_FILES] + [Path(child["ARCHON_HOME"]) / ".env"])
-    if executing:
+                             for name in ARCHON_CWD_ENV_FILES] + [archon_home / ".env"])
         try:
-            place.write_provider_cap(Path(child["ARCHON_HOME"]), place.provider_cap(user))
+            place.write_provider_cap(archon_home, place.provider_cap(user))
         except ValueError as error:
             raise Stop(str(error)) from None
         # 上限は置き場の設定として残り、渡さない起動も同じ置き場の上限の下で走る（Archon はリクエストのたびに読み直す）
-        if (effective := place.read_provider_cap(Path(child["ARCHON_HOME"]))) is not None:
-            print(f"{NAME}: claude の同時数の上限 {effective} が効いている（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
-                  file=sys.stderr)
-        elif place.flow_cap_unread(Path(child["ARCHON_HOME"])):
-            print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{Path(child['ARCHON_HOME']) / place.CAP_FILE}）",
-                  file=sys.stderr)
+        if (effective := place.read_provider_cap(archon_home)) is not None:
+            print(f"{NAME}: claude の同時数の上限 {effective} が効いている（{archon_home / place.CAP_FILE}）", file=sys.stderr)
+        elif place.flow_cap_unread(archon_home):
+            print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{archon_home / place.CAP_FILE}）", file=sys.stderr)
     real = real_claude(user) if executing else None
     if executing and user.get(CLAUDE_BIN_ENV):   # 利用者が起動方法（ラッパー）を置いた時だけ、その認証を check・exec が確かめる（読むのは殻のまま）
         auth_user += ["--runtime", user[CLAUDE_BIN_ENV]]
@@ -323,10 +321,15 @@ def real_bun(found: str, env: Mapping[str, str], where: Path) -> tuple[str, str 
     said = done.stdout.strip()
     if done.returncode == 0 and os.path.isabs(said) and os.path.isfile(said) and os.access(said, os.X_OK):
         return said, None
-    head = " / ".join([line.strip() for line in done.stderr.splitlines() if line.strip()][:3])
+    head = stderr_head(done.stderr)
     return "", (f"bun（{os.path.realpath(found)}）に `{shlex.join(['bun', *ASK_REAL])}` で実体のパスを聞いたが、在る実行ファイルのパスが返らない"
                 f"（終了の値 {done.returncode}・標準出力 {said[:200]!r}" + (f"・標準エラーの頭: {head}" if head else "")
                 + f"。打った場所: {where}）")
+
+
+def stderr_head(text: str) -> str:
+    """道具の標準エラーの頭の空でない 3 行を / でつないだ 1 行（起きない時の訳に添える）"""
+    return " / ".join([line.strip() for line in text.splitlines() if line.strip()][:3])
 
 
 def bun_link(home: Path, real: str) -> str:
@@ -360,7 +363,7 @@ def woken(name: str, env: Mapping[str, str], places: list[Path], path: str | Non
             failed.setdefault(f"起こせない: {error}", []).append(str(where))
             continue
         if done.returncode != 0:
-            head = " / ".join([line.strip() for line in done.stderr.splitlines() if line.strip()][:3])
+            head = stderr_head(done.stderr)
             failed.setdefault(f"`{name} --version` に終了の値 {done.returncode} で落ちた"
                               + (f"。標準エラーの頭: {head}" if head else ""), []).append(str(where))
     if not failed:
@@ -644,16 +647,14 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
     """Archon の DB と隔離した置き場の根。対象ごとに 1 つで起動をまたいで同じ（run・respond・resume が同じ DB を見る）"""
     chosen = user.get(HOME_ENV)
     if chosen:
-        refuse_relative(HOME_ENV, chosen)
-        refuse_sandbox_writable(HOME_ENV, chosen)
-        refuse_in_factory(HOME_ENV, chosen)
-        return Path(chosen)
-    home = factory_state(user) / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
-    what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
+        home, what = chosen, HOME_ENV   # 止まる訳には受けた字のまま出す
+    else:
+        home = factory_state(user) / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
+        what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
     refuse_relative(what, home)
     refuse_sandbox_writable(what, home)
     refuse_in_factory(what, home)
-    return home
+    return Path(home)
 
 
 def refuse_relative(what: str, path) -> None:
