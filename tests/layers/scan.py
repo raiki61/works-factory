@@ -786,9 +786,9 @@ def _yaml_names(root: Path, yaml_path: Path, node, tree, expr) -> tuple:
     if isinstance(arg, ast.Name) and _loads(tree, arg.id) == 1:
         arg = _bound_value(tree, arg.id)
     for key, value in _pairs(_top(node, "with")):
-        if isinstance(key, str) and arg is not None and _environ_read(arg, _input_env(key)):
-            if isinstance(value, yaml.ScalarNode) and "$" not in value.value:
-                return f"{_rel(root, yaml_path)}:{_line(value)}", tuple(value.value.split())
+        if (isinstance(key, str) and arg is not None and _environ_read(arg, _input_env(key))
+                and isinstance(value, yaml.ScalarNode) and "$" not in value.value):
+            return f"{_rel(root, yaml_path)}:{_line(value)}", tuple(value.value.split())
     return None, None
 
 
