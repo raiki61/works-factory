@@ -14,7 +14,7 @@
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
 - ref_problems(reply, place, base_rev, repo): 修正が書いた指し（wrote_refs）と差分が足した Markdown のリンクの照らし（受け付けと
-  修正役の事前の確かめ factchecks.precheck が同じ口で回す）
+  修正役の事前の確かめ fix の facts.precheck が同じ口で回す）
 - 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
@@ -158,7 +158,7 @@ def _after_problems(reply: dict, place, base_rev: str, repo, red_units=None) -> 
 def ref_problems(reply: dict, place, base_rev: str, repo) -> list:
     """修正が新しく書いた指し（wrote_refs。cite._cite_errors で作業ツリーの指し先を数え直す。申告が空でも通す）と、差分が
     足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）の照らしの文。受け付け（_after_problems）と修正役の事前の
-    確かめ（factchecks.precheck）が同じ口で回す。置き場は読むだけ"""
+    確かめ（fix の facts.precheck）が同じ口で回す。置き場は読むだけ"""
     import accept
     errs = []
     with accept.in_repo(repo):
