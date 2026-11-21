@@ -323,10 +323,15 @@ def real_bun(found: str, env: Mapping[str, str], where: Path) -> tuple[str, str 
     said = done.stdout.strip()
     if done.returncode == 0 and os.path.isabs(said) and os.path.isfile(said) and os.access(said, os.X_OK):
         return said, None
-    head = " / ".join([line.strip() for line in done.stderr.splitlines() if line.strip()][:3])
+    head = stderr_head(done.stderr)
     return "", (f"bun（{os.path.realpath(found)}）に `{shlex.join(['bun', *ASK_REAL])}` で実体のパスを聞いたが、在る実行ファイルのパスが返らない"
                 f"（終了の値 {done.returncode}・標準出力 {said[:200]!r}" + (f"・標準エラーの頭: {head}" if head else "")
                 + f"。打った場所: {where}）")
+
+
+def stderr_head(text: str) -> str:
+    """道具の標準エラーの頭の空でない 3 行を / でつないだ 1 行（起きない時の訳に添える）"""
+    return " / ".join([line.strip() for line in text.splitlines() if line.strip()][:3])
 
 
 def bun_link(home: Path, real: str) -> str:
@@ -360,7 +365,7 @@ def woken(name: str, env: Mapping[str, str], places: list[Path], path: str | Non
             failed.setdefault(f"起こせない: {error}", []).append(str(where))
             continue
         if done.returncode != 0:
-            head = " / ".join([line.strip() for line in done.stderr.splitlines() if line.strip()][:3])
+            head = stderr_head(done.stderr)
             failed.setdefault(f"`{name} --version` に終了の値 {done.returncode} で落ちた"
                               + (f"。標準エラーの頭: {head}" if head else ""), []).append(str(where))
     if not failed:
