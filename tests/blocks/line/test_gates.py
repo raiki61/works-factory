@@ -40,7 +40,9 @@ def rounds(**over) -> dict:
             "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "", **over}
 
 
-class AskBeforeFixCase(unittest.TestCase):
+class _BeforeFixCase(unittest.TestCase):
+    """修正前の承認ノードの開き方（gates.before_fix）を既定の rounds() で聞く助け"""
+
     def setUp(self):
         self.g = kit.load(BLOCK, "gates")
         self.gm = __import__("gatemarks")
@@ -49,6 +51,8 @@ class AskBeforeFixCase(unittest.TestCase):
         return self.g.before_fix(rounds() if got is None else got, unattended_run=kw.pop("unattended", False),
                                  design=kw.pop("design", False), **kw)
 
+
+class AskBeforeFixCase(_BeforeFixCase):
     def test_no_plan_goes_nowhere(self):
         for got in (None, rounds(ok=False), rounds(status="nothing_owed", ok=False)):
             with self.subTest(got=got):
@@ -334,7 +338,7 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual((out["go"], out["pushed"]), (False, None))
 
 
-class PointedAskCase(unittest.TestCase):
+class PointedAskCase(_BeforeFixCase):
     """版に無い名指しの文書（持ち主の決め pointed-ask。受付 9d05bd の問い 4 の B）: 人の居る run は修正前の承認ノードで問う。ほかの版にだけ
     在る文書は従ってよいかを聞いて開き、どの版にも無い文書は推し「気にせず進む」つきで並べるだけ（それだけでは開かない）。無人の run は
     項目にせず、報告の行だけ（ゲートの抜け方は今のまま）"""
@@ -342,14 +346,6 @@ class PointedAskCase(unittest.TestCase):
     CANON = {"path": "docs/canon.md", "found": True, "at": "canon"}
     GONE = {"path": "tests/new_case.py", "found": False, "at": ""}
     RULE = {"path": "docs/deploy.adoc", "by": "AGENTS.md", "found": True, "at": "remotes/origin/canon"}
-
-    def setUp(self):
-        self.g = kit.load(BLOCK, "gates")
-        self.gm = __import__("gatemarks")
-
-    def ask(self, got=None, **kw):
-        return self.g.before_fix(rounds() if got is None else got, unattended_run=kw.pop("unattended", False),
-                                 design=kw.pop("design", False), **kw)
 
     def test_a_document_only_on_another_branch_opens_the_gate(self):
         out = self.ask(rounds(pointed=[self.CANON]), pointed=[self.RULE])
