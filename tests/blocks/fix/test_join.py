@@ -26,6 +26,7 @@ from unittest import mock
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix.support import write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
@@ -47,13 +48,6 @@ import planmarks  # noqa: E402
 import planrange  # noqa: E402
 
 MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed", "path_changed")
-
-
-def write(path, doc):
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    return path
 
 
 def result(gid, units, end_tree, start_tree, **extra):

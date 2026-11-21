@@ -165,3 +165,11 @@ def writer_prompt(env: dict, out: dict, cwd) -> str:
 def slots_of(place, out: dict) -> dict:
     """支度の返り out の slots の pointer が指す slots（型の block に渡った値と段落の真偽）"""
     return json.loads((pathlib.Path(place) / out["slots"]["path"]).read_text(encoding="utf-8"))
+
+
+def write(path, doc) -> pathlib.Path:
+    """doc を json で path に書き、path を返す（親のフォルダも作る）"""
+    path = pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return path

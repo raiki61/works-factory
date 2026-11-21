@@ -60,13 +60,6 @@ def _nodes() -> dict:
 NODES = _nodes()
 
 
-def _write(path, doc):
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    return path
-
-
 def _recorder_root(tmp):
     """記録の根を持つ隔離した設定の置き場（toolset.install が作る形）。(子の環境に足す物, 記録の根)"""
     import writelog
@@ -122,8 +115,8 @@ class GroupChildScriptsCase(unittest.TestCase):
     def parent_inputs(self, suite, **values):
         """親の place に prep が書く写し（values.json・判定・直す前の結末）を置く"""
         runvals.write(self.parent, {"tdd_suite": suite, "reuse_key": RUN, **values})
-        _write(self.parent / "judgment.json", {"units": [{"key": MEAN, "label": "block"}], "questions": []})
-        _write(self.parent / "baseline.json", {"cases": [], "exit": 1})
+        support.write(self.parent / "judgment.json", {"units": [{"key": MEAN, "label": "block"}], "questions": []})
+        support.write(self.parent / "baseline.json", {"cases": [], "exit": 1})
 
     def env(self, art, inputs):
         env = hermetic.child_env()
@@ -286,7 +279,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         子の HEAD からは測らない（親の姿を写しただけの子の累積差分は空）"""
         import leftovers
         parent_head = git(self.repo, "rev-parse", "HEAD")
-        _write(self.parent / "base-rev.json", {"rev": parent_head})
+        support.write(self.parent / "base-rev.json", {"rev": parent_head})
         tree = leftovers.snapshot(self.repo)
         (self.repo / "elsewhere.py").write_text("Z = 1\n", encoding="utf-8")
         git(self.repo, "add", "elsewhere.py")
@@ -303,7 +296,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         import leftovers
         before = leftovers.snapshot(self.repo)
         (self.out_dir / "g0").mkdir()
-        _write(self.out_dir / "g0" / "group-start.json", {"start_tree": before})
+        support.write(self.out_dir / "g0" / "group-start.json", {"start_tree": before})
         (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
         err = self.start(ok=False)
         self.assertIn("g0", err)
@@ -315,7 +308,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         (self.out_dir / "g0" / "result.json").write_text("{", encoding="utf-8")
         self.assertIn("g0", self.run_script("group_start", ok=False))
         self.assertEqual((self.repo / "half.py").read_text(encoding="utf-8"), "Y = 1\n")
-        _write(self.out_dir / "g0" / "result.json", {"end_tree": before})
+        support.write(self.out_dir / "g0" / "result.json", {"end_tree": before})
         self.run_script("group_start")
         self.assertTrue((self.repo / "half.py").is_file(), "前の組の結果の在る変更は残す")
 
@@ -324,7 +317,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         import leftovers
         tree = leftovers.snapshot(self.repo)
         (self.out_dir / "g0").mkdir()
-        _write(self.out_dir / "g0" / "group-start.json", {"start_tree": tree})
+        support.write(self.out_dir / "g0" / "group-start.json", {"start_tree": tree})
         self.start(from_tree=tree)
         self.assertEqual(sorted(p.name for p in (self.out_dir / "g0").iterdir()), ["group-start.json"])
 
@@ -337,7 +330,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         for left in (None, "{"):
             with self.subTest(result=left):
                 (self.out_dir / "g1").mkdir(exist_ok=True)
-                _write(self.out_dir / "g1" / "group-start.json", {"start_tree": before})
+                support.write(self.out_dir / "g1" / "group-start.json", {"start_tree": before})
                 if left is not None:
                     (self.out_dir / "g1" / "result.json").write_text(left, encoding="utf-8")
                 (self.repo / "half.py").write_text("Y = 1\n", encoding="utf-8")
@@ -623,7 +616,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         earlier = "test_stats.py::TestStats::test_mean_of_two"
         self.parent_inputs(str(self.suite), item_kinds=[{"item": 1, "kind": "unfinished"}])
         self.start()
-        _write(self.place / "returns" / "1.json", {"stage": 1, "weapon": "tdd", "group": "g1", "tree": "", "units": [{"key": MEAN, "named": [earlier]}],
+        support.write(self.place / "returns" / "1.json", {"stage": 1, "weapon": "tdd", "group": "g1", "tree": "", "units": [{"key": MEAN, "named": [earlier]}],
                                                     "frozen": {}, "frozen_tree": "", "suite_made": [], "added": [earlier], "rewritten": []})
         got = self.step({"phase": "route", "units": [{"unit_key": MEAN, "route": "tdd"}]})
         self.assertEqual((got["ok"], got["phase"]), (True, "test"), got)
@@ -734,9 +727,9 @@ class GroupChildScriptsCase(unittest.TestCase):
         env = self.env(self.art, {})
         first = support.writer_prompt(env, self.run_script("fix_ruled_prep"), self.repo)
         self.assertNotIn("The first fixer's answer (saved by the machine)", first)
-        reply = _write(self.tmp / "first-reply.json", {"changes": [], "not_done": [], "plan_faces": []})
-        _write(self.place / "groups.json", {"groups": [GROUP], "out_dir": str(self.out_dir)})
-        _write(self.out_dir / "g1" / "result.json", {"reply_file": str(reply)})
+        reply = support.write(self.tmp / "first-reply.json", {"changes": [], "not_done": [], "plan_faces": []})
+        support.write(self.place / "groups.json", {"groups": [GROUP], "out_dir": str(self.out_dir)})
+        support.write(self.out_dir / "g1" / "result.json", {"reply_file": str(reply)})
         prompt = support.writer_prompt(env, self.run_script("fix_ruled_prep"), self.repo)
         saved = str(self.place / "fix-reply.json")
         self.assertEqual(prompt.count("The first fixer's answer (saved by the machine): "), 1)
@@ -769,18 +762,18 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.start()
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)"), encoding="utf-8")
-        _write(self.place / "fix-units.json", {MEAN: {"status": "fixed", "reason": ""}})
-        _write(self.place / "fix-reply.json", {"changes": [
+        support.write(self.place / "fix-units.json", {MEAN: {"status": "fixed", "reason": ""}})
+        support.write(self.place / "fix-reply.json", {"changes": [
             {"unit_key": MEAN, "breaks": {"accepted": "空の列の平均の値が変わる"}}], "gates_changed": True,
             "rejudge_requested": "単位の見立てが違う", "premise_drift_note": "上限を測り直した", "x_scalars": {"x_moved": 2}})
         agreed = {"op": conflict.ASKED_OP, "id": 1, "item": "1", "status": "answered", "decision": "allow",
                   "granted_paths": [], "granted_tests": ["test_stats.py"], "granted_new_tests": [], "reason": "許した"}
         (self.place / "trace.jsonl").write_text(json.dumps(agreed, ensure_ascii=False) + "\n", encoding="utf-8")
         closure = {"unit_key": MEAN, "closed": True, "discrepancies": []}
-        _write(self.place / "fix-unit-rows.json", {"round": 1, "rows": [closure]})
+        support.write(self.place / "fix-unit-rows.json", {"round": 1, "rows": [closure]})
         notice = {"op": impact.ACCEPT_TRACE_OP, "ci_left": [], "final_left": ["test_far.py"], "final_far": []}
         b.write_json(self.place / b.ACCEPT_TRACE_FILE, [notice])
-        _write(self.place / "orders.json", {"unsatisfied": [{"before": "a", "after": "b"}]})
+        support.write(self.place / "orders.json", {"unsatisfied": [{"before": "a", "after": "b"}]})
         out = self.run_script("group_end")
         self.assertEqual(out["result_file"], str(self.out_dir / "g1" / "result.json"))
         result = json.loads(pathlib.Path(out["result_file"]).read_text(encoding="utf-8"))
@@ -833,12 +826,12 @@ class GroupChildScriptsCase(unittest.TestCase):
                                     "which_is_right": "request", "kind": "unnamed_test_broke"}],
                       source=conflict.FIX_SOURCE, ruling={"decision": "fix_test_scope", "text": "期待を直してよい",
                                                           "limits": ["test_stats.py:8"]})
-        _write(self.place / querytest.CLOSURE_FILE, {"round": 1, "rows": [
+        support.write(self.place / querytest.CLOSURE_FILE, {"round": 1, "rows": [
             {"unit_key": MEAN, "closed": True, "discrepancies": ["申告の数が問いの数と合わない"]}]})
         notice = {"op": "fix_tests_selected", "node": "fix-accept", "pass": "first", "attempt": 1,
                   "note": "選んだ試験が 0 件しか走らなかった", "ci_left": [], "final_left": [], "final_far": []}
-        _write(self.place / b.ACCEPT_TRACE_FILE, [notice])
-        _write(self.place / b.FIX_REPLY_FILE, {"changes": []})
+        support.write(self.place / b.ACCEPT_TRACE_FILE, [notice])
+        support.write(self.place / b.FIX_REPLY_FILE, {"changes": []})
         result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
         permit = {"path": "test_stats.py", "permit": f"{conflict.RULED_TEST_ID}-c1-1", "source": "ruling"}
         self.assertEqual(result["allowed_tests"], [permit])
@@ -848,11 +841,11 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(result["accept_trace"], [child_notice])
 
         self.parent_groups(result["start_tree"])
-        _write(self.parent / b.JOIN_FILE, {"par": False, "groups": [
+        support.write(self.parent / b.JOIN_FILE, {"par": False, "groups": [
             {"group_id": "g1", "unit_ids": [MEAN], "returned": True, "reason": ""}],
             "units": [{"unit_id": MEAN, "group_id": "g1", "status": "fixed", "reason": ""}]})
         own = {**notice, "pass": "ruled", "node": "fix-ruled-accept"}
-        _write(self.parent / b.ACCEPT_TRACE_FILE, [own])
+        support.write(self.parent / b.ACCEPT_TRACE_FILE, [own])
         for _ in range(2):   # 回し直しても行を重ねない
             out = self.run_script("finish", art=self.parent)
             beside = (self.parent / out["diff"]["path"]).parent
@@ -867,7 +860,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         row = {"pr": 4, "file": "stats.py", "start": 5, "end": 5, "why": "PR 4 が同じ行を書く"}
         self.parent_inputs("", excluded=[row])
         self.start()
-        _write(self.place / _src("board").FIX_REPLY_FILE, {"changes": []})
+        support.write(self.place / _src("board").FIX_REPLY_FILE, {"changes": []})
         result = json.loads(pathlib.Path(self.run_script("group_end")["result_file"]).read_text(encoding="utf-8"))
         self.assertEqual(result["mismatched"], [])
         stats = self.repo / "stats.py"

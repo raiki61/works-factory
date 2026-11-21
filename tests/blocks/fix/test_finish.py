@@ -21,6 +21,7 @@ import yaml
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix.support import write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
@@ -42,13 +43,6 @@ def lib_report():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def write(path, doc) -> pathlib.Path:
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    return path
 
 
 def result(gid, unit_ids, end_tree, start_tree, **extra) -> dict:
