@@ -131,7 +131,7 @@ def remote_repos(repo, first: str):
     """gh repo set-default は remote.<名>.gh-resolved に base（その remote）か OWNER/REPO（フォークの clone で親を名指した時など）を記す"""
     names = (_git(repo, "remote") or "").split()
     keys = (_git(repo, "config", "--get-regexp", r"^remote\..*\.gh-resolved$") or "").splitlines()
-    resolved = {k[len("remote."):-len(".gh-resolved")]: v for k, _, v in (line.partition(" ") for line in keys)}
+    resolved = {k.removeprefix("remote.").removesuffix(".gh-resolved"): v for k, _, v in (line.partition(" ") for line in keys)}
     for name in dict.fromkeys([*resolved, first, "upstream", "github", "origin", *names]):
         got = repo_of(_git(repo, "remote", "get-url", name) or "") if name in names else None
         if not got:
