@@ -217,7 +217,7 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     if k > 1 and isinstance(prev, dict) and prev.get("go") is not True:
         return {**{key: prev.get(key) for key in FIELDS}, "go": False, "round": k}
     rows = [dict(r) for r in _d(prev).get("rows") or [] if isinstance(r, dict)]
-    more = list(_d(fixed).get("more") or [])
+    more = _d(fixed).get("more")   # 合わせが書いた返した段の並びの指し先（pointer のまま運ぶ。src/fixedfiles.py）
     out = _base(k, fixed, tests, eyes, rows, more)
 
     def leave(why: str, **extra) -> dict:

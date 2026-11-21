@@ -1,10 +1,13 @@
 """修正の段の合わせ fixed の返りの伸びる欄を place のファイルに置く書き口 stored と、読む口 opened・value（docs/design/line.md の 4.3）。
 
 fixed の返りの段の返り stages・単位 units・止めの訳 stop_why・差分のパスを修正案の項目に決める記録 item_claims は、直しの単位の数だけ伸びる
-（直しの単位が多い run で返り全体が 148KB）。Archon は script の入力を 1 本ずつ環境変数で渡し、Linux では 1 本が 128KB を越えると起動が
+（直しの単位が多い run で返り全体が 148KB）。独立の目から返した段の修正の返りの並び more は、返すたびに修正の返りを 1 つずつ積んで伸びる
+（周の頭 back-k は前の周の頭の返りと合わせの返りをまるごと結ぶので、3 回返した後の頭の入力が上限を越える）。Archon は script の入力を 1 本ずつ環境変数で渡し、Linux では 1 本が 128KB を越えると起動が
 E2BIG で落ちるので、返りをまるごと結ぶ読み手（ask-final・back-k・collect）が落ちた。伸びる欄は値で返さず、place の fixed/<k>/ に書いて
 そのファイルを指す pointer を返す（試験の関所の test_outcomes と同じ形。k は返した段の数で、fixed は 0、back-k-fixed は k。周ごとに別の
 ファイルなので、返す前の状態を封じる周が前の周の pointer を運んでも、指す先は書き換わらない）。空の値（空の配列・null・空の字）は書かずに null。
+ただし more は空の配列も書く（返しの周の節 back-k-fixed は、入力の more が null でない〔指し先が在る〕ことで自分が返しの周と知る。元の fixed は
+with: で null を渡す）。
 
 - GROWN: 伸びる欄の名 → ファイルの名（form は欄ごとに _pointer・value が字で持つ。output_format の description と同じ字）
 - stored(out, place) -> 伸びる欄を書いて pointer に替えた返り（fixed の script が返す前に通す）
@@ -20,7 +23,8 @@ from pathlib import Path
 
 import ports
 
-GROWN = {"stages": "stages.json", "units": "units.json", "item_claims": "items.json", "stop_why": "stop-why.txt"}
+GROWN = {"stages": "stages.json", "units": "units.json", "item_claims": "items.json", "stop_why": "stop-why.txt", "more": "more.json"}
+KEPT_EMPTY = ("more",)   # 空の値でも書く欄（空の並びと null を読み手が見分ける）
 
 
 def _blank(name: str):
@@ -35,6 +39,8 @@ def _pointer(name: str, path: Path) -> dict:
         return ports.pointer(path, "json(shared:fixes.schema.json)")
     if name == "item_claims":
         return ports.pointer(path, "json(shared:item-claims.schema.json)")
+    if name == "more":
+        return ports.pointer(path, "json(more.schema.json)")
     return ports.pointer(path, "file")
 
 
@@ -43,7 +49,7 @@ def stored(out: dict, place) -> dict:
     folder = Path(place) / files.FIXED_FILES.format(k=len(out.get(stages.MORE) or []))
     got = dict(out)
     for name, file_name in GROWN.items():
-        if got.get(name) is None or got[name] == _blank(name):
+        if got.get(name) is None or (got[name] == _blank(name) and name not in KEPT_EMPTY):
             got[name] = None
             continue
         path = folder / file_name
@@ -66,6 +72,8 @@ def value(fixed: dict, name: str):
         return ports.json(raw, "shared:fixes.schema.json")
     if name == "item_claims":
         return ports.json(raw, "shared:item-claims.schema.json")
+    if name == "more":
+        return ports.json(raw, "more.schema.json")
     raise KeyError(f"伸びる欄でない名 {name!r}（GROWN: {', '.join(GROWN)}）")
 
 

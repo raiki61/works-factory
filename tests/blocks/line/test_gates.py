@@ -1445,19 +1445,62 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(out["asked"], [{"kind": "regression", "text": NARROW}])
         self.assertEqual(out["review"]["verdict"], "unread")
 
+    WHY = "直しの単位の訳と控えのパス" * 12   # 直しの単位 1 つの訳の字（run 49306598 の単位の訳と同じ長さ）
+
+    def long_fix(self, **over) -> dict:
+        """直しの単位が 100 で訳の長い修正の返り（単位 units と差分のパスを項目に決める記録 item_claims が単位の数だけ伸びる）"""
+        from tests.blocks.line import test_stages
+        units = [{"unit_id": f"u{n}", "group_id": "g1", "status": "given_up", "reason": f"{self.WHY}{n}"} for n in range(100)]
+        claims = {"items": [{"item": 1, "unit_keys": [u["unit_id"] for u in units], "approach": self.WHY, "after": []}],
+                  "claims": [{"unit_key": u["unit_id"], "files": [f"src/{n}.txt"]} for n, u in enumerate(units)], "unread": []}
+        return test_stages.fix(units=units, item_claims=claims, **over)
+
+    def fixed_outputs(self, fix: dict) -> dict:
+        """fixed の with: が結ぶ node の返り（修正の返りは fix）"""
+        from tests.blocks.line import test_stages
+        v = test_stages.values(fix=fix)
+        return {"fix-in": v["fix_in"], "fix": v["fix"], "after-fix": v["after_fix"], "raise": v["raise"], "lens": v["lens"],
+                "delta-review": v["delta"], "start": {"from_spec": False}}
+
     def long_fixed(self) -> tuple[dict, str]:
         """修正の段の合わせ fixed を、fixed の with: の配線どおりに、直しの単位が多くて訳の長い修正の返りで回した返りと、単位の訳の字。
         段の返り stages・単位 units・止めの訳 stop_why がどれも単位の数だけ伸び、値のまま返すと返り全体が環境変数 1 本の OS の上限
         （Linux は 128KB）を越える大きさ（run 49306598 の 148KB の返りと同じ並び）"""
-        from tests.blocks.line import test_stages
-        why = "直しの単位の訳と控えのパス" * 12
-        units = [{"unit_id": f"u{n}", "group_id": "g1", "status": "given_up", "reason": f"{why}{n}"} for n in range(100)]
-        claims = {"items": [{"item": 1, "unit_keys": [u["unit_id"] for u in units], "approach": why, "after": []}],
-                  "claims": [{"unit_key": u["unit_id"], "files": [f"src/{n}.txt"]} for n, u in enumerate(units)], "unread": []}
-        v = test_stages.values(fix=test_stages.fix(ok=False, reason="直し終えなかった単位が在る", units=units, item_claims=claims))
-        outputs = {"fix-in": v["fix_in"], "fix": v["fix"], "after-fix": v["after_fix"], "raise": v["raise"], "lens": v["lens"],
-                   "delta-review": v["delta"], "start": {"from_spec": False}}
-        return self.wired("fixed", "fixed", outputs), why
+        fix = self.long_fix(ok=False, reason="直し終えなかった単位が在る")
+        return self.wired("fixed", "fixed", self.fixed_outputs(fix)), self.WHY
+
+    def test_heads_of_the_return_loop_start_after_two_long_returns(self):
+        """独立の目から修正の段へ返した段の修正の返りの並び more は、返すたびに直しの単位の数だけ伸びる修正の返りを 1 つずつ積み、
+        周の頭 back-k は前の周の頭の返り（more と合わせ）と返した段の合わせ（more）をまるごと結ぶ。値で運ぶと、どの周の修正も単位 100 の長い返り
+        （1 つ 61KB）の run で、2 回返した後の 3 周目の頭 back-3 の入力は上限の手前（125KB）、3 回返した後の頭 back-4 は上限
+        （Linux は 128KB）を越えて起動が E2BIG で落ちる。合わせは more も place のファイルに書いて pointer を返す。fixed から back-4 までを
+        with: の配線どおりに回す"""
+        fix = self.long_fix()
+        outputs = self.fixed_outputs(fix)
+        judged = {"units": [], "judgment": None, "answer_ties": None, "materials": None, "rejudged": False, "rejudge_verdict": None,
+                  "lines": [], "stop_reason": ""}
+        outputs |= {"judged": judged, "fixed": self.wired("fixed", "fixed", outputs)}
+        self.assertIs(outputs["fixed"]["go"], True, outputs["fixed"])
+        for k in (1, 2, 3):
+            tests = {"mode": "final", "ok": True, "green": True, "ran_steps": [], "reason": "", "by": "", "suites_line": "", "suite_note": "",
+                     "red_cause": "", "baseline": None, "test_outcomes": None, "evidence": None, "log": None, "baseline_line": "",
+                     "suite": "", "related": [], "report": [], "fingerprint": {"head": "h", "diff_hash": f"d{k}"}}
+            eyes = {"ok": False, "r1": {"status": "fix-needed", "reason": "写し"}, "r2": None, "r3": None, "r4": None, "questions": [],
+                    "means_questions": [], "passes": [], "premise_check": None, "notes": [], "after": None, "dirty": False, "escalate": False,
+                    "after_ok": True, "findings": [{"eye": "r1", "where": "src/a.py:1", "text": f"写しが残っている（周 {k}）"}],
+                    "route": "fix", "route_why": "", "report": [], "sections": []}
+            gate, eye = ("test-gate-final", "eyes") if k == 1 else (f"back-{k - 1}-gate", f"back-{k - 1}-eyes")
+            outputs |= {gate: tests, eye: eyes}
+            head = self.wired(f"back-{k}", "eyes_back", outputs)
+            self.assertIs(head["go"], True, head["exit"])
+            outputs |= {f"back-{k}": head, f"back-{k}-fix": fix}
+            outputs[f"back-{k}-fixed"] = self.wired(f"back-{k}-fixed", "fixed", outputs)
+            self.assertIs(outputs[f"back-{k}-fixed"]["go"], True, outputs[f"back-{k}-fixed"]["stop_reason"])
+        outputs |= {"back-3-gate": {**tests, "fingerprint": {"head": "h", "diff_hash": "d4"}}, "back-3-eyes": eyes}
+        last = self.wired("back-4", "eyes_back", outputs)
+        self.assertEqual(last["exit"], kit.load(BLOCK, "eyesback").EXITS["cap"], "返す上限を越えた周の頭は上限の訳で抜ける")
+        more = self.run.artifacts / last["more"]["path"]
+        self.assertEqual(len(json.loads(more.read_text(encoding="utf-8"))), 3, "最後の周の頭は 3 回返した段の修正の返りを指す")
 
     def test_readers_of_the_fixed_stage_start_when_it_returns_a_long_record(self):
         """修正の段の合わせ fixed の返りは単位の数だけ伸びる（run 49306598 で 148KB。返りをまるごと結ぶ ask-final・back-1・collect の起動が

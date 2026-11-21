@@ -65,7 +65,7 @@ def compute():
 
 def fallen(reason: str) -> dict:
     return {"go": False, "round": 0, "only_items": [], "notes": "", "prior": None, "plan": None, "fix_plan": None, "ripple": None,
-            "plan_review": None, "answers": None, "skip_rerun": [], "more": [], "rows": [], "exit": EXIT_FELL, "left": [], "fixed": None,
+            "plan_review": None, "answers": None, "skip_rerun": [], "more": None, "rows": [], "exit": EXIT_FELL, "left": [], "fixed": None,
             "tests": None, "eyes": None, "fingerprint": None, "green_ok": False, "eyes_ok": False, "sealable": False, "item_claims": None,
             "item_kinds": [], "checkpoint": None}
 

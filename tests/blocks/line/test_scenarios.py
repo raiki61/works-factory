@@ -323,7 +323,7 @@ class EyesBackTest(unittest.TestCase):
         fixed = out(trace, "back-1-fixed")
         # 段の表は置き場のファイルで、dry-run の後は読めない。返した後の記録は fixed/<返した回数> に置く（段が積まれたことは ask-final の文が見る）
         self.assertEqual(fixed["stages"]["path"], "fixed/1/stages.json", "返した段が最初の修正の段の次の記録に積まれる")
-        self.assertEqual(len(fixed["more"]), 1)
+        self.assertEqual(fixed["more"]["path"], "fixed/1/more.json", "返した段の修正の返りの並びも置き場のファイル")
         last = out(trace, "eyes-back")
         self.assertEqual((last["exit"], last["sealable"], last["eyes_ok"], last["green_ok"]), ("返す物が無い", True, True, True))
         self.assertEqual(last["fingerprint"]["diff_hash"], "e" * 64, "最後の周の試験の指紋")
