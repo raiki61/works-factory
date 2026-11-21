@@ -4002,7 +4002,7 @@ class RecountSeamCase(support.SeedEdits, SeamTemp):
 
 
 # ------------------------------------------------------------ 3 script（test_fix.py の写し）
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = kit.ROOT
 
 _X_MEAN = "u-mean"     # 判定者の問いの在る単位（stats.py の mean の分母）
 _X_BOUND = "u-bound"   # 判定者の問いの無い単位（coverage.how が無いと数え直しが名指して拒む）

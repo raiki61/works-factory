@@ -29,7 +29,7 @@ from tests.bin.gitkit import committed_copy, git
 from tests.bin.nodewalk import walk
 from tests.blocks import kit
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = kit.ROOT
 BLOCK = kit.BLOCKS / "test-gate"
 SCRIPTS = BLOCK / "scripts"
 SEED = ROOT / "tests" / "e2e" / "target-seed"

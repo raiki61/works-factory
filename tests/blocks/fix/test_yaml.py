@@ -4,7 +4,6 @@
 2026-11-10 の削りで残したのは、壊すと赤になるのがこの試験だけの物（筋書きは書き手の鎖の型ごとの when の取り違えを通す）。返す node
 finish の all_done と待ちは tests/workflows の全体の検査、起動スクリプトの書き直し役の起こし方は tests/layers が見る。読むだけの役が
 書く印も書く道具も持たないこと（RolesCase）は、tests/layers が印と道具の食い違いだけを見るので残す"""
-import pathlib
 import sys
 import unittest
 
@@ -13,7 +12,7 @@ import yaml
 from tests.bin.nodewalk import walk
 from tests.blocks import kit
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = kit.ROOT
 DOC = yaml.safe_load((kit.BLOCKS / "fix" / "works-factory-fix.yaml").read_text(encoding="utf-8"))
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))
