@@ -899,6 +899,16 @@ class AskFinalCase(unittest.TestCase):
         line = next(x for x in text.splitlines() if "人に聞いている問い（記録のまま引く。2 件" in x)
         self.assertIn("R1・R2 が人が選ぶとした指摘", line)
 
+    def test_unattended_run_stops_on_choose_findings_even_with_a_recommend(self):
+        """持ち主の決め eye-choose-stops: 無人の run で、開ける理由が R1・R2 が人が選ぶ（needs が choose）とした指摘だけでも、gates.passage に
+        掛けず works:needs-human で止まる。行が欄 recommend に通す推しを持っていても推しで進まない（直しの範囲は持ち主が決める）。
+        開き方 protected_only は R4 の問いと同じく問いでは開かない（決めは今の作りのまま）"""
+        row = {"text": "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"}
+        for q in (row, {**row, "recommend": self.MEANS_REC}):
+            with self.subTest(recommend="recommend" in q):
+                out = self.ask(final_got(self.f, questions=[q]), mode="when_needed", unattended=True)
+                self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
+
     def test_means_questions_have_their_own_section(self):
         """6.3 の 3 の 1: R2 の行は R4 の問いの節に入れず別の節に並べ、continue / stop が答えになると書く。R2 が redesign-needed の
         run では尾を R2_KEEPS_OUT にする"""

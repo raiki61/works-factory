@@ -1035,6 +1035,19 @@
 - 当て方: 根の `AGENTS.md` の「リポジトリの形」。写す時は、工場の指示の今の版から写し、その版を `perspectives/README.md` に書く。
 - 残り全部へ広げる: 持ち主の言葉「もっとあるよ私のアセット」。試しの形のまま、`workflows/*/prompts/` の残りと共通の断片 `workflows/.shared/prompts/` の観点を全部写す。共通の断片の観点はそれぞれ独立の観点にし、観点どうしは名前で指さない（最後に「一緒に使うと良いもの」の参考の 1 行だけ）。流れのつなぎだけの graph（line・chain・judge・eyes・merge・policy-check・spec-driven）からは写さない。観点でない断片は `perspectives/README.md` の「写さなかった物と訳」に並べる。
 
+## 2026-11-22 の決め（独立の目の人が選ぶ指摘と無人の run）
+
+出典: 受付 20261121-204320-bfdd96 の頼み（PR #1060 の前の納品〔受付 20261121-201149-81c427〕の残った疑問への持ち主の答えを、窓口が伝えた）。
+
+### `eye-choose-stops` 無人の run で人が選ぶ指摘が残ったら、推しで進めず止める
+
+- 持ち主への問い（要約）: 独立の目 R1・R2 が人が選ぶ（`needs: choose`）とした指摘だけが残った無人の run を、(a) 今の作りのまま「人の確かめが要る」で止めるか、(b) 目が添えた推しで進めるか。推しは (a)。
+- 持ち主の言葉: 「おしで」（(a) を推した問いへの答え）
+- 決め: 無人の run で、最後の承認ノードを開ける理由が `choose` の指摘の問い（eyes の `questions` に足した行）だけでも、`gates.passage` に掛けず、開かずに `works:needs-human` で止める。目が推しを添えていても推しで進めない（直しの範囲は持ち主が決める物なので、無人では決めない）。開き方が `protected_only` の run は、R4 の問いと同じく問いでは開かない（今の作りのまま）。
+- 食い違いの解き方: 独立の目の指摘の分けの承認済みの案（2026-11-16。持ち主の承認 受付 20261116-061104-0c38a3）の 4 の 1 の「無人の run は今の方針 `gates.passage` のまま」と食い違う所は、この決めが正。
+- 足す置き場（E10）: 足さない。コードも変えない（`workflows/line/src/final.py` の `unattended_pass` は、`gates.passage` に R2 の頼みどおりの違いの問い〔`means_questions`〕だけを掛け、eyes の `questions` は掛けない）。
+- 当て方: 設計は `docs/design/judge-eyes.md` の 2.2 の `findings` の項と `docs/design/line.md` の 2 章の最後の承認ノード `gate-final` の開ける理由。機械は `tests/blocks/line/test_gates.py` の `test_unattended_run_stops_on_choose_findings_even_with_a_recommend`。
+
 ## 引き継いだ決め
 
 今の works の地図から、works-factory でも生きる物を選んだ。外した物は末尾。
