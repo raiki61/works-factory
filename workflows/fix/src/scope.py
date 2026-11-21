@@ -71,7 +71,7 @@ import changemap  # noqa: E402   ファイルの言語の名（fence_lang）
 import conflict  # noqa: E402   直す裁定の limits のパス（ruled_paths）
 import leftovers  # noqa: E402
 import planmarks  # noqa: E402
-import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。.shared/core）
+import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。lib/）
 from planrange import LIFTED, NO_PLAN, NO_SCOPE, with_agreed  # noqa: E402,F401   このモジュールの口の名（試験と受け付けが読む）
 from src import common  # noqa: E402   試験のモジュールの名の型（PYTEST_FILE）の正本
 
