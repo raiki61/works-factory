@@ -527,7 +527,7 @@ def _tree_items(d: pathlib.Path) -> int:
     return len(list((d / files.ITEMS_DIR).glob("item-*.md")))
 
 
-def _finish_text(d: pathlib.Path, doc: dict) -> dict:
+def _finish_text(d: pathlib.Path) -> dict:
     gave = rolekit.given_up_reason(d, files.TEXT_NODE)
     if gave:
         why = GIVEN_UP_FACES + gave
@@ -590,7 +590,7 @@ def finish(out) -> dict:
         err = err if isinstance(err, dict) else {}
         got = result("failed", str(err.get("why") or NO_INTAKE), form=str(err.get("form") or ""))
     elif doc.get("form") == "text":
-        got = _finish_text(d, doc)
+        got = _finish_text(d)
     elif doc.get("form") == "theme":
         got = _finish_theme(d, doc)
     else:
