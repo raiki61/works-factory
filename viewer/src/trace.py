@@ -123,17 +123,17 @@ def build(data: dict) -> dict:
         if said is None or e["kind"] in runread.GROUP_KINDS:
             continue
         if e["session"] in used:
-            unread[SHARED] = unread.get(SHARED, 0) + 1
+            _add(unread, SHARED, 1)
             continue
         used.add(e["session"])
         tree.attrs(node, SESSION, e["session"])
         tree.attrs(node, INPUT, _opening(said, texts))
         orphans = tree.session(_key(e), node, said)
         if orphans:
-            unread[ORPHAN] = unread.get(ORPHAN, 0) + orphans
+            _add(unread, ORPHAN, orphans)
         for got in _all(said):
             for what, n in got["unread"].items():
-                unread[what] = unread.get(what, 0) + n
+                _add(unread, what, n)
     if unread:
         tree.attrs(root, UNREAD, json.dumps(unread, ensure_ascii=False, sort_keys=True))
     return {"trace_id": _hash(f"trace|{run['id']}", 32), "spans": tree.spans, "unread": unread}
@@ -314,6 +314,10 @@ def _costs(data: dict, events: list, table: list) -> str:
         lines += ["", "node\tloop\tcost_usd"] if lines else ["node\tloop\tcost_usd"]
         lines += [f"{e['path']}\t{_loop(e['loop'])}\t{(e.get('cost') or 0.0):.4f}" for e in ai]
     return "\n".join(lines)
+
+
+def _add(unread: dict, what: str, n: int) -> None:
+    unread[what] = unread.get(what, 0) + n
 
 
 def _all(said: dict):
