@@ -1,7 +1,8 @@
 # 独立の目から修正の段へ 1 度返して通る筋書き。最初の独立の目は R1 が「直しが要る」と言って route を fix にし、1 周目の頭が返す。
 # 返しの修正・最後の試験・独立の目（back-1-）は通り、2 周目の頭は目の route が stay なので返さずに抜ける。封じ・最後の承認ノード・
 # 返す node の R2 は最後の周の判定と指紋を読む。dry-run の置き場には修正案の欄の控えが無いので、返す項目は修正案の項目に結べず
-# 全部の項目が対象になる（notes にその旨が入る）。
+# 全部の項目が対象になる（notes にその旨が入る）。独立の目の R2 は判定が pass のまま、人が選ぶ（needs が choose）とした指摘を 1 つ言い
+# （最初の目と返した後の目の両方）、その指摘は修正の段へ返らず、最後の承認ノードの問いに出る。
 fixture:
   expect: completed
   inputs:
@@ -583,6 +584,8 @@ eyes__r1__finish:
   findings:
   - where: app.py:3
     text: 同じ内容の写しが残っている
+    needs: fix
+    kind: trim
   ok: true
   status: ran
   reason: ''
@@ -640,11 +643,21 @@ eyes__r4__finish:
 eyes__verdict:
   findings:
   - eye: r1
+    needs: fix
     kind: trim
     where: app.py:3
     text: 同じ内容の写しが残っている
+  - eye: r2
+    needs: choose
+    kind: unfinished
+    where: app.py:9
+    text: 空の入力にも見出しを出すか
+    options:
+    - 出す
+    - 出さない
+    recommend: 出さない（頼みにも承認した計画にも無い）
   route: fix
-  route_why: 返す項目が 1 件ある
+  route_why: 返す項目が 1 件ある（人が選ぶ物 1 件は返さず、最後の承認ノードの問いへ回した）
   ok: false
   r1:
     status: fix-needed
@@ -658,7 +671,8 @@ eyes__verdict:
   r4:
     status: pass
     reason: r4 は通した
-  questions: []
+  questions:
+  - text: 'R2: app.py:9: 空の入力にも見出しを出すか（選べる道: 1) 出す／2) 出さない。推し: 出さない（頼みにも承認した計画にも無い））'
   means_questions: []
   passes: []
   premise_check: null
@@ -977,9 +991,18 @@ back-1-eyes__r4__finish:
   passes: []
   coherence: null
 back-1-eyes__verdict:
-  findings: []
+  findings:
+  - eye: r2
+    needs: choose
+    kind: unfinished
+    where: app.py:9
+    text: 空の入力にも見出しを出すか
+    options:
+    - 出す
+    - 出さない
+    recommend: 出さない（頼みにも承認した計画にも無い）
   route: stay
-  route_why: 返す物が無い
+  route_why: 返す物が無い（人が選ぶ物 1 件は返さず、最後の承認ノードの問いへ回した）
   ok: true
   r1:
     status: pass
@@ -993,7 +1016,8 @@ back-1-eyes__verdict:
   r4:
     status: pass
     reason: r4 は通した
-  questions: []
+  questions:
+  - text: 'R2: app.py:9: 空の入力にも見出しを出すか（選べる道: 1) 出す／2) 出さない。推し: 出さない（頼みにも承認した計画にも無い））'
   means_questions: []
   passes: []
   premise_check: null
