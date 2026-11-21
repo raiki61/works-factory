@@ -235,6 +235,43 @@ class JudgeCase(unittest.TestCase):
             with self.subTest(named):
                 self.assertIsNone(baseline_red.match_case(named, cases[:1]))
 
+    def test_match_case_template_name(self):
+        # 名指しが雛形の名（置き換えの印 `%s` の類・`$name` の類・`{0}` の類を持つ）で、実行器が展開した名で JUnit に出す行。
+        # 印を「何かの字」と読んで当てる（guided-resolver の #2579 の run 59de9168 で、`%s で選択肢の面が不透明` と名指した受け入れの
+        # 試験が `dark で選択肢の面が不透明` と出て、赤の確かめが 3 回とも「一式の結末に居ない」になった）
+        cases = [row("dark で選択肢の面が不透明", "failure", "src/select.test.ts"),
+                 row("light で選択肢の面が不透明", "failure", "src/select.test.ts")]
+        for named in ("src/select.test.ts::%s で選択肢の面が不透明",
+                      "src/select.test.ts::$theme で選択肢の面が不透明",
+                      "src/select.test.ts::${theme} で選択肢の面が不透明",
+                      "src/select.test.ts::{0} で選択肢の面が不透明",
+                      "src/select.test.ts::{theme} で選択肢の面が不透明"):
+            with self.subTest(named):
+                self.assertIs(baseline_red.match_case(named, cases), cases[0])
+        # 組の名の印も同じに読む・展開した名で名指せば印なしの比べで当たる
+        grouped = [row("テーマ dark > 面が不透明", "failure", "src/select.test.ts")]
+        self.assertIs(baseline_red.match_case("src/select.test.ts::テーマ %s::面が不透明", grouped), grouped[0])
+        self.assertIs(baseline_red.match_case("src/select.test.ts::light で選択肢の面が不透明", cases), cases[1])
+        # 字のまま一致する行が在れば、雛形の読みより先にそれを取る
+        literal = cases + [row("{0} で選択肢の面が不透明", "failure", "src/select.test.ts")]
+        self.assertIs(baseline_red.match_case("src/select.test.ts::{0} で選択肢の面が不透明", literal), literal[2])
+        for named in ("src/select.test.ts::%s で選択肢の面が透明",       # 印の外の字が違う
+                      "src/other.test.ts::%s で選択肢の面が不透明",       # 別のファイル
+                      "src/select.test.ts::で選択肢の面が不透明 %s"):     # 印の置き場が違う
+            with self.subTest(named):
+                self.assertIsNone(baseline_red.match_case(named, cases))
+        # 赤の確かめも同じ突き合わせで「一式の結末に居ない」にしない
+        # 赤・緑の確かめも同じ突き合わせで「一式の結末に居ない」にせず、展開した行の全部を名指しの行として見る（片方を「名指しの外」にしない）
+        named = ["src/select.test.ts::%s で選択肢の面が不透明"]
+        self.assertEqual(baseline_red.red_problems(named, cases, 1), [])
+        half = [cases[0], row("light で選択肢の面が不透明", "passed", "src/select.test.ts")]
+        self.assertEqual(baseline_red.red_problems(named, half, 1),
+                         [f"{named[0]}（展開した名 light で選択肢の面が不透明）: もう通る——直す前に赤でないテストは修正の証拠にならない"])
+        green = [row(c["name"], "passed", c["classname"]) for c in cases]
+        self.assertEqual(baseline_red.green_problems(named, green, 0), [])
+        self.assertEqual(baseline_red.green_problems(named, half, 0),
+                         [f"{named[0]}（展開した名 dark で選択肢の面が不透明）: failure——名指しのテストが緑でない"])
+
     def test_red_problems(self):
         named = ["test_a.py::TestA::test_x"]
         self.assertEqual(baseline_red.red_problems(named, [row("test_x", "failure")], 1), [])

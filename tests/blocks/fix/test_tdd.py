@@ -2178,6 +2178,22 @@ class TestRedCheck(Case):
         probs, _ = self.check(_junit(("test_x", "", "", "")))
         self.assertTrue(any("もう通る" in p for p in probs), probs)
 
+    def test_template_name_is_matched_to_expanded_rows(self):
+        """受け入れの試験を雛形の名（置き換えの印を持つ名）で名指し、実行器が値ごとに展開した名で JUnit に出しても、赤として通る。
+        展開した行は全部が名指しの行で、1 つがもう通れば拒む（#2579 の run 59de9168 で「一式の結末に居ない」が 3 回続き人の問いになった）"""
+        named = "test_a.py::TestA::%s で面が不透明"
+        both = _junit(("dark で面が不透明", "failure", "AssertionError: transparent", ""),
+                      ("light で面が不透明", "failure", "AssertionError: transparent", ""))
+        cases, code, log = self.suite(both)
+        self.assertEqual(common.red_check([named], cases, code, {},
+                                          {named: {"quote": "AssertionError: transparent", "why": RC_WHY}}, log), ([], []))
+        cases, code, log = self.suite(_junit(("dark で面が不透明", "failure", "AssertionError: transparent", ""),
+                                             ("light で面が不透明", "", "", "")), n="rc2")
+        probs, _ = common.red_check([named], cases, code, {}, None, log)
+        self.assertEqual(len(probs), 1, probs)
+        self.assertIn("light で面が不透明", probs[0])
+        self.assertIn("もう通る", probs[0])
+
     def test_quote_absent_from_failure_is_rejected(self):
         probs, _ = self.check(_junit(("test_x", "failure", "undefined: Foo", "")), "結末に無い作り話の文")
         self.assertEqual(len(probs), 1)
