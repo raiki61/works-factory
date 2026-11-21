@@ -7,8 +7,10 @@
 - 戻した単位の計画の語は、その試験を名指す項目の unfinished の行を数えずに引き直す（route.plan_words）
 - 名指した試験は、TDD の輪の約束（tdd.plan_contract）と事後の関門の受け入れのテスト（gates._accept_tests）から外れる
 - 最初の段・今の段の裁定・ほかの裁定（fix_plan_item）・試験に触れる返した項目しか無い単位は、今どおり単位ごと止める
-- 戻すのは試験の赤から出た申し出（機械が諦めた物・not_red・red_at_base）の裁定だけで、直しの向きや範囲を人に聞いた裁定は単位ごと
-  止める（案の 5 節の代案 C を採らない）
+- 戻すのは試験の赤から出た申し出（機械が赤の段で諦めた物・not_red・red_at_base）の裁定だけで、直しの向きや範囲を人に聞いた裁定と、
+  機械が緑の段で諦めた物（直しを 3 回とも緑にできず、人に聞くのは直しの向き）の裁定は単位ごと止める（案の 5 節の代案 C を採らない）。
+  機械の諦めの段は、前の段の輪の記録（印 prior_pass）の単位の gave_up で見分け、理由の文では見分けない
+- 返した段の控えが読めなければ、どの単位も戻さない（board.returned_units）
 - 戻した単位の項目は、差分の審査に渡す範囲の欄（finish._scope → fixboard.scope_brief）で外れた印を持たない
 - 戻した単位に返した段で立った新しい申し出は、受け付け（board.take_conflicts）が先に外さず確かめる
 """
@@ -35,8 +37,9 @@ def _row(rid, key, decision, why, *, prior=True, text="人に聞く: 名の展�
 
 
 class ReturnedRulingCase(unittest.TestCase):
-    def place(self, kinds, rows):
-        """2 つの tdd の項目（1: U1・T_A、2: U1 と U2・T_B）を凍らせ、裁定の行 rows と返した項目の種 kinds を置いた置き場"""
+    def place(self, kinds, rows, gave_up="red"):
+        """2 つの tdd の項目（1: U1・T_A、2: U1 と U2・T_B）を凍らせ、裁定の行 rows と返した項目の種 kinds と、U1 を段 gave_up で
+        諦めた前の段の輪の記録（印 prior_pass。gave_up が空なら記録を置かない）を置いた置き場"""
         runvals = kit.load("fix", "runvals")   # lib/ を sys.path に足す
         import planmarks
         tmp = tempfile.TemporaryDirectory()
@@ -48,6 +51,10 @@ class ReturnedRulingCase(unittest.TestCase):
                                   {**base, "unit_keys": [U1, U2], "tests": [{"id": T_B, "red_kind": "assertion"}]}])
         runvals.write(place, {"item_kinds": kinds})
         (place / "conflicts.json").write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
+        if gave_up:
+            (place / "tdd-1").mkdir()
+            (place / "tdd-1" / "record.json").write_text(json.dumps(
+                {"prior_pass": True, "order": [U1], "units": {U1: {"route": "parked", "gave_up": gave_up}}}), encoding="utf-8")
         return place
 
     def named(self, prior=True):
@@ -147,6 +154,29 @@ class ReturnedRulingCase(unittest.TestCase):
         board = kit.load("fix", "board")
         place = self.place([{"item": 1, "kind": "trim"}], [row])
         self.assertEqual(board.ruled_stops(place)[U1]["tests"], sorted([T_A, T_B]))
+
+    def test_a_machine_give_up_at_green_holds_the_whole_unit(self):
+        """機械が緑の段で諦めた単位（人に聞くのは直しの向き）は、理由の文が赤の確認の形でも、返した段で単位ごと止める"""
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named(), gave_up="green")
+        owed, excused = self.owed(place)
+        self.assertNotIn(U1, owed, "緑で諦めた単位を機械が直しへ戻さない")
+        self.assertIn("ask_human の裁定 c1-1", excused[U1])
+        tdd = kit.load("fix", "tdd")
+        self.assertEqual([t["id"] for t in tdd.plan_contract(place, [U1])[U1]["tests"]], [T_A, T_B])
+
+    def test_a_machine_give_up_without_a_prior_record_holds_the_whole_unit(self):
+        """前の段の輪の記録が無く、諦めた段が分からない機械の諦めは、止める側に倒す"""
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named(), gave_up="")
+        owed, _ = self.owed(place)
+        self.assertNotIn(U1, owed)
+
+    def test_an_unreadable_return_holds_every_unit(self):
+        """返した段の控えが読めなければ、どの単位も戻さない（ValueError を素通りさせると、義務を減らさない側の読みが単位を戻す）"""
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named())
+        board = kit.load("fix", "board")
+        with mock.patch.object(board, "ruled_stops", side_effect=ValueError("控えが読めない")):
+            self.assertEqual(board.returned_units(place), {})
+            self.assertNotIn(U1, board.owed_units_but_asked(place, {U1, U2}))
 
     def test_the_delta_review_scope_does_not_mark_a_returned_unit_held(self):
         place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named())

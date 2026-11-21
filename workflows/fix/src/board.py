@@ -104,12 +104,31 @@ def _named_in(row, ids) -> set:
     return {t for t in ids if t in text or t.rsplit("::", 1)[-1].split("[", 1)[0] in text or t.split("::", 1)[0] in paths}
 
 
-def _red_born(row) -> bool:
-    """申し出が試験の赤から出た物か（名指した受け入れの試験の赤を確かめられずに人に回った物）: 機械が 3 回拒まれて止めた単位の申し出
-    （source conflict.GAVE_UP_SOURCE）か、種類が案どおりに書いても赤にならない（conflict.NOT_RED）・直す前から赤（conflict.RED_AT_BASE）。
-    ほかの申し出（直しの向きや範囲を人に聞いた物）の裁定は、返した段でも単位ごと止める"""
+def _prior_gave_up(place) -> dict:
+    """前の段の輪の記録（common.records のうち印 PRIOR_LOOP の物）で、機械が諦めた単位ごとの諦めた段の集まり {key: {red・green}}
+    （記録の単位の gave_up。tdd._give_up が段 test を red、段 fix を green と書く）。読めない記録は数えない（止める側）"""
+    from src import common
+    out: dict = {}
+    for p in common.records(place):
+        doc = read_json(p, {})
+        if not (isinstance(doc, dict) and doc.get(PRIOR_LOOP) and isinstance(doc.get("units"), dict)):
+            continue
+        for k, u in doc["units"].items():
+            if isinstance(u, dict) and u.get("gave_up"):
+                out.setdefault(k, set()).add(u["gave_up"])
+    return out
+
+
+def _red_born(row, gave_up) -> bool:
+    """申し出が試験の赤から出た物か（名指した受け入れの試験の赤を確かめられずに人に回った物）: 機械が赤の段で 3 回拒まれて止めた
+    単位の申し出（source conflict.GAVE_UP_SOURCE で、前の段の輪の記録の諦めた段 gave_up〔_prior_gave_up〕がその単位で red だけの物。
+    理由の文では見分けない）か、種類が案どおりに書いても赤にならない（conflict.NOT_RED）・直す前から赤（conflict.RED_AT_BASE）。
+    ほかの申し出（直しの向きや範囲を人に聞いた物・機械が緑の段で諦めた物〔直しを緑にできず、人に聞くのは直しの向き〕・諦めた段が
+    記録に無い物）の裁定は、返した段でも単位ごと止める"""
     import conflict
-    return row.get("source") == conflict.GAVE_UP_SOURCE or row.get(conflict.KIND_FIELD) in (conflict.NOT_RED, conflict.RED_AT_BASE)
+    if row.get("source") == conflict.GAVE_UP_SOURCE:
+        return gave_up.get(row.get(conflict.UNIT_FIELD)) == {"red"}
+    return row.get(conflict.KIND_FIELD) in (conflict.NOT_RED, conflict.RED_AT_BASE)
 
 
 def ruled_stops(place) -> dict:
@@ -136,9 +155,10 @@ def ruled_stops(place) -> dict:
     def tests_of(f) -> list:
         return [t["id"] for t in (f.get("tests") or []) if isinstance(t, dict) and isinstance(t.get("id"), str)] \
             if isinstance(f, dict) else []
+    gave_up = _prior_gave_up(place)
     out: dict = {}
     for k, rows in by_unit.items():
-        if not all(conflict.decision(r) == conflict.ASK and r.get(conflict.PRIOR) and _red_born(r) for r in rows):
+        if not all(conflict.decision(r) == conflict.ASK and r.get(conflict.PRIOR) and _red_born(r, gave_up) for r in rows):
             continue
         mine = {n: f for n, f in enumerate(fields, 1) if isinstance(f, dict) and k in (f.get("unit_keys") or [])}
         ids = list(dict.fromkeys(t for f in mine.values() for t in tests_of(f)))
