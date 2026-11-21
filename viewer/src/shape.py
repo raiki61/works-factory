@@ -119,7 +119,7 @@ class _Graph:
         if isinstance(name, str) and name in self.names:
             item["target"] = self.names[name]
         elif isinstance(name, str) and not name.startswith(self.prefix):
-            item["outside"] = name
+            item[OUTSIDE] = name
         else:
             self.problems.append(f"{where}: {key}: の先 {_text(name)} が木に無い")
 
