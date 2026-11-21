@@ -14,9 +14,12 @@
   読めなければ空と、notes に訳
 - answers: {start, before_fix}（承認ノードの答え）。asked: 修正前の承認ノードで聞いた項目 [{kind, text}]（今の plan_questions）
 
-入力（with:）: fix_in（fix-in の返り）・fixed（fixed の返り）・start_answer（起動の承認ノードの答えか null）・replan_review（案の直しの
-事前審査の返りか null）・judged（judged の返り）・ports（start の配る値）・request（request-in の
-返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
+入力（with:）: policy・before_fix・record・round・switches（fix-in の欄 policy・answer・record・round・switches）・eyes_due・no_fix
+（fixed の欄）・start_answer（起動の承認ノードの答えか null）・replan_review（案の直しの事前審査の返りか null）・judgment・answer_ties・
+materials（judged の欄）・ports（start の配る値）・request（request-in の返り。台帳の依頼の答えは src.descend.dealt で替えた配る値から読む）
+
+fix-in・fixed・judged の返りはまるごとでなく、読む欄だけを結ぶ。Archon は script の入力を 1 本ずつ環境変数で渡し、Linux では 1 本が
+128KB を越えると起動が E2BIG で落ちる。fixed の返りは直しの単位の数だけ伸びる（段の返り・単位の訳・止めの訳を運ぶ）
 """
 import os
 import sys
@@ -26,9 +29,6 @@ sys.dont_write_bytecode = True
 sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
 import ports  # noqa: E402
 
-FIX_IN = ("policy", "answer", "record", "round", "switches", "no_fix")
-FIXED = ("eyes_due", "no_fix", "refixed")
-JUDGED = ("judgment", "answer_ties", "materials")
 REVIEW = ("ok", "status", "reason", "round", "blocks")
 NO_FIX_REVIEW = {"verdict": "design", "blocks": [], "why": "直す物が無い周で、案を審査していない"}
 
@@ -48,12 +48,12 @@ def kind_of(text: str) -> str:
     return ""
 
 
-def pushes(judged, given: dict, before_fix, *, unattended: bool) -> tuple:
-    """(無人の run が判定の保留の問いに採った推しの文, 添える行)。依頼の答えは配る値 given（src.descend.dealt）の request_answers。読めなければ
-    推しを無しにして訳"""
+def pushes(judged: dict, given: dict, before_fix, *, unattended: bool) -> tuple:
+    """(無人の run が判定の保留の問いに採った推しの文, 添える行)。judged は judged の欄 {judgment, answer_ties, materials}。依頼の答えは
+    配る値 given（src.descend.dealt）の request_answers。読めなければ推しを無しにして訳"""
     import gatemarks
     from src import gates
-    if judged is None or judged["judgment"] is None:
+    if judged["judgment"] is None:
         return [], []
     try:
         doc = gates.read_json(gates.path_of(judged["judgment"], lambda raw: ports.file(raw, "json(shared:judgment.schema.json)"))) or {}
@@ -66,32 +66,28 @@ def pushes(judged, given: dict, before_fix, *, unattended: bool) -> tuple:
 
 
 def compute() -> dict:
-    raw = {"fix_in": os.environ.get("INPUTS_FIX_IN"), "fixed": os.environ.get("INPUTS_FIXED"),
-           "start_answer": os.environ.get("INPUTS_START_ANSWER"),
-           "judged": os.environ.get("INPUTS_JUDGED"), "ports": os.environ.get("INPUTS_PORTS"),
-           "request": os.environ.get("INPUTS_REQUEST")}
     from src import descend, gates, rounds
 
-    given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
-    fix_in = ports.picked(raw["fix_in"], FIX_IN)
-    fixed = ports.picked(raw["fixed"], FIXED)
-    judged = ports.picked(raw["judged"], JUDGED)
+    given = descend.dealt(ports.parsed(os.environ.get("INPUTS_PORTS")), os.environ.get("INPUTS_REQUEST"))
+    judged = {"judgment": ports.parsed(os.environ.get("INPUTS_JUDGMENT")), "answer_ties": ports.parsed(os.environ.get("INPUTS_ANSWER_TIES")),
+              "materials": ports.parsed(os.environ.get("INPUTS_MATERIALS"))}
     replan_review = ports.picked(os.environ.get("INPUTS_REPLAN_REVIEW"), REVIEW)
-    start_answer = ports.parsed(raw["start_answer"])
-    before_fix = fix_in["answer"] if fix_in is not None else None
-    switches = (fix_in or {}).get("switches") if isinstance((fix_in or {}).get("switches"), dict) else {}
-    due = bool((fixed or {}).get("eyes_due"))
-    if fixed is not None and fixed["no_fix"]:
+    start_answer = ports.parsed(os.environ.get("INPUTS_START_ANSWER"))
+    before_fix = ports.parsed(os.environ.get("INPUTS_BEFORE_FIX"))
+    switches = ports.parsed(os.environ.get("INPUTS_SWITCHES"))
+    switches = switches if isinstance(switches, dict) else {}
+    due = ports.flag(os.environ.get("INPUTS_EYES_DUE"))
+    if ports.flag(os.environ.get("INPUTS_NO_FIX")):
         review = dict(NO_FIX_REVIEW)
     else:
-        path = gates.path_of(fix_in["record"], lambda raw: ports.file(raw, "json(shared:plan-converge.schema.json)")) if fix_in is not None else ""
+        path = gates.path_of(ports.parsed(os.environ.get("INPUTS_RECORD")), lambda raw: ports.file(raw, "json(shared:plan-converge.schema.json)"))
         doc = rounds.read(path) if path else None
-        review = gates.review_verdict(doc, round_=(fix_in or {}).get("round"),
+        review = gates.review_verdict(doc, round_=ports.parsed(os.environ.get("INPUTS_ROUND")),
                                       replan_review=dict(replan_review) if replan_review is not None else None)
     taken, notes = pushes(judged, given, before_fix, unattended=bool(given.get("unattended")))
     asked = (before_fix or {}).get("asked") if isinstance(before_fix, dict) else None
     return {"merge": bool(switches.get("merge")) and due,
-            "policy": str((fix_in or {}).get("policy") or given.get("policy") or ""),
+            "policy": ports.text(os.environ.get("INPUTS_POLICY")) or str(given.get("policy") or ""),
             "review": review, "pushes": taken,
             "answers": {"start": start_answer if isinstance(start_answer, dict) else None,
                         "before_fix": before_fix if isinstance(before_fix, dict) else None},
