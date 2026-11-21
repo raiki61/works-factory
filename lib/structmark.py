@@ -102,10 +102,6 @@ def _row_line(r: dict) -> str:
     return text
 
 
-def _bullets(rs: list) -> str:
-    return "\n".join(f"- {_row_line(r)}" for r in rs)
-
-
 def skipped(path) -> list:
     got = (read(path) or {}).get("skipped")
     return [k for k in got if isinstance(k, str)] if isinstance(got, list) else []
