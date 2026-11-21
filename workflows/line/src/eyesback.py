@@ -76,14 +76,15 @@ UNFINISHED = "unfinished"   # 返す項目の種のうち作り残し（直す�
 RESTORE_NO_TREE = "戻す先の木が記録に無い（返す周の頭が作業ツリーの木を取れなかった）ので、作業ツリーを返す前の姿に戻せなかった"
 RESTORE_ERROR = "作業ツリーを返す前の姿に戻す途中で落ちた（書き換えの控えを書けなかったか、戻しの git が失敗した）"
 RESTORE_DIFFERS = "作業ツリーを返す前の木に戻したが、返す前の指紋と合わない（返した段が commit したか、HEAD を動かした）"
-_LINE_AT = re.compile(r":\d+(?:-\d+)?$")
+_LINE_AT = re.compile(r":\d.*$")   # where の初めの『:数字』から後ろ（行と列の番号・行の範囲。src/a.py:12:5・src/a.py:12-20 は src/a.py）
 _ROUND_STEP = re.compile(r"back-(\d+)(?:$|-|__)")   # 周 k の節の node の id（back-k・back-k-fix・back-k-fix__<中の id> など）
 OUTCOMES = {
     "fixed": "直した（次の独立の目が同じ目・同じファイルで挙げなかった）",
     "again": "次の独立の目が同じ目・同じファイルで挙げ直したので、次の周へ返した",
     "left": "直り切らずに残った",
-    "cap": f"上限（{LIMIT} 周）で残った",
+    "cap": f"上限 {LIMIT} 回まで返して残った",
     "unseen": "直ったかを確かめていない（次の独立の目のその目の判定が無いか、返す前の状態を封じた）",
+    "unchanged": f"直ったかを確かめていない（{EXITS['unchanged']}ので、最後の独立の目が挙げなかったのは直したからでない）",
 }
 COST_UNREAD = "run の記録が読めない"
 
@@ -394,7 +395,7 @@ def head_text(rows, costs) -> str:
 
 # ---------------------------------------------------------------- 指摘ごとの結末
 def _key(item: dict) -> tuple:
-    """挙げ直したかを見る鍵（目の名と where のファイル。行の番号は落とす）。where の無い指摘は同じ目の where の無い指摘どうしで同じ鍵になる
+    """挙げ直したかを見る鍵（目の名と where のファイル。初めの『:数字』から後ろの行と列の番号は落とす）。where の無い指摘は同じ目の where の無い指摘どうしで同じ鍵になる
     （言い換えで直したと読み違えないよう、広く同じと見る側に倒す）"""
     return str(item.get("eye") or ""), _LINE_AT.sub("", str(item.get("where") or "").strip())
 
@@ -406,7 +407,9 @@ def _status(eyes_row, eye: str) -> str:
 def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) -> list:
     """返した項目ごとの結末の行『k 周目に返した <項目>: <結末>』（字は OUTCOMES）。次の周の行（最後の周は最後の目 eyes の findings と
     残った作り残し left）が同じ鍵の項目を持てば挙げ直した物（最後の周なら残った物、上限の抜け方なら上限で残った物）、持たなければ直した物。
-    次の目のその目の判定が通った（pass）か直しが要る（fix-needed）でない時と、返す前の状態を封じた最後の周（checkpoint）は確かめていない物"""
+    次の目のその目の判定が通った（pass）か直しが要る（fix-needed）でない時と、返す前の状態を封じた最後の周（checkpoint）は確かめていない物。
+    差分が変わらずに抜けた時（exit_ が EXITS の unchanged で始まる。_sealed_lines が SAME_AS_BEFORE を出す時と同じ）の最後の周で挙げ直さなかった物も、
+    最後の目が同じ差分をもう一度見ただけなので直したと言わず、差分が変わらなかった旨の確かめていない物（OUTCOMES の unchanged）にする"""
     done = [r for r in rows or [] if isinstance(r, dict)]
     out = []
     for n, r in enumerate(done):
@@ -424,10 +427,17 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) ->
                 word = OUTCOMES["unseen"]
             elif _key(item) in seen:
                 word = OUTCOMES["again"] if not final else OUTCOMES["cap"] if exit_ == CAP_WHY else OUTCOMES["left"]
+            elif final and _unchanged(exit_):
+                word = OUTCOMES["unchanged"]
             else:
                 word = OUTCOMES["fixed"]
             out.append(f"{r.get('round')} 周目に返した {item_text(item)}——{word}")
     return out
+
+
+def _unchanged(exit_) -> bool:
+    """返しの修正で差分が変わらずに抜けた訳か（EXITS の unchanged と、修正の段が直さなかった訳を添えた UNDONE）"""
+    return str(exit_ or "").startswith(EXITS["unchanged"])
 
 
 # ---------------------------------------------------------------- 返した周の行
@@ -447,7 +457,7 @@ def _sealed_lines(exit_: str, checkpoint, back_restore) -> list:
             out.append(KEPT_AWAY.format(kept=back_restore.get("kept") or ""))
         else:
             out.append(UNTOUCHED)
-    if str(exit_ or "").startswith(EXITS["unchanged"]):
+    if _unchanged(exit_):
         out.append(SAME_AS_BEFORE)
     return out
 

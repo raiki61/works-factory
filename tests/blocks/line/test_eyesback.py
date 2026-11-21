@@ -559,6 +559,34 @@ class ReportCase(_Case):
                 self.assertFalse(any(self.e.item_text(i) in line and line.endswith(self.e.OUTCOMES["fixed"]) for i in unseen for line in out), out)
         self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['fixed']}", partly)
 
+    def test_unchanged_diff_does_not_call_unraised_findings_fixed(self):
+        """差分が変わらずに抜けた run（抜けた訳が EXITS の unchanged で始まる。UNDONE も同じ）では、最後の目は返す前と同じ差分をもう一度
+        審査した物なので、挙げ直さなかった最後の周の指摘を直したと言わず、差分が変わらなかった旨を添えた確かめていない物にする。挙げ直した物は残った物のまま"""
+        rows = [self.e.row(1, eyes(), [self.A, self.B])]
+        again_b = {**self.PASSED, "r2": {"status": "fix-needed"}, "findings": [self.B]}
+        for exit_ in (self.e.EXITS["unchanged"], self.e.UNDONE.format(why="直す所が無い")):
+            with self.subTest(exit_):
+                out = self.e.lines(rows, exit_, [self.B], eyes=again_b)
+                self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['unchanged']}", out)
+                self.assertIn(f"1 周目に返した {self.e.item_text(self.B)}——{self.e.OUTCOMES['left']}", out)
+                self.assertFalse(any(line.endswith(self.e.OUTCOMES["fixed"]) for line in out), out)
+                self.assertTrue(self.e.OUTCOMES["unchanged"].startswith(self.e.OUTCOMES["unseen"].split("（")[0]), "確かめていない物の字で始める")
+                self.assertIn(self.e.EXITS["unchanged"], self.e.OUTCOMES["unchanged"])
+
+    def test_same_file_key_drops_the_column_too(self):
+        """同じ指摘かの鍵は where の初めの『:数字』から後ろを落とす（行と列の番号・行の範囲。広く同じと見る側に倒す）"""
+        for where in ("src/a.py:12:5", "src/a.py:30", "src/a.py:12-20", "src/a.py:1:1-3:4", "src/a.py"):
+            with self.subTest(where):
+                self.assertEqual(self.e._key({"eye": "r1", "where": where}), ("r1", "src/a.py"))
+        a2 = {**self.A, "where": "src/a.py:30:1"}
+        rows = [self.e.row(1, eyes(), [{**self.A, "where": "src/a.py:12:5"}]), self.e.row(2, eyes(), [a2])]
+        out = self.e.lines(rows, "返す物が無い", eyes=self.PASSED)
+        self.assertIn(f"1 周目に返した {self.e.item_text({**self.A, 'where': 'src/a.py:12:5'})}——{self.e.OUTCOMES['again']}", out)
+
+    def test_cap_word_matches_the_head(self):
+        """結末の上限の字は、頭の文の『上限 LIMIT 回』と同じ字で言う"""
+        self.assertIn(f"上限 {self.e.LIMIT} 回", self.e.OUTCOMES["cap"])
+
     def test_record_lines_take_the_whole_record(self):
         """最後の承認ノードと報告の節は記録まるごとと戻しの結末と費用を record_lines に渡し、記録の最後の目で結末を決める"""
         record = {"rows": [self.e.row(1, eyes(), [self.A])], "exit": "返す物が無い", "left": [], "checkpoint": None, "eyes": self.PASSED}
