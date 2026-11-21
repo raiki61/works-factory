@@ -28,12 +28,12 @@ sys.dont_write_bytecode = True
 
 import baseline_red  # noqa: E402  （lib。赤・緑の判定と実行器を走らせる口の正本）
 from baseline_red import run_suite  # noqa: E402  （lib。実行器を走らせる口の正本）
-import cite  # noqa: E402  （.shared/core。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
+import cite  # noqa: E402  （lib/。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import files as fixnames  # noqa: E402
-import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
-import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
+import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
 import tree_run  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
