@@ -3,7 +3,6 @@
 # dependencies = []
 # ///
 """独立設計の出口: 受け取った設計と貼った前提の控えの pointer、設計の無い訳、下げている所、報告の行を返す。どの段が落ちても落ちない"""
-import os
 import sys
 from pathlib import Path
 
