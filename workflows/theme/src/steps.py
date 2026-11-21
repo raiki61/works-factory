@@ -32,7 +32,7 @@ def _port(name: str, read):
 
 
 def _blank(raw) -> bool:
-    return not ports.text(raw).strip() or ports.text(raw).strip() == "null"
+    return ports.text(raw).strip() in ("", "null")
 
 
 def intake(place, k: int, raw: dict) -> dict:
