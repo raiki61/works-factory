@@ -81,7 +81,7 @@ def text(said: str) -> dict:
 
 def event(tokens: list[str], kind: str, start: str, end: str, cost: float = 0.0, loop=(), **more) -> dict:
     return {"tokens": tokens, "path": ".".join(tokens), "run": "r1", "kind": kind, "start": start, "last_start": start, "end": end,
-            "status": "ok", "cost": cost, "loop": list(loop), "calls": [], "exec": [], "error": "", **more}
+            "status": "ok", "cost": cost, "loop": list(loop), "error": "", **more}
 
 
 class TraceCase(unittest.TestCase):
@@ -168,7 +168,7 @@ class TraceCase(unittest.TestCase):
             return str(len(texts) - 1)
 
         run = {"id": run_id, "graph": "works-factory-line", "status": "completed", "started": at(0, 0), "seconds": 540.0, "cost": 4.0,
-               "events": events, "skipped": [], "children": [], "unread": {}, "checks": []}
+               "events": events, "skipped": [], "children": [], "unread": {}}
         run["sessions"] = session.collect(run, self.projects, keep)
         data = {"shape": {"graphs": {stages.TABLE["graph"]: {"name": "works-factory-line", "items": items}}}, "run": run, "texts": texts}
         stages.attach(data)

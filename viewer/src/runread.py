@@ -1,10 +1,10 @@
 """Archon の記録の読み（run の家の `archon.db`・run ごとの `logs/<run>.jsonl`・run の写しの在り処）。Archon の名を持つのはこの 1 か所。
 
-名は止めた Archon（`factory/pack.json` の版）の源と同じ字にし、`tests/viewer/test_archon_names.py` が源に照らす。記録の行の型と
-道具の出来事の型は、源の型の和の全部をここに持ち（読む型と読まない型）、源に在ってここに無い型も同じ試験が赤にする。知らない型の行は
+名は止めた Archon（`factory/pack.json` の版）の源と同じ字にし、`tests/viewer/test_archon_names.py` が源に照らす。記録の行の型は、
+源の型の和の全部をここに持ち（読む型と読まない型）、源に在ってここに無い型も同じ試験が赤にする。知らない型の行は
 数えて返し、黙って落とさない。DB は読むだけで開く。
 
-- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・結果の語 result_word・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え。
+- run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・結果の語 result_word・ノードごとの出来事・費用・出力・知らない行の数え。
   ページが読む run の入力 inputs・ノードの状態ごとの数 node_counts・置き場の根 output_root も）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - seconds(started, completed)・length(event)・when(text)・try_when(text)・stamp(at) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
@@ -12,12 +12,9 @@
 - plain(value) -> 字か None の値をそのまま返す。ほかの形は TypeError（読む側が欄の形が違う行に数える）。会話の読みも使う
 """
 import contextlib
-import hashlib
 import json
-import os
 import re
 import sqlite3
-import stat
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -84,10 +81,6 @@ AGGREGATE = "aggregate"
 INSTANCE = "compose_fan_out_instance"
 # run の metadata の待ち（packages/workflows/src/schemas/workflow-run.ts の workflowWaitAttentionFields と workflowWaitStepName）。
 # 答えが入った待ちは、run が次へ進む前でも答えを待たない（同じファイルの runAttention の「Answered」）
-WAIT = "wait"
-WAIT_KIND = "attention"
-WAIT_ANSWER = "answer"
-WAIT_LOOP_OWNER = "loop_group"
 # ノードの種類（packages/workflows/src/schemas/dag-node.ts の DagNode の kind。出来事の kind に入る）。流れの集計（src/stages.py）が、
 # AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器・並べて起こす器・子の run を起こすノード。長さを足すと中の出来事と
 # 二重になる。子の run を起こすノードの行は子の総額も載せる。packages/workflows/src/node-execution.ts の accounting）を分ける
@@ -103,19 +96,15 @@ FAILED_EVENT = "workflow_failed"
 END_EVENTS = ("workflow_completed", FAILED_EVENT, "workflow_cancelled")
 NODE_FAILED_EVENT = "node_failed"
 DEFERRED_EVENT = "node_deferred_usage"
-SUSPENDED_EVENT = "node_suspended"
 # ログの行の型（packages/workflows/src/logger.ts の WorkflowEvent の type と、packages/workflows/src/schemas/worktree-setup.ts の
 # WORKTREE_SETUP_EVENT_TYPES）。読む型と、読まない型（訳つき）に分ける
 NODE_ROWS = ("node_start", "node_complete", "node_error", "node_skipped", "node_suspended")
-PROVIDER_ROW = runlog.PROVIDER_ROW
-EXEC_ROW = runlog.EXEC_ROW
-# loop_group の until_bash の確かめの行の step の名 `<輪>-iteration-<n>`（packages/workflows/src/dag/nodes/loop-group/until-bash.ts）
-ITERATION_MARK = runlog.ITERATION_MARK
-READ_ROWS = (*NODE_ROWS, PROVIDER_ROW, EXEC_ROW)
 # 起き直した run が前の起動で済んだノードについて書く node_skipped の content（packages/workflows/src/node-event-write.ts）。
 # 飛んだノードに数えない（その道が済んだことは前の起動の出来事で見える）
 PRIOR_SUCCESS = "prior_success"
 UNREAD_ROWS = {
+    runlog.PROVIDER_ROW: "AI の道具の呼び出しと断片。会話の中身と道具は Claude Code の記録から読む",
+    runlog.EXEC_ROW: "script・bash のノードの出力の終わり。ノードの出力は DB の node_completed から読む",
     "gate_decision": "古い承認ノード approval: の答え。工場の承認ノード wait: attention はこの行を書かず、答えをノードの出力 {decision, text} に持つ",
     "workflow_start": "run の始めの印。始めの時刻は DB の run の行から読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
     "workflow_resume": "resume の境の印。ノードの出来事は resume の前と後の行を同じに読む（行の時刻は起き直しの時刻として RESTART_ROWS で拾う）",
@@ -132,38 +121,18 @@ UNREAD_ROWS = {
 # 読まない型のうち、時刻だけを起き直しの時刻として拾う行（Archon は起動のたびにノードの前にどちらかを書く。packages/workflows/src/
 # executor.ts の logWorkflowResume・logWorkflowStart。DB の秒までの落ちと同じ秒の始めが、落ちの前か後かを分ける。_since）
 RESTART_ROWS = ("workflow_start", "workflow_resume")
-# 道具の出来事の型（packages/provider-contract/src/events.ts の providerEventSchema の和）
-TOOL_CALL = runlog.TOOL_CALL
-TOOL_UPDATE = "tool_call_update"
-READ_EVENTS = (TOOL_CALL, TOOL_UPDATE, "warning", "subtask")
-UNREAD_EVENTS = {
-    "agent_message_chunk": "AI の言葉の断片。会話の中身は Claude Code の記録から読む",
-    "agent_thought_chunk": "AI の考えの断片。会話の中身は Claude Code の記録から読む",
-    "mcp_server_status": "MCP の口の状態",
-    "compaction": "会話の縮め",
-    "hook": "フックの起動",
-    "state_update": "動いているか待っているかの印",
-    "heartbeat": "動いている合図（Archon の止まりの見張りを延ばすだけで、中身が無い）",
-}
-# 行の欄（logger.ts・schemas/node-execution.ts・schemas/provider-event.ts）
+# 行の欄（logger.ts・schemas/node-execution.ts）
 EXECUTION = "execution"
 # 続けた会話の印（execution.binding.sessionOrigin。packages/workflows/src/node-execution.ts）。続けた会話の記録は前の会話の往復を写して持つ
 RESUMED = "resumed"
-EVENT = runlog.PROVIDER_EVENT
-ATTEMPT_ID = "attemptId"
 
 CLIP = 20000
-ARTIFACT_LIMIT = 60000
 # 読めなかった物の訳（run["unread"] の鍵）
 OBJECTLESS = "JSON の object でない行"
 # object の行の中の欄の形が違う行（欄が object でない・在るはずの字が無いか字でない）。会話の記録の読み（src/session.py）も使う
 SHAPELESS = "欄の形が違う行"
 # 欄の形が違う値に当たって読みが止まる時の誤り（読む側が SHAPELESS に数える。会話の記録の読みも使う）
 SHAPE_ERRORS = (AttributeError, KeyError, TypeError)
-OUTSIDE = "run の置き場の外を指す archon_artifact"
-NUL_PATH = "NUL の字を持つ path の archon_artifact"
-UNREADABLE = "読めない archon_artifact（長すぎる path・読む権限が無いなど）"
-NAMELESS = "step_name の無い node_suspended"
 # 片割れのサロゲート（json.loads は組の \ud83d\ude00 を 1 字にするので、字に残るのは片割れだけ）と、置き換える字
 LONE = re.compile("[\ud800-\udfff]")
 REPLACEMENT = "\ufffd"
@@ -209,7 +178,6 @@ def run(db: Path, run_id: str) -> dict:
         if top is None:
             raise LookupError(f"run {run_id} が DB に無い")
         outputs, odd = _outputs(con)
-        waiting, nameless = _waiting(con)
         spent = _spent(con)
         ends = _ends(con)
         falls = _ends(con, (FAILED_EVENT,))
@@ -236,11 +204,9 @@ def run(db: Path, run_id: str) -> dict:
                 reader.read(child, prefix)
                 parents[child["id"]] = parent
                 todo.append((child["id"], prefix))
-    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行をトレースに入れない。待ちは開いた run だけに出す）
-    for what, got in ((SHAPELESS, sum(odd.get(rid, 0) for rid in (run_id, *(child["id"] for child in reader.children)))),
-                      (NAMELESS, nameless.get(run_id, 0))):
-        if got:
-            reader._count(what, got)
+    # DB の読みの誤りは、開いた run と読んだ子の run の物だけを数える（別の run の行をトレースに入れない）
+    if got := sum(odd.get(rid, 0) for rid in (run_id, *(child["id"] for child in reader.children))):
+        reader._count(SHAPELESS, got)
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
@@ -261,12 +227,12 @@ def run(db: Path, run_id: str) -> dict:
     ended = _later((closed[top["id"]] or [None])[-1], ended)
     for child in reader.children:
         child["started"], child["seconds"] = _child_span(child, reader.events, parents, (closed[child["id"]] or [None])[-1])
-    return {"id": run_id, "graph": top["workflow_name"], "status": top["status"], "live": top["status"] in LIVE,
+    return {"id": run_id, "graph": top["workflow_name"], "status": top["status"],
             "outcome": top["outcome"] if top["outcome"] in OUTCOMES else None, "result_word": result_word,
-            "waiting": waiting.get(run_id, []), "started": started, "seconds": seconds(started, ended),
+            "started": started, "seconds": seconds(started, ended),
             "cost": _cost(meta, spent, run_id), "copy": str(copy(root, run_id)) if root else "",
             "children": reader.children, "events": sorted(reader.events, key=lambda e: (e["start"] or "", "/".join(e["tokens"]))),
-            "skipped": reader.skipped, "checks": reader.checks, "missing_logs": reader.missing, "unread": reader.unread, "artifacts": reader.artifacts,
+            "skipped": reader.skipped, "unread": reader.unread,
             "inputs": _dict(meta.get(INPUTS)), "node_counts": _dict(meta.get(NODE_COUNTS)), "output_root": str(root) if root else ""}
 
 
@@ -378,7 +344,7 @@ class _Reader:
     def __init__(self, outputs: dict, falls: dict[str, list[str]]):
         """outputs は起動の id ごとの出力（_outputs）、falls は run ごとの落ち（workflow_failed）の時刻（ログの形。古い順）"""
         self.outputs, self.falls = outputs, falls
-        self.events, self.skipped, self.children, self.missing, self.checks, self.artifacts = [], [], [], [], [], {}
+        self.events, self.skipped, self.children = [], [], []
         self.unread: dict[str, int] = {}
         self.current = ""
         self.seen_skips = set()
@@ -403,9 +369,8 @@ class _Reader:
             self.children.append({"id": row["id"], "graph": row["workflow_name"], "status": row["status"], "node": prefix,
                                   "started": row["started_at"], "completed": row["completed_at"]})
         if log is None or not log.is_file():
-            self.missing.append(row["id"])
             return
-        by_invocation, by_attempt, by_step = {}, {}, {}
+        by_invocation = {}
         for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
             if not line.strip():
                 continue
@@ -427,20 +392,16 @@ class _Reader:
                     self.starts.setdefault(self.current, []).append(entry["ts"])
                 continue
             try:
-                if kind not in READ_ROWS:
+                if kind not in NODE_ROWS:
                     self._count(f"知らない行の型 {kind}")
-                elif kind in NODE_ROWS:
-                    self._node(entry, kind, prefix, by_invocation, by_attempt, by_step, root)
-                elif kind == PROVIDER_ROW:
-                    self._provider(entry, by_attempt)
-                elif kind == EXEC_ROW:
-                    self._exec(entry, prefix, by_step)
+                else:
+                    self._node(entry, kind, prefix, by_invocation)
             except SHAPE_ERRORS:
                 # 欄の形が違う行（execution・event が object でない・loopPath の周が object でないなど）は、落ちずに数える
                 self._count(SHAPELESS)
 
-    def _node(self, entry, kind, prefix, by_invocation, by_attempt, by_step, root):
-        # 1 行は 2 つに分けて読む。先に出来事に入れる値（周の番号・step・試みの id・会話の欄・誤りの字・費用・出力）を全部取り出して
+    def _node(self, entry, kind, prefix, by_invocation):
+        # 1 行は 2 つに分けて読む。先に出来事に入れる値（周の番号・会話の欄・誤りの字・費用・出力）を全部取り出して
         # 形を確かめ、全部が通った後で出来事を一度に書く。要の欄（どの出来事か・状態・時刻を決める物）の形が違えば何も書かずに行ごと
         # 数える（途中まで書き換えた出来事を残さず、後で使う段の集計と会話の読みで落ちない）。添えるだけの欄（会話の欄・誤りの字）の
         # 形が違えば、その欄だけを捨てて行の残りを読み、欄の形が違う行に 1 つ数える（_side）
@@ -450,8 +411,6 @@ class _Reader:
         key = (path, plain(invocation.get("id")) or "")
         ids = [*_tokens(prefix), *_tokens([path])]
         loop = [_round(step.get("iteration")) for step in invocation.get("loopPath") or []]
-        step = plain(entry.get("step")) or path
-        attempt = plain((execution.get("attempt") or {}).get("id"))
         node = (execution.get("node") or {}).get("kind") or ""
         dropped = []
         told = _told(execution, dropped) if kind in ("node_complete", "node_error") else {}
@@ -477,17 +436,12 @@ class _Reader:
         # unfinishedInvocations）。落ちた出来事の走り直しは新しい出来事にし、一度落ちたことを印 fell に持つ
         again = kind == "node_start" and event is not None and self._fallen(event, ts)
         if event is None or again:
-            event = {"tokens": ids, "path": path, "run": self.current, "artifacts": str(root / ARTIFACTS / RUNS_DIR / self.current) if root else "",
-                     "kind": node, "start": ts, "last_start": ts,
-                     "end": None, "status": "running", "loop": loop,
-                     "cost": 0.0, "calls": [], "exec": [], "error": ""}
+            event = {"tokens": ids, "path": path, "run": self.current, "kind": node, "start": ts, "last_start": ts,
+                     "end": None, "status": "running", "loop": loop, "cost": 0.0, "error": ""}
             if again:
                 event["fell"] = True
             by_invocation[key] = event
             self.events.append(event)
-        by_step[step] = event
-        if attempt:
-            by_attempt[attempt] = event
         if kind == "node_start":
             # 繰り返しの器は答えの後も同じ起動の id で node_start を書き直す（待ちから走り中へ戻る。同じ出来事）。閉じる時刻は
             # 最後の始め（last_start）の後の物から選ぶ
@@ -506,8 +460,7 @@ class _Reader:
         event["cost"] += cost
         event.update(told)
         if text is not None:
-            event["output"], event["digest"] = _clip(text), hashlib.sha1(text.encode("utf-8")).hexdigest()
-            self._artifacts(output, root)
+            event["output"] = _clip(text)
 
     def _fallen(self, event: dict, ts: str | None) -> bool:
         """同じ起動の id で始め直す前に、その出来事が落ちていたか: node_error で落ちたか、前の始めの後・今の始めの前に run が落ちた
@@ -526,85 +479,6 @@ class _Reader:
         if event["status"] == "running":
             event["status"] = FAILED
         return True
-
-    def _provider(self, entry, by_attempt):
-        event = by_attempt.get(entry.get(ATTEMPT_ID))
-        got = entry.get(EVENT) or {}
-        kind = got.get("type")
-        if kind in UNREAD_EVENTS:
-            return
-        if kind not in READ_EVENTS:
-            self._count(f"知らない道具の出来事の型 {kind}")
-            return
-        if event is None:
-            self._count("ノードに当たらない道具の出来事")
-            return
-        if kind == TOOL_CALL:
-            event["calls"].append({"id": got.get("toolCallId"), "name": got.get(runlog.TOOL_NAME), "title": _clip(got.get("title") or "", 400),
-                                   "status": ""})
-        elif kind == TOOL_UPDATE:
-            call = next((c for c in event["calls"] if c["id"] == got.get("toolCallId")), None)
-            if call is not None:
-                call["status"] = got.get("status") or ""
-        else:
-            event["calls"].append({"id": None, "name": kind, "title": _clip(_text(got.get("message") or got.get("description") or got), 400),
-                                   "status": got.get("status") or ""})
-
-    def _exec(self, entry, prefix, by_step):
-        """script・bash のノードの出力の終わりは、同じ step の最後の起動に付ける。ノードに当たらない物（loop_group の until_bash の
-        確かめ。step は `<輪>{ITERATION_MARK}<n>`）は run の確かめの行にする。行は書いた run の id を持つ（同じノードから起こした子の
-        run どうしは node も step も同じになる）"""
-        step = plain(entry.get("step")) or ""
-        label, out, err = entry.get(runlog.EXEC_LABEL) or "", _clip(entry.get("stdout_tail") or "", 4000), _clip(entry.get("stderr_tail") or "", 4000)
-        event = by_step.get(step)
-        # 読めない時刻を数えるのも書き込みなので、確かめの最後に置く（_node と同じ）
-        row = {"step": step, "node": prefix, "run": self.current, "label": label, "exit": entry.get(runlog.EXIT_CODE),
-               "stdout": out, "stderr": err, "at": self._ts(entry)}
-        if event is None:
-            self.checks.append(row)
-        else:
-            event["exec"].append(row)
-
-    def _artifacts(self, output, root):
-        """出力が指す run の置き場の小さなファイル（archon_artifact）の中身"""
-        try:
-            value = json.loads(output) if isinstance(output, str) else output
-        except ValueError:
-            return
-        stack = [value]
-        while stack:
-            item = stack.pop()
-            if isinstance(item, dict):
-                if item.get("type") == "archon_artifact" and item.get("path") and root:
-                    key = f"{item.get('run_id')}/{item['path']}"
-                    if key not in self.artifacts:
-                        self._artifact(key, root / ARTIFACTS / RUNS_DIR, str(item.get("run_id") or ""), str(item["path"]))
-                stack.extend(item.values())
-            elif isinstance(item, list):
-                stack.extend(item)
-
-    def _artifact(self, key: str, runs: Path, run_id: str, name: str) -> None:
-        """run の置き場（`runs/<run_id>/`）の下の小さなファイルの中身。絶対パス・`..`・symlink で置き場の外を指す物は読まずに数える
-        （見る道具は run の置き場の外を読まない）"""
-        place = runs / run_id
-        path = place / name
-        if "\0" in run_id or "\0" in name:
-            # NUL の字はパスにできず、実のパスの引きが ValueError で落ちる
-            self._count(NUL_PATH)
-            return
-        try:
-            if Path(os.path.realpath(place)).parent != Path(os.path.realpath(runs)) or not _within(path, place):
-                self._count(OUTSIDE)
-                return
-            info = path.stat()
-            if stat.S_ISREG(info.st_mode) and info.st_size <= ARTIFACT_LIMIT:
-                self.artifacts[key] = mend(path.read_text(encoding="utf-8", errors="replace"))
-        except (FileNotFoundError, NotADirectoryError):
-            # 置き場に無いファイル（消した・書かなかった）は前から読まずに進む
-            return
-        except OSError:
-            # 長すぎる path・読む権限の無いファイルなど。読みを止めずに落ちず、読めなかった物に数える
-            self._count(UNREADABLE)
 
     def restarts(self, rid: str) -> list[str]:
         """run の起き直しの時刻（RESTART_ROWS の行のうち最初の物を除く。最初の行は run の始めで、落ちの後には来ない）"""
@@ -652,11 +526,6 @@ def _round(value) -> int:
     raise TypeError(f"整数でない周の番号 {value!r}")
 
 
-def _within(path: Path, base: Path) -> bool:
-    """path の実のパスが base の実のパスの下か（symlink も辿る）"""
-    return Path(os.path.realpath(path)).is_relative_to(os.path.realpath(base))
-
-
 def mend(text: str) -> str:
     """片割れのサロゲート（JSON の `\\ud83d` だけの字）を置き換えた字。UTF-8 に書けず、hash も送りも落ちる。会話の字（runtrace.py の read の keep）を通す"""
     return LONE.sub(REPLACEMENT, text)
@@ -696,36 +565,6 @@ def _outputs(con) -> tuple[dict, dict[str, int]]:
         elif ident and got.get(NODE_OUTPUT) is not None:
             out[ident] = got[NODE_OUTPUT]
     return out, odd
-
-
-def _waiting(con) -> tuple[dict, dict[str, int]]:
-    """答えを待つ run（状態が paused）ごとの、止まって答えを待つノード（node_suspended の後に同じノードの終わりが無い物）と、run ごとの
-    名（step_name）の無いか字でない node_suspended の数（読み飛ばす）。
-    答えが入って次へ進む前のノード（metadata の待ちに答えが在る物）は外す。繰り返しの中の待ちでは Archon が本体のノード
-    `<器>.<本体>` と器の両方に node_suspended を書くので、待つ本体を持つ器は並べず、答えが入れば器も外す"""
-    out, nameless = {}, {}
-    for rid, step, kind in con.execute(f"select e.workflow_run_id, e.step_name, e.event_type from {EVENT_TABLE} e "
-                                       f"join {RUN_TABLE} r on r.id = e.workflow_run_id where r.status = ? and e.event_type in (?, ?) "
-                                       "order by e.workflow_run_id, e.created_at, e.event_order",
-                                       (PAUSED, SUSPENDED_EVENT, OUTPUT_EVENT)):
-        names = out.setdefault(rid, [])
-        if not isinstance(step, str) or not step:
-            if kind == SUSPENDED_EVENT:
-                nameless[rid] = nameless.get(rid, 0) + 1
-            continue
-        if kind == SUSPENDED_EVENT and step not in names:
-            names.append(step)
-        elif kind == OUTPUT_EVENT and step in names:
-            names.remove(step)
-    for rid, metadata in con.execute(f"select id, metadata from {RUN_TABLE} where status = ?", (PAUSED,)):
-        wait = _json(metadata).get(WAIT)
-        if isinstance(wait, dict) and wait.get("kind") == WAIT_KIND and wait.get(WAIT_ANSWER) is not None:
-            steps = [wait.get("nodeId")]
-            if wait.get("owner") == WAIT_LOOP_OWNER:
-                steps.append(f"{wait.get('nodeId')}{shape.IN_LOOP}{wait.get('bodyWaitId')}")
-            out[rid] = [name for name in out.get(rid, []) if name not in steps]
-    out = {rid: [name for name in names if not any(other.startswith(name + shape.IN_LOOP) for other in names)] for rid, names in out.items()}
-    return {rid: names for rid, names in out.items() if names}, nameless
 
 
 def _span(events: list[dict]) -> tuple[str, str] | None:
@@ -785,10 +624,6 @@ def _json(text) -> dict:
     except (TypeError, ValueError):
         return {}
     return got if isinstance(got, dict) else {}
-
-
-def _text(value) -> str:
-    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
 
 
 def _clip(text: str, size: int = CLIP) -> str:
