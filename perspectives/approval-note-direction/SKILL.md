@@ -28,11 +28,11 @@ A person who answers "continue" and adds a few words has approved the plan as it
 
 - You compared the note with the approach of each planned change and with each item that was shown.
 - The verdict is aligned, redirected, or unclear; a note that differs in part gave redirected, and doubt gave unclear, not aligned.
-- The sentence names the item and what the note asks, and quotes the note's words as they are.
+- The sentence names the item and what the note asks; any of the note's words it quotes are kept as they are.
 
 ## How to report
 
-Give the verdict, and one sentence that names the plan item or shown item the note agrees with or differs from, and what the note asks. Quote the note's words as they are.
+Give the verdict, and one sentence that names the plan item or shown item the note agrees with or differs from, and what the note asks. When you quote the note's words, keep them as they are.
 
 ## Example
 

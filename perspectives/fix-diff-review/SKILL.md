@@ -1,13 +1,13 @@
 ---
 name: fix-diff-review
-description: Reviews only the diff one fix just made and finds the holes the fix itself created (copies, stale readers, dead paths, scope creep), then checks the holes the fixer claims to have closed. Use when a fix has just been written, or when asked to "review just this fix". Not for reviewing a plan before code exists, nor a whole pull request.
+description: Reviews only the diff one fix just made and finds the holes the fix itself created (copies, routes a new guard does not see, stale readers, dead paths, scope creep, loosened checks), then checks the holes the fixer claims to have closed. Use when a fix has just been written, or when asked to "review just this fix". Not for reviewing a plan before code exists, nor a whole pull request.
 ---
 
 # Review the diff of a fix for the holes it created
 
-**Core rule: read only the diff of this fix, and find the holes the fix itself newly created, right after the fix and before the next full review — not the holes that were there before.**
+**Core rule: read only the diff of this fix, and find the holes the fix itself newly created, right after the fix and before the next review of the whole change — not the holes that were there before.**
 
-Why: when the holes a fix creates are found only by the next full review, the next fix creates the next hole (measured once: 8 of the findings of one full review were products of the fix before it). Looking right after the fix closes that loop before the next full review.
+Why: when the holes a fix creates are found only by the next review of the whole change, the next fix creates the next hole (measured once: 8 of the findings of one review of the whole change were products of the fix before it). Looking right after the fix closes that loop before the next review of the whole change.
 
 ## Pitfalls (read first)
 
