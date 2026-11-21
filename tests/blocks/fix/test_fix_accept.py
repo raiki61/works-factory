@@ -4065,24 +4065,6 @@ def _x_change(unit, files, **extra):
                         "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
 
 
-def _x_recorder_root(tmp):
-    """記録の根を持つ隔離した設定の置き場（toolset.install が作る形）。(子の環境に足す物, 記録の根)"""
-    import writelog
-    cfg = pathlib.Path(tmp) / "claude-config"
-    root = writelog.root(cfg)
-    root.mkdir(parents=True)
-    return {"CLAUDE_CONFIG_DIR": str(cfg)}, root
-
-
-def _x_record(log, path, tool="Edit"):
-    """記録のフックが書く形の 1 行を log に足す"""
-    log.parent.mkdir(parents=True, exist_ok=True)
-    real = os.path.realpath(str(path))
-    with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"tool_name": tool, "path": real,
-                            "file_sha": hashlib.sha256(pathlib.Path(real).read_bytes()).hexdigest()}) + "\n")
-
-
 class _XPlace(unittest.TestCase):
     """組 1 つの単独の run（mode group・out_dir 空）。intake と group_start を回した後の置き場と、target-seed の写しの作業ツリー"""
 
@@ -4238,7 +4220,7 @@ class FixLoopScriptsCase(_XPlace):
         （keep-essence の 5）"""
         import writelog
         import writes
-        env, root = _x_recorder_root(self.tmp)
+        env, root = support.recorder_root(self.tmp)
         log = writelog.log_path(root, self.repo)
         log.parent.mkdir()
         reply = {"changes": [_x_change(_X_MEAN, ["stats.py"])]}
@@ -4252,7 +4234,7 @@ class FixLoopScriptsCase(_XPlace):
                 out = self._x_accept(script, reply, 1, env_extra=env)
                 self.assertEqual((out["ok"], out["done"]), (False, False), out)
                 self.assertIn(writes.REJECT + "stats.py", out["reason"])
-                _x_record(log, self.repo / "stats.py")
+                support.record(log, self.repo / "stats.py")
                 out = self._x_accept(script, reply, 2, env_extra=env)
                 self.assertEqual((out["ok"], out["done"]), (True, True), out)
 
