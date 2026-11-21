@@ -21,19 +21,21 @@ TABLE_NAME = "docs/concepts.json"
 PREFIX = "考えの住処: "
 MAX_MAPS = 5
 
+
 def pick_maps(names: list[str]) -> tuple[list[str], int]:
     """名が MAP_NAME か "/" + MAP_NAME で終わる物を、/ の数の少ない順・同じなら名の順に並べ、(先頭 MAX_MAPS 件, 全件の数)"""
-    got = sorted(_named(names, MAP_NAME), key=lambda n: (n.count("/"), n))
+    got = _named(names, MAP_NAME)
     return got[:MAX_MAPS], len(got)
 
 
 def pick_tables(names: list[str]) -> list[str]:
     """名が TABLE_NAME か "/" + TABLE_NAME で終わる物を、/ の数の少ない順・同じなら名の順に（件数で切らない）"""
-    return sorted(_named(names, TABLE_NAME), key=lambda n: (n.count("/"), n))
+    return _named(names, TABLE_NAME)
 
 
 def _named(names, tail: str) -> list[str]:
-    return [n for n in names if isinstance(n, str) and (n == tail or n.endswith("/" + tail))]
+    """名が tail か "/" + tail で終わる物を、/ の数の少ない順・同じなら名の順に"""
+    return sorted((n for n in names if isinstance(n, str) and (n == tail or n.endswith("/" + tail))), key=lambda n: (n.count("/"), n))
 
 
 def base_of(name: str) -> str:
