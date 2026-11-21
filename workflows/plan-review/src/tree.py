@@ -179,7 +179,7 @@ def _precedent_gaps(rows: list, n: int, got: dict) -> list[str]:
             for i in _precedent_wanted(rows, n) if i not in ids]
 
 
-def _surplus(b, n: int, got: dict, rip: dict, pre_rows: list) -> dict:
+def _surplus(n: int, got: dict, rip: dict, pre_rows: list) -> dict:
     """型の合った項目 n の答えの余りの行の id {precedents, hits}: この項目の下請けが開く出典でない precedents の行・波及の一覧の
     項目 n の覆っていない当たりに無い hits の行。拒まずに捨てる（check_item が取り除く）"""
     want_p = _precedent_wanted(pre_rows, n)
@@ -288,7 +288,7 @@ def check_item(b, n: int, rip: dict, pre: list | None = None) -> tuple:
         if converge.DESIGN_MAP in got:
             got = {**got, converge.DESIGN_MAP: take.bound_map(b, [n], got[converge.DESIGN_MAP])}
         rows = precedent_plan(b, [n] if pre is None else pre).get(n) or []
-        dropped = _surplus(b, n, got, rip, rows)
+        dropped = _surplus(n, got, rip, rows)
         got = {**got, "hits": [h for h in got["hits"] if h.get("id") not in dropped["hits"]],
                **({"precedents": [r for r in got["precedents"] if r.get("id") not in dropped["precedents"]]}
                   if "precedents" in got else {})}
