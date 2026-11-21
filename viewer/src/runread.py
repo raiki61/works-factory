@@ -8,7 +8,7 @@
   ページが読む run の入力 inputs・ノードの状態ごとの数 node_counts・置き場の根 output_root も）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
-  ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
+  ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と会話の読みも使う
 - plain(value) -> 字か None の値をそのまま返す。ほかの形は TypeError（読む側が欄の形が違う行に数える）。会話の読みも使う
 """
 import contextlib
@@ -386,7 +386,7 @@ class _Reader:
         self.starts: dict[str, list[str]] = {}
 
     def _ts(self, entry: dict) -> str | None:
-        """行の時刻。読めない時刻は数えずに None にし、読めなかった物に数える（段の集計と無駄の手がかりを落とさない）"""
+        """行の時刻。読めない時刻は数えずに None にし、読めなかった物に数える（段の集計を落とさない）"""
         ts = entry.get("ts")
         if ts is None or ts == "":
             return None
@@ -749,7 +749,7 @@ def _child_span(child: dict, events: list[dict], parents: dict, end: str | None)
 
 
 def seconds(started, completed) -> float | None:
-    """始めから終わりまでの秒（0.1 秒に丸める）。どちらかが空か読めなければ None。段の集計と無駄の手がかりも使う"""
+    """始めから終わりまでの秒（0.1 秒に丸める）。どちらかが空か読めなければ None。段の集計も使う"""
     first, last = try_when(started), try_when(completed)
     return round((last - first).total_seconds(), 1) if first and last else None
 
