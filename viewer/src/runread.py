@@ -230,7 +230,7 @@ def run(db: Path, run_id: str) -> dict:
                     reader._count(SHAPELESS)
                     continue
                 if not node:
-                    reader.unread["子の run に parent_node_id が無い"] = reader.unread.get("子の run に parent_node_id が無い", 0) + 1
+                    reader._count("子の run に parent_node_id が無い")
                     continue
                 prefix = [*head, node]
                 reader.read(child, prefix)
@@ -240,7 +240,7 @@ def run(db: Path, run_id: str) -> dict:
     for what, got in ((SHAPELESS, sum(odd.get(rid, 0) for rid in (run_id, *(child["id"] for child in reader.children)))),
                       (NAMELESS, nameless.get(run_id, 0))):
         if got:
-            reader.unread[what] = reader.unread.get(what, 0) + got
+            reader._count(what, got)
     meta = _json(top["metadata"])
     root = Path(top["output_root"]) if top["output_root"] else None
     closed = {row["id"]: [at for t in ends.get(row["id"], []) if (at := _end(row["status"], t))] for row in (top, *reader.children)}
@@ -610,8 +610,8 @@ class _Reader:
         """run の起き直しの時刻（RESTART_ROWS の行のうち最初の物を除く。最初の行は run の始めで、落ちの後には来ない）"""
         return self.starts.get(rid, [])[1:]
 
-    def _count(self, what: str) -> None:
-        self.unread[what] = self.unread.get(what, 0) + 1
+    def _count(self, what: str, n: int = 1) -> None:
+        self.unread[what] = self.unread.get(what, 0) + n
 
 
 def _told(execution: dict, dropped: list) -> dict:
