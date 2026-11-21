@@ -12,7 +12,7 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕）、最後に�
 - HEAD: 最後の承認ノードと報告が返した周の節に付ける見出し
 - FIELDS: 周の頭の出力の欄の名。RECORD: 集め eyes-back の出力の欄の名（最後に走った周の頭の状態）。どちらも checkpoint（返す前の状態を封じた時の周の番号と戻す先の木。ほかは null）を持つ
 - EXITS・CAP_WHY: 輪を抜けた訳の字（fell・stop・unchanged・no_fix・settled・cap。目の route が stay の時は目の route_why が訳。ただし残った
-  返す項目が全部 needs: choose の時は settled〔直す側で片づく物が残っていない〕に目の訳の添えを付けた物）
+  返す項目が全部 needs: choose で確かめられない目が居ない時は settled〔直す側で片づく物が残っていない〕に目の訳の添えを付けた物）
 - SEALED_FIXED: 返す前の状態を封じる時に、返した段の合わせから前の周の合わせの物に替える欄（封じる差分を語る欄）
 - row(k, eyes, items, tree)・count(rows)・capped(record)・left_text(left): 周の記録の行と数え方（行の tree は返す時の木、asked はその目が人が選ぶ物とした指摘）
 - tree_now(repo) -> 今の作業ツリーの木の sha（読めなければ空の字）。script が turn の snap に渡す
@@ -20,20 +20,23 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕）、最後に�
   修正の段が引く。prior が null の段へは空〕・notes・prior ほか）を組み、snap で返す時の木を取る
 - restore_before_seal(repo, checkpoint, fingerprint, kept) -> {restored, kept, reason}: 封じる前に作業ツリーを返す前の木へ戻し、返した段の書き換えを kept に控える
   （line の src で作業ツリーを書く唯一の関数）。戻せなかった訳の字は RESTORE_NO_TREE・RESTORE_ERROR・RESTORE_DIFFERS
-- last(heads) -> 集め eyes-back の出力・current(eyes_back, fixed, tests, eyes) -> (fixed, tests, eyes): 最後の周の状態の選びの 1 か所
+- last(heads) -> 集め eyes-back の出力・current(eyes_back, fixed, tests, eyes) -> (fixed, tests, eyes): 最後の周の状態の選びの 1 か所（記録の側を
+  取る時は、前の周の目が人が選ぶ物とした指摘の問いを最後の目の questions に足す）
+- asked(rows, eyes) -> 最後の承認ノードの問いへ回す人が選ぶ物の (出どころの周か None, 指摘)。同じ指摘は 1 つ
 - lines(rows, exit_, left, checkpoint, back_restore) -> 最後の承認ノードと報告が同じ行に読む返した周の行（返したが直せなかった項目・封じに出したのが
   返す前の状態であること・戻しの結末・差分が変わらなかったので返す前と同じ状態であることも言う。字は UNFIXED・SEALED_BEFORE・KEPT_AWAY・UNTOUCHED・
   RESTORE_FAILED・NO_RESTORE_RECORD・SAME_AS_BEFORE）
 - broken(eyes_back, head) -> 集めが飛んだのに周の頭が走ったか（報告が BROKE の 1 行を出す）
 - round_costs(cost, prefix)・costs_now() -> 周ごとの費用（run の記録の node ごとの費用のうち周 k の節の和。costs_now は {by_round, why}）
 - head_text(rows, costs) -> 最後の承認ノードの頭の文の『n 回返した（上限 LIMIT 回。費用: …）。』（0 回は空）
-- outcome_lines(rows, exit_, left, checkpoint, eyes) -> 返した項目ごとの結末の行と、最後の目が人が選ぶ物とした返していない指摘の行（字は OUTCOMES・ASKED_AT）。record_lines(record, back_restore, costs) は
+- outcome_lines(rows, exit_, left, checkpoint, eyes) -> 返した項目ごとの結末の行と、返していない人が選ぶ物の行（字は OUTCOMES・ASKED_AT・ASKED_BEFORE）。record_lines(record, back_restore, costs) は
   記録まるごとから lines を組む 1 か所（最後の承認ノードと報告の節が読む）
 """
 from __future__ import annotations
 
 import re
 
+import eyekit
 import gatemarks
 import green_cert
 import leftovers
@@ -90,7 +93,8 @@ OUTCOMES = {
     "unseen": "直ったかを確かめていない（次の独立の目のその目の判定が無いか、返す前の状態を封じた）",
     "unchanged": f"直ったかを確かめていない（{EXITS['unchanged']}ので、最後の独立の目が挙げなかったのは直したからでない）",
 }
-ASKED_AT = "最後の独立の目が挙げた"   # 返していない人が選ぶ物の結末の行の頭
+ASKED_AT = "最後の独立の目が挙げた"   # 返していない人が選ぶ物の結末の行の頭（出どころが最後の目の物）
+ASKED_BEFORE = "{round} 周目に返す前の独立の目が挙げた"   # 同じ行の頭（出どころが k 周目に返す前の目〔周の行 k の asked〕の物。問いの添えも同じ字）
 COST_UNREAD = "run の記録が読めない"
 
 
@@ -108,6 +112,11 @@ def _chosen(eyes) -> list:
     """目の返す項目のうち needs が choose の行（人が選ぶ物。修正の段へ返さない）"""
     return [i for i in _d(eyes).get("findings") or [] if isinstance(i, dict) and isinstance(i.get("text"), str) and i["text"]
             and i.get("needs") == CHOOSE]
+
+
+def _unverifiable(eyes) -> bool:
+    """目の判定に確かめられない目（unverifiable）が居るか（R1〜R4 の行の status）"""
+    return any(_d(_d(eyes).get(eye)).get("status") == seal.UNVERIFIABLE for eye in ("r1", "r2", "r3", "r4"))
 
 
 def item_text(item: dict) -> str:
@@ -243,8 +252,9 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     4. k が 2 以上で試験の指紋の diff_hash が前の周と同じ → 返しの修正で差分が変わらなかった（stop_why が在れば UNDONE で修正の段が
        直さなかった訳を添える。その周の状態を封じ、戻す先は無い）
     5. 目の route が fix でない・返す項目が無い → 目の route_why（無ければ『返す物が無い』）。ただし人が選ぶ物（needs: choose）が在り、
-       目が返さない訳が『返す物が無い』（設計違いの目・前提の検算でない）なら、直す側で片づく物が残っていない（EXITS の settled に
-       目の訳の『返す物が無い』の後ろの添えを付ける）。上限を越えた周でも、この訳が上限より先
+       目が返さない訳が『返す物が無い』（設計違いの目・前提の検算でない）で、確かめられない目（unverifiable）が居なければ、直す側で
+       片づく物が残っていない（EXITS の settled に目の訳の『返す物が無い』の後ろの添えを付ける）。確かめられない目が居れば、確かめて
+       いない所が残るので目の訳のまま。上限を越えた周でも、この訳が上限より先
     6. k が LIMIT を越えた → 上限の訳（残った作り残しを left に運ぶ）
     7. 案の直しの返りが読めない（1 周目で refixed が真なのに案の直しか答えの返りが無い）→ 輪の節が落ちた
     ほかは返す。k が 2 以上の plan・fix_plan・ripple・plan_review・answers・skip_rerun は前の周の頭の値をそのまま運ぶ"""
@@ -279,7 +289,7 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     items = _items(eyes)
     if eyes.get("route") != FIX_ROUTE or not items:
         said = oneline.one_line(eyes.get("route_why") or "")
-        if not items and _chosen(eyes) and (eyes.get("route") == FIX_ROUTE or not said or said.startswith(NOTHING)):
+        if not items and _chosen(eyes) and not _unverifiable(eyes) and (eyes.get("route") == FIX_ROUTE or not said or said.startswith(NOTHING)):
             return leave(EXITS["settled"] + said[len(NOTHING):] if said.startswith(NOTHING) else EXITS["settled"])
         return leave(said or NOTHING)
     if k > LIMIT:
@@ -357,12 +367,22 @@ def last(heads) -> dict | None:
 
 def current(eyes_back, fixed, tests, eyes) -> tuple:
     """最後に試験と独立の目を通った周の状態 (fixed, tests, eyes) を選ぶ 1 か所。輪の記録の側を取るのは、記録が在り、記録の fixed が null
-    でない時だけ（返した段が止まった・落ちた周の記録は、返す前の状態を持ち越して fixed が null でない）。ほかは渡された最初の物を返す
+    でない時だけ（返した段が止まった・落ちた周の記録は、返す前の状態を持ち越して fixed が null でない）で、その時は前の周の目が人が選ぶ物と
+    した指摘の問いを記録の最後の目の questions に足す（_carry_asked。最後の承認ノードと報告が同じ問いを読む）。ほかは渡された最初の物を返す
     （輪の記録の無い run・集めが落ちた記録・状態が欠けた記録）"""
     record = _d(eyes_back)
     if record and record.get("fixed") is not None:
-        return record["fixed"], record.get("tests"), record.get("eyes")
+        return record["fixed"], record.get("tests"), _carry_asked(record.get("rows"), record.get("eyes"))
     return fixed, tests, eyes
+
+
+def _carry_asked(rows, eyes):
+    """記録の最後の目 eyes の questions に、前の周の目が人が選ぶ物とした指摘（asked が出どころを前の周とした物）の問いを足した写し。
+    問いには出どころの目（ASKED_BEFORE）を添える。eyes が dict でなければそのまま"""
+    if not isinstance(eyes, dict):
+        return eyes
+    carried = [{"text": f"{eyekit.choose_question(i)}（{ASKED_BEFORE.format(round=k)}）"} for k, i in asked(rows, eyes) if k is not None]
+    return {**eyes, "questions": [*(eyes.get("questions") or []), *carried]} if carried else eyes
 
 
 # ---------------------------------------------------------------- 周ごとの費用
@@ -429,7 +449,8 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) ->
     """返した項目ごとの結末の行『k 周目に返した <項目>: <結末>』（字は OUTCOMES）。次の周の行（最後の周は最後の目 eyes の findings と
     残った作り残し left）が同じ鍵の項目を持てば挙げ直した物（最後の周なら残った物、上限の抜け方なら上限で残った物）、持たなければ直した物。
     次の周の目（途中の周は次の周の行の asked、最後の周は最後の目の findings）が同じ鍵の指摘を人が選ぶ物（needs: choose）にしたら人が選ぶ物。
-    最後の目が人が選ぶ物とした指摘のうち、最後の周に返した指摘と鍵の重ならない物は『最後の独立の目が挙げた <項目>: 人が選ぶ』の行を足す。
+    人が選ぶ物（asked。最後の目の物と前の周の目の物）のうち、出どころの目の前に返した周の項目と鍵の重ならない物は『<出どころの目の頭> <項目>: 人が選ぶ』
+    の行を足す（頭は最後の目が ASKED_AT、k 周目に返す前の目が ASKED_BEFORE）。
     次の目のその目の判定が通った（pass）か直しが要る（fix-needed）でない時と、返す前の状態を封じた最後の周（checkpoint）は確かめていない物。
     差分が変わらずに抜けた時（exit_ が EXITS の unchanged で始まる。_sealed_lines が SAME_AS_BEFORE を出す時と同じ）の最後の周で挙げ直さなかった物も、
     最後の目が同じ差分をもう一度見ただけなので直したと言わず、差分が変わらなかった旨の確かめていない物（OUTCOMES の unchanged）にする"""
@@ -440,11 +461,11 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) ->
         if final:
             after_row = None if isinstance(checkpoint, dict) else eyes
             after = [*(i for i in left or [] if isinstance(i, dict)), *_items(after_row)] if isinstance(after_row, dict) else []
-            asked = _chosen(after_row)
+            chosen = _chosen(after_row)
         else:
             after_row, after = done[n + 1], [i for i in done[n + 1].get("items") or [] if isinstance(i, dict)]
-            asked = [i for i in done[n + 1].get("asked") or [] if isinstance(i, dict)]
-        seen, picked = {_key(i) for i in after}, {_key(i) for i in asked}
+            chosen = [i for i in done[n + 1].get("asked") or [] if isinstance(i, dict)]
+        seen, picked = {_key(i) for i in after}, {_key(i) for i in chosen}
         for item in (i for i in r.get("items") or [] if isinstance(i, dict)):
             eye = str(item.get("eye") or "")
             status = _status(after_row, eye) if final else str(_d(after_row).get(eye) or "")
@@ -459,8 +480,25 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) ->
             else:
                 word = OUTCOMES["fixed"]
             out.append(f"{r.get('round')} 周目に返した {item_text(item)}——{word}")
-    returned = {_key(i) for i in (done[-1].get("items") or [] if done else []) if isinstance(i, dict)}
-    out += [f"{ASKED_AT} {item_text(i)}——{OUTCOMES['choose']}" for i in _chosen(eyes) if done and _key(i) not in returned]
+    for k, item in asked(done, eyes) if done else []:
+        # 出どころの目の前に返した周（最後の目は最後の周、k 周目に返す前の目は k-1 周目）の項目と鍵が重なる物は、上の結末の行が人が選ぶ物と言う
+        before = done[-1] if k is None else next((r for r in done if r.get("round") == k - 1), None)
+        if _key(item) not in {_key(i) for i in _d(before).get("items") or [] if isinstance(i, dict)}:
+            out.append(f"{ASKED_AT if k is None else ASKED_BEFORE.format(round=k)} {item_text(item)}——{OUTCOMES['choose']}")
+    return out
+
+
+def asked(rows, eyes) -> list:
+    """最後の承認ノードの問いへ回す人が選ぶ物の (出どころの周, 指摘) の並び。出どころは最後の目 eyes（None）か、k 周目に返す前の目
+    （周の行 k の asked。k）。同じ指摘（_key。目の名と where のファイル）は 1 つにし、最後の目の物、次に新しい周の物を採る（最後の目が
+    出し直した指摘を二重に問いへ出さない）。問いの足し（current）と結末の行（outcome_lines）はここの 1 か所で出どころを決める"""
+    out = [(None, dict(i)) for i in _chosen(eyes)]
+    seen = {_key(i) for _, i in out}
+    for r in reversed([r for r in rows or [] if isinstance(r, dict)]):
+        for i in r.get("asked") or []:
+            if isinstance(i, dict) and isinstance(i.get("text"), str) and i["text"] and _key(i) not in seen:
+                seen.add(_key(i))
+                out.append((r.get("round"), dict(i)))
     return out
 
 
