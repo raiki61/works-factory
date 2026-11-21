@@ -31,7 +31,7 @@ Read "When the plan is sent back" only when a review returned the plan or an ite
 
 ### What each item of the plan holds
 
-1. **Which findings it closes.** Every finding you owe a fix goes into some item.
+1. **Which findings it closes.** Every finding you owe a fix goes into some item. A finding that raised a question waiting for a person's answer, and a finding that waits for that answer, are not owed: they may stay out of the plan.
 2. **The approach**: what you change and how, concretely, with the names of functions, fields, and documents.
 3. **Every file it touches**, one row per file: whether it is created, changed, removed, or moved; the one responsibility of that file; the names added or removed in it; the concept this file becomes the home of and why this place; and the other places you considered and why you set them aside.
 4. **What it removes or merges** (copies, unused entry points, old text) is listed as well, each with why it goes and what replaces it, if anything.
@@ -93,7 +93,7 @@ Every caller of a name you change and every test that asserts a literal value yo
 
 - For each blocking hole the review raised, either fix the plan and say where, or dispute it without fixing and give your grounds. Answer every suggestion on an item that is still open the same way.
 - Change only the items the holes are on. Items already closed with no hole raised stay exactly as they were; do not rewrite them.
-- Suggestions on closed or held items, and suggestions the review said are gone, need no answer. You may take them or not, but do not reopen an item for them.
+- Suggestions on closed items or on items set aside because the same blocking hole kept coming back, and suggestions the review said are gone, need no answer. You may take them or not, but do not reopen an item for them.
 - Holes closed in earlier reviews are rules to keep: before changing an item, check the change does not bring an earlier harm back in another form (for example, giving up what an earlier fix protected in order to close a new hole). If a new hole cannot be fixed without bringing one back, say so and name which.
 - If, after you correct the plan, a blocking hole at the core of the plan still remains, do not start the fix; only holes at the edges may be carried into the fix.
 - When, while the fix is being made, it is judged that an item of the approved plan was wrong, correct only that item and only the places that judgment names. A change to what the item promised (the findings it closes, what it narrows, what it removes, its scope, what it leaves out, the tests it rewrites, the behaviour its tests check) goes back in front of a person.

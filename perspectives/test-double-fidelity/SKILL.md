@@ -13,7 +13,7 @@ A double whose input shape differs from the real thing cannot observe the error:
 
 - **Applies when the change touches a seam with the outside**: another process, another service, a browser, an outside API, a protocol.
 - **Compare with a real value.** Take one value from the real thing and hold the double's shape against it.
-- **Do not break the real working tree.** Make any copy you need for running in a fresh temporary directory outside it.
+- **Do not break the real working tree.** Do not change the working tree, the checked-out commit (HEAD), the branch, or the files version control ignores. Make any copy you need for running in a fresh temporary directory outside it.
 
 ## Steps
 

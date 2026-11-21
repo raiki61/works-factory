@@ -31,7 +31,7 @@ Why: whoever comes later reads these premises as given. A wrong fact handed on h
 6. When what you measured contradicts what a request line claims or assumes, note which line it contradicts.
 7. If the request has no claim to measure, the list may be empty.
 
-A lookup that could not be run because it needs the target's names is handed on as a hypothesis.
+A lookup that could not be run because it needs the target's names is handed on as a hypothesis; that mark is what sends it to a person.
 
 ## Done when
 
