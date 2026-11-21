@@ -1,4 +1,4 @@
-"""公式の文書を登録なしの口で引く（.shared/core/libdocs_web.py）の検査。網には出ない（HTTP の口は偽物を渡す）。
+"""公式の文書を登録なしの口で引く（lib/libdocs_web.py）の検査。網には出ない（HTTP の口は偽物を渡す）。
 
 - Python: PyPI の JSON（版つき、無ければ版なし）の info.description（その版の README）と、project_urls の docs の場所の
   llms-full.txt・llms.txt（docs の場所の下、次に host の根。`# ` で始まる文書だけを受け、HTML は捨てる）
