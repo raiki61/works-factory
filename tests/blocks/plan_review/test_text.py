@@ -20,13 +20,6 @@ def face(key, kind="contract_drift", severity="block", **extra) -> dict:
             "why": f"{key} の穴になる筋道を 20 字以上で書いた行", "severity": severity, "reach": "breaks_fix", **extra}
 
 
-def reply(*faces, **extra) -> dict:
-    out = {"faces": list(faces), "shrink": [], "reason": V.REASON}
-    if not faces:
-        out["faces_none"] = V.FACES_NONE
-    return {**out, **extra}
-
-
 class _Case(unittest.TestCase):
     def setUp(self):
         self.r = V.Block(self)
@@ -56,7 +49,7 @@ class TextAcceptCase(_Case):
 
     def test_pass_writes_the_review(self):
         """通れば review.json に {faces, shrink, reason}。出口は ok で、報告の頭の行と block の穴の行"""
-        got = self.accept(reply(face("hook-env-drift-block")))
+        got = self.accept(V.review(face("hook-env-drift-block")))
         self.assertEqual((got["ok"], got["done"], got["give_up"]), (True, True, False), got)
         saved = self.r.read(files.REVIEW)
         self.assertEqual([f["key"] for f in saved["faces"]], ["hook-env-drift-block"])
@@ -68,40 +61,40 @@ class TextAcceptCase(_Case):
 
     def test_policy_face_must_name_a_recorded_row(self):
         """kind policy の穴は記録された方針の行を名指す（名指さなければ拒む。名指せば通る）"""
-        self.rejected(reply(face("policy-unnamed-face", kind="policy", severity="suggest")), "policy")
-        got = self.accept(reply(face("policy-named-face", kind="policy", severity="suggest", decided_by="q-mean-empty")))
+        self.rejected(V.review(face("policy-unnamed-face", kind="policy", severity="suggest")), "policy")
+        got = self.accept(V.review(face("policy-named-face", kind="policy", severity="suggest", decided_by="q-mean-empty")))
         self.assertTrue(got["ok"], got)
 
     def test_policy_doc_fence_needs_a_policy_document(self):
         """方針の文書の無い run で fences に policy_doc を立てた穴は拒む"""
-        self.rejected(reply(face("fenced-without-doc", fences=["policy_doc"])), "policy_doc")
+        self.rejected(V.review(face("fenced-without-doc", fences=["policy_doc"])), "policy_doc")
 
     def test_entrance_needs_no_add(self):
-        self.rejected(reply(face("entrance-without-no-add", kind="entrance")), "no_add")
-        got = self.accept(reply(face("entrance-with-no-add", kind="entrance", no_add="柵を足さずに 2 つの入口を 1 つの口にまとめる形")))
+        self.rejected(V.review(face("entrance-without-no-add", kind="entrance")), "no_add")
+        got = self.accept(V.review(face("entrance-with-no-add", kind="entrance", no_add="柵を足さずに 2 つの入口を 1 つの口にまとめる形")))
         self.assertTrue(got["ok"], got)
 
     def test_fences_twice_rejected(self):
-        self.rejected(reply(face("fences-twice-face", fences=["irreversible", "irreversible"])), "fences")
+        self.rejected(V.review(face("fences-twice-face", fences=["irreversible", "irreversible"])), "fences")
 
     def test_keys_once(self):
-        doc = reply(face("same-key-twice-face"))
+        doc = V.review(face("same-key-twice-face"))
         doc["shrink"] = [{"key": "same-key-twice-face", "alternative": "柵を足さずに今の口 1 つで閉じる形にする",
                           "why": "口を増やさないので次の周の入口の指摘にならない"}]
         self.rejected(doc, "key が重複")
 
     def test_faces_none_needed_without_holes(self):
         self.rejected({"faces": [], "shrink": [], "reason": V.REASON, "faces_none": "無い"}, "faces_none")
-        self.assertTrue(self.accept(reply())["ok"])
+        self.assertTrue(self.accept(V.review())["ok"])
 
     def test_read_only_tree_changed_rejected(self):
         """役が作業ツリーを変えた返答は拒む"""
         (self.r.repo / "stray.txt").write_text("役が足した\n", encoding="utf-8")
-        self.rejected(reply(), "読むだけの役が作業ツリーを変えた")
+        self.rejected(V.review(), "読むだけの役が作業ツリーを変えた")
 
     def test_give_up_on_the_third_reject(self):
         """rolekit.GIVE_UP_AFTER 回目の拒否で done・give_up。review.json は受け付けが書かず、出口が gave_up と諦めの訳"""
-        bad = reply(face("entrance-without-no-add", kind="entrance"))
+        bad = V.review(face("entrance-without-no-add", kind="entrance"))
         for _ in range(rolekit.GIVE_UP_AFTER - 1):
             self.rejected(bad, "no_add")
         got = self.accept(bad)

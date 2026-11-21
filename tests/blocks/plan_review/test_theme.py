@@ -24,13 +24,6 @@ def face(key, kind="contract_drift", severity="block", reach="forces_redesign", 
             "severity": severity, "reach": reach, **extra}
 
 
-def reply(*faces, **extra) -> dict:
-    out = {"faces": list(faces), "shrink": [], "reason": V.REASON}
-    if not faces:
-        out["faces_none"] = V.FACES_NONE
-    return {**out, **extra}
-
-
 def record(run, *passes) -> str:
     """line の書き手で組んだ往復の記録（rounds.fresh に、穴の行の並び passes の往復を rounds.record_pass で足した物。項目の行 plan を
     持たない）を run の置き場に置いた pointer。手で枠を組まない"""
@@ -103,7 +96,7 @@ class ThemeAcceptCase(_Case):
         return got
 
     def test_pass_writes_the_review_and_finish_returns_the_round(self):
-        got = self.accept(reply(face("design-gap-entrance")))
+        got = self.accept(V.review(face("design-gap-entrance")))
         self.assertEqual((got["ok"], got["done"], got["give_up"]), (True, True, False), got)
         out = self.r.script("finish")
         self.assertEqual((out["ok"], out["status"], out["form"], out["round"], out["blocks"], out["pass"], out["asks"]),
@@ -112,18 +105,18 @@ class ThemeAcceptCase(_Case):
         self.assertEqual(out["report"][0], "事前審査（1 往復目・設計の案）: block design-gap-entrance・suggest 0 件・別案 0 件・消えた穴 0 件")
 
     def test_face_rows_and_whole_reply_are_checked_like_the_text_form(self):
-        self.rejected(reply(face("entrance-without-no-add", kind="entrance")), "no_add")
-        self.rejected(reply(face("policy-unnamed-face", kind="policy", severity="suggest")), "policy")
+        self.rejected(V.review(face("entrance-without-no-add", kind="entrance")), "no_add")
+        self.rejected(V.review(face("policy-unnamed-face", kind="policy", severity="suggest")), "policy")
         self.rejected({"faces": [], "shrink": [], "reason": V.REASON, "faces_none": "無い"}, "faces_none")
         self.rejected({"faces": [], "reason": V.REASON, "faces_none": V.FACES_NONE}, "shrink")
 
     def test_read_only_tree_changed_rejected(self):
         (self.r.repo / "stray.txt").write_text("役が足した\n", encoding="utf-8")
-        self.rejected(reply(), "読むだけの役が作業ツリーを変えた")
+        self.rejected(V.review(), "読むだけの役が作業ツリーを変えた")
 
     def test_resubmit_is_merged_with_the_previous_answer(self):
         """出し直しの役は拒まれた欄だけを返し、受け付けが前の答えと合わせてから全体を照らす"""
-        self.rejected(reply(face("entrance-without-no-add", kind="entrance")), "no_add")
+        self.rejected(V.review(face("entrance-without-no-add", kind="entrance")), "no_add")
         fixed = face("entrance-with-no-add", kind="entrance", no_add="柵を足さずに 2 つの入口を 1 つの口にまとめる形")
         got = self.accept(fix={"faces": [fixed]})
         self.assertTrue(got["ok"], got)
@@ -132,7 +125,7 @@ class ThemeAcceptCase(_Case):
 
     def test_give_up_at_the_net(self):
         """拒否の回数では諦めず、受け付けの網 rolekit.NET_AFTER 回目で done・give_up。出口は gave_up と諦めの訳"""
-        bad = reply(face("entrance-without-no-add", kind="entrance"))
+        bad = V.review(face("entrance-without-no-add", kind="entrance"))
         for _ in range(rolekit.NET_AFTER - 1):
             self.rejected(bad, "no_add")
         got = self.accept(bad)
@@ -152,13 +145,13 @@ class ThemeRoundsCase(_Case):
         self.prep()
 
     def test_every_owed_hole_needs_a_destination(self):
-        got = self.accept(reply(face("design-gap-copy", kind="copy")))
+        got = self.accept(V.review(face("design-gap-copy", kind="copy")))
         self.assertFalse(got["ok"], got)
         self.assertIn("design-gap-entrance", got["reason"])
         self.assertNotIn("design-gap-copy", got["reason"].split("design-gap-entrance")[0])
 
     def test_resolved_and_raised_again_pass(self):
-        got = self.accept(reply(face("design-gap-copy", kind="copy"), resolved=["design-gap-entrance"]))
+        got = self.accept(V.review(face("design-gap-copy", kind="copy"), resolved=["design-gap-entrance"]))
         self.assertTrue(got["ok"], got)
         saved = self.r.read(files.REVIEW)
         self.assertEqual(saved[converge.RESOLVED], ["design-gap-entrance"])
@@ -167,9 +160,9 @@ class ThemeRoundsCase(_Case):
         self.assertTrue(out["report"][0].endswith("・消えた穴 1 件"), out["report"])
 
     def test_stray_resolved_and_both_places_rejected(self):
-        got = self.accept(reply(face("design-gap-copy", kind="copy"), resolved=["design-gap-entrance", "never-raised-key"]))
+        got = self.accept(V.review(face("design-gap-copy", kind="copy"), resolved=["design-gap-entrance", "never-raised-key"]))
         self.assertIn("never-raised-key", got["reason"])
-        got = self.accept(reply(face("design-gap-copy", kind="copy"), resolved=["design-gap-entrance", "design-gap-copy"]))
+        got = self.accept(V.review(face("design-gap-copy", kind="copy"), resolved=["design-gap-entrance", "design-gap-copy"]))
         self.assertIn("resolved と block の face の両方", got["reason"])
 
 
