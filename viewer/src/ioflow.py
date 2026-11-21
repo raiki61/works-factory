@@ -62,6 +62,11 @@ def dig(v, path):
     return v, True
 
 
+def _returns(graph):
+    """graph の返しのノードの id（returns が無ければ finish）"""
+    return (graph or {}).get("returns") or "finish"
+
+
 class Flow:
     def __init__(self, tree, events, graphs):
         self.tree, self.graphs = tree, graphs
@@ -80,7 +85,7 @@ class Flow:
         if t and t["kind"] == "block":
             # block の出力は、その graph の返しのノードの出力（block の枠の出来事が持つ出力より先に見る）
             g = self.graphs.get(t["item"].get("target"))
-            rk = k + ((g or {}).get("returns") or "finish",)
+            rk = k + (_returns(g),)
             if rk in self.outs:
                 k = rk
         got = self.outs.get(k)
@@ -159,7 +164,7 @@ class Flow:
         g = self.graphs.get(t["item"].get("target"))
         if not g:
             return None
-        v, _ = self._out(tuple(key) + (g.get("returns") or "finish",))
+        v, _ = self._out(tuple(key) + (_returns(g),))
         return v
 
     # ── 条件の式（== != && || ! と括弧、true false null・数・字）
