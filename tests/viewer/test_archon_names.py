@@ -68,7 +68,7 @@ class ArchonNamesTest(unittest.TestCase):
     def test_statuses_are_the_sources(self):
         found = re.search(r"workflowRunStatusSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
         self.assertEqual(literals(found), set(runread.STATUSES))
-        self.assertLessEqual({*runread.LIVE, runread.PAUSED, runread.FAILED}, set(runread.STATUSES))
+        self.assertLessEqual({*runread.LIVE, "paused", runread.FAILED}, set(runread.STATUSES))
         outcomes = re.search(r"workflowRunOutcomeSchema = z\.enum\(\[(.*?)\]\)", self.read(RUN_STATUS), re.S)[1]
         self.assertEqual(literals(outcomes), set(runread.OUTCOMES))
 

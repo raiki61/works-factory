@@ -56,9 +56,6 @@ OUTCOMES = ("succeeded", "failed")
 RESULT_NODE = "result"
 RESULT_WORD = "outcome"
 RESULT_WORDS = report.OUTCOMES
-# 答えを待つ run の状態。待ちはこの状態の run だけに出す（止めた・放棄した run は node_completed を書かずに終わる。
-# packages/core/src/operations/workflow-operations.ts の resolveAndCancelApprovalGate・abandon）
-PAUSED = "paused"
 # 落ちた状態。run が落ちた時刻（FAILED_EVENT）で閉じた走り中の出来事を、この状態にする（run と _Reader._fallen。落ちた後に
 # 起き直して終わった run も workflow_failed の行を残す。packages/workflows/src/dag-resume-snapshot.ts の resuming a failed run）
 FAILED = "failed"
@@ -79,8 +76,6 @@ ACCOUNTING = "accounting"
 ACCOUNTINGS = ("node", "aggregate", "instance", "amendment")
 AGGREGATE = "aggregate"
 INSTANCE = "compose_fan_out_instance"
-# run の metadata の待ち（packages/workflows/src/schemas/workflow-run.ts の workflowWaitAttentionFields と workflowWaitStepName）。
-# 答えが入った待ちは、run が次へ進む前でも答えを待たない（同じファイルの runAttention の「Answered」）
 # ノードの種類（packages/workflows/src/schemas/dag-node.ts の DagNode の kind。出来事の kind に入る）。流れの集計（src/stages.py）が、
 # AI の手番・人の答え待ち・中の出来事を束ねる器（繰り返しの周の器・並べて起こす器・子の run を起こすノード。長さを足すと中の出来事と
 # 二重になる。子の run を起こすノードの行は子の総額も載せる。packages/workflows/src/node-execution.ts の accounting）を分ける

@@ -318,7 +318,7 @@ class ReadCase(unittest.TestCase):
                        ("live", None, "2026-10-25 01:00:00", None, json.dumps({runread.TOTAL_COST: 1.0})),
                        ("wait", None, "2026-10-25 00:00:00", None, json.dumps({runread.TOTAL_COST: 2.0}))], [])
         self._status(db, "live", "running")
-        self._status(db, "wait", runread.PAUSED)
+        self._status(db, "wait", "paused")
         for rid, step, data in (("old", "a", {runread.NODE_COST: 0.5}), ("old", "l", {runread.NODE_COST: 2.0, runread.AGGREGATE: True}),
                                 ("fan", "i", {runread.NODE_COST: 0.75, "type": runread.INSTANCE, runread.ACCOUNTING: "instance"}),
                                 ("fan", "i__x", {runread.NODE_COST: 0.5, runread.ACCOUNTING: "node"}),
