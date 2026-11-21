@@ -244,7 +244,7 @@ class CollectCase(FinishPlace):
         self.assertEqual([self.art / ptr["path"] for ptr in out["removed"]],
                          [self.place / leftovers.REMOVED_FILE, self.place / "sub" / leftovers.REMOVED_FILE])
         self.assertLess(len(json.dumps(out["removed"])), 1000)
-        names = [json.loads(p.read_text(encoding="utf-8"))["removed"] for p in map(lambda ptr: self.art / ptr["path"], out["removed"])]
+        names = [json.loads(p.read_text(encoding="utf-8"))["removed"] for p in (self.art / ptr["path"] for ptr in out["removed"])]
         self.assertEqual([len(x) for x in names], [5000, 1], "控えの全件が pointer の先に残る（読み手の数え方は report と line の試験）")
 
     def test_unrestored_group_holds_the_tree_and_stops_for_a_human(self):
