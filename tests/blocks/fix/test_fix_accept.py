@@ -4051,8 +4051,6 @@ _X_JUDGMENT = {"units": [
         "how": {"patterns": ["(len(xs) - 1)"], "fixed": True, "paths": ["stats.py"], "count": "lines"},
         "counts": "defects", "total": 1}},
     {"key": _X_BOUND, "label": "block"}], "questions": []}
-_X_CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
-                    "path_changed"}
 _X_CLAIM = {"between": ["stats.py:9", "test_stats.py:8"], "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
             "which_is_right": "request", "kind": "unnamed_test_broke"}
 _X_SCOPE_RULING = {"decision": "fix_test_scope", "text": "テストの期待を直してよい", "limits": ["test_stats.py"]}
@@ -4164,7 +4162,7 @@ class FixLoopScriptsCase(_XPlace):
         self.assertEqual([(r["unit_key"], r["ruling"]["decision"]) for r in rows], [(_X_BOUND, "ask_human")])
         kept = json.loads((self.place / "fix-reply.json").read_text(encoding="utf-8"))
         self.assertEqual([c["unit_key"] for c in kept["changes"]], [_X_MEAN])
-        self.assertEqual(set(kept["changed"]), _X_CHANGED_MARKS | {"premise_drift_note"})
+        self.assertEqual(set(kept["changed"]), set(support.MARKS) | {"premise_drift_note"})
 
     def test_accept_traces_tests_left_to_ci_and_final_stage(self):
         """F013: 受け付けの回ごとに accept-trace.json に impact.ACCEPT_TRACE_OP の行（ci_left・final_left・final_far）を積み、
@@ -4298,7 +4296,7 @@ class FixLoopScriptsCase(_XPlace):
         out = self._x_accept("fix_ruled_accept", reply, 1)   # 直す義務は戻せた組の fixed でない単位だけ
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         kept = json.loads((self.place / "fix-ruled-reply.json").read_text(encoding="utf-8"))
-        self.assertEqual(set(kept["changed"]), _X_CHANGED_MARKS | {"premise_drift_note"})
+        self.assertEqual(set(kept["changed"]), set(support.MARKS) | {"premise_drift_note"})
 
     @unittest.skipIf(os.geteuid() == 0, "root は読めない印のファイルも読める")
     def test_prep_snapshots_the_skip_head_before_marking_the_stage_head(self):
