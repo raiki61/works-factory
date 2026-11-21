@@ -112,10 +112,7 @@ def read(board_dir, name: str = STATE_FILE) -> dict | None:
 
 def read_file(path) -> dict | None:
     """段の控えのファイル path（判定の外の読み手は判定の出力の欄 world_state のパス）。無い・読めない・形が違えば None"""
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+    doc = jsonfile.read_or(path)
     return doc if isinstance(doc, dict) and doc.get("status") in STATES else None
 
 
