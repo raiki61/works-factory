@@ -289,6 +289,13 @@ class LoopCase(Case):
         self.assertTrue(got["ok"], got)
         return got
 
+    def first_loop(self):
+        """tdd-1: MEAN を tdd で緑にして test_stats.py を凍らせる"""
+        self.route()
+        self.red()
+        self.assertTrue(self.fix_mean()["done"])
+        self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
+
 class TestStart(LoopCase):
     def test_baseline_and_first_prompt(self):
         st = self.st()
@@ -2625,13 +2632,6 @@ class TestCrossLoopFreeze(LoopCase):
     """凍結は run の全部の輪で効く（依頼 226 の 2 回目の修正の段）: 1 回目の段の輪（tdd-1）が凍らせたテストのファイルは、2 回目の
     段の輪（tdd-2）の後も、2 回目の輪の状態の handoff の木（since）からの変更で見る。2 回目の輪が同じファイルに足したテストは
     2 回目の輪の凍結で見る。直した項目の単位の tdd-1 の受け入れのテストの関数（skip_spans）だけは書き直してよい"""
-
-    def first_loop(self):
-        """tdd-1: MEAN を tdd で緑にして test_stats.py を凍らせる"""
-        self.route()
-        self.red()
-        self.assertTrue(self.fix_mean()["done"])
-        self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
 
     def second_loop(self, keys, route="direct") -> str:
         """tdd-2 を keys で起こして振り分ける（direct なら輪は済む）。返りは tdd-2 の状態のファイル"""

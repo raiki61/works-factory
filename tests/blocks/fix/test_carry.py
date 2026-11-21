@@ -345,13 +345,6 @@ class PriorLoopsCase(tddcase.LoopCase):
     組の子の place に輪の状態を写す（今の test_second_place_sees_the_first_place_loops を、フォルダの代わりに束で）。写した輪は今の
     段の輪に数えない（board.ruled_states）"""
 
-    def first_loop(self):
-        """tdd-1: MEAN を tdd で緑にして test_stats.py を凍らせる"""
-        self.route()
-        self.red()
-        self.assertTrue(self.fix_mean()["done"])
-        self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
-
     def test_second_place_sees_the_first_place_loops_through_the_bundle(self):
         from src import board, carry, facts, common, tdd
         self.first_loop()
