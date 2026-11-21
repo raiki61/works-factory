@@ -321,7 +321,8 @@ class EyesBackTest(unittest.TestCase):
         for node in ("back-3", "back-4"):   # 頭は毎周走り、返さなかった周は前の記録を運ぶ
             self.assertEqual({k: out(trace, node)[k] for k in ("go", "exit", "rows")}, {k: second[k] for k in ("go", "exit", "rows")}, node)
         fixed = out(trace, "back-1-fixed")
-        self.assertEqual([s["stage"] for s in fixed["stages"]], [1, 2], "返した段が最初の修正の段の次に積まれる")
+        # 段の表は置き場のファイルで、dry-run の後は読めない。返した後の記録は fixed/<返した回数> に置く（段が積まれたことは ask-final の文が見る）
+        self.assertEqual(fixed["stages"]["path"], "fixed/1/stages.json", "返した段が最初の修正の段の次の記録に積まれる")
         self.assertEqual(len(fixed["more"]), 1)
         last = out(trace, "eyes-back")
         self.assertEqual((last["exit"], last["sealable"], last["eyes_ok"], last["green_ok"]), ("返す物が無い", True, True, True))

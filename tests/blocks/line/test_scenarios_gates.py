@@ -60,7 +60,8 @@ class ReplanCase(unittest.TestCase):
         trace = self.t["refix-handoff"]
         got = out(trace, "ask-final")
         self.assertTrue(got["open"], got)
-        self.assertEqual(len(out(trace, "fixed")["stages"]), 2, "1 回目と 2 度目の修正の段")
+        # 段の表は置き場のファイルで、dry-run の後は読めない。2 つの段が読まれたことは下の文の「段 1」「段 2」が見る
+        self.assertEqual(out(trace, "fixed")["stages"]["type"], "archon_artifact", "1 回目と 2 度目の修正の段の表")
         self.assertIn("直しの途中で AI が自分で決めずに人に回した物が在る（2 件）", got["text"].splitlines()[0])
         self.assertIn("- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる", got["text"])
 
