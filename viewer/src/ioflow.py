@@ -111,6 +111,11 @@ class Flow:
                 return scope[:i]
         return None
 
+    def scope_inputs(self, scope):
+        """scope の $INPUTS の値（囲む block の受けた値。囲む block が無ければ一番上の graph の入力）"""
+        o = self.owner(scope)
+        return self.block_inputs(o) if o else self.root
+
     def block_inputs(self, key):
         """block（の呼び出しの key）が受けた値 {入口: 値}。上の入力（$INPUTS）は親の block の受けた値から引く"""
         key = tuple(key)
@@ -138,15 +143,13 @@ class Flow:
             return v if ok else None
         m = INREF.fullmatch(s)
         if m:
-            o = self.owner(scope)
-            return self.block_inputs(o).get(m.group(1)) if o else self.root.get(m.group(1))
+            return self.scope_inputs(scope).get(m.group(1))
 
         def sub(mm):
             v, ok = dig(self.node_out(scope, mm.group(1)), mm.group(2))
             return json.dumps(v, ensure_ascii=False) if ok else "null"
         s2 = REF.sub(sub, raw)
-        o = self.owner(scope)
-        s2 = INREF.sub(lambda mm: json.dumps(self.block_inputs(o).get(mm.group(1)) if o else self.root.get(mm.group(1)), ensure_ascii=False), s2)
+        s2 = INREF.sub(lambda mm: json.dumps(self.scope_inputs(scope).get(mm.group(1)), ensure_ascii=False), s2)
         return parse(s2)
 
     def returned(self, key):
@@ -175,8 +178,7 @@ class Flow:
 
         def val(name, path):
             if name == "INPUTS":
-                o = self.owner(scope)
-                v, ok = dig(self.block_inputs(o) if o else self.root, path)
+                v, ok = dig(self.scope_inputs(scope), path)
             else:
                 v, ok = dig(self.node_out(scope, name), path)
             return v if ok else None
