@@ -680,7 +680,7 @@ class TestUnitLoop(LoopCase):
         before = (self.repo / "test_stats.py").read_text(encoding="utf-8")
         self.red()
         (self.repo / "helper.py").write_text("X = 1\n", encoding="utf-8")   # 直す段が足した新しいファイル
-        for i in range(tdd.retry_max()):
+        for _ in range(tdd.retry_max()):
             got = self.step({"phase": "fix", "unit_key": MEAN, "files": ["helper.py"], "what": "直せていない"})
             self.assertFalse(got["ok"])
         self.assertTrue(got["done"], "tdd の単位が 1 つなので輪は済む")
