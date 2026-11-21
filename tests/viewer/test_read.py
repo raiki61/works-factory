@@ -36,7 +36,7 @@
   SIGTERM で落ちてログに node_error が無くても、前の始めと次の始めの間に run の落ちが在れば同じ（前の起動の出来事はその落ちで閉じる）
 - JSON として読めるが object でない行は、ログでも会話の記録でも落ちずに読めなかった物に数える。
   値を出来事や往復に入れる所（周の番号・会話の id の頭・道具の呼び出しの id・往復のトークン・道具の名など）で形を確かめ、後で使う
-  段の集計・会話の読み・無駄の手がかりで落ちない
+  段の集計・会話の読みで落ちない
 - 承認で起き直した繰り返しの器が後で SIGTERM で落ちて起き直した形は、答えの後の始めで分けず、落ちの後の始めでだけ分ける
 - 会話の id の頭は 16 進の字と - だけを通す（置き場の外を指す頭・glob の字の頭は探さない）。数でない費用は入れずに数える
 
@@ -220,8 +220,8 @@ class ReadCase(unittest.TestCase):
         self.assertEqual([turn["usage"]["out"] for turn in got["turns"]], [50, 7])
 
     def test_turns_keep_their_first_time_and_calls_their_whole_input(self):
-        """往復の時刻は往復の最初の行の時刻（cache の保ち時間を越えた往復を出す。無駄の手がかり）。道具の呼び出しは切る前の入力の字の
-        番号を持ち、会話は作業の場所 cwd を持つ（読み直しの数えが、切った入力でなく全文のパスを読む）"""
+        """往復の時刻は往復の最初の行の時刻。道具の呼び出しは切る前の入力の字の
+        番号を持ち、会話は作業の場所 cwd を持つ"""
         path = self.tmp / "s.jsonl"
         long = {"file_path": "/w/a.md", "note": "x" * 1000}
         say = lambda ident, ts, part: {"type": "assistant", "timestamp": ts, "cwd": "/w", "message": {"id": ident, "content": [part]}}
