@@ -446,7 +446,7 @@ class _Reader:
         # 形が違えば、その欄だけを捨てて行の残りを読み、欄の形が違う行に 1 つ数える（_side）
         execution = entry.get(EXECUTION) or {}
         path = execution.get("path") or entry.get("step") or ""
-        invocation = (execution.get("invocation") or {})
+        invocation = execution.get("invocation") or {}
         key = (path, plain(invocation.get("id")) or "")
         ids = [*_tokens(prefix), *_tokens([path])]
         loop = [_round(step.get("iteration")) for step in invocation.get("loopPath") or []]
