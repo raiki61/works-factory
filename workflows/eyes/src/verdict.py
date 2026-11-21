@@ -5,8 +5,9 @@
 - TITLES: include の id → 報告の節の見出し
 - rows(received, merge) -> {r1..r4: 判定の行か null}: run が真の時の目の行
 - KINDS: 目の名 → 目が行に種を書かなかった時の返す項目の種の既定（r1 は trim・r2 は unfinished）。種は指摘ごとに目が選ぶ
-- back_items(received, got_rows) -> 返す項目 [{eye, needs, kind, where, text, options?, recommend?}]: 判定が fix-needed の R1・R2 の findings を
-  目の名を付けて順に並べる。needs（fix は直す側で片づく・choose は人が選ぶ）と kind は目が行ごとに書いた物（無ければ fix と KINDS）
+- back_items(received, got_rows) -> 返す項目 [{eye, needs, kind, where, text, options?, recommend?}]: R1・R2 の findings を目の名を付けて順に並べる。
+  needs が fix の行は判定が fix-needed の目の物だけ、choose の行は目の判定に依らず載せる。needs（fix は直す側で片づく・choose は人が選ぶ）と kind は
+  目が行ごとに書いた物（無ければ fix と KINDS。倒す決めは eyekit.settled）
 - choose_questions(items) -> 最後の承認ノードの問いの行 [{text}]: needs が choose の行を、選べる道と推しを添えた問いにする（R4 の問いと同じ欄 questions に足す）
 - route_of(got_rows, premise, items) -> (route, route_why): 修正の段へ返すか（ROUTE_FIX）返さないか（ROUTE_STAY）を判定の語と、needs が fix の
   行の数から決める（choose の行は返さない）。判定の語の意味を知る場所は ok を決める build とここだけで、line は route と findings を読むだけ
@@ -72,18 +73,19 @@ def rows(received: dict, merge: bool) -> dict:
 
 
 def back_items(received: dict, got_rows: dict) -> list:
-    """判定が fix-needed の目（seal.FIX_EYES の R1・R2）の出口の findings を、目の名 eye を付けてその順に並べる（形の外の行は載せない）。
-    needs・kind は目が行に書いた語（語の外か無い行は needs を fix、kind を目の既定 KINDS。返しと赤の義務を黙って外さない）。choose の行は
-    選べる道 options と推し recommend を、在れば運ぶ"""
+    """R1・R2（seal.FIX_EYES）の出口の findings を、目の名 eye を付けてその順に並べる（形の外の行は載せない）。needs が fix の行は判定が
+    fix-needed の目の物だけ（通った目・作り直しの目の直しは返さない）、choose の行は目の判定に依らず載せる（人が選ぶ指摘を最後の承認ノードの
+    問いへ届け、判定の語で消さない）。needs・kind は目が行に書いた語（倒す決めは eyekit.settled）。choose の行は選べる道 options と推し
+    recommend を、在れば運ぶ"""
     out = []
     for eye in seal.FIX_EYES:
-        if (got_rows.get(eye) or {}).get("status") != seal.FIX_NEEDED:
-            continue
+        fixing = (got_rows.get(eye) or {}).get("status") == seal.FIX_NEEDED
         for item in (_got(received, eye) or {}).get("findings") or []:
             if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"]:
-                needs = item["needs"] if item.get("needs") in eyekit.NEEDS else NEEDS_FIX
-                row = {"eye": eye, "needs": needs, "kind": item["kind"] if item.get("kind") in eyekit.FIX_KINDS else KINDS[eye],
-                       "where": str(item.get("where") or ""), "text": item["text"]}
+                needs, kind = eyekit.settled(item.get("needs"), item.get("kind"), KINDS[eye])
+                if needs != NEEDS_CHOOSE and not fixing:
+                    continue
+                row = {"eye": eye, "needs": needs, "kind": kind, "where": str(item.get("where") or ""), "text": item["text"]}
                 if needs == NEEDS_CHOOSE:
                     row.update({key: item[key] for key in ("options", "recommend") if item.get(key)})
                 out.append(row)

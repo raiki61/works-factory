@@ -232,7 +232,7 @@ nodes:
           items: {type: string}
         findings:
           type: array
-          description: '修正の段へ返す項目。比べの道で判定が fix-needed の時だけ、違いのうち種が作り残しの行を where（無ければ空の字）と 1 行の text にして、役が行ごとに書いた needs（fix・choose。無ければ fix）と kind（trim・unfinished。無ければ unfinished）を付けて並べる（choose の行は選べる道 options と推し recommend も）。ほかは空'
+          description: '返す項目。比べの道で、違いのうち種が作り残しの行（判定が fix-needed の時は全部、ほかの判定の時は needs が choose の行だけ）を where（無ければ空の字）と 1 行の text にして、役が行ごとに書いた needs（fix・choose。無ければ fix）と kind（trim・unfinished。無ければ unfinished）を付けて並べる（choose の行は選べる道 options と推し recommend も）。ほかは空'
           items:
             type: object
             additionalProperties: false

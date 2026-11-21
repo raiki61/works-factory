@@ -15,8 +15,8 @@
 - status_values(eye): md に入れる判定の語 {st_pass, st_redesign, st_unverifiable}（R1・R2 は st_fix も）
 - read_reply(place, name)・verdict_row(eye, doc, why, settle)・headline(name, row): 役の返答の読みと、判定の行の語の確かめ（docs/design/r1.md の
   0.9。目ごとの決め直しは呼び手の block が settle で渡す）と、報告の頭の 1 行
-- NEEDS・FIX_KINDS・back_row(where, text, row, kind): R1・R2 が修正の段へ返す項目の 1 行（指摘ごとの needs〔fix・choose〕と kind〔trim・unfinished〕。
-  docs/design/judge-eyes.md の 2.4）
+- NEEDS・FIX_KINDS・settled(needs, kind, default_kind)・back_row(where, text, row, kind): R1・R2 が返す項目の 1 行（指摘ごとの needs〔fix・choose〕と
+  kind〔trim・unfinished〕。docs/design/judge-eyes.md の 2.4）。欄が語の外か無い時に既定へ倒す決めは settled の 1 か所
 """
 from __future__ import annotations
 
@@ -245,16 +245,22 @@ def headline(name: str, row: dict) -> str:
 
 
 # ---------------------------------------------------------------- 修正の段へ返す項目
+def settled(needs, kind, default_kind: str) -> tuple[str, str]:
+    """返す項目の行の (needs, kind)。語の外か無い時は needs を fix、kind を呼び手の目の既定 default_kind にする（返しと赤の義務を黙って外さない）。
+    R1・R2 の block（back_row）も eyes のまとめも、この 1 か所で倒す"""
+    return (needs if needs in NEEDS else NEEDS_FIX), (kind if kind in FIX_KINDS else default_kind)
+
+
 def back_row(where, text, row, kind: str) -> dict:
-    """修正の段へ返す項目の 1 行 {where, text, needs, kind, options?, recommend?}（text は修正の段の notes に行ごとに入るので 1 行）。needs・kind は
-    役が行 row に書いた needs・fix_kind。語の外か無い時は needs を fix、kind を呼び手の目の既定 kind にする（返しと赤の義務を黙って外さない）。
-    choose の行は、役が書いた選べる道 options（字の配列。各 1 行）と推し recommend（1 行）を運ぶ（書いていなければ欄を持たない）"""
+    """返す項目の 1 行 {where, text, needs, kind, options?, recommend?}（text は修正の段の notes に行ごとに入るので 1 行）。needs・kind は
+    役が行 row に書いた needs・fix_kind を settled で倒した物。choose の行は、役が書いた選べる道 options（字の配列。各 1 行）と推し recommend
+    （1 行）を運ぶ（書いていなければ欄を持たない）"""
     row = row if isinstance(row, dict) else {}
-    needs = row.get("needs") if row.get("needs") in NEEDS else NEEDS_FIX
-    got = {"where": str(where or ""), "text": oneline.one_line(text or ""), "needs": needs,
-           "kind": row.get("fix_kind") if row.get("fix_kind") in FIX_KINDS else kind}
+    needs, got_kind = settled(row.get("needs"), row.get("fix_kind"), kind)
+    got = {"where": str(where or ""), "text": oneline.one_line(text or ""), "needs": needs, "kind": got_kind}
     if needs == NEEDS_CHOOSE:
         options = [oneline.one_line(o) for o in row.get("options") or [] if isinstance(o, str) and o.strip()] if isinstance(row.get("options"), list) else []
         recommend = oneline.one_line(row.get("recommend")) if isinstance(row.get("recommend"), str) else ""
         got.update({**({"options": options} if options else {}), **({"recommend": recommend} if recommend else {})})
     return got
+

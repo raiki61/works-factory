@@ -147,6 +147,22 @@ class VerdictCase(unittest.TestCase):
         self.assertIn("needs", item["required"])
         self.assertEqual(set(item["properties"]["needs"]["enum"]), {self.v.NEEDS_FIX, self.v.NEEDS_CHOOSE})
 
+    def test_choose_findings_are_asked_whatever_the_eye_verdict(self):
+        """目の判定が fix-needed でない時（pass・redesign-needed）も、その目の needs が choose の行は返す項目に載り、最後の承認ノードの問い
+        （questions）になる。返しは今どおり判定の語で決まり、choose の行では返さない。fix-needed でない目の needs が fix の行は載せない"""
+        pick = {"where": "c.css:9", "text": "色を当てるか", "needs": "choose", "kind": "unfinished", "options": ["当てる", "当てない"], "recommend": "当てない"}
+        fix = {"where": "a.py:1", "text": "写しを消す", "needs": "fix", "kind": "trim"}
+        for status in ("pass", "redesign-needed"):
+            with self.subTest(status=status):
+                got = passing()
+                got["r2"] = eye("r2", status, premise_check=None, notes=["控え"], findings=[fix, pick])
+                out = self.build(got)
+                self.assertEqual(out["findings"], [{"eye": "r2", **pick}])
+                self.assertEqual(out["route"], "stay")
+                asked = [q for q in out["questions"] if isinstance(q, dict)]
+                self.assertEqual(len(asked), 1)
+                self.assertIn("色を当てるか", asked[0]["text"])
+
     def test_findings_without_needs_or_kind_fall_back_to_fix_and_the_eye_kind(self):
         """欄 needs・kind を持たない行（古い出力）は needs を fix、kind を目の既定（R1 は trim・R2 は unfinished）にする（赤の義務と返しを黙って外さない）"""
         got = passing()

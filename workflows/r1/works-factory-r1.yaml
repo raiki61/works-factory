@@ -195,7 +195,7 @@ nodes:
           items: {type: string}
         findings:
           type: array
-          description: '修正の段へ返す項目。判定が fix-needed の時だけ、削れる物の行（deletions）を 1 行の字にして、役が行ごとに書いた needs（fix・choose）と kind（trim・unfinished）を付けて並べる（choose の行は選べる道 options と推し recommend も）。名指しの無い fix-needed は判定の reason の 1 行（fix・trim）。ほかは空'
+          description: '返す項目。削れる物の行（deletions。判定が fix-needed の時は全部、ほかの判定の時は needs が choose の行だけ）を 1 行の字にして、役が行ごとに書いた needs（fix・choose）と kind（trim・unfinished）を付けて並べる（choose の行は選べる道 options と推し recommend も）。名指しの無い fix-needed は判定の reason の 1 行（fix・trim）。ほかは空'
           items:
             type: object
             additionalProperties: false
