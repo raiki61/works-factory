@@ -7,7 +7,12 @@
 - 戻した単位の計画の語は、その試験を名指す項目の unfinished の行を数えずに引き直す（route.plan_words）
 - 名指した試験は、TDD の輪の約束（tdd.plan_contract）と事後の関門の受け入れのテスト（gates._accept_tests）から外れる
 - 最初の段・今の段の裁定・ほかの裁定（fix_plan_item）・試験に触れる返した項目しか無い単位は、今どおり単位ごと止める
+- 戻すのは試験の赤から出た申し出（機械が諦めた物・not_red・red_at_base）の裁定だけで、直しの向きや範囲を人に聞いた裁定は単位ごと
+  止める（案の 5 節の代案 C を採らない）
+- 戻した単位の項目は、差分の審査に渡す範囲の欄（finish._scope → fixboard.scope_brief）で外れた印を持たない
+- 戻した単位に返した段で立った新しい申し出は、受け付け（board.take_conflicts）が先に外さず確かめる
 """
+from unittest import mock
 import json
 import pathlib
 import tempfile
@@ -113,6 +118,62 @@ class ReturnedRulingCase(unittest.TestCase):
         rows, why = gates._accept_tests(place, conflict.frozen_fields(place, 1), owed={U1, U2})
         self.assertEqual([r["id"] for r in rows], [T_B])
         self.assertTrue(any(T_A in w for w in why), why)
+
+    def test_a_ruling_asking_the_direction_holds_the_whole_unit(self):
+        """試験の赤から出ていない申し出（直しの向きを人に聞いた物）の裁定は、返した段でも単位ごと止める"""
+        ask = {"ask_why": {"changes": "direction", "line": "名の展開の形をどちらへ寄せるかは人の答えで変わる"}}
+        row = _row("c1-1", U1, "ask_human", f"{T_A} の期待と brief の向きが食い違う", extra=ask)
+        row.update(source="fix", kind="brief_vs_judgment")
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], [row])
+        owed, excused = self.owed(place)
+        self.assertNotIn(U1, owed, "人が向きを決めると言った単位を機械が直さない")
+        self.assertIn("ask_human の裁定 c1-1", excused[U1])
+        tdd = kit.load("fix", "tdd")
+        self.assertEqual([t["id"] for t in tdd.plan_contract(place, [U1])[U1]["tests"]], [T_A, T_B])
+
+    def test_red_kinds_from_the_fix_role_also_return(self):
+        for kind in ("not_red", "red_at_base"):
+            with self.subTest(kind):
+                row = self.named()[0]
+                row.update(source="fix", kind=kind)
+                place = self.place([{"item": 2, "kind": "unfinished"}], [row])
+                owed, _ = self.owed(place)
+                self.assertIn(U1, owed)
+
+    def test_a_file_and_line_naming_names_the_tests_of_that_file(self):
+        """between がファイルと行だけで試験を名指し、理由の文が別の試験の名を書いても、そのファイルの試験を名指したと読む"""
+        row = _row("c1-1", U1, "ask_human", "TDD の赤の確認が 3 回とも通らなかった: test_keeps_focus は関わらない")
+        row["between"] = ["tests/test_select.py:40", "src/select.py:12"]
+        board = kit.load("fix", "board")
+        place = self.place([{"item": 1, "kind": "trim"}], [row])
+        self.assertEqual(board.ruled_stops(place)[U1]["tests"], sorted([T_A, T_B]))
+
+    def test_the_delta_review_scope_does_not_mark_a_returned_unit_held(self):
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named())
+        files = kit.load("fix", "files")
+        finish = kit.load("fix", "finish")
+        from src import board   # finish が読む board（kit.load は読むたびに src を読み直す）
+        (place / files.PLAN_REPLY_FILE).write_text("{}", encoding="utf-8")
+        with mock.patch.object(board, "scope_brief", return_value={}) as brief:
+            finish._scope(place)
+        self.assertEqual(brief.call_args.kwargs["held"], {}, "直しへ戻した単位 U1 を外れた単位として渡さない")
+        import fixboard
+        items = [{"unit_keys": [U1], "allowed_paths": [], "tests": []}]
+        with mock.patch("planrange.scope", return_value=({"items": items, "agreed": []}, None)):
+            got = fixboard.scope_brief(place, items, held={})
+            held = fixboard.scope_brief(place, items)
+        self.assertNotIn("held", got["plan_items"][0])
+        self.assertIn("held", held["plan_items"][0], "held を渡さなければ今どおり裁定の単位を外れた印にする")
+
+    def test_take_conflicts_checks_a_new_entry_on_a_returned_unit(self):
+        place = self.place([{"item": 1, "kind": "trim"}], self.named())
+        board = kit.load("fix", "board")
+        entry = {"unit_key": U1, "between": ["x"], "why_both_cannot_hold": "短い", "which_is_right": "unknown",
+                 "kind": "needs_context"}
+        with mock.patch("conflict.problems_by_entry", return_value=[(0, U1, ["形が外れた"])]) as checked:
+            _, got = board.take_conflicts({"conflicts": [entry], "changes": []}, place, place, "ruled", {U1})
+        self.assertTrue(checked.called, "戻した単位の申し出を、裁定が外した単位の物として先に外さない")
+        self.assertFalse(got["ok"])
 
 
 if __name__ == "__main__":

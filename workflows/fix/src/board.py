@@ -93,12 +93,23 @@ def base_rev(state, given: str = "") -> str:
 
 
 def _named_in(row, ids) -> set:
-    """申し出の行 row（と裁定）の字が名指す試験の id（ids のうち、id か `::` の後ろの名がどこかの字に在る物）"""
+    """申し出の行 row（と裁定）の字が名指す試験の id（ids のうち、id か `::` の後ろの名がどこかの字に在る物と、名指しの欄 between の
+    1 件のパスの部分〔最初の `:` の前〕が id のファイルの部分〔`::` の前〕と同じ物。ファイルと行だけの名指しも取りこぼさない）"""
     ruling = row.get("ruling") if isinstance(row.get("ruling"), dict) else {}
     ask = ruling.get("ask_why") if isinstance(ruling.get("ask_why"), dict) else {}
-    texts = [row.get("why_both_cannot_hold"), ruling.get("text"), ask.get("line"), *(row.get("between") or [])]
+    between = [b for b in row.get("between") or [] if isinstance(b, str)]
+    texts = [row.get("why_both_cannot_hold"), ruling.get("text"), ask.get("line"), *between]
     text = "\n".join(t for t in texts if isinstance(t, str))
-    return {t for t in ids if t in text or t.rsplit("::", 1)[-1].split("[", 1)[0] in text}
+    paths = {b.split(":", 1)[0] for b in between}
+    return {t for t in ids if t in text or t.rsplit("::", 1)[-1].split("[", 1)[0] in text or t.split("::", 1)[0] in paths}
+
+
+def _red_born(row) -> bool:
+    """申し出が試験の赤から出た物か（名指した受け入れの試験の赤を確かめられずに人に回った物）: 機械が 3 回拒まれて止めた単位の申し出
+    （source conflict.GAVE_UP_SOURCE）か、種類が案どおりに書いても赤にならない（conflict.NOT_RED）・直す前から赤（conflict.RED_AT_BASE）。
+    ほかの申し出（直しの向きや範囲を人に聞いた物）の裁定は、返した段でも単位ごと止める"""
+    import conflict
+    return row.get("source") == conflict.GAVE_UP_SOURCE or row.get(conflict.KIND_FIELD) in (conflict.NOT_RED, conflict.RED_AT_BASE)
 
 
 def ruled_stops(place) -> dict:
@@ -106,7 +117,8 @@ def ruled_stops(place) -> dict:
     単位のうち、返した項目の直しへ戻す単位 → {tests: 止める受け入れの試験の id, rows: 直す返した項目の行 [{item, kind}]}。止めるのは裁定が名指した
     試験の赤の義務だけ（docs/design/fix.md の 22.1）: 名指した試験は、裁定の行の字が名指す、その単位の項目の受け入れの試験（読めなければ
     単位の項目の受け入れの試験の全部。赤の義務を黙って外さない）。直す返した項目は、その単位の項目に返した trim の行と、名指した試験を
-    持たない項目の unfinished の行。直す項目が無い単位・今の段の裁定やほかの直さない裁定も掛かる単位は載せない（単位ごと止める）。
+    持たない項目の unfinished の行。戻すのは試験の赤から出た申し出の裁定（_red_born）だけが掛かる単位で、直す項目が無い単位・今の段の
+    裁定やほかの直さない裁定・直しの向きや範囲を人に聞いた裁定も掛かる単位は載せない（単位ごと止める。人が決めると言った物を機械が越えない）。
     最初の段・凍結した欄の無い run は {}。控えが読めなければ ValueError"""
     import conflict
     from src import runvals
@@ -126,7 +138,7 @@ def ruled_stops(place) -> dict:
             if isinstance(f, dict) else []
     out: dict = {}
     for k, rows in by_unit.items():
-        if not all(conflict.decision(r) == conflict.ASK and r.get(conflict.PRIOR) for r in rows):
+        if not all(conflict.decision(r) == conflict.ASK and r.get(conflict.PRIOR) and _red_born(r) for r in rows):
             continue
         mine = {n: f for n, f in enumerate(fields, 1) if isinstance(f, dict) and k in (f.get("unit_keys") or [])}
         ids = list(dict.fromkeys(t for f in mine.values() for t in tests_of(f)))
@@ -138,37 +150,40 @@ def ruled_stops(place) -> dict:
     return out
 
 
-def held_now(place) -> dict:
-    """直す義務から外す単位 {key: 理由}: 直す裁定でない裁定を受けた単位（conflict.held_by_rulings）から、返した段で返した項目の直しへ
-    戻す単位（ruled_stops）を除いた物。返した段の控えが読めなければ戻さない（裁定のまま止める側）。裁定の控えが読めなければ ValueError"""
-    import conflict
-    held = conflict.held_by_rulings(place)
+def returned_units(place) -> dict:
+    """ruled_stops の読みの 1 か所。返した段の控えが読めなければ {}（どの単位も戻さず、裁定のまま単位ごと止める。止めた単位は直す義務に
+    無いので、約束と関所を今どおり組んでも食い違わない）。held_now・stopped_tests・route._redrawn が読む"""
     try:
-        back = ruled_stops(place)
-    except ValueError:
-        back = {}
-    return {k: why for k, why in held.items() if k not in back}
-
-
-def stopped_tests(place) -> dict:
-    """返した段で、直しへ戻した単位ごとに赤の義務を止める受け入れの試験の id {key: {id}}（ruled_stops の tests）。読めなければ空（呼び手が
-    約束と関門を今どおり組む。読めない控えはそちらの読みが止める）"""
-    try:
-        return {k: set(v["tests"]) for k, v in ruled_stops(place).items()}
+        return ruled_stops(place)
     except ValueError:
         return {}
 
 
-def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
+def held_now(place, back=None) -> dict:
+    """直す義務から外す単位 {key: 理由}: 直す裁定でない裁定を受けた単位（conflict.held_by_rulings）から、返した段で返した項目の直しへ
+    戻す単位（back。None なら returned_units）を除いた物。裁定の控えが読めなければ ValueError"""
+    import conflict
+    held = conflict.held_by_rulings(place)
+    back = returned_units(place) if back is None else back
+    return {k: why for k, why in held.items() if k not in back}
+
+
+def stopped_tests(place, back=None) -> dict:
+    """返した段で、直しへ戻した単位ごとに赤の義務を止める受け入れの試験の id {key: {id}}（back の tests。None なら returned_units）"""
+    back = returned_units(place) if back is None else back
+    return {k: set(v["tests"]) for k, v in back.items()}
+
+
+def owed_units_but_asked(place, owed, *, withheld=(), returned=(), back=None) -> set:
     """直す義務の単位: owed（開いた単位から、人に諮っている fork の出どころ・depends を除いた物。元は盤面の写しの規則の
     _owed_units）から、関所に載せる問いのうち答えていない物の出どころ・depends（withheld。元は gatemarks.withheld）を除き、
     修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
-    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（held_now。ask_human・fix_plan_item。返した段で返した項目の直しへ戻す単位は除かない）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
+    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（held_now。ask_human・fix_plan_item。返した段で返した項目の直しへ戻す単位 back〔None なら returned_units〕は除かない）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
     import conflict
     got = (set(owed) - set(withheld)) | set(returned)
     try:
-        return got - set(held_now(place))
+        return got - set(held_now(place, back))
     except ValueError:   # 控えが読めない置き場は外さない（義務を減らさない側）
         return got
 

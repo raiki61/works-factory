@@ -218,8 +218,9 @@ def _accept_tests(b, fields, repo=None, *, owed=None, withheld=(), returned=()) 
     if owed is None:
         owed = {k for f in fields or [] if isinstance(f, dict) and isinstance(f.get("unit_keys"), list)
                 for k in f["unit_keys"] if isinstance(k, str)}
-    owed = fixboard.owed_units_but_asked(b, owed, withheld=withheld, returned=returned) if fields else set()
-    stops = fixboard.stopped_tests(b) if fields else {}
+    back = fixboard.returned_units(b) if fields else {}   # 直す義務と止める試験を 1 回の読みから引く
+    owed = fixboard.owed_units_but_asked(b, owed, withheld=withheld, returned=returned, back=back) if fields else set()
+    stops = fixboard.stopped_tests(b, back)
     numbered = [{**f, "item": n} if isinstance(f, dict) else f for n, f in enumerate(fields or [], 1)]
     seen = planrange.with_agreed([f for f in numbered if isinstance(f, dict)], conflict.agreed(b)) if fields else []
     out, why = {}, []

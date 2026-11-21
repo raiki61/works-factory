@@ -64,10 +64,7 @@ def _redrawn(place, fields, keys, words: dict) -> dict:
     直しへ戻した時（board.ruled_stops）は、その単位の直す返した項目の種だけを数える。表に無い組は Broken"""
     from src import board
     rows = runvals.read(place)["item_kinds"]
-    try:
-        back = board.ruled_stops(place) if rows else {}
-    except ValueError:
-        back = {}
+    back = board.returned_units(place) if rows else {}
     kinds: dict = {}
     for row in rows:
         n = row["item"]
