@@ -173,6 +173,7 @@ def compute():
     values = fixture.collect_values(values)   # 直す前で止まった写しの run の続きの修正前の承認ノードの値も同じく重ねる
     values["fixed"], values["test_gate_final"], values["eyes"] = eyesback.current(
         values.get("eyes_back"), values.get("fixed"), values.get("test_gate_final"), values.get("eyes"))
+    values["back_costs"] = eyesback.costs_now()   # 返した周ごとの費用（返した周の節が読む。run の記録から）
     record, why = record_of(values.get("start"))
     built = facts.build(values, record, why, cwd=Path.cwd())
     secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())

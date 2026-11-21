@@ -13,6 +13,7 @@ import inspect
 import io
 import json
 import os
+import pathlib
 import re
 import runpy
 import tempfile
@@ -184,7 +185,33 @@ class TurnCase(_Case):
         self.assertEqual(got["item_kinds"], [{"item": 1, "kind": "trim"}])
         self.assertEqual(got["rows"][0]["items"], [fix])
         only = self.run_turn(eyes=eyes(items=[pick]))
-        self.assertEqual((only["go"], only["exit"]), (False, self.e.NOTHING))
+        self.assertEqual((only["go"], only["exit"]), (False, self.e.EXITS["settled"]))
+
+    def test_only_choose_findings_left_leaves_the_loop_as_settled(self):
+        """案 4 節の 4: 残った返す項目が全部 needs: choose（人が選ぶ物）なら、上限の前でも『直す側で片づく物が残っていない』で抜ける
+        （EXITS の settled。目の route_why の『返す物が無い』の後ろの添え〔人が選ぶ物の件数・確かめられない目〕は残す）。上限を越えた周でも
+        片づく物が無ければ上限の訳でなくこの訳で抜け、上限 LIMIT は残る。設計違いの目・前提の検算で返さない時は目の訳のまま、
+        choose の無い『返す物が無い』も今の字のまま"""
+        pick = {"eye": "r2", "where": "docs/a.md", "text": "色を当てるか", "needs": "choose", "kind": "unfinished", "options": ["a", "b"], "recommend": "a"}
+        tail = "（人が選ぶ物 1 件は返さず、最後の承認ノードの問いへ回した）"
+        chosen = eyes("stay", items=[pick], route_why="返す物が無い" + tail)
+        first = self.run_turn(tests=gate_got("h1"))
+        later = self.run_turn(k=2, prev=first, tests=gate_got("h2"), eyes=chosen)
+        self.assertEqual((later["go"], later["exit"], len(later["rows"]), later["left"]), (False, self.e.EXITS["settled"] + tail, 1, []))
+        self.assertFalse(self.e.capped(later))
+        self.assertEqual(self.run_turn(eyes=chosen)["exit"], self.e.EXITS["settled"] + tail)
+        record = first
+        for k in (2, 3):
+            record = self.run_turn(k=k, prev=record, tests=gate_got(f"h{k}"))
+        past = self.run_turn(k=4, prev=record, tests=gate_got("h4"), eyes=chosen)
+        self.assertEqual(past["exit"], self.e.EXITS["settled"] + tail, "片づく物が無ければ上限の訳で抜けない")
+        self.assertEqual(self.e.LIMIT, 3)
+        unverifiable = eyes("stay", items=[pick], route_why="返す物が無い" + tail + "（確かめられない目: R1）", r1={"status": "unverifiable"})
+        self.assertEqual(self.run_turn(eyes=unverifiable)["exit"], "返す物が無い" + tail + "（確かめられない目: R1）",
+                         "確かめられない目が居れば片づいたと言わず、目の訳のまま抜ける")
+        redesign = eyes("stay", items=[pick], route_why="設計違いの目が在る（R2）")
+        self.assertEqual(self.run_turn(eyes=redesign)["exit"], "設計違いの目が在る（R2）")
+        self.assertEqual(self.run_turn(eyes=eyes("stay", items=[]))["exit"], "返す物が無い（どの目も通った）")
 
     def test_stay_route_stop_word_or_fallen_round_does_not_return(self):
         """目の route が stay・前の段の修正が止めの語か異議を返した・前の周の返りが欠けた時は go が偽で、抜けた訳が route_why か EXITS の語になる"""
@@ -497,6 +524,187 @@ class LinesCase(_Case):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportCase(_Case):
+    """返した周の節と最後の承認ノードの頭の文が、上限・周ごとの費用・指摘ごとの結末を言う（案 docs/plans/2026-11-16-eyes-back-sort.md の
+    4 節の 5）。費用は run の記録の node ごとの費用のうち周 k の節（back-k・back-k-*・back-k__*）の和で、記録を読めなければ取れない訳を言う。
+    指摘ごとの結末は、次の周の目（最後の周は記録の最後の目と残った作り残し）が同じ目・同じファイルで挙げ直したかで決め、挙げ直した物は
+    残った物（上限の抜け方は上限で残った物）、挙げなかった物は直した物、次の目の判定が出ていない・返す前の状態を封じた周は確かめていない物にする"""
+
+    A = {"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}
+    B = {"eye": "r2", "where": "", "text": "入口が足りない"}
+    PASSED = {"r1": {"status": "pass"}, "r2": {"status": "pass"}, "findings": [], "route": "stay"}
+
+    def test_round_costs_sum_each_rounds_nodes(self):
+        cost = {"back-1": 0.0, "back-1-fix__intake": 1.0, "back-1-eyes__r1": 0.5, "back-1-gate__run": 0.25, "back-2-fix__intake": 0.75,
+                "back-10-fix__x": 9.0, "fix__intake": 3.0, "eyes-back": 0.0, "eyes__r1": 2.0, "back-1x": 7.0}
+        self.assertEqual(self.e.round_costs(cost), {1: 1.75, 2: 0.75, 10: 9.0})
+        self.assertEqual(self.e.round_costs({"line__back-1-fix__a": 1.0, "back-1-fix__a": 5.0}, prefix="line__"), {1: 1.0})
+
+    def test_costs_now_reads_the_run_record(self):
+        rows = [{"step": "back-1-fix__intake", "type": "node_complete", "cost_usd": 1.5},
+                {"step": "back-1-eyes__r2", "type": "node_complete", "cost_usd": 0.5},
+                {"step": "fix__intake", "type": "node_complete", "cost_usd": 4.0}]
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "run1.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+            with mock.patch.dict(os.environ, {"LOG_DIR": tmp, "WORKFLOW_ID": "run1", "ARCHON_NODE_EXECUTION": "{}"}):
+                self.assertEqual(self.e.costs_now(), {"by_round": {1: 2.0}, "why": ""})
+            with mock.patch.dict(os.environ, {"LOG_DIR": tmp, "WORKFLOW_ID": "none"}):
+                got = self.e.costs_now()
+        self.assertEqual(got["by_round"], {})
+        self.assertIn("読めない", got["why"])
+
+    def test_head_names_the_limit_and_each_rounds_cost(self):
+        rows = [self.e.row(1, eyes(), [self.A]), self.e.row(2, eyes(), [self.A])]
+        head = self.e.head_text(rows, {"by_round": {1: 1.75, 2: 0.5}, "why": ""})
+        self.assertEqual(head, f"独立の目から修正の段へ 2 回返した（上限 {self.e.LIMIT} 回。費用: 1 周目 $1.7500・2 周目 $0.5000）。")
+        unread = self.e.head_text(rows, {"by_round": {}, "why": "記録が無い"})
+        self.assertIn("費用: 取れない（記録が無い）", unread)
+        self.assertIn("費用: 取れない（", self.e.head_text(rows, None))
+        self.assertEqual(self.e.head_text([], {"by_round": {}, "why": ""}), "", "0 回なら頭の文に書かない")
+
+    def test_each_round_line_carries_its_cost(self):
+        rows = [self.e.row(1, eyes(), [self.A]), self.e.row(2, eyes(), [self.A])]
+        out = self.e.lines(rows, "返す物が無い", costs={"by_round": {1: 1.75}, "why": ""})
+        self.assertIn("この周の費用 $1.7500", out[0])
+        self.assertIn("この周の費用は記録に無い", out[1])
+
+    def test_each_finding_gets_its_outcome(self):
+        """1 周目の A は 2 周目の目が同じ目・同じファイルで挙げ直した（字は違う）ので残って次の周へ返した物、B は挙げなかったので直した物。
+        最後の周の A は最後の目が通したので直した物。上限の抜け方で最後の目が挙げ直した物は上限で残った物"""
+        a2 = {**self.A, "where": "src/a.py:30", "text": "写しがまだ残っている"}
+        rows = [self.e.row(1, eyes(), [self.A, self.B]), self.e.row(2, eyes(), [a2])]
+        out = self.e.lines(rows, "返す物が無い（どの目も通った）", eyes=self.PASSED)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['again']}", out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.B)}——{self.e.OUTCOMES['fixed']}", out)
+        self.assertIn(f"2 周目に返した {self.e.item_text(a2)}——{self.e.OUTCOMES['fixed']}", out)
+        rows3 = [self.e.row(k, eyes(), [self.A]) for k in (1, 2, 3)]
+        capped = self.e.lines(rows3, self.e.CAP_WHY, [self.A], eyes=eyes(items=[self.A]))
+        self.assertIn(f"3 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['cap']}", capped)
+        left = self.e.lines(rows[:1], self.e.EXITS["unchanged"], [self.A], eyes=eyes(items=[self.A]))
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['left']}", left)
+
+    def test_unreviewed_findings_are_not_called_fixed(self):
+        """返す前の状態を封じた周（checkpoint）と、次の目がその目の判定を出していない周の指摘は、直したと言わず確かめていない物にする"""
+        rows = [self.e.row(1, eyes(), [self.A, self.B])]
+        held = self.e.lines(rows, self.e.EXITS["fell"], [self.A, self.B], checkpoint={"round": 1, "tree": "t1"}, eyes=self.PASSED)
+        unverifiable = {**self.PASSED, "r2": {"status": "unverifiable"}}
+        partly = self.e.lines(rows, "返す物が無い", eyes=unverifiable)
+        no_eyes = self.e.lines(rows, "返す物が無い", eyes=None)
+        for name, out, unseen in (("封じた", held, (self.A, self.B)), ("R2 が判定を出さない", partly, (self.B,)), ("目が無い", no_eyes, (self.A, self.B))):
+            with self.subTest(name):
+                for item in unseen:
+                    self.assertIn(f"1 周目に返した {self.e.item_text(item)}——{self.e.OUTCOMES['unseen']}", out)
+                self.assertFalse(any(self.e.item_text(i) in line and line.endswith(self.e.OUTCOMES["fixed"]) for i in unseen for line in out), out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['fixed']}", partly)
+
+    def test_unchanged_diff_does_not_call_unraised_findings_fixed(self):
+        """差分が変わらずに抜けた run（抜けた訳が EXITS の unchanged で始まる。UNDONE も同じ）では、最後の目は返す前と同じ差分をもう一度
+        審査した物なので、挙げ直さなかった最後の周の指摘を直したと言わず、差分が変わらなかった旨を添えた確かめていない物にする。挙げ直した物は残った物のまま"""
+        rows = [self.e.row(1, eyes(), [self.A, self.B])]
+        again_b = {**self.PASSED, "r2": {"status": "fix-needed"}, "findings": [self.B]}
+        for exit_ in (self.e.EXITS["unchanged"], self.e.UNDONE.format(why="直す所が無い")):
+            with self.subTest(exit_):
+                out = self.e.lines(rows, exit_, [self.B], eyes=again_b)
+                self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['unchanged']}", out)
+                self.assertIn(f"1 周目に返した {self.e.item_text(self.B)}——{self.e.OUTCOMES['left']}", out)
+                self.assertFalse(any(line.endswith(self.e.OUTCOMES["fixed"]) for line in out), out)
+                self.assertTrue(self.e.OUTCOMES["unchanged"].startswith(self.e.OUTCOMES["unseen"].split("（")[0]), "確かめていない物の字で始める")
+                self.assertIn(self.e.EXITS["unchanged"], self.e.OUTCOMES["unchanged"])
+
+    def test_same_file_key_drops_the_column_too(self):
+        """同じ指摘かの鍵は where の初めの『:数字』から後ろを落とす（行と列の番号・行の範囲。広く同じと見る側に倒す）"""
+        for where in ("src/a.py:12:5", "src/a.py:30", "src/a.py:12-20", "src/a.py:1:1-3:4", "src/a.py"):
+            with self.subTest(where):
+                self.assertEqual(self.e._key({"eye": "r1", "where": where}), ("r1", "src/a.py"))
+        a2 = {**self.A, "where": "src/a.py:30:1"}
+        rows = [self.e.row(1, eyes(), [{**self.A, "where": "src/a.py:12:5"}]), self.e.row(2, eyes(), [a2])]
+        out = self.e.lines(rows, "返す物が無い", eyes=self.PASSED)
+        self.assertIn(f"1 周目に返した {self.e.item_text({**self.A, 'where': 'src/a.py:12:5'})}——{self.e.OUTCOMES['again']}", out)
+
+    def test_choose_findings_get_the_choose_outcome(self):
+        """返した指摘を次の周の目が同じ目・同じファイルで人が選ぶ物（needs: choose）として挙げたら、直したと言わず人が選ぶ物にする（途中の周は
+        周の行の asked が、最後の周は最後の目の findings が持つ）。最後の目が挙げた人が選ぶ物のうち、最後の周に返した指摘と鍵の重ならない物は、
+        返していない指摘として 1 行ずつ人が選ぶ物と言う。周の行は人が選ぶ物が無ければ asked を持たない"""
+        choose = lambda item, **over: {**item, "needs": "choose", "options": ["a", "b"], "recommend": "a", **over}   # noqa: E731
+        c = {"eye": "r2", "where": "docs/c.md:3", "text": "色を当てるか"}
+        a2 = choose(self.A, where="src/a.py:40", text="写しを残すか選ぶ")
+        last_eyes = {"r1": {"status": "fix-needed"}, "r2": {"status": "fix-needed"}, "findings": [a2, choose(c)], "route": "stay"}
+        rows = [self.e.row(1, eyes(), [self.A, self.B])]
+        self.assertNotIn("asked", rows[0])
+        out = self.e.lines(rows, self.e.EXITS["settled"], eyes=last_eyes)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['choose']}", out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.B)}——{self.e.OUTCOMES['fixed']}", out)
+        self.assertIn(f"{self.e.ASKED_AT} {self.e.item_text(choose(c))}——{self.e.OUTCOMES['choose']}", out)
+        self.assertFalse(any(self.e.item_text(a2) in line for line in out), "返した指摘と鍵の重なる人が選ぶ物は重ねて言わない")
+        mid_eyes = eyes(items=[a2, self.B])
+        rows2 = [self.e.row(1, eyes(), [self.A]), self.e.row(2, mid_eyes, [self.B])]
+        self.assertEqual(rows2[1]["asked"], [a2])
+        mid = self.e.lines(rows2, "返す物が無い（どの目も通った）", eyes=self.PASSED)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['choose']}", mid)
+        self.assertNotIn("asked", self.e.row(1, eyes(items=[self.A]), [self.A]))
+
+    def test_earlier_choose_findings_reach_the_final_questions_once(self):
+        """前の周の目が人が選ぶ物とした指摘（周の行の asked）は、current が選ぶ最後の目の questions に足して最後の承認ノードの問いまで運ぶ。
+        1 つにまとめるのは字が同じ指摘（目の名・where・text が同じ）だけで、最後の目が同じ字で出し直した物は最後の目の問いだけにする（二重に
+        問いへ出さない）。前の周どうしで同じ字なら新しい周の物を採る。同じファイルでも字の違う指摘は別の問いとして残す（消すと無人の run が
+        止まらずに進む。持ち主の決め eye-choose-stops）。結末の行の頭（ASKED_AT・ASKED_BEFORE）と問いの出どころの目は asked の 1 か所が決めて同じ"""
+        choose = lambda item, **over: {**item, "needs": "choose", "options": ["a", "b"], "recommend": "a", **over}   # noqa: E731
+        a1 = choose({"eye": "r2", "where": "docs/a.md:3", "text": "色を当てるか"})
+        a2 = choose(a1, text="配色を選ぶか")
+        c1 = choose({"eye": "r1", "where": "src/c.py", "text": "写しを残すか"})
+        c_last = choose(c1, where="src/c.py:9", text="写しを残すか選ぶ")
+        rows = [self.e.row(1, eyes(items=[self.A, a1, c1]), [self.A]), self.e.row(2, eyes(items=[self.B, a1, a2]), [self.B])]
+        last_eyes = {**self.PASSED, "findings": [c1, c_last], "questions": [{"text": "最後の目の問い"}]}
+        record = {"rows": rows, "exit": self.e.EXITS["settled"], "left": [], "checkpoint": None, "fixed": {"go": True}, "tests": {}, "eyes": last_eyes}
+        got = self.e.asked(rows, last_eyes)
+        self.assertEqual([(k, i["text"]) for k, i in got], [(None, c1["text"]), (None, c_last["text"]), (2, a1["text"]), (2, a2["text"])])
+        _, _, now = self.e.current(record, None, None, None)
+        texts = [q["text"] for q in now["questions"]]
+        self.assertEqual(texts[0], "最後の目の問い")
+        self.assertEqual(len(texts), 3, texts)
+        self.assertIn(a1["text"], texts[1])
+        self.assertIn(a2["text"], texts[2])
+        for t in texts[1:]:
+            self.assertIn(self.e.ASKED_BEFORE.format(round=2), t, "問いに出どころの目を言う")
+        self.assertFalse(any(c1["text"] + "（" in t for t in texts), "最後の目が同じ字で出し直した指摘は前の周の問いを重ねない")
+        out = self.e.record_lines(record)
+        self.assertIn(f"{self.e.ASKED_BEFORE.format(round=2)} {self.e.item_text(a2)}——{self.e.OUTCOMES['choose']}", out)
+        self.assertIn(f"{self.e.ASKED_AT} {self.e.item_text(c_last)}——{self.e.OUTCOMES['choose']}", out)
+        self.assertFalse(any(self.e.ASKED_BEFORE.format(round=1) in line for line in out), "古い周の同じ字の指摘は結末の行にも出さない")
+        self.assertEqual(self.e.current({**record, "rows": []}, None, None, None)[2]["questions"], [{"text": "最後の目の問い"}])
+        self.assertIs(self.e.current({**record, "eyes": None}, None, None, None)[2], None)
+
+    def test_different_choose_findings_in_one_file_all_reach_the_questions(self):
+        """同じファイルで where（行番号）の違う人が選ぶ物と、where の無い人が選ぶ物どうしは、挙げ直したかの鍵（_key）が同じでも別の問い
+        として全部残す。前の周の物も最後の目の物も、同じ周の中の物も消さない（言い換えの二重は残っても、問いが消えるより害が小さい）"""
+        choose = lambda **over: {"eye": "r2", "needs": "choose", "options": ["a", "b"], "recommend": "a", **over}   # noqa: E731
+        early = choose(where="docs/a.md:3", text="見出しの色を変えるか")
+        late = choose(where="docs/a.md:40", text="古い節を消すか")
+        plan_a, plan_b = choose(where="", text="方針 A"), choose(where="", text="方針 B")
+        rows = [self.e.row(1, eyes(items=[self.A, early, plan_a, plan_b]), [self.A])]
+        last_eyes = {**self.PASSED, "findings": [late, choose(where="", text="方針 C"), choose(where="", text="方針 D")], "questions": []}
+        record = {"rows": rows, "exit": self.e.EXITS["settled"], "left": [], "checkpoint": None, "fixed": {"go": True}, "tests": {}, "eyes": last_eyes}
+        got = [(k, i["text"]) for k, i in self.e.asked(rows, last_eyes)]
+        self.assertEqual(got, [(None, "古い節を消すか"), (None, "方針 C"), (None, "方針 D"), (1, "見出しの色を変えるか"), (1, "方針 A"), (1, "方針 B")])
+        texts = [q["text"] for q in self.e.current(record, None, None, None)[2]["questions"]]   # 最後の目の物は目のまとめが questions に置く
+        self.assertEqual(len(texts), 3, texts)
+        for want in ("見出しの色を変えるか", "方針 A", "方針 B"):
+            self.assertEqual(sum(want in t for t in texts), 1, (want, texts))
+
+    def test_cap_word_matches_the_head(self):
+        """結末の上限の字は、頭の文の『上限 LIMIT 回』と同じ字で言う"""
+        self.assertIn(f"上限 {self.e.LIMIT} 回", self.e.OUTCOMES["cap"])
+
+    def test_record_lines_take_the_whole_record(self):
+        """最後の承認ノードと報告の節は記録まるごとと戻しの結末と費用を record_lines に渡し、記録の最後の目で結末を決める"""
+        record = {"rows": [self.e.row(1, eyes(), [self.A])], "exit": "返す物が無い", "left": [], "checkpoint": None, "eyes": self.PASSED}
+        out = self.e.record_lines(record, None, {"by_round": {1: 1.0}, "why": ""})
+        self.assertEqual(out, self.e.lines(record["rows"], record["exit"], record["left"], None, None, eyes=self.PASSED,
+                                           costs={"by_round": {1: 1.0}, "why": ""}))
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['fixed']}", out)
+        self.assertEqual(self.e.record_lines(None, None, None), [])
 
 
 class RestoreCase(_Case):

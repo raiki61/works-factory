@@ -33,8 +33,7 @@ NEEDS_FIX, NEEDS_CHOOSE = eyekit.NEEDS
 ROUTE_FIX, ROUTE_STAY = "fix", "stay"
 NOTHING_TO_RETURN = "返す物が無い"
 CHOSEN = "（人が選ぶ物 {n} 件は返さず、最後の承認ノードの問いへ回した）"
-NO_OPTIONS = "選べる道が書かれていない"
-NO_RECOMMEND = "推しが書かれていない"
+NO_OPTIONS, NO_RECOMMEND = eyekit.NO_OPTIONS, eyekit.NO_RECOMMEND
 
 
 def _question(q):
@@ -93,19 +92,9 @@ def back_items(received: dict, got_rows: dict) -> list:
 
 
 def choose_questions(items: list) -> list:
-    """needs が choose の返す項目を、最後の承認ノードの問いの行 {text} にする（『R2: <where>: <text>（選べる道: 1) …／2) …。推し: …）』。
-    選べる道か推しが無い行も人に回し、無いことを言う）"""
-    out = []
-    for item in items:
-        if item.get("needs") != NEEDS_CHOOSE:
-            continue
-        options = [str(o) for o in item.get("options") or [] if str(o).strip()]
-        ways = "／".join(f"{n}) {o}" for n, o in enumerate(options, 1)) if options else ""
-        where = f"{item['where']}: " if item.get("where") else ""
-        out.append({"text": f"{item['eye'].upper()}: {where}{oneline.one_line(item['text'])}（"
-                            + (f"選べる道: {ways}" if ways else NO_OPTIONS) + "。"
-                            + (f"推し: {oneline.one_line(item['recommend'])}" if item.get("recommend") else NO_RECOMMEND) + "）"})
-    return out
+    """needs が choose の返す項目を、最後の承認ノードの問いの行 {text} にする（字は eyekit.choose_question の 1 か所。選べる道か推しが無い行も
+    人に回し、無いことを言う）"""
+    return [{"text": eyekit.choose_question(item)} for item in items if item.get("needs") == NEEDS_CHOOSE]
 
 
 def route_of(got_rows: dict, premise, items: list) -> tuple[str, str]:
