@@ -123,15 +123,6 @@ _l_REWRITE = {"id": _l_THREE_ID, "behavior": "3 つの値の平均の期待", "o
            "limit": "test_stats.py:8"}
 
 
-def _l_asked_row(paths=(), new_tests=(), decision="deny", granted_new_tests=(), **over):
-    """範囲の相談の確かめの行（conflict.ASKED_OP。受け付けが見つけたはみ出しを聞いた物。origin accept）"""
-    return {"id": 1, "at": "2026-10-10T00:00:00+09:00", "turn": 2, "pass": "first", "round": 1, "node": "plan-answer", "item": "1",
-            "unit_keys": [_l_MEAN], "paths": list(paths), "tests": [], "new_tests": list(new_tests), "why": "案の外のはみ出しを聞いた",
-            "status": "answered", "decision": decision, "granted_paths": [], "granted_tests": [],
-            "granted_new_tests": list(granted_new_tests), "spec": "", "reason": "範囲の中で直せる", "notes": [], "out_of_scope": [],
-            "overrode_out_of_scope": [], "session": None, "origin": "accept", **over}
-
-
 def _l_direct_fields(**over):
     """受け入れのテストの無い direct の項目（red_green を回さず test_edits だけを見る）"""
     return [{**_l_FIELDS[0], "route": "direct", "route_why": "既存の期待の書き換えだけの項目", "tests": [], **over}]
