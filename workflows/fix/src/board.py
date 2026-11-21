@@ -92,16 +92,83 @@ def base_rev(state, given: str = "") -> str:
     return ((state or {}).get("inputs") or {}).get("review_rev") or given or "HEAD"
 
 
+def _named_in(row, ids) -> set:
+    """申し出の行 row（と裁定）の字が名指す試験の id（ids のうち、id か `::` の後ろの名がどこかの字に在る物）"""
+    ruling = row.get("ruling") if isinstance(row.get("ruling"), dict) else {}
+    ask = ruling.get("ask_why") if isinstance(ruling.get("ask_why"), dict) else {}
+    texts = [row.get("why_both_cannot_hold"), ruling.get("text"), ask.get("line"), *(row.get("between") or [])]
+    text = "\n".join(t for t in texts if isinstance(t, str))
+    return {t for t in ids if t in text or t.rsplit("::", 1)[-1].split("[", 1)[0] in text}
+
+
+def ruled_stops(place) -> dict:
+    """返した段（values.json の item_kinds が空でない）で、前の段の人に回した裁定（ask_human。印 conflict.PRIOR の行）だけが掛かった
+    単位のうち、返した項目の直しへ戻す単位 → {tests: 止める受け入れの試験の id, rows: 直す返した項目の行 [{item, kind}]}。止めるのは裁定が名指した
+    試験の赤の義務だけ（docs/design/fix.md の 22.1）: 名指した試験は、裁定の行の字が名指す、その単位の項目の受け入れの試験（読めなければ
+    単位の項目の受け入れの試験の全部。赤の義務を黙って外さない）。直す返した項目は、その単位の項目に返した trim の行と、名指した試験を
+    持たない項目の unfinished の行。直す項目が無い単位・今の段の裁定やほかの直さない裁定も掛かる単位は載せない（単位ごと止める）。
+    最初の段・凍結した欄の無い run は {}。控えが読めなければ ValueError"""
+    import conflict
+    from src import runvals
+    kinds = runvals.read(place)["item_kinds"]
+    if not kinds:
+        return {}
+    fields = conflict.frozen_fields(pathlib.Path(place), 1) or []
+    holding = [r for r in conflict.items(place) if conflict.decision(r) not in (None, *conflict.FIX_DECISIONS)
+               and conflict.replan_state(r) != conflict.AMENDED]
+    by_unit: dict = {}
+    for r in holding:
+        for k in conflict.ruled_units(r):
+            by_unit.setdefault(k, []).append(r)
+
+    def tests_of(f) -> list:
+        return [t["id"] for t in (f.get("tests") or []) if isinstance(t, dict) and isinstance(t.get("id"), str)] \
+            if isinstance(f, dict) else []
+    out: dict = {}
+    for k, rows in by_unit.items():
+        if not all(conflict.decision(r) == conflict.ASK and r.get(conflict.PRIOR) for r in rows):
+            continue
+        mine = {n: f for n, f in enumerate(fields, 1) if isinstance(f, dict) and k in (f.get("unit_keys") or [])}
+        ids = list(dict.fromkeys(t for f in mine.values() for t in tests_of(f)))
+        named = set().union(*(_named_in(r, ids) for r in rows)) or set(ids)
+        rows = [{"item": row["item"], "kind": row["kind"]} for row in kinds if row["item"] in mine
+                and (row["kind"] == "trim" or not set(tests_of(mine[row["item"]])) & named)]
+        if rows:
+            out[k] = {"tests": sorted(named), "rows": rows}
+    return out
+
+
+def held_now(place) -> dict:
+    """直す義務から外す単位 {key: 理由}: 直す裁定でない裁定を受けた単位（conflict.held_by_rulings）から、返した段で返した項目の直しへ
+    戻す単位（ruled_stops）を除いた物。返した段の控えが読めなければ戻さない（裁定のまま止める側）。裁定の控えが読めなければ ValueError"""
+    import conflict
+    held = conflict.held_by_rulings(place)
+    try:
+        back = ruled_stops(place)
+    except ValueError:
+        back = {}
+    return {k: why for k, why in held.items() if k not in back}
+
+
+def stopped_tests(place) -> dict:
+    """返した段で、直しへ戻した単位ごとに赤の義務を止める受け入れの試験の id {key: {id}}（ruled_stops の tests）。読めなければ空（呼び手が
+    約束と関門を今どおり組む。読めない控えはそちらの読みが止める）"""
+    try:
+        return {k: set(v["tests"]) for k, v in ruled_stops(place).items()}
+    except ValueError:
+        return {}
+
+
 def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
     """直す義務の単位: owed（開いた単位から、人に諮っている fork の出どころ・depends を除いた物。元は盤面の写しの規則の
     _owed_units）から、関所に載せる問いのうち答えていない物の出どころ・depends（withheld。元は gatemarks.withheld）を除き、
     修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
-    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
+    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（held_now。ask_human・fix_plan_item。返した段で返した項目の直しへ戻す単位は除かない）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
     import conflict
     got = (set(owed) - set(withheld)) | set(returned)
     try:
-        return got - set(conflict.held_by_rulings(place))
+        return got - set(held_now(place))
     except ValueError:   # 控えが読めない置き場は外さない（義務を減らさない側）
         return got
 
@@ -109,7 +176,7 @@ def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
 def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     """(直す義務 owed_units_but_asked, 直す義務から外れた単位 {key: 理由})。外れた単位は、答えていない fork・escalate の問いの
     出どころ・depends（withheld_by {key: 問い}。元は gatemarks.withheld_by。理由はそこが組にした問い）と、直す裁定でない裁定を
-    受けた単位（conflict.held_by_rulings。理由はその裁定）。1 単位が withheld と裁定の両方に当たれば裁定の理由。控えが読めなければ
+    受けた単位（held_now。理由はその裁定）。1 単位が withheld と裁定の両方に当たれば裁定の理由。控えが読めなければ
     裁定の単位を外さない。
     withheld_by が None なら置き場の判定の写しと関所の答えから引く（gate_asks）。
     元 works/.shared/core/conflict.py:696（盤面の記録と問いの台帳を読んだ）"""
@@ -118,7 +185,7 @@ def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     owed = owed_units_but_asked(place, owed, withheld=set(withheld_by), returned=returned)
     out = {k: f"答え待ちの問い {q.get('key')}（{q.get('kind')}・{q.get('status')}）" for k, q in withheld_by.items()}
     try:
-        out.update(conflict.held_by_rulings(place))
+        out.update(held_now(place))
     except ValueError:
         pass
     return owed, {k: why for k, why in out.items() if k not in owed}
@@ -1663,7 +1730,7 @@ def judge_query(place):
 def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
     """食い違いの申し出（欄 conflicts）を外した返答と、拒否の結果か止めた印。返り (返答, 結果 | None)。元
     works/blk-fix/scripts/accept.py:306（盤面の代わりに置き場 place、直す義務は値 owed で受ける）:
-    - 裁定がもう外した単位（conflict.held_by_rulings）の申し出は先に外す
+    - 裁定がもう外した単位（held_now）の申し出は先に外す
     - 申し出は機械が確かめ（conflict.problems_by_entry）、外れれば {ok: False, reason, lines: [(key|None, 文)]}。which_is_right:
       query の申し出は置き場の判定の写し judgment.json の単位の class_query を correct_lines に当てて試す（judge_query。元
       accept.py:325-326 の try_query=querytest.judge_hits(b.record["units"])）
@@ -1675,7 +1742,7 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
     reply = dict(reply)
     items = reply.pop("conflicts", None) or []
     if isinstance(items, list) and items:
-        known = conflict.held_by_rulings(place)
+        known = held_now(place)
         items = [i for i in items if not (isinstance(i, dict) and i.get("unit_key") in known)]
     owed = owed_units_but_asked(place, owed)
     if items:

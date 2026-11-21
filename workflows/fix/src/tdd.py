@@ -170,12 +170,16 @@ def _duty(board_dir: pathlib.Path, owed=None, withheld_by=None, returned=()):
 def plan_contract(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> dict[str, dict]:
     """単位 → 承認済みの修正案の約束（planmarks.unit_contract。約束の無い単位は載せない）。置き場 board_dir に凍結した欄の控え
     （plan-fields.json と trace.jsonl の凍結の印）が無い run は {}。欄の控えが凍結の印と食い違う（conflict.frozen_fields の
-    ValueError）なら、理由の文のまま Broken（約束を黙って空にしない）。元は盤面を開いて読んだ"""
+    ValueError）なら、理由の文のまま Broken（約束を黙って空にしない）。返した段で前の段の人に回した裁定から直しへ戻した単位は、
+    裁定が名指した受け入れの試験を約束の tests から外す（fixboard.stopped_tests）。元は盤面を開いて読んだ"""
     try:
         fields = conflict.frozen_fields(pathlib.Path(board_dir), round_)
     except ValueError as e:
         raise Broken(str(e)) from None
-    return {k: {**c, "creates": _plan_creates(fields, k)} for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
+    stops = fixboard.stopped_tests(board_dir)   # 返した段で、人に回した裁定が名指した試験の赤の義務は止めたまま
+    return {k: {**c, "tests": [t for t in c.get("tests") or [] if t.get("id") not in stops.get(k, ())],
+                "creates": _plan_creates(fields, k)}
+            for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
 
 
 def _plan_creates(fields, key) -> list[str]:
