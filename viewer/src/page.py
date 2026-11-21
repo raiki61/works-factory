@@ -207,7 +207,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             "when": it.get("when") or "", "depsNames": it.get("deps") or [],
             "skip": next((s.get("cause") for s in skipped if tuple(s["tokens"]) == key), None),
             "skipAt": next((s.get("time") for s in skipped if tuple(s["tokens"]) == key), None),
-            "md": (md or {}).get("text", "")[:12000] if md else "", "mdPath": (md or {}).get("file", "") if md else "",
+            "md": md.get("text", "")[:12000] if md else "", "mdPath": md.get("file", "") if md else "",
             "script": it.get("script_file") or "", "doc": it.get("doc") or "",
             "events": [{"loop": e.get("loop"), "status": e["status"], "start": e.get("start"), "end": e.get("end"), "cost": e.get("cost"),
                         "error": e.get("error") or "", "output": (e.get("output") or "")[:8000], **talk(e, md)} for e in evs],
@@ -508,8 +508,8 @@ def render(data: dict, target: Path, pack_name: str) -> str:
     for e in events:
         if e["kind"] == "wait":
             oo = parse_out(e)
-            GATES.append({"key": K(tuple(e["tokens"])), "decision": (oo or {}).get("decision") if isinstance(oo, dict) else None,
-                          "text": str((oo or {}).get("text") or "")[:2000] if isinstance(oo, dict) else "", "at": e.get("end") or e.get("start"), "status": e["status"]})
+            GATES.append({"key": K(tuple(e["tokens"])), "decision": oo.get("decision") if isinstance(oo, dict) else None,
+                          "text": str(oo.get("text") or "")[:2000] if isinstance(oo, dict) else "", "at": e.get("end") or e.get("start"), "status": e["status"]})
             objs[K(tuple(e["tokens"]))]["answer"] = GATES[-1]["decision"]
     FAILS = [{"key": K(tuple(e["tokens"])), "error": (e.get("error") or "")[:1500], "at": e.get("start")} for e in events if e["status"] == "failed" and e["kind"] not in runread.GROUP_KINDS]
     ai_cost = {}
