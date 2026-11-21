@@ -9,7 +9,6 @@
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
 - seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
   ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と無駄の手がかりと会話の読みも使う
-- where(path, cwd) -> 会話が読んだファイルのパスを、run ごとに違う頭（作業ツリー・run の置き場・run の写し）を印に替えた字にする
 - plain(value) -> 字か None の値をそのまま返す。ほかの形は TypeError（読む側が欄の形が違う行に数える）。会話の読みも使う
 """
 import contextlib
@@ -373,28 +372,6 @@ def _later(a: str | None, b: str | None) -> str | None:
 def copy(output_root: Path, run_id: str) -> Path:
     """run の写しの中の pack の置き場の親（`<写し>/project/.archon/workflows`）"""
     return output_root / SOURCE / RUNS_DIR / run_id / PROJECT_SCOPE / WORKFLOW_FOLDER
-
-
-# where の頭の印（パスの run ごとに違う頭に替える字）
-PLACE_MARK = "（run の置き場）/"
-COPY_MARK = "（run の写し）/"
-
-
-def where(path: str, cwd: str) -> str:
-    """会話が読んだファイルのパス（無駄の手がかりの読み直しの数え）。作業ツリー（会話の cwd）の下は cwd からのパス、run の置き場
-    （`<output_root>/artifacts/runs/<run>/`）と run の写し（`<output_root>/workflow-source/runs/<run>/project/`）の下は印と run の id と
-    その下のパス。同じファイルを相対と絶対のパスで読めば同じ字に、別の run（fan_out の子どうし・親と子）の同じ名のファイルは別の字になる"""
-    if cwd and path.startswith(cwd.rstrip("/") + "/"):
-        return path[len(cwd.rstrip("/")) + 1:]
-    parts = path.split("/")
-    for at in range(len(parts) - 2):
-        if parts[at + 1] != RUNS_DIR:
-            continue
-        if parts[at] == ARTIFACTS:
-            return PLACE_MARK + "/".join(parts[at + 2:])
-        if parts[at] == SOURCE and parts[at + 3:at + 4] == [PROJECT_SCOPE]:
-            return COPY_MARK + "/".join([parts[at + 2], *parts[at + 4:]])
-    return path
 
 
 class _Reader:
