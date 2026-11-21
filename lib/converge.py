@@ -317,7 +317,7 @@ def take_flips(row: dict, passes: list[dict], claimed, new) -> None:
     if not got:
         return
     row[FLIPS] = got
-    row["origins"].update({k: ORIGIN_FLIP for k in got})
+    row["origins"].update(dict.fromkeys(got, ORIGIN_FLIP))
     row["origins_claimed"] = [c for c in row["origins_claimed"] if not (c.get("key") in got and c.get("origin") == ORIGIN_FLIP)]
 
 
