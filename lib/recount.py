@@ -239,8 +239,8 @@ def md_link_errors(base, root) -> list:
         path = tgt.partition("#")[0]
         base_dir = rootp if path.startswith("/") else (rootp / rel).parent
         return _walk_as_written(base_dir, unquote(path.lstrip("/"))) if path else _walk_as_written(rootp, rel)
-    inside = {dest_of(r, g).relative_to(rootp).as_posix() for r, _, g, u in links
-              if not u and rootp in dest_of(r, g).parents}
+    inside = {d.relative_to(rootp).as_posix() for r, _, g, u in links
+              if not u and rootp in (d := dest_of(r, g)).parents}
     dirs = {x for x in inside if (rootp / x).is_dir()}
     with_files = {x for x in dirs if (git("ls-files", "--full-name", "--cached", "--others", "--exclude-standard", "--",
                                           f":(top,literal){x}") or "").strip()}
