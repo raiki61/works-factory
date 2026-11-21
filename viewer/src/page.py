@@ -426,7 +426,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 pk = K(key + (tag,))
                 objs[pk] = {"name": word, "kind": kind, "kindWord": "I/O", "state": o["state"], "what": "", "whatFull": "", "cost": 0, "time": "",
                             "runs": 0, "kids": [], "parent": K(key), "deps": [], "wire": False, "when": "", "depsNames": [], "skip": None, "skipAt": None,
-                            "md": "", "mdPath": "", "script": "", "doc": "", "events": [], "of": K(key)}
+                            "md": "", "mdPath": "", "script": "", "doc": "", "events": []}
                 o["kids"].append(pk)
     # ── 修正と検証道: block ごとに、設計書・プロンプトのテンプレート・筋書き・記録した入力で block だけを回し直す命令の下書き
     art_root = Path(run["output_root"]) / runread.ARTIFACTS / runread.RUNS_DIR / run["id"] if run.get("output_root") else None
@@ -459,7 +459,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 if x["kind"] == "loop":
                     ai_walk(x.get("kids") or [])
         ai_walk(g["items"])
-        args, conv, longest = [], [], 0
+        args, conv = [], []
         for prt in o.get("portsIn") or []:
             v = fl.block_inputs(key).get(prt["n"])
             if v in (None, "", [], {}):
@@ -468,12 +468,11 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             if c:
                 paths_ = json.loads(a) if a.startswith("[") else [a]
                 conv.append({"n": prt["n"], "missing": [x for x in paths_ if not Path(x).exists()]})
-            longest = max(longest, len(a))
             args.append(f"--input {prt['n']}={shlex.quote(a)}")
         o["fixit"] = {"design": g.get("docs") or [], "yaml": f"workflows/{g.get('file', '')}",
                       "md": ai_md, "fixtures": [f"workflows/{folder}/fixtures/{x}" for x in fixtures], "tests": f"tests/blocks/{folder.replace('-', '_')}/",
                       "cmd": " \\\n  ".join([f"bin/works-factory workflow run {g['name']} --cwd {shlex.quote(str(target))}"] + args),
-                      "converted": conv, "longest": longest}
+                      "converted": conv}
 
     # ── ループの周とリジェクト（受け付けの script が ok=false を返した周）
     def parse_out(e):
