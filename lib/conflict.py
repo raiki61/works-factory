@@ -132,7 +132,7 @@ MAX_LINES = 20
 # テストが直すと落ちる・受け入れのテストが案どおりに書いても赤にならない・範囲の外を触らないと緑にならない・判定の問いが直した後の
 # 正しい形にも当たる（which_is_right query と対）・材料から決められず人か依頼の答えが要る（which_is_right unknown と対）
 DIV_KINDS = tuple(k for k in ROW["properties"][KIND_FIELD]["enum"] if k is not None)
-BRIEF_VS_JUDGMENT, _, _, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RED_AT_BASE = DIV_KINDS
+BRIEF_VS_JUDGMENT, _, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RED_AT_BASE = DIV_KINDS
 # which_is_right の語。UNKNOWN はどれが正しいか決められない（needs_context の対）、QUERY は判定者の class_query が直した後の正しい形にも当たる
 WHICH = tuple(ROW["properties"][WHICH_FIELD]["enum"])
 _, TEST, _, UNKNOWN, QUERY = WHICH
