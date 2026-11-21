@@ -5,8 +5,7 @@
 読む語と小さな組み立て:
 - OUTCOMES・OUTCOME_WORDS: 結末の語（報告のブロックの返す節の enum と同じ 10 語）と、冒頭 3 行の 1 行目の平易な言い方
 - OUTCOME_KINDS: 結末の語 → 周の鎖（lib/chain.py）が見る種
-- 報告の見出し（HEADINGS の冒頭 1〜5・PRIOR_HEADING・TDD_HEADING・MODEL_HEADING・COST_HEADING。人が読む本文の物で、役の
-  指示書には貼らない）と行の where・頭の語
+- 報告の行の where・頭の語
 - prior_lines(rows, next_file): 次の run に運んだ落ちた理由の節の行
 - tdd_lines(stages)・freeze_lines(stages): 修正の段ごとの TDD の輪の単位の結末の行（keep-essence の 11）と、輪を回していない段で
   テストの凍結が効いていないと言う冒頭 2 の行（keep-essence の 3）
@@ -51,8 +50,6 @@ CHECKS_LEFT = "人が確かめる物"   # fixed_needs_check の残り（冒頭 3
 EYES_WHERE = "独立の目"
 ABSORBED_WHERE = "受け止めた落ち"
 REPORT_FILE = "report.md"
-PRIOR_HEADING = "## 次の run に引き継ぐ落ちた理由"
-TDD_HEADING = "## TDD のループの単位ごとの結末"   # keep-essence の 11（修正のブロックの出口 tdd を、修正の段ごとに単位の行で）
 TDD_STAGES = ("修正の段", "案を直した後の修正の段")   # build の tdd の並び（ラインの report の with の fix_tdd・refit_tdd の順）
 RETURNED_STAGE = "独立の目から返した修正の段"   # 返した段の名の頭（独立の目の指摘で修正の段へ返した段。stage_name）
 UNKNOWN_STAGE = "種類の分からない修正の段"   # stage_name が知らない種類を受けた時の名（落ちずに名で見せる）
@@ -65,12 +62,6 @@ R2_REDESIGN = "R2 が redesign-needed"      # 検証器と独立の目が R2 の
 FINAL_GATE_STOPS = answer.STOP_WORDS            # 最後の関所の答えのうち止める語（書き手 line_edge の GATE_STOP）
 REQUEST_BY = "request:"                        # 止め札で止めた盤面の state.stop.by の頭
 HUMAN_BY = stopby.HUMAN
-DECISIONS_HEADING = "## 1. 人が決めること"
-ENTRY_HEADING = "## 2. 入口・段・決めた人"
-STOP_HEADING = "## 3. 止めたか"
-READS_HEADING = "## 4. 読んだ証拠と包み"
-WHERE_HEADING = "## 5. 見る所"
-HEADINGS = (DECISIONS_HEADING, ENTRY_HEADING, STOP_HEADING, READS_HEADING, WHERE_HEADING)
 INTERRUPTED_HEAD = "run が途中で終わった"
 RETRIED_HEAD = "前の試みで落ち、続きで済んだノード"
 ABSORBED_HEAD = "落ちたが、メイングラフが宣言のとおり受け止めたノード"
@@ -150,7 +141,7 @@ def _r2_redesign(row) -> bool:
 
 
 def prior_lines(rows: list, next_file: str) -> list:
-    """報告の節 PRIOR_HEADING の行（次の run に運んだ行の件数と 1 件 1 行）。名指すのは書いたファイルだけ: 行が在れば
+    """報告の次の run に引き継ぐ落ちた理由の節の行（次の run に運んだ行の件数と 1 件 1 行）。名指すのは書いたファイルだけ: 行が在れば
     carry.PRIOR_FAILURES_FILE、次の依頼の下書きも書いた時（next_file が空でない）はそれも"""
     if not rows:
         return ["0 件"]
@@ -275,5 +266,3 @@ def freeze_lines(stages) -> list:
             for name, tdd in stages if isinstance(tdd, dict) and not tdd.get("ran")]
 
 
-MODEL_HEADING = "## 模型"
-COST_HEADING = "## 費用"
