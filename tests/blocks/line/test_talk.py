@@ -656,7 +656,7 @@ class ScriptCase(unittest.TestCase):
 
     def test_design_talk_reads_a_plan_out_without_the_pointed_field(self):
         """欄 pointed の無い前の版の plan-out の返りも読み、空の pointed で写す（落ちた形に倒さない）"""
-        po = {k: v for k, v in rounds().items()}
+        po = dict(rounds())
         self.assertNotIn("pointed", po)
         out = self.run.script("design_talk", turn=json.dumps({"plan": True}), plan_out=json.dumps(po), previous="null",
                               structure="null", judge=json.dumps({"judgment": None, "answer_ties": None, "materials": None}),
