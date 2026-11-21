@@ -540,7 +540,7 @@ def _path(board, name: str) -> pathlib.Path:
 def no_standard(decided_by) -> str:
     """decided_by が「定石が見つからなかった」形（頭に NO_STANDARD）なら探した所の文（印だけなら ""）、ほかの形なら None"""
     text = str(decided_by or "").strip()
-    return text[len(NO_STANDARD):].strip() if text.startswith(NO_STANDARD) else None
+    return text.removeprefix(NO_STANDARD).strip() if text.startswith(NO_STANDARD) else None
 
 
 def decided(mark: dict) -> bool:
