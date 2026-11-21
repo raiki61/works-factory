@@ -1146,7 +1146,7 @@ def _shapes(root: Path) -> list[str]:
                 reader = pack.input_form(called, key)
                 if reader is None or called not in pack.docs:
                     continue
-                writer, wfolder, where = _writer(pack, workflow, doc, by_id, ref)
+                writer, wfolder, where = _writer(pack, workflow, by_id, ref)
                 if writer is None:
                     continue
                 out += [f"{rel}: 節 {node.get('id')} の with.{key}（{where} → {called} の入力 {key}）: {p}"
@@ -1155,7 +1155,7 @@ def _shapes(root: Path) -> list[str]:
     return out
 
 
-def _writer(pack: "_Pack", workflow: str, doc: dict, by_id: dict, ref: str):
+def _writer(pack: "_Pack", workflow: str, by_id: dict, ref: str):
     """配線の字 ref の書き手 (("form", form) か ("value", 形), 形を引く block のフォルダ, 字)。参照そのものでなければ (None, None, "")"""
     folder = pack.docs[workflow][0]
     inputs = INPUT_REF.fullmatch(ref)
