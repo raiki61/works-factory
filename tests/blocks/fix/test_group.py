@@ -18,6 +18,7 @@ import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
+from tests.bin.stepnames import walk
 from tests.blocks import kit
 from tests.blocks.fix import support
 
@@ -47,14 +48,8 @@ def _src(module: str):
 
 def _nodes() -> dict:
     doc = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
-    out = {}
-
-    def walk(nodes):   # 入れ子の輪の中まで（書き手の輪 writers-loop の中の修正の輪 fix-loop）
-        for node in nodes:
-            out[node["id"]] = node
-            walk((node.get("loop_group") or {}).get("nodes") or [])
-    walk(doc["nodes"])
-    return out
+    # 入れ子の輪の中まで（書き手の輪 writers-loop の中の修正の輪 fix-loop）
+    return {node["id"]: node for node in walk(doc["nodes"])}
 
 
 NODES = _nodes()
