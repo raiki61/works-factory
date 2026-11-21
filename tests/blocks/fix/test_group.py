@@ -60,25 +60,6 @@ def _nodes() -> dict:
 NODES = _nodes()
 
 
-def _recorder_root(tmp):
-    """記録の根を持つ隔離した設定の置き場（toolset.install が作る形）。(子の環境に足す物, 記録の根)"""
-    import writelog
-    cfg = pathlib.Path(tmp) / "claude-config"
-    root = writelog.root(cfg)
-    root.mkdir(parents=True)
-    return {"CLAUDE_CONFIG_DIR": str(cfg)}, root
-
-
-def _record(log, path, tool="Edit"):
-    """記録のフックが書く形の 1 行を log に足す"""
-    import hashlib
-    log.parent.mkdir(parents=True, exist_ok=True)
-    real = os.path.realpath(str(path))
-    with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"tool_name": tool, "path": real,
-                            "file_sha": hashlib.sha256(pathlib.Path(real).read_bytes()).hexdigest()}) + "\n")
-
-
 def _change(unit, files, **extra):
     """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は tests/blocks/fix/support.py の SELF_REPORT）"""
     from tests.blocks.fix.support import SELF_REPORT
@@ -464,7 +445,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         """記録の根が在る run の TDD の輪の受け付けは、group-start が作った作業ツリーの記録を読み、記録の無い変更を拒む"""
         import writelog
         import writes
-        env, root = _recorder_root(self.tmp)
+        env, root = support.recorder_root(self.tmp)
         self.parent_inputs(str(self.suite))
         self.grp_env = env
         self.start()
@@ -478,7 +459,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         got = self.step(reply)
         self.assertEqual((got["ok"], got["done"]), (False, False), got)
         self.assertIn(writes.REJECT + "test_stats.py", got["reason"])
-        _record(writelog.log_path(root, self.repo), test_file)
+        support.record(writelog.log_path(root, self.repo), test_file)
         got = self.step(reply)
         self.assertEqual((got["ok"], got["phase"]), (True, "fix"), got)
 
@@ -872,7 +853,7 @@ class GroupChildScriptsCase(unittest.TestCase):
     def test_group_child_starts_its_log_and_reports_where_join_finds_it(self):
         """並べた子は自分の作業ツリーの記録を group-start で空で作り、group-end の結果の worktree から join が同じ記録を引く"""
         import writelog
-        env, root = _recorder_root(self.tmp)
+        env, root = support.recorder_root(self.tmp)
         self.grp_env = env
         self.start()
         log = writelog.log_path(root, self.repo)
