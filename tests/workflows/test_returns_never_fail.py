@@ -250,10 +250,9 @@ def stdout_writes(tree: ast.AST) -> list[tuple[int, bool]]:
             dest = next((k.value for k in call.keywords if k.arg == "file"), None)
             if dest is None or is_stdout(dest):
                 out.append((call.lineno, strict(call)))
-        elif isinstance(f, ast.Attribute) and f.attr == "write" and (
-                is_stdout(f.value) or (isinstance(f.value, ast.Attribute) and is_stdout(f.value.value))):
-            out.append((call.lineno, False))
-        elif isinstance(f, ast.Attribute) and f.attr == "dump" and any(is_stdout(a) for a in call.args):
+        elif isinstance(f, ast.Attribute) and (
+                (f.attr == "write" and (is_stdout(f.value) or (isinstance(f.value, ast.Attribute) and is_stdout(f.value.value))))
+                or (f.attr == "dump" and any(is_stdout(a) for a in call.args))):
             out.append((call.lineno, False))
     return out
 
