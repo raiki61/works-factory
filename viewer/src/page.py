@@ -13,7 +13,6 @@ run-page-v4）。持ち主が良いと見た試作の 4 版を、組みの形の
 import json
 import re
 import shlex
-import sys
 from pathlib import Path
 
 from viewer.src import fill, ioflow, runread, stages
@@ -416,8 +415,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                     if o2.get("branch"):
                         o2["branch"]["sw"] = True
             SWITCHES.append(sk)
-    print("分岐のノード", len(SWITCHES), "うち道が分かれた", sum(1 for k in SWITCHES if sum(a["taken"] for a in objs[k]["arms"]) == 1),
-          file=sys.stderr)
     # 擬似の札: 開いた block の中の「受けた」「返した」
     for key, t in list(tree.items()):
         o = objs[K(key)]
