@@ -184,7 +184,6 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
     で書き、{"ok": True, "count", "file"} を返す（件数に上限が無いので、子の stdout・節の出口には載せない）。控えが無い・読めない・git が効かなければ Unreadable（何も消さない）"""
     repo = pathlib.Path(repo)
     before = _read_before(board, before_name)
-    root = repo.resolve()
     kept_dirs = tuple(before["dirs"])
     kept = (*skip, *before["ignored_dirs"])
     new = sorted(n for n in set(ignored_files(repo)) - set(before["ignored"]) if not n.startswith(kept))
@@ -198,7 +197,7 @@ def remove_new_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE, remo
         else:
             continue
         removed.append(name)
-    _drop_file_free_parents(repo, root, removed, kept_dirs)
+    _drop_file_free_parents(repo, removed, kept_dirs)
     return {"ok": True, "count": len(removed), "file": _write_json(_board_path(board, removed_name), {"removed": removed})}
 
 
@@ -210,11 +209,12 @@ def _file_free(d: pathlib.Path) -> bool:
     return True
 
 
-def _drop_file_free_parents(repo: pathlib.Path, root: pathlib.Path, removed: list, kept_dirs: tuple) -> None:
+def _drop_file_free_parents(repo: pathlib.Path, removed: list, kept_dirs: tuple) -> None:
     """消したファイルの親のフォルダ（repo の根は除く）のうち、中にファイルが 1 本も残らない物を、中の空のフォルダごと消す（深い
     方から。git clean -d と同じく空のフォルダも残さない）。git は空のフォルダを一覧に出さないので、空になった親だけを消す形では、
     修正役の道具が残した空のフォルダ（.claude/.cc-writes など）が 1 つ挟まると上が全部残り、ファイルの無い .venv が uv に
     「正しい環境でない」と拒まれる。控えの dirs（前から在った未追跡のフォルダ）と、その下・その上のフォルダは消さない"""
+    root = repo.resolve()
     parents = {q for name in removed for q in (repo / name.rstrip("/")).parents if q != repo and repo in q.parents}
     for d in sorted(parents, key=lambda q: len(q.parts), reverse=True):
         if d.is_symlink() or not d.is_dir() or d.resolve() == root:
