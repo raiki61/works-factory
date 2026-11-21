@@ -890,7 +890,7 @@ class AskFinalCase(unittest.TestCase):
     def test_eye_questions_heading_names_the_choose_findings_too(self):
         """独立の目の問い（eyes の questions）のセクションは R4 の問いだけでなく、R1・R2 が人が選ぶ（needs が choose）とした指摘も載るので、
         見出しが R4 だけを名指さない"""
-        got = final_got(self.f, questions=["R4 の問い", "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"])
+        got = final_got(questions=["R4 の問い", "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"])
         text = self.f.final_text(got, self.f.final_needs(got), RUN)
         line = next(x for x in text.splitlines() if "人に聞いている問い（記録のまま引く。2 件" in x)
         self.assertIn("R1・R2 が人が選ぶとした指摘", line)
@@ -902,7 +902,7 @@ class AskFinalCase(unittest.TestCase):
         row = {"text": "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"}
         for q in (row, {**row, "recommend": self.MEANS_REC}):
             with self.subTest(recommend="recommend" in q):
-                out = self.ask(final_got(self.f, questions=[q]), mode="when_needed", unattended=True)
+                out = self.ask(final_got(questions=[q]), mode="when_needed", unattended=True)
                 self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
 
     def test_means_questions_have_their_own_section(self):
