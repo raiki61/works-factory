@@ -92,9 +92,10 @@ def render(data: dict, target: Path, pack_name: str) -> str:
     def look(key):
         evs = leaf_events(key)
         if not evs:
-            sk = [s for s in skipped if (key and key[0] != "#stage" and under(key, s["tokens"]))]
             if key and key[0] == "#stage":
-                sk = [s for s in skipped if any(under(k, s["tokens"]) for k in tree[key]["kids"])]
+                sk = any(under(k, s["tokens"]) for s in skipped for k in tree[key]["kids"])
+            else:
+                sk = bool(key) and any(under(key, s["tokens"]) for s in skipped)
             return "skipped" if sk else "none"
         sts = [e["status"] for e in evs]
         for s in ("failed", "running", "waiting"):
