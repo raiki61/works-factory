@@ -62,7 +62,6 @@ class Case(unittest.TestCase):
         return super().run(result)
 
 
-DEADLINE = 1728000000
 MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 OPEN = json.dumps([MEAN, CLAMP], ensure_ascii=False)
