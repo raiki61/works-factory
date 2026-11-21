@@ -1445,6 +1445,53 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual(out["asked"], [{"kind": "regression", "text": NARROW}])
         self.assertEqual(out["review"]["verdict"], "unread")
 
+    def long_fixed(self) -> tuple[dict, str]:
+        """修正の段の合わせ fixed を、fixed の with: の配線どおりに、直しの単位が多くて訳の長い修正の返りで回した返りと、単位の訳の字。
+        段の返り stages・単位 units・止めの訳 stop_why がどれも単位の数だけ伸び、値のまま返すと返り全体が環境変数 1 本の OS の上限
+        （Linux は 128KB）を越える大きさ（run 49306598 の 148KB の返りと同じ並び）"""
+        from tests.blocks.line import test_stages
+        why = "直しの単位の訳と控えのパス" * 12
+        units = [{"unit_id": f"u{n}", "group_id": "g1", "status": "given_up", "reason": f"{why}{n}"} for n in range(100)]
+        claims = {"items": [{"item": 1, "unit_keys": [u["unit_id"] for u in units], "approach": why, "after": []}],
+                  "claims": [{"unit_key": u["unit_id"], "files": [f"src/{n}.txt"]} for n, u in enumerate(units)], "unread": []}
+        v = test_stages.values(fix=test_stages.fix(ok=False, reason="直し終えなかった単位が在る", units=units, item_claims=claims))
+        outputs = {"fix-in": v["fix_in"], "fix": v["fix"], "after-fix": v["after_fix"], "raise": v["raise"], "lens": v["lens"],
+                   "delta-review": v["delta"], "start": {"from_spec": False}}
+        return self.wired("fixed", "fixed", outputs), why
+
+    def test_readers_of_the_fixed_stage_start_when_it_returns_a_long_record(self):
+        """修正の段の合わせ fixed の返りは単位の数だけ伸びる（run 49306598 で 148KB。返りをまるごと結ぶ ask-final・back-1・collect の起動が
+        環境変数 1 本の上限を越えて E2BIG で落ちた）。fixed は伸びる欄（stages・units・stop_why・item_claims）を place のファイルに書いて
+        返りにはそのファイルを指す pointer を入れ、読む節は with: の配線どおりに起動して、ファイルの中身を読む"""
+        fixed, why = self.long_fixed()
+        for name in ("stages", "units", "stop_why", "item_claims"):
+            with self.subTest(field=name):
+                self.assertEqual(fixed[name]["type"], "archon_artifact", f"{name} は値でなく place のファイルを指す")
+                self.assertTrue((self.run.artifacts / fixed[name]["path"]).is_file())
+        self.assertIn(why, (self.run.artifacts / fixed["stop_why"]["path"]).read_text(encoding="utf-8"))
+        fix_in = {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": [], "fix_plan": None,
+                  "review": None, "skip_rerun": [], "go": True, "no_fix": False, "plan": None, "ripple": None}
+        judged = {"units": [], "judgment": None, "answer_ties": None, "materials": None, "rejudged": False, "rejudge_verdict": None,
+                  "lines": [], "stop_reason": ""}
+        tests = {"mode": "final", "ok": True, "green": True, "ran_steps": [], "reason": "", "by": "", "suites_line": "", "suite_note": "",
+                 "red_cause": "", "baseline": None, "test_outcomes": None, "evidence": None, "log": None, "baseline_line": "",
+                 "suite": "", "related": [], "report": [], "fingerprint": {"head": "h", "diff_hash": "d"}}
+        eyes = {"ok": True, "r1": None, "r2": None, "r3": None, "r4": None, "questions": [], "means_questions": [], "passes": [],
+                "premise_check": None, "notes": [], "after": None, "dirty": False, "escalate": False, "after_ok": True, "findings": [],
+                "route": "stay", "route_why": "", "report": [], "sections": []}
+        back = self.wired("back-1", "eyes_back", {"fixed": fixed, "judged": judged, "fix-in": fix_in, "test-gate-final": tests,
+                                                  "eyes": eyes})
+        self.assertIn(why, back["exit"], "周の頭は止めの訳 stop_why をファイルから読んで抜けた訳に載せる")
+        self.assertEqual(back["fixed"]["units"], fixed["units"], "周の頭は合わせの返りを pointer のまま運ぶ")
+        final = self.ask_final_wired(**{"fixed": fixed, "back-1": back})
+        self.assertNotEqual(final["stop_reason"], "works:line-script", final["reasons"])
+        self.assertIn("fix/closure.json", final["text"], "最後の承認ノードは段の返り（段の修正の控えの在りか）をファイルから読む")
+        got = self.wired("collect", "collect", {"fixed": fixed, "fix-in": fix_in, "judged": judged, "back-1": back,
+                                                "start": {"record": None, "ports": json.loads(self.ports())}})
+        facts = json.loads((self.run.artifacts / got["facts"]["path"]).read_text(encoding="utf-8"))
+        self.assertFalse([p for p in facts.get("problems") or [] if "collect" in p], facts.get("problems"))
+        self.assertIn("u99", json.dumps(facts, ensure_ascii=False), "報告の材料は単位の行をファイルから読む")
+
     def test_ask_final_without_a_seal_does_not_seal(self):
         """封じの返りが無い（直す物が在る周）なら、差分を封じられなかったを開ける理由にし、置く段に hash を渡さない（閉じた側に倒れる）"""
         fix_in = {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": []}

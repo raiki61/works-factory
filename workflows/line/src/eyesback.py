@@ -232,7 +232,8 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
     stops = [str(fixed.get("stop_reason") or ""), oneline.one_line(fixed.get("objection") or ""),
              str(_d(judged).get("stop_reason") or "") if k == 1 else ""]
     why = next((s for s in stops if s), "" if fixed.get("go") is True else "修正の段の合わせが進めなかった")
-    stop_why = oneline.one_line(fixed.get("stop_why") or "")
+    from src import fixedfiles   # 合わせの返りの伸びる欄は place のファイルを指す（返りは pointer のまま運び、決めに読む欄だけを開く）
+    stop_why = oneline.one_line(fixedfiles.value(fixed, "stop_why"))
     if why:
         stop = f"{EXITS['stop']}（{why}：{stop_why}）" if stop_why else f"{EXITS['stop']}（{why}）"
         return (_held(k, fixed, prev, rows, more, stop) if k > 1 and lacking else None) or leave(stop, left=pending)
@@ -255,7 +256,7 @@ def turn(*, k: int, prev, fixed, judged, fix_in, tests, eyes, replan, answer_rep
         plan = {key: _d(prev).get(key) for key in ("plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun")}
     only = _tied(items, plan_fields)
     notes = [f"{NOTE_HEAD} {item_text(i)}" for i in items]
-    stages = fixed.get("stages") if isinstance(fixed.get("stages"), list) else []
+    stages = fixedfiles.value(fixed, "stages")
     prior = _d(_d(stages[-1] if stages else None).get("fix")).get("carry") if stages else None
     prior = prior if isinstance(prior, (dict, list)) else None
     # 前の段が申し送りを持たない（carry が null）段へは種を渡さず元の案の route で回す（修正の block は prior の無い段への種を拒む）

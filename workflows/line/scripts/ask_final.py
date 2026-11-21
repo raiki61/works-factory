@@ -44,7 +44,7 @@ def compute() -> dict:
            "widened": os.environ.get("INPUTS_WIDENED"), "start_answer": os.environ.get("INPUTS_START_ANSWER"),
            "record": os.environ.get("INPUTS_RECORD"), "final_gate": os.environ.get("INPUTS_FINAL_GATE"),
            "ports": os.environ.get("INPUTS_PORTS"), "request": os.environ.get("INPUTS_REQUEST")}
-    from src import asking, descend, eyesback, files, final, rounds, startrec
+    from src import asking, descend, eyesback, files, final, fixedfiles, rounds, startrec
 
     given = descend.dealt(ports.parsed(raw["ports"]), raw["request"])
     fix_in = ports.picked(raw["fix_in"], FIX_IN)
@@ -55,6 +55,7 @@ def compute() -> dict:
     first_tests = ports.picked(os.environ.get("INPUTS_TESTS"), TESTS)
     first_eyes = ports.picked(os.environ.get("INPUTS_EYES"), EYES)
     last = eyesback.current(eyes_back, first_fixed, *(None if v is None else dict(v) for v in (first_tests, first_eyes)))
+    last = (fixedfiles.opened(last[0]), *last[1:])   # 合わせの返りの伸びる欄（段の返り・単位など）は place のファイルを指すので中身を読む
     fixed, tests, eyes = (ports.picked(None if v is None else json.dumps(v), names) for v, names in zip(last, (FIXED, TESTS, EYES)))
     seal = ports.picked(os.environ.get("INPUTS_SEAL"), SEAL)
     parallel_after = ports.picked(os.environ.get("INPUTS_PARALLEL_AFTER"), PARALLEL)

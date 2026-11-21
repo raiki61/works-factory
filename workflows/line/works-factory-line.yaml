@@ -1460,16 +1460,18 @@ nodes:
         skip_why: {type: string}
         rejudge: {type: boolean}
         refixed: {type: boolean}
-        stages: {type: array, items: {type: object, properties: {stage: {type: integer}, kind: {type: string, enum: [first, refix, returned], description: '段の種類（段の名は lib/report.py の stage_name がこれで引く）'}, fix: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 段の修正の出力'}, lens: {type: [object, 'null'], description: 'json(returns:works-factory-lens): 段の観点の出力'}, delta: {type: [object, 'null'], description: 'json(returns:works-factory-delta-review): 段の差分の審査の出力'}}}}
+        # 伸びる 4 欄（stages・units・item_claims・stop_why）は値で返さず place の fixed/<k>/ のファイルを指す（src/fixedfiles.py。値で返すと、
+        # 返りをまるごと結ぶ script の入力の環境変数 1 本が OS の上限〔E2BIG〕を越える。docs/design/line.md の 4.3）
+        stages: {<<: *pointer_or_null, description: 'json(stages.schema.json): 段ごとの fix・lens・delta-review の出力（段の種類 kind つき）。空なら null'}
         carry: {type: array, items: &where_text {type: object, required: [where, text], properties: {where: {type: string}, text: {type: string}}}}
         tdd: {type: array, description: 'json(shared:tdd.schema.json): 修正の段ごとの TDD の記録'}
-        units: {type: array, description: 'json(shared:fixes.schema.json): 修正の単位ごとの結末', items: {type: object, properties: {unit_id: {type: string}, group_id: {type: string}, status: {type: string}, reason: {type: string}}}}
+        units: {<<: *pointer_or_null, description: 'json(shared:fixes.schema.json): 修正の単位ごとの結末。空なら null'}
         groups: {type: array, items: {type: object, properties: {group_id: {type: string}, unit_ids: {type: array, items: {type: string}}, returned: {type: boolean}, reason: {type: string}}}}
         conflicts: {type: array, items: {<<: *pointer_or_null, description: 'json(lib:conflicts.schema.json): 最後の修正の段の申し出と裁定の控え'}}
         replan_items: {type: array, items: {type: string}}
         objection: {type: string}
         diff: {<<: *pointer_or_null, description: 'file: 最後の段の差分（差分の審査が直した差分が在ればそれ）'}
-        item_claims: &item_claims {type: [object, 'null'], properties: {items: {type: [array, 'null'], items: {type: object, properties: {item: {type: integer}, unit_keys: {type: array, items: {type: string}}, approach: {type: string}, after: {type: array, items: {type: integer}}}}}, claims: {type: array, items: {type: object, properties: {unit_key: {type: string}, files: {type: array, items: {type: string}}}}}, unread: {type: array, items: {type: string}}}}
+        item_claims: &item_claims {<<: *pointer_or_null, description: 'json(shared:item-claims.schema.json): 差分のパスを修正案の項目に決める記録。無ければ null'}
         allowed_test_changes: {type: array, items: {type: string}}
         changed: {type: [object, 'null'], description: 'json(shared:fix-marks.schema.json): 最後の修正の段の修正の印'}
         x_scalars: {type: object, description: 'json(shared:scalars.schema.json): 修正役が足した規模の数値の欄'}
@@ -1482,7 +1484,7 @@ nodes:
         more: {type: array, description: '独立の目から修正の段へ返した段の修正の got の並び（返した順。落ちた段は null）。stages の 3 段目以降になる', items: {type: [object, 'null'], description: 'json(returns:works-factory-fix): 返した段の修正の出力'}}
         left: {type: array, items: {type: object, properties: {where: {type: string}, text: {type: string}}}}
         stop_reason: {type: string}
-        stop_why: {type: string, description: '止めの語と組の止めた訳（1 行。訳が無ければ空）'}
+        stop_why: {<<: *pointer_or_null, description: 'file: 止めの語と組の止めた訳（1 行。訳が無ければ null）'}
   # 18 修正の後の読むだけの 3 つ（互いを待たない。作業ツリーを変える手直しの後に置く）。parallel-pr-after は飛びうる request-in より前に fixed を読む
   - id: parallel-pr-after
     include: works-factory-parallel-pr
