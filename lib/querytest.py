@@ -100,7 +100,7 @@ def run_examples(how, lines) -> tuple:
 def judge_hits(units, replaced=None):
     """食い違いの申し出の確かめ（conflict.problems）の try_query: which_is_right: query の申し出の correct_lines に、判定者の
     class_query の how を run_examples で当てる（どれかに当たれば空。問いの無い単位は見ない）。修正役の受け付けと TDD の輪が使う。
-    裁定 replace_query が置き換えた単位（replaced。conflict.replaced_queries）は、閉鎖の数え直し（unitrows.build）と同じく
+    裁定 replace_query が置き換えた単位（replaced。conflict.replaced_queries）は、閉鎖の数え直し（fix の unitrows.build）と同じく
     置き換えた問いを当てる"""
     hows = {u.get("key"): u["class_query"].get("how") for u in units
             if isinstance(u, dict) and isinstance(u.get("class_query"), dict)}
