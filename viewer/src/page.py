@@ -2,7 +2,7 @@
 run-page-v4）。持ち主が良いと見た試作の 4 版を、組みの形のまま移した物。
 
 - 読む物は入口が渡すデータ（viewer/runtrace.py の read と同じ欄。作り・記録・会話）だけで、DB は開かない（run の入力と置き場の根は
-  src/runread.py の run が読む）。ほかに読むのは雛形（viewer/page/）と、run の入力の頼みのファイル（JSON）と、run の写しの中の pack
+  src/runread.py の run が読む）。ほかに読むのは雛形（viewer/page/）と、run の写しの中の pack
   （指示の md の断片と筋書きの名）だけ。ファイルは書かず、ページの字を返す
 - 組む物: 段 → block → ループ → ノードの木・block の入出力（src/ioflow.py）・実行条件を記録の値で解いた分岐と、同じ値で分かれる兄弟を
   1 つにした分岐の合成ノード・リジェクト（受け付けの script が ok=false を返した周）・承認の回答・失敗・AI の費用の上位・指示の md の
@@ -520,15 +520,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 ai_cost[K(key)] = c_
     TOPCOST = sorted(ai_cost.items(), key=lambda x: -x[1])[:6]
     MISMATCH = [k for k, o in objs.items() if (o.get("branch") or {}).get("mismatch")]
-    REQUEST = None
-    _req = (run.get("inputs") or {}).get("request")
-    if isinstance(_req, str) and _req.endswith(".json") and Path(_req).is_file():
-        try:
-            REQUEST = json.loads(Path(_req).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            REQUEST = None
     SUMMARY = {"inputs": {k: (v if len(str(v)) < 400 else str(v)[:400] + "…") for k, v in (run.get("inputs") or {}).items()},
-               "request": REQUEST if REQUEST is None or len(json.dumps(REQUEST, ensure_ascii=False)) < 30000 else None,
                "counts": run.get("node_counts") or {}, "gates": GATES, "rejects": REJECTS, "fails": FAILS,
                "topcost": [[k, round(c_, 3)] for k, c_ in TOPCOST], "mismatch": MISMATCH, "seconds": run.get("seconds"), "outcome": run.get("outcome"),
                "result": run.get("result_word")}
