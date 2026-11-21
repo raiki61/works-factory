@@ -289,8 +289,7 @@ def _words(text):
         if "." in w:
             parts = [p for p in w.split(".") if p]
             out.update(p for p in parts if len(p) >= 3)
-            for i in range(2, len(parts)):
-                out.add(".".join(parts[:i]))
+            out.update(".".join(parts[:i]) for i in range(2, len(parts)))
     return out
 
 
@@ -371,9 +370,8 @@ def _py_facts(text):
     defs = sorted({n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))})
     reads = []
     for n in tree.body:
-        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == READS_DECL for t in n.targets):
-            reads += _consts(n.value, assigns)
-        elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == READS_DECL:
+        if (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == READS_DECL for t in n.targets)
+                or isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == READS_DECL):
             reads += _consts(n.value, assigns)
     imports.sort(key=lambda x: (x[2], x[0]))
     dyn.sort(key=lambda x: x[0])
