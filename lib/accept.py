@@ -354,7 +354,7 @@ def _names(repo, cmd, *args, env=None) -> list:
 def _marks(repo, env=None) -> tuple:
     """index（env の GIT_INDEX_FILE。無ければ本物）で外す印の付いたパス（バイト）: (assume-unchanged の物, skip-worktree の物)。
     skip-worktree は作業ツリーに実物が在る物だけ——実物の無い物は sparse checkout の範囲外の普通の姿で、印を外すと
-    消した物に見える（git add -A も範囲外を消さない。green_cert.fresh_tree と同じ見え方）"""
+    消した物に見える（git add -A も範囲外を消さない。unittrees.fresh_tree と同じ見え方）"""
     assumed, skipped = [], []
     for rec in _git(repo, "ls-files", "-v", "-z", binary=True, env=env).split(b"\0"):
         tag, path = rec[:1], rec[2:]
@@ -403,18 +403,11 @@ def _is_test_cache(name: str) -> bool:
     return any(fnmatch.fnmatchcase(part, c) for part in name.rstrip("/").split("/") for c in TEST_CACHES)
 
 
-def _touched(repo, rev) -> tuple:
-    """(追跡しているファイルで rev から変わった物, 未追跡のファイル)。どちらもテストのキャッシュを除き、名前の順"""
-    with flag_free_env(repo) as env:
-        tracked = _names(repo, "diff", "--name-only", "--no-renames", rev, env=env)
-    untracked = _names(repo, "ls-files", "--others", "--exclude-standard", "--full-name", "--", ":/")
-    return (sorted(n for n in set(tracked) if not _is_test_cache(n)),
-            sorted(n for n in set(untracked) if not _is_test_cache(n)))
-
-
 def touched_files(repo: pathlib.Path, rev: str) -> list:
     """修正が触ったファイル（repo の根からのパス、名前の順）。git diff --name-only <rev> と未追跡のファイル
     （入れ子の git リポジトリは `sub/` の 1 本）。本物の index の assume-unchanged・skip-worktree の印を付けた物も挙げる
     （flag_free_env）。テストのキャッシュ（_is_test_cache）は除く"""
-    tracked, untracked = _touched(repo, rev)
-    return sorted(set(tracked) | set(untracked))
+    with flag_free_env(repo) as env:
+        tracked = _names(repo, "diff", "--name-only", "--no-renames", rev, env=env)
+    untracked = _names(repo, "ls-files", "--others", "--exclude-standard", "--full-name", "--", ":/")
+    return sorted(n for n in {*tracked, *untracked} if not _is_test_cache(n))
