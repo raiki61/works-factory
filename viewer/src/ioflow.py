@@ -9,9 +9,6 @@ REF = re.compile(r"\$([A-Za-z0-9_-]+)\.output((?:\.[A-Za-z0-9_]+)*)")
 INREF = re.compile(r"\$INPUTS\.([A-Za-z0-9_]+)")
 
 
-CUT = "… [truncated; original output was"   # Archon が DB に書く出力を切った印
-
-
 def parse(text):
     if text is None:
         return None
