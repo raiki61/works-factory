@@ -7,7 +7,6 @@
   走らせ方が決まらない道の関わる試験だけの走らせ方（RelatedCase）・出力の欄 suite・suite_note・related・report
 - 筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py
 """
-import datetime
 import hashlib
 import json
 import os
@@ -27,6 +26,7 @@ import yaml
 from bin._lib import isolate, launcher
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -53,12 +53,6 @@ PORTS = ("mode", "test_cmd", "tdd_suite", "base", "entry_base", "request", "requ
 
 def workflow() -> dict:
     return yaml.safe_load((BLOCK / "works-factory-test-gate.yaml").read_text(encoding="utf-8"))
-
-
-def walk(nodes):
-    for n in nodes:
-        yield n
-        yield from walk((n.get("loop_group") or {}).get("nodes") or [])
 
 
 def node(nid: str) -> dict:

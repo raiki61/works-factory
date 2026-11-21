@@ -60,7 +60,7 @@ def _named(key: str, scope) -> bool:
     if impact._junit_module({"classname": cls}) is None:
         return True
     return bool(set(cls.split(".")) & scope["modules"]) or any(
-        baseline_red.match_case(t, [{"classname": cls, "name": name}]) for t in scope["tests"])
+        baseline_red.match_cases(t, [{"classname": cls, "name": name}]) for t in scope["tests"])
 
 
 def outcome_lines(test_outcomes, scope=None) -> list[str]:

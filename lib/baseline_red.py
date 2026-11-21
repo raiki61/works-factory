@@ -127,22 +127,67 @@ def _id_parts(test_id):
     return head, names[-1], path.suffix if path.name else ""
 
 
-def match_case(test_id, cases):
-    """名指しの 1 件に当たる JUnit の行（無ければ None）。名前が同じで、classname と識別子の頭の短い方が長い方の末尾。
+# 試験の名の雛形の置き換えの印。実行器は雛形の名（印を持つ名）を値ごとに展開した名で JUnit に出すので、名指しが雛形の名のままなら
+# 印を「何かの字」と読んで当てる。印は 3 つの類: 書式の印（`%s`・`%d`・`%1$s`・`%-5.2f` の類）・名の印（`$name`・`${name}`・`$0` の類）・
+# 括弧の印（`{0}`・`{name}`・`{}` の類）。名の印は ASCII の識別子と点で結んだ欄（`$a.b`）だけを食う（`\w` は Unicode の字にも
+# 当たり、空白を挟まない `$themeで…` の後ろの字まで印に読む）。書式の印の旗に空白を数えない（`50% off` の `% o` を印に読まない）
+_IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
+TEMPLATE_MARK = re.compile(rf"%(?:\d+\$)?[-+#0]*\d*(?:\.\d+)?[a-zA-Z]|\$\{{[^{{}}]*\}}|\$(?:{_IDENT}(?:\.{_IDENT})*|\d+)|\{{[^{{}}\s]*\}}")
+
+
+def _template(seg):
+    """名指しの 1 段 seg → 印を何かの字（1 字以上）と読む正規表現（印が無ければ None）"""
+    bits = TEMPLATE_MARK.split(seg)
+    return re.compile("(?:.+?)".join(map(re.escape, bits))) if len(bits) > 1 else None
+
+
+def _same(want, got, loose):
+    """名指しの 1 段 want と行の 1 段 got が同じか。loose なら want の印を何かの字と読む（_template）"""
+    if want == got:
+        return True
+    pat = _template(want) if loose else None
+    return bool(pat and pat.fullmatch(got))
+
+
+# 結末の悪さの順（worst_case が一番悪い行を選ぶ）
+_WORST = ("error", "failure", "skipped", "passed")
+
+
+def worst_case(test_id, cases):
+    """名指しの 1 件に当たる JUnit の行のうち一番悪い物（error・failure・skipped・passed の順。同じなら先の行。無ければ None。当て方は
+    match_cases）。結末を 1 行で判じる呼び手の口: 雛形の名は値ごとの行に展開されるので、最初の 1 行だけを見ると 2 つ目からの赤を見落とす。
+    最初の 1 行を返す口は置かない（当たる行が在るかだけを見る呼び手は match_cases の真偽を見る）"""
+    rows = match_cases(test_id, cases)
+    rank = {o: i for i, o in enumerate(_WORST)}
+    return min(rows, key=lambda c: rank.get(c.get("outcome"), 0)) if rows else None
+
+
+def match_cases(test_id, cases):
+    """名指しの 1 件に当たる JUnit の行の並び（無ければ空）。名前が同じで、classname と識別子の頭の短い方が長い方の末尾。
     行の name が NEST で結んだ入れ子の名なら、最後の段を名前に、前の段を classname の後ろに足して比べる。classname が名指しの
-    パスの拡張子で終わる（classname がファイルのパス）なら、拡張子を落として比べる
-    （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:60-68）"""
+    パスの拡張子で終わる（classname がファイルのパス）なら、拡張子を落として比べる。字のまま当たる行が無ければ、名指しの名と組の名の
+    雛形の印（TEMPLATE_MARK）を何かの字と読んで、展開した名の行に当てる。字のまま当たれば最初の 1 行、雛形の読みなら当たる行の全部
+    （雛形の 1 本は値ごとの行に展開されるので、赤・緑の確認は全部の行を名指しの行として見る）
+    （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:60-68。雛形の読みは足した物）"""
     head, name, suffix = _id_parts(test_id)
+    rows = []
     for c in cases:
         cls_name = c["classname"]
         if suffix and cls_name.endswith(suffix):
             cls_name = cls_name[:-len(suffix)]
         *groups, last = c["name"].split(NEST)
-        cls = _tokens(cls_name) + groups
-        n = min(len(cls), len(head))
-        if last == name and n and cls[-n:] == head[-n:]:
-            return c
-    return None
+        rows.append((c, _tokens(cls_name) + groups, last))
+    for loose in (False, True):
+        hits = [c for c, cls, last in rows if (n := min(len(cls), len(head))) and _same(name, last, loose)
+                and all(_same(w, g, loose) for w, g in zip(head[-n:], cls[-n:]))]
+        if hits:
+            return hits[:1] if not loose else hits
+    return []
+
+
+def _shown(test_id, c):
+    """問題の文の名指しの書き方。雛形の読みで当てた行（名が名指しの名と違う）なら展開した名を添える"""
+    return test_id if c["name"].split(NEST)[-1] == _id_parts(test_id)[1] else f"{test_id}（展開した名 {c['name']}）"
 
 
 def _key(c):
@@ -178,17 +223,18 @@ def red_problems(named, cases, exit_code, baseline=None, base_synth=False):
     if exit_code == 0:
         probs.append("テスト一式が exit 0 で終わった——名指しのテストが落ちたなら 0 にはならない（実行器が結末を映していない）")
     for t in named:
-        c = match_case(t, cases)
-        if c is None:
+        rows = match_cases(t, cases)
+        if not rows:
             probs.append(f"{t}: 一式の結末に居ない——読み込み（import・構文）で落ちたか、名指しが実行器の識別子と違う")
             continue
-        hit.add(id(c))
-        if c["outcome"] == "error":
-            probs.append(f"{t}: error で落ちた——読み込みの失敗・準備の例外は狙いどおりの赤でない（テストの中の検査で落とせ）")
-        elif c["outcome"] == "passed":
-            probs.append(f"{t}: もう通る——直す前に赤でないテストは修正の証拠にならない")
-        elif c["outcome"] == "skipped":
-            probs.append(f"{t}: 飛ばされた——赤でも緑でもない")
+        for c in rows:
+            hit.add(id(c))
+            if c["outcome"] == "error":
+                probs.append(f"{_shown(t, c)}: error で落ちた——読み込みの失敗・準備の例外は狙いどおりの赤でない（テストの中の検査で落とせ）")
+            elif c["outcome"] == "passed":
+                probs.append(f"{_shown(t, c)}: もう通る——直す前に赤でないテストは修正の証拠にならない")
+            elif c["outcome"] == "skipped":
+                probs.append(f"{_shown(t, c)}: 飛ばされた——赤でも緑でもない")
     probs += [f"名指しの外の {_key(c)} が {c['outcome']}——テストだけを書く段がほかを壊した（元は通っていた・この周に足した物は緑のまま）"
               for c in _broken_others(cases, baseline, hit)]
     return probs + _synth_problems(cases, base_synth)
@@ -205,17 +251,17 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:132-147）"""
     scope = None
     if narrow and baseline is not None:
-        scope = {_key(c) for c in cases if _key(c) in baseline or any(match_case(t, [c]) for t in (*named, *also))}
+        scope = {_key(c) for c in cases if _key(c) in baseline or any(match_cases(t, [c]) for t in (*named, *also))}
     clean = scope is not None and not any(c["outcome"] in FAILED for c in cases if _key(c) in scope)
     probs = [] if exit_code == 0 or baseline_exit != 0 or clean else [
         f"テスト一式が exit {exit_code} で終わった——JUnit の結末が全部通っていても、一式としては緑でない"]
     hit = set()
     for t in named:
-        c = match_case(t, cases)
-        if c is not None:
-            hit.add(id(c))
-        if c is None or c["outcome"] != "passed":
-            probs.append(f"{t}: {'一式の結末に居ない' if c is None else c['outcome']}——名指しのテストが緑でない")
+        rows = match_cases(t, cases)
+        hit.update(id(c) for c in rows)
+        if not rows:
+            probs.append(f"{t}: 一式の結末に居ない——名指しのテストが緑でない")
+        probs += [f"{_shown(t, c)}: {c['outcome']}——名指しのテストが緑でない" for c in rows if c["outcome"] != "passed"]
     probs += [f"{_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
               for c in _broken_others(cases, baseline, hit, scope)]
     return probs + _synth_problems(cases, base_synth)

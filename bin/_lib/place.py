@@ -139,9 +139,14 @@ def provider_cap(env: Mapping[str, str]) -> int | None:
     value = env.get(CAP_ENV)
     if not value:
         return None
-    if not (value.isascii() and value.isdigit() and int(value) >= 1):
+    if not _positive(value):
         raise ValueError(f"{CAP_ENV} は 1 以上の整数にする（受けた値: {value!r}）")
     return int(value)
+
+
+def _positive(value: str) -> bool:
+    """上限の字が 1 以上の整数か（ASCII の数字だけ）"""
+    return value.isascii() and value.isdigit() and int(value) >= 1
 
 
 def _indent(line: str) -> int:
@@ -209,7 +214,7 @@ def read_provider_cap(archon_home: Path) -> int | None:
     if at is None:
         return None
     value = lines[at].split("#")[0].split(":", 1)[1].strip()
-    return int(value) if value.isascii() and value.isdigit() and int(value) >= 1 else None
+    return int(value) if _positive(value) else None
 
 
 def _flow_form(text: str) -> bool:

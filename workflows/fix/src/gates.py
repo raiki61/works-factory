@@ -59,13 +59,13 @@ import pathlib
 import posixpath
 import shutil
 
-import cite  # noqa: E402  （.shared/core。名指しの形）
-import conflict  # noqa: E402  （.shared/core。修正案の欄の控え・テストの変更の許し）
-from src import board as fixboard  # noqa: E402  （lib。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
-import impact  # noqa: E402  （.shared/core。受け付けの置き場の trace の行の名・テストのファイルの見分け）
+import cite  # noqa: E402  （lib/。名指しの形）
+import conflict  # noqa: E402  （lib/。修正案の欄の控え・テストの変更の許し）
+from src import board as fixboard  # noqa: E402  （同じ block の src。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
+import impact  # noqa: E402  （lib/。受け付けの置き場の trace の行の名・テストのファイルの見分け）
 import jsonfile  # noqa: E402
-import planmarks  # noqa: E402  （.shared/core。修正案の書き換えの名指し・テストの定義の行）
-import planrange  # noqa: E402  （.shared/core。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
+import planmarks  # noqa: E402  （lib/。修正案の書き換えの名指し・テストの定義の行）
+import planrange  # noqa: E402  （lib/。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
 from src import common, tdd as tddloop  # noqa: E402  （同じブロックの lib。輪の関門の読み口をそのまま使う）
 from leftovers import Unreadable, git  # noqa: E402
 
@@ -326,12 +326,13 @@ def named_facts(repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathl
         base, why = _base_run(repo, rev, suite, need, copy, work)
         if base is None:
             return None, [f"{NO_RUN}（base の木: {'; '.join(why)}）"]
-        seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_case(i, base) for i in need}}
+        seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_cases(i, base) for i in need}}
         jsonfile.write(cache, seen)
     out = {}
     for i in ids:
-        base = [seen[keys[i]]] if seen.get(keys[i]) else []   # base の木の結末のうちこのテストに当たる行（無ければ空）
-        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": base[0] if base else None,
+        base = seen.get(keys[i]) or []   # base の木の結末のうちこのテストに当たる行の全部（雛形の名は展開した行。無ければ空）
+        base = [base] if isinstance(base, dict) else base   # 1 行だけを控えた前の形の控え
+        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": rules.worst_case(i, base),
                   "probs": common.red_check([i], base, None, None)[0]}
     return out, []
 
@@ -343,7 +344,7 @@ def named_rows(tests: list, now: list, facts: dict) -> tuple[list, list]:
     rules = common.rules()
     rows, guards = [], []
     for t in tests:
-        c = rules.match_case(t["id"], now)
+        c = rules.worst_case(t["id"], now)
         if c is None or c["outcome"] != "passed":
             rows.append(_row("red_green", t["id"], f"今の木で {c['outcome'] if c else '一式の結末に居ない'}（受け入れのテストが緑でない）",
                              t["unit_keys"]))

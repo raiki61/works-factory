@@ -352,7 +352,7 @@ class WiringCase(unittest.TestCase):
 
     def test_include_inputs_are_passed(self):
         """include した block の inputs: の全部が with: で渡る（include した block が要る）"""
-        for name, node in self.includes.items():
+        for node in self.includes.values():
             block = node["include"].removeprefix("works-factory-")
             path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
             with self.subTest(block=block):

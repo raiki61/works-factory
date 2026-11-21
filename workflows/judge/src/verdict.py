@@ -12,7 +12,7 @@ import headdepth  # lib/。段の語
 import oneline  # lib/
 import stopby  # lib/
 
-from src import fallback, feed
+from src import fallback
 
 JUDGE_STOP = stopby.declare("judge", "受け付けを通った判定が無いままループを抜けた")   # diagnose の block と同じ名と意味
 TITLES = {"head-depth": "run の頭の深さ", "spec": "仕様", "parallel-pr": "並行 PR", "premises": "前提の実測", "purpose": "目的の固定",

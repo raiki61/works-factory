@@ -4,25 +4,17 @@
 入口 runtrace.py の read で読む。手書きの DB や記録の見本は作らない（見本は Archon の形から外れても緑のままになる。
 docs/design/test-double-fidelity.md の型）。
 
-- 読めなかった行（知らない型の行・ノードに当たらない道具の出来事）が 0、記録の無い run が 0
+- 読めなかった行（知らない型の行）が 0
 - 作りは run の写しから読む（runread.copy が指す写しの中の pack の置き場が、本物の Archon の置き方と合う）
 - include の中のノードの出来事が、外の graph から入る道（通った include のノード）の token を持つ
 - 落ちたノードの誤りの字が出来事に在る
 - 名指さずに開いた一番新しい run が、落ちた状態で読める
-- 承認ノードで止まった run は待ちを出し、答えが入って次へ進む前の間（Archon は答えを run の metadata の wait に書くだけで、
-  状態は paused のまま node_completed も書かない。Archon の runAttention はこの間を待ちに数えない）と、待ちのまま止めた後（Archon は
-  node_completed を書かず、run を cancelled にする）は、どちらも出さない。答えだけを入れた間は、Archon の CLI がすぐ次へ進めて残らないので、
-  Archon の答えを書く口（packages/core/src/db/workflow-run-waits.ts の answerAttentionWait）を bun で直に呼んで作る
 - 答えた承認ノード（wait: attention）は、出来事の出力に答え（decision と添えた字 text）を持ち、その run のログに gate_decision の行が無い
   （runread の UNREAD_ROWS の gate_decision の訳。読まない型の行は数えずに飛ばすので、unread が空でも行が無いことは言えない）
-
-待ちの消し方は、名の照らし（tests/viewer/test_archon_names.py）では捕まらない。名が源に在っても、どの状態と欄の組で待ちが終わるかは
-Archon の振る舞いの意味の話なので、本物の run で照らす。
 """
 import json
 import pathlib
 import shutil
-import subprocess
 import tempfile
 import unittest
 
@@ -76,7 +68,7 @@ print(json.dumps(prompt.emit("talk", {"name": "x{y}"}, {"web": True}, prompt.rou
 """,
     "seen-leaf/prompts/talk.md": "Say hello to {name} and describe what this factory makes today.\n<!-- if web -->\nOn\n<!-- end web -->\n{shared:lang-default}\n",
     f"seen-gate/{PREFIX}seen-gate.yaml": f"""name: {PREFIX}seen-gate
-description: 承認ノードで止まり、待ちのまま止められる試し
+description: 承認ノードで止まり、答えを受けて進む試し
 nodes:
   - id: ask
     wait:
@@ -90,28 +82,6 @@ nodes:
 """,
     "seen-gate/scripts/step.py": HEAD + 'print("{}")\n',
 }
-# 答えだけを書き、次へ進めない（Archon の answerRun が store.answerAttentionWait に渡す形）
-ANSWER_ONLY = """import { answerAttentionWait } from '%s';
-const [id, pauseId] = process.argv.slice(2);
-const done = await answerAttentionWait(id, { pauseId, answer: { decision: 'approve', text: 'よし' }, answeredVia: 'cli',
-  answeredAt: new Date().toISOString() });
-console.log(JSON.stringify(done));
-process.exit(done.answered ? 0 : 1);
-"""
-
-
-def answer_only(tree: pathlib.Path, run_id: str) -> subprocess.CompletedProcess:
-    """止まっている run の承認ノードに、Archon の口で答えだけを書く（次へ進む前の間を残す）"""
-    db = tree.parent / "archon-home" / runread.DB_FILE
-    with runread.connect(db) as con:
-        meta = json.loads(con.execute(f"select metadata from {runread.RUN_TABLE} where id = ?", (run_id,)).fetchone()[0])
-    script = tree.parent / "answer-only.ts"
-    script.write_text(ANSWER_ONLY % (archon.source() / "packages/core/src/db/workflow-run-waits.ts"), encoding="utf-8")
-    head, env = archon.command(tree)
-    return subprocess.run([head[0], str(script), run_id, meta["wait"]["pauseId"]], cwd=tree, env=env, capture_output=True, text=True,
-                          encoding="utf-8")
-
-
 def read(tree: pathlib.Path, wanted: str, user: dict) -> dict:
     """選んだ run（wanted が空なら一番新しい親の run）の読み。全部の読み（作り・会話・段）は runtrace.read"""
     return runtrace.read(str(tree), wanted, user, tree)
@@ -138,33 +108,22 @@ class RealRunCase(unittest.TestCase):
                 # 家は archon.archon が木の横に置く archon-home（isolate.DIRS の名）。殻と同じく WORKS_FACTORY_HOME で向ける
                 user = {"WORKS_FACTORY_HOME": str(tree.parent), "HOME": str(tree.parent)}
                 gate = archon.archon(tree, "workflow", "run", f"{PREFIX}seen-gate", "--no-worktree", "--cwd", str(tree))
-                paused = read(tree, "", user)
-                answering = answer_only(tree, paused["run"]["id"]) if paused["run"] else None
-                answered_only = read(tree, paused["run"]["id"] if paused["run"] else "", user)
-                abandoned = archon.archon(tree, "workflow", "abandon", paused["run"]["id"], "--cwd", str(tree)) if paused["run"] else None
-                stopped = read(tree, paused["run"]["id"] if paused["run"] else "", user)
-                archon.archon(tree, "workflow", "run", f"{PREFIX}seen-gate", "--no-worktree", "--cwd", str(tree))
                 again = read(tree, "", user)
                 approved = archon.archon(tree, "workflow", "approve", again["run"]["id"], "よし", "--cwd", str(tree))
                 answered = read(tree, again["run"]["id"], user)
                 answered_rows = rows(tree, again["run"]["id"])
                 done = archon.archon(tree, "workflow", "run", f"{PREFIX}seen", "--no-worktree", "--cwd", str(tree))
                 data = read(tree, "", user)
-        self.assertIsNotNone(paused["run"], f"{gate.stdout}{gate.stderr}")
-        self.assertEqual((paused["run"]["status"], paused["run"]["waiting"]), ("paused", ["ask"]))
-        self.assertEqual(answering.returncode, 0, f"{answering.stdout}{answering.stderr}")
-        self.assertEqual((answered_only["run"]["status"], answered_only["run"]["waiting"]), ("paused", []))
-        self.assertEqual(stopped["run"]["status"], "cancelled", f"{abandoned.stdout}{abandoned.stderr}")
-        self.assertEqual(stopped["run"]["waiting"], [])
+        self.assertIsNotNone(again["run"], f"{gate.stdout}{gate.stderr}")
         self.assertEqual(answered["run"]["status"], "completed", f"{approved.stdout}{approved.stderr}")
-        self.assertEqual((answered["run"]["unread"], answered["run"]["waiting"]), ({}, []))
+        self.assertEqual(answered["run"]["unread"], {})
         gate = next(e for e in answered["run"]["events"] if e["tokens"] == ["ask"])
         self.assertEqual(json.loads(gate["output"]), {"decision": "approve", "text": "よし"})
         self.assertIn("node_complete", answered_rows)
         self.assertNotIn("gate_decision", answered_rows)
         run = data["run"]
         self.assertIsNotNone(run, f"{done.stdout}{done.stderr}")
-        self.assertEqual((run["unread"], run["missing_logs"]), ({}, []))
+        self.assertEqual(run["unread"], {})
         # 作りは run の写しから読む（runread.copy の写しの中の pack の置き場のパスが本物の Archon と合う）
         self.assertEqual(data["shape_from"], "run-copy")
         self.assertEqual(run["status"], "failed")

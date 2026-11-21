@@ -167,7 +167,7 @@ def pointers(secs, doc) -> dict:
 
 def compute():
     raw = raw_inputs()
-    from src import eyesback, facts, files, sections
+    from src import eyesback, facts, sections
     from src import fixture, specrounds
     values = specrounds.collect_values({**values_of(raw), **returned()})   # 仕様駆動の run の値を今の欄の名に重ねる（依頼の文の run は values のまま）
     values = fixture.collect_values(values)   # 直す前で止まった写しの run の続きの修正前の承認ノードの値も同じく重ねる
@@ -182,7 +182,7 @@ def compute():
 
 def fallback(reason: str) -> dict:
     """訳だけの sections と facts（problems に訳。結末は record_invalid）"""
-    from src import files, guard
+    from src import guard
     secs = [{"title": "入口・段・決めた人", "lines": [f"報告の材料を組めなかった（{reason}）"]}]
     doc = {"problems": [f"collect が報告の材料を組めなかった: {reason}"], "stops": [{"at": "collect", "word": guard.LINE_SCRIPT}]}
     return pointers(secs, doc)

@@ -6,7 +6,6 @@
   ok は偽（元の工場では役の輪が落ちると判定が止まった。止めは再開できる）
 - ほか: status は素材の札、reason は scan の reason
 """
-import json
 import pathlib
 
 import ports

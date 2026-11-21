@@ -5,11 +5,7 @@
 import json
 import re
 
-REF = re.compile(r"\$([A-Za-z0-9_-]+)\.output((?:\.[A-Za-z0-9_]+)*)")
-INREF = re.compile(r"\$INPUTS\.([A-Za-z0-9_]+)")
-
-
-CUT = "… [truncated; original output was"   # Archon が DB に書く出力を切った印
+from viewer.src.shape import INPUT_REF as INREF, REF
 
 
 def parse(text):
@@ -66,6 +62,11 @@ def dig(v, path):
     return v, True
 
 
+def _returns(graph):
+    """graph の返しのノードの id（returns が無ければ finish）"""
+    return (graph or {}).get("returns") or "finish"
+
+
 class Flow:
     def __init__(self, tree, events, graphs):
         self.tree, self.graphs = tree, graphs
@@ -84,14 +85,14 @@ class Flow:
         if t and t["kind"] == "block":
             # block の出力は、その graph の返しのノードの出力（block の枠の出来事が持つ出力より先に見る）
             g = self.graphs.get(t["item"].get("target"))
-            rk = k + ((g or {}).get("returns") or "finish",)
+            rk = k + (_returns(g),)
             if rk in self.outs:
                 k = rk
         got = self.outs.get(k)
         if not got:
             return None, False
         if self.at:
-            got = [x for x in got if x[0] and x[0] <= self.at] or []
+            got = [x for x in got if x[0] and x[0] <= self.at]
             if not got:
                 return None, True
         return got[-1][1], True
@@ -114,6 +115,11 @@ class Flow:
             if t and t["kind"] == "block":
                 return scope[:i]
         return None
+
+    def scope_inputs(self, scope):
+        """scope の $INPUTS の値（囲む block の受けた値。囲む block が無ければ一番上の graph の入力）"""
+        o = self.owner(scope)
+        return self.block_inputs(o) if o else self.root
 
     def block_inputs(self, key):
         """block（の呼び出しの key）が受けた値 {入口: 値}。上の入力（$INPUTS）は親の block の受けた値から引く"""
@@ -142,15 +148,13 @@ class Flow:
             return v if ok else None
         m = INREF.fullmatch(s)
         if m:
-            o = self.owner(scope)
-            return self.block_inputs(o).get(m.group(1)) if o else self.root.get(m.group(1))
+            return self.scope_inputs(scope).get(m.group(1))
 
         def sub(mm):
             v, ok = dig(self.node_out(scope, mm.group(1)), mm.group(2))
             return json.dumps(v, ensure_ascii=False) if ok else "null"
         s2 = REF.sub(sub, raw)
-        o = self.owner(scope)
-        s2 = INREF.sub(lambda mm: json.dumps(self.block_inputs(o).get(mm.group(1)) if o else self.root.get(mm.group(1)), ensure_ascii=False), s2)
+        s2 = INREF.sub(lambda mm: json.dumps(self.scope_inputs(scope).get(mm.group(1)), ensure_ascii=False), s2)
         return parse(s2)
 
     def returned(self, key):
@@ -160,7 +164,7 @@ class Flow:
         g = self.graphs.get(t["item"].get("target"))
         if not g:
             return None
-        v, _ = self._out(tuple(key) + (g.get("returns") or "finish",))
+        v, _ = self._out(tuple(key) + (_returns(g),))
         return v
 
     # ── 条件の式（== != && || ! と括弧、true false null・数・字）
@@ -179,8 +183,7 @@ class Flow:
 
         def val(name, path):
             if name == "INPUTS":
-                o = self.owner(scope)
-                v, ok = dig(self.block_inputs(o) if o else self.root, path)
+                v, ok = dig(self.scope_inputs(scope), path)
             else:
                 v, ok = dig(self.node_out(scope, name), path)
             return v if ok else None
@@ -255,4 +258,4 @@ class Flow:
         shown = expr
         for t, v in sorted(set((t, json.dumps(v, ensure_ascii=False)) for t, v in used), key=lambda x: -len(x[0])):
             shown = shown.replace(t, f"{t}〔{v}〕")
-        return shown, result, [(t, v) for t, v in used]
+        return shown, result, list(used)

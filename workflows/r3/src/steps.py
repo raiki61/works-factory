@@ -25,7 +25,7 @@ REQUEST_UNREAD = "依頼のファイルの中身が読めない（answers は空
 
 # ---------------------------------------------------------------- 入口
 def _blank(raw) -> bool:
-    return not ports.text(raw).strip() or ports.text(raw).strip() == "null"
+    return ports.text(raw).strip() in ("", "null")
 
 
 def _path(path) -> str:

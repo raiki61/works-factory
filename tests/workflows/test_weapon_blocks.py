@@ -23,6 +23,7 @@ import unittest
 
 import yaml
 
+from tests.bin.stepnames import walk
 from tests.blocks import kit
 
 PACK = kit.BLOCKS
@@ -34,18 +35,12 @@ def load(path: pathlib.Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def walk(nodes):
-    for n in nodes or []:
-        yield n
-        yield from walk((n.get("loop_group") or {}).get("nodes"))
-
-
 def writer_blocks() -> dict:
     """フォルダの名 → YAML（`script: writer_prep` の node を持つ workflow）"""
     out = {}
     for path in sorted(PACK.glob("*/works-factory-*.yaml")):
         doc = load(path)
-        if any(n.get("script") == "writer_prep" for n in walk(doc.get("nodes"))):
+        if any(n.get("script") == "writer_prep" for n in walk(doc.get("nodes") or [])):
             out[path.parent.name] = doc
     return out
 
