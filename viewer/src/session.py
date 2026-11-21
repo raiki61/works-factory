@@ -85,8 +85,7 @@ def collect(run: dict, projects: Path, keep) -> dict:
         try:
             found = find(projects, preview)
         except (LookupError, ValueError) as error:
-            what = AMBIGUOUS if isinstance(error, LookupError) else STRANGE
-            run["unread"][what] = run["unread"].get(what, 0) + 1
+            _count(run, AMBIGUOUS if isinstance(error, LookupError) else STRANGE)
             sessions[preview] = None
             continue
         if found is not None:
@@ -342,5 +341,6 @@ def _string(value) -> str:
 
 
 def _count(got, what):
+    """got（会話の読みか run。どちらも読めなかった物の数え unread を持つ）の what を 1 つ数える"""
     got["unread"][what] = got["unread"].get(what, 0) + 1
 
