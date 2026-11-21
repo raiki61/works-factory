@@ -551,7 +551,7 @@ def _close_covered(st) -> None:
         if not by:
             return
         src = st["units"][by[0]]
-        tests = [t["id"] for t in _plan_tests(st, k)] + [i for i in _plan_rewrites(st, k)]
+        tests = [t["id"] for t in _plan_tests(st, k)] + list(_plan_rewrites(st, k))
         want = {_norm_id(x) for x in tests}
         proven = [v for v in st["units"].values() if v.get("route") == "tdd" and v.get("green") == "ok"]   # 確かめた単位の全部から
         quotes = {t: q for v in proven for t, q in (v.get(QUOTES_FIELD) or {}).items() if _norm_id(t) in want}
