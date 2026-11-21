@@ -411,6 +411,22 @@ class TestLoopRedTree(FixGatesCase):
         self.assertEqual(calls.count(False), 2, "赤の木と base の木は 1 回ずつだけ走らせる")
 
 
+class TestNamedRowsTemplate(_LSrc):
+    def test_every_expanded_row_must_be_green(self):
+        """受け入れのテストを雛形の名で名指し、実行器が値ごとに展開した名で出した時、今の木で緑と見るのは展開した行の全部が通る時だけ。
+        1 つ目の行が通っても 2 つ目が赤なら行にする（名指しの最初の 1 行だけを見ると、雛形の読みが前は閉じていた確かめを開く）"""
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        now = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"},
+               {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure"}]
+        facts = {named: {"where": "base", "red": None, "base": None, "probs": []}}
+        rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], now, facts)
+        self.assertEqual([(r["id"], r["detail"]) for r in rows if r["detail"].startswith("今の木")],
+                         [(named, "今の木で failure（受け入れのテストが緑でない）")])
+        green = [{**c, "outcome": "passed"} for c in now]
+        rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], green, facts)
+        self.assertEqual([r for r in rows if r["detail"].startswith("今の木")], [])
+
+
 class RedGreenKeptCase(FixGatesCase):
     """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/design/fix.md の 22.4 の、起点の木と返した木の赤緑）。
     _red_green を「名指しごとの事実を返す口」と「問題の文を組む口」に割る前に作り、割る前の字（実行器を起こす順と回数・問題の行・

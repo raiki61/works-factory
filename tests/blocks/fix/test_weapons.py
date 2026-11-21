@@ -269,7 +269,7 @@ class DutyTableCase(unittest.TestCase):
             self.assertEqual(len(duties.check("tidy", {**f, "vanished": [outside]})), 1, outside)
 
     def test_keep_same_result_tail_match_passes_deeper_same_tail(self):
-        """許しより深いディレクトリに在る、後ろ側の段が同じ試験の消えは、同じ試験として通る（match_case の後ろ側の一致）"""
+        """許しより深いディレクトリに在る、後ろ側の段が同じ試験の消えは、同じ試験として通る（match_cases の後ろ側の一致）"""
         permits = [{"kind": "remove", "test": "test_changed.py::ChangedTest::test_a"}]
         self.assertEqual(duties.keep_same_result(
             {"vanished": ["tests.sub.test_changed.ChangedTest::test_a"], "permits": permits}), [])

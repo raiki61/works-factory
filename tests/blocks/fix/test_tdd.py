@@ -873,7 +873,7 @@ class ContractCase(LoopCase):
         self.assertEqual(why, [])
         out = {}
         for t in tests:
-            c = common.rules().match_case(t, cases) or {}
+            c = common.rules().worst_case(t, cases) or {}
             if c.get("fail_message"):
                 out[t] = {"quote": c["fail_message"], "why": "今のコードの欠陥で期待どおりに落ちた（打ち間違いではない）"}
         return out

@@ -129,8 +129,10 @@ def _id_parts(test_id):
 
 # 試験の名の雛形の置き換えの印。実行器は雛形の名（印を持つ名）を値ごとに展開した名で JUnit に出すので、名指しが雛形の名のままなら
 # 印を「何かの字」と読んで当てる。印は 3 つの類: 書式の印（`%s`・`%d`・`%1$s`・`%-5.2f` の類）・名の印（`$name`・`${name}`・`$0` の類）・
-# 括弧の印（`{0}`・`{name}`・`{}` の類）
-TEMPLATE_MARK = re.compile(r"%(?:\d+\$)?[-+ #0]*\d*(?:\.\d+)?[a-zA-Z]|\$\{[^{}]*\}|\$\w+|\{[^{}\s]*\}")
+# 括弧の印（`{0}`・`{name}`・`{}` の類）。名の印は ASCII の識別子と点で結んだ欄（`$a.b`）だけを食う（`\w` は Unicode の字にも
+# 当たり、空白を挟まない `$themeで…` の後ろの字まで印に読む）。書式の印の旗に空白を数えない（`50% off` の `% o` を印に読まない）
+_IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
+TEMPLATE_MARK = re.compile(rf"%(?:\d+\$)?[-+#0]*\d*(?:\.\d+)?[a-zA-Z]|\$\{{[^{{}}]*\}}|\$(?:{_IDENT}(?:\.{_IDENT})*|\d+)|\{{[^{{}}\s]*\}}")
 
 
 def _template(seg):
@@ -147,9 +149,17 @@ def _same(want, got, loose):
     return bool(pat and pat.fullmatch(got))
 
 
-def match_case(test_id, cases):
-    """名指しの 1 件に当たる JUnit の最初の行（無ければ None。当て方は match_cases）"""
-    return next(iter(match_cases(test_id, cases)), None)
+# 結末の悪さの順（worst_case が一番悪い行を選ぶ）
+_WORST = ("error", "failure", "skipped", "passed")
+
+
+def worst_case(test_id, cases):
+    """名指しの 1 件に当たる JUnit の行のうち一番悪い物（error・failure・skipped・passed の順。同じなら先の行。無ければ None。当て方は
+    match_cases）。結末を 1 行で判じる呼び手の口: 雛形の名は値ごとの行に展開されるので、最初の 1 行だけを見ると 2 つ目からの赤を見落とす。
+    最初の 1 行を返す口は置かない（当たる行が在るかだけを見る呼び手は match_cases の真偽を見る）"""
+    rows = match_cases(test_id, cases)
+    rank = {o: i for i, o in enumerate(_WORST)}
+    return min(rows, key=lambda c: rank.get(c.get("outcome"), 0)) if rows else None
 
 
 def match_cases(test_id, cases):
@@ -241,7 +251,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:132-147）"""
     scope = None
     if narrow and baseline is not None:
-        scope = {_key(c) for c in cases if _key(c) in baseline or any(match_case(t, [c]) for t in (*named, *also))}
+        scope = {_key(c) for c in cases if _key(c) in baseline or any(match_cases(t, [c]) for t in (*named, *also))}
     clean = scope is not None and not any(c["outcome"] in FAILED for c in cases if _key(c) in scope)
     probs = [] if exit_code == 0 or baseline_exit != 0 or clean else [
         f"テスト一式が exit {exit_code} で終わった——JUnit の結末が全部通っていても、一式としては緑でない"]
