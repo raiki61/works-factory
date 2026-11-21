@@ -40,7 +40,6 @@ RIPPLE = {"items": [{"item": 1, "unit_keys": [UNIT_MEAN], "names": [], "uncovere
 DESIGN_TEXT = "上限は入口 1 箇所で掛け、各所では掛け直さない。平均は定義どおりに割る"
 DESIGN_OK = {"question_stands": True, "reason": "問いは立っている", "design": DESIGN_TEXT,
              "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []}]}
-DESIGN_NOT = {"question_stands": False, "reason": "問いは立たない", "premise_invalid_reason": "stats.py:4 は既に正しい", "design": ""}
 WORLD_ROW = {"finding": 1, "where": "依頼", "class_id": "w-1", "problem": "空でない列の平均の求め方", "activity": "平均を求める",
              "practice": "要素の数で割る", "sources": [{"url": "https://docs.python.org/3/library/statistics.html", "quote": "mean"}],
              "applies": "数の列の平均", "not_applies": "", "basis": "web",
