@@ -113,7 +113,7 @@ def snapshot(place, name: str, repo) -> pathlib.Path:
     return write_json(pathlib.Path(place) / name, accept.tree_state(pathlib.Path(repo)))
 
 
-def scope_brief(place, items, by: str = "") -> dict:
+def scope_brief(place, items, by: str = "", held=None) -> dict:
     """役の brief の範囲の欄 {plan_items, ruled_paths, agreed}（差分の審査 refix.cut と手直し prep_fix の 1 回目が載せる 1 つの口）。
     範囲の値は受け付けが照らすのと同じ planrange.scope（範囲の相談の合意を置き場 place から読む。scope の permits は使わない）から
     引く。plan_items は scope の items（合意のパスを allowed_paths に足し、許したテストの範囲は印 agreed つきで tests に足した物）の
@@ -121,7 +121,8 @@ def scope_brief(place, items, by: str = "") -> dict:
     足した物。ruled_paths は直す裁定が広げたパス（conflict.ruled_paths）、agreed は plan_items に足した合意の行（conflict.agreed の行の
     まま。出どころは各行の id と group_id）。範囲の欄の無い控え・修正案の無い run は plan_items と agreed が []。items は
     planmarks.approved_items の形の値か、それを返す口か、その JSON のパス。口が凍結の印との食い違い（planmarks.FieldsBroken）を出せば
-    conflict.fields_broken の道（by の印の文の ValueError。既定は差分の審査の段 stopby.DELTA）"""
+    conflict.fields_broken の道（by の印の文の ValueError。既定は差分の審査の段 stopby.DELTA）。held は外れた単位 {key: 理由} の値で、
+    None なら conflict.held_by_rulings（呼び手の block が直す義務へ戻した単位を除いた値を渡せば、その単位の項目は外れた印を持たない）"""
     import copy
     import conflict
     import planmarks
@@ -134,7 +135,7 @@ def scope_brief(place, items, by: str = "") -> dict:
         raise conflict.fields_broken(None, e, by=by) from None
     got = planrange.scope(place, items=items, ruled=False, by=by)[0]
     plan_items = copy.deepcopy(got["items"]) if got else []
-    held = conflict.held_by_rulings(place) if plan_items else {}
+    held = (conflict.held_by_rulings(place) if held is None else held) if plan_items else {}
     for it in plan_items:
         why = conflict.held_item(it.get("unit_keys"), held)
         some = conflict.held_units(it.get("unit_keys"), held)
