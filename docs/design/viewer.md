@@ -171,7 +171,7 @@
 
 - 何の物か: 1 本の run を、工場の作りの単位（段 → block → ループ → ノード）で畳んだ図と、block の入出力・分岐・リジェクト・承認の回答・修正と検証の道を、1 枚の HTML のページにする。持ち主が「前の自作よりもフェニックスよりもすごいいい感じ」と見たリポジトリの外の試作の 4 版を、組みの形のまま戻した物（持ち主の決め `run-page-v4`）。Phoenix へ送る道（8 章）は残し、並べて持つ。#982 で消した前のページ（作りの図と run の再生の入口・日本語の写し・訳の控え）は戻さない。
 - 起こし方: 工場の clone の根から `uv run --isolated python3 viewer/runpage.py --target <対象> [--run <run の id か頭の字>] > <ページ.html>`。ページは標準出力に出し、ファイルは書かない（E25 の 2。置き場は利用者がリダイレクトで決める）。外へは何も送らない。止まる時は 1 行の訳を標準エラーに出し、終了の値 2 で標準出力に何も出さない。extra `trace` は要らない。
-- 読み: `runtrace.read`（3 章）をそのまま使う。DB の欄のうちページだけが読む物（run の入力 `inputs`・ノードの状態ごとの数 `node_counts`・置き場の根 `output_root`）は、Archon の名の 1 か所 `src/runread.py` の `run` が返す（`runread.INPUTS`・`runread.NODE_COUNTS`。`run_config` は読まない）。ほかに読むのは雛形と、run の入力 `request` が指す頼みの JSON と、run の写しの中の pack（指示の md の断片と筋書きの名）だけ。
+- 読み: `runtrace.read`（3 章）をそのまま使う。DB の欄のうちページだけが読む物（run の入力 `inputs`・ノードの状態ごとの数 `node_counts`・置き場の根 `output_root`）は、Archon の名の 1 か所 `src/runread.py` の `run` が返す（`runread.INPUTS`・`runread.NODE_COUNTS`。`run_config` は読まない）。ほかに読むのは雛形と、run の写しの中の pack（指示の md の断片と筋書きの名）だけ。
 - 組み（`src/page.py` の `render`）:
   - 木: line の run は段の表（6.5）で一番上のノードを段に畳む。ほかの graph の run は一番上のノードを根の下に並べる。
   - 出入口と分岐（`src/ioflow.py`）: block を呼ぶ所の `with` から入口ごとの値と出どころを、graph の `returns` のノードの出力から返した欄を出す。実行条件（`when`）は記録の値で解き直し、Archon が実際に走らせたかと突き合わせる（食い違いは要約に出す）。Archon が長い出力を切って記録した物は、切れる前に閉じた一番上の欄だけを読む。同じ親の中で同じ値を見て違う値で分かれる兄弟は、1 つの分岐の合成ノード（Archon のノードではない、表示だけの物）にまとめる。
