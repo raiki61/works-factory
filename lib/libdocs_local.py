@@ -57,7 +57,7 @@ def roots(repo) -> list:
         line = dotgit.read_text(encoding="utf-8").strip()
         if not line.startswith("gitdir:"):
             return out
-        gd = pathlib.Path(line[len("gitdir:"):].strip())
+        gd = pathlib.Path(line.removeprefix("gitdir:").strip())
         gd = gd if gd.is_absolute() else repo / gd
         common = gd
         if (gd / "commondir").is_file():
