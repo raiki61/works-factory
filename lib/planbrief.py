@@ -329,12 +329,6 @@ def _put(p: pathlib.Path, data: bytes) -> None:
     p.write_bytes(data)
 
 
-def _write_ledger(p: pathlib.Path, rows: list) -> bytes:
-    """控えを一時のファイルから os.replace で置き、置いたバイトを返す（一時のファイルの置き場に先に在る物は消してから書く。
-    リンクの先へ書かない）"""
-    return jsonfile.dump(p, {"briefs": rows})
-
-
 def _out(b, rows: list) -> list[dict]:
     box = _box(b).resolve()
     return [{"item": r["item"], "unit_keys": list(r.get("unit_keys") or []), "file": str(box / r["file"]), "sha256": r["sha256"]}
@@ -363,7 +357,7 @@ def _freeze(b, rows: list, recut: list[int] | None = None, round_: int = 1) -> l
     CUT_OP の前に RECUT_OP の行を書く"""
     ledger = _box(b) / LEDGER
     ledger.parent.mkdir(parents=True, exist_ok=True)
-    raw = _write_ledger(ledger, rows)
+    raw = jsonfile.dump(ledger, {"briefs": rows})
     if recut is not None:
         fixboard.trace(b, RECUT_OP, round=round_, items=recut)
     out = _out(b, rows)
