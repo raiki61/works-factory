@@ -4,7 +4,6 @@
 元は tests/workflows の test_judge.py の graph の場面（docs/design/README.md の 9.5）。include した block の中は各 block の試験が見る。
 守る keep-essence: 7（class_query。diagnose が作り、この graph は judgment の pointer を運ぶ）・12（世界の解の行を world の欄で運ぶ）
 """
-import copy
 import json
 import unittest
 
