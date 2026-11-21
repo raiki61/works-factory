@@ -101,7 +101,7 @@ def caller_block() -> Path:
     for frame in inspect.stack()[1:]:
         try:
             path = Path(frame.filename).resolve()
-        except (OSError, ValueError):
+        except (OSError, ValueError):   # 実パスに解けない frame の名（NUL を含む・解けないリンク）は block の中の呼び手でないので飛ばす
             continue
         if path.is_relative_to(_HERE) or not path.is_relative_to(PACK):
             continue
@@ -112,6 +112,11 @@ def caller_block() -> Path:
 # ---------------------------------------------------------------- 入力
 def text(raw) -> str:
     return "" if raw is None else str(raw)
+
+
+def _absent(raw: str) -> bool:
+    """飛ばされうる入力が無い印（空の字か null の字）"""
+    return raw.strip() in ("", "null")
 
 
 def flag(raw) -> bool:
@@ -277,6 +282,12 @@ def carries_file(shape) -> bool:
     return is_pointer_shape(shape) or isinstance(shape, dict) and shape.get("type") in ("string", ["string"])
 
 
+def _type_list(shape: dict) -> list:
+    """shape の type を並びにした物（無ければ空）"""
+    kind = shape.get("type")
+    return [kind] if isinstance(kind, str) else list(kind or ())
+
+
 def _named(shape):
     """形の所の description が名指す json・jsonl の (form, 名)。無ければ None"""
     form = form_of(shape.get("description")) if isinstance(shape, dict) else None
@@ -298,8 +309,7 @@ def open_shapes(shape, block_folder=None, *, shared=None, lib=None, returned=Non
     out = []
     if named is not None:
         out += _open_named(named[1], block_folder, shared, lib, returned, at, _seen)
-    types = shape.get("type")
-    types = {types} if isinstance(types, str) else set(types or ())
+    types = set(_type_list(shape))
     if not types and "enum" not in shape and "const" not in shape:
         return out + [at]
     if ANY_TYPES <= types:
@@ -349,10 +359,7 @@ def _expanded(shape, block_folder=None, seen: tuple = ()):
         sub = _expanded(sub, block_folder, (*seen, named[1]))
         if named[0] == "jsonl":
             sub = {"type": "array", "items": sub}
-        types = shape.get("type")
-        types = [types] if isinstance(types, str) else list(types or ())
-        sub_types = sub.get("type")
-        sub_types = [sub_types] if isinstance(sub_types, str) else list(sub_types or ())
+        types, sub_types = _type_list(shape), _type_list(sub)
         if "null" in types and sub_types and "null" not in sub_types:
             sub = {**sub, "type": [*sub_types, "null"]}
         return sub
@@ -408,7 +415,7 @@ def unknown_keywords(shape, at: str = "$") -> list[str]:
 
 def file(raw, form: str) -> Path | None:
     raw = text(raw)
-    if not raw.strip() or raw.strip() == "null":
+    if _absent(raw):
         return None
     path = located(raw)
     if path is None:
@@ -524,7 +531,7 @@ def run(compute, fallback) -> None:
 # ---------------------------------------------------------------- 返りまるごと・飛ばされうる欄
 def parsed(raw):
     raw = text(raw)
-    return None if not raw.strip() or raw.strip() == "null" else _json.loads(raw)
+    return None if _absent(raw) else _json.loads(raw)
 
 
 class Picked(dict):
@@ -540,7 +547,7 @@ class Picked(dict):
 def picked(raw, names, optional=()) -> Picked | None:
     """names の欄が返りに無ければ KeyError（作り手の欄の名の打ち違い・欄の消えを黙って None にしない）。optional の名だけは、無ければ None"""
     raw = text(raw)
-    if not raw.strip() or raw.strip() == "null":
+    if _absent(raw):
         return None
     got = _json.loads(raw)   # 返りまるごとは Archon が output_format で照らした値。pointer やパスは開かない（ファイルは json・file で読む）
     if _is_pointer(got):
