@@ -18,7 +18,7 @@ import yaml
 
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
-from tests.bin.stepnames import walk
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 from tests.blocks.fix import support
 

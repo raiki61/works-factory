@@ -26,7 +26,7 @@ import yaml
 from bin._lib import isolate, launcher
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
-from tests.bin.stepnames import walk
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]

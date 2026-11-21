@@ -25,7 +25,7 @@ import unittest
 
 import yaml
 
-from tests.bin.stepnames import walk
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 from tests.blocks.fix import support
 

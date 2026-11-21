@@ -10,7 +10,7 @@ import unittest
 
 import yaml
 
-from tests.bin.stepnames import walk
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
