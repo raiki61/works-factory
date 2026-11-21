@@ -128,7 +128,7 @@ def _l_direct_fields(**over):
     return [{**_l_FIELDS[0], "route": "direct", "route_why": "既存の期待の書き換えだけの項目", "tests": [], **over}]
 
 
-class FixGatesCase(_LSrc):
+class FixGatesCase(support.SeedEdits, _LSrc):
     """種の git（self.repo）と fix の run の置き場（self.board。元の盤面の代わり）と小さな実行器"""
 
     def setUp(self):
@@ -149,32 +149,8 @@ class FixGatesCase(_LSrc):
         planmarks.save(self.board, 1, _l_FIELDS if fields is None else fields)
         return self.board
 
-    def edit_tree(self, subs):
-        path = self.repo / "stats.py"
-        text = path.read_text(encoding="utf-8")
-        for old, new in subs.items():
-            self.assertIn(old, text)
-            text = text.replace(old, new)
-        path.write_text(text, encoding="utf-8")
-
-    def edit_tests(self, old, new):
-        path = self.repo / "test_stats.py"
-        text = path.read_text(encoding="utf-8")
-        self.assertIn(old, text)
-        path.write_text(text.replace(old, new), encoding="utf-8")
-
-    def add_test(self, body):
-        self.edit_tests("\n\nif __name__", body + "\n\nif __name__")
-
     def add_test_mean_of_two(self):
         self.add_test(_l_NEW_TEST)
-
-    def add_test_that_passes_on_base(self, name):
-        self.add_test(f"\n    def {name}(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n")
-
-    def git(self, *args):
-        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
-                              env=hermetic.child_env()).stdout.strip()
 
     def fields_for(self, test_id):
         """受け入れのテスト test_id を 1 本持つ tdd の項目（単位は mean）"""
@@ -186,11 +162,6 @@ class FixGatesCase(_LSrc):
 
     def ledger(self):
         return json.loads((self.board / fixgates.LEDGER).read_text(encoding="utf-8"))
-
-    def worktrees(self):
-        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
-                             env=hermetic.child_env()).stdout
-        return out.strip().splitlines()
 
 
 class TestBaseCache(FixGatesCase):
@@ -3842,7 +3813,7 @@ class SettleOverflowSeamCase(SeamTemp):
         self.assertFalse((self.place / recount.COVERAGE_FILE).exists(), "写しの照らしは乾いた形（件数を書かない）")
 
 
-class RecountSeamCase(SeamTemp):
+class RecountSeamCase(support.SeedEdits, SeamTemp):
     """class_query の数え直し（keep-essence の 7）を、修正役の受け付け（board.accept_reply）の振る舞いとして照らす。元は
     recount.accept_fix を直に呼んだ継ぎ目の試験（lib/tests/test_fix_seams.py の RecountSeamCase）。ここでは判定の写しを置き場に
     置き、段の頭の木を控えてから作業ツリーを直し、返答を受け付けに通す。拒否は確かめ copy（と closure）の行に出て、拒んだ回は
@@ -3853,14 +3824,6 @@ class RecountSeamCase(SeamTemp):
         import recount
         self.recount = recount
         self.head = leftovers.snapshot(self.repo)
-
-    def edit_tree(self, subs):
-        path = self.repo / "stats.py"
-        text = path.read_text(encoding="utf-8")
-        for old, new in subs.items():
-            self.assertIn(old, text)
-            text = text.replace(old, new)
-        path.write_text(text, encoding="utf-8")
 
     def accept(self, reply, *, judged=R_JUDGED, owed=(R_MEAN, R_CLAMP), precedents=()):
         (self.place / self.b.JUDGMENT_FILE).write_text(json.dumps({"units": judged, "precedents": list(precedents)},

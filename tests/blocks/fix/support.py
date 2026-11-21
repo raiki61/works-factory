@@ -207,3 +207,36 @@ def result(gid, unit_ids, end_tree, start_tree, **extra) -> dict:
            "changed": {k: False for k in MARKS}, "allowed_tests": [], "verified": []}
     doc.update(extra)
     return doc
+
+
+class SeedEdits:
+    """種の git（self.repo。stats.py と test_stats.py を持つ）を書き換える助け。unittest.TestCase と組んで継ぐ"""
+
+    def edit_tree(self, subs):
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in subs.items():
+            self.assertIn(old, text)
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+
+    def edit_tests(self, old, new):
+        path = self.repo / "test_stats.py"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new), encoding="utf-8")
+
+    def add_test(self, body):
+        self.edit_tests("\n\nif __name__", body + "\n\nif __name__")
+
+    def add_test_that_passes_on_base(self, name):
+        self.add_test(f"\n    def {name}(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n")
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
+                              env=hermetic.child_env()).stdout.strip()
+
+    def worktrees(self):
+        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
+                             env=hermetic.child_env()).stdout
+        return out.strip().splitlines()

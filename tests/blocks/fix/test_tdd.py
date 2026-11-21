@@ -19,7 +19,6 @@ import os
 import pathlib
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -66,7 +65,7 @@ MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 OPEN = json.dumps([MEAN, CLAMP], ensure_ascii=False)
 
-from tests.blocks.fix.support import SUITE  # noqa: E402
+from tests.blocks.fix.support import SUITE, SeedEdits  # noqa: E402
 
 # SUITE の写しで、pytest の JUnit に合わせる実行器: 断言の失敗も本体の例外も failure と書き、message に「<型>: <文>」を付ける
 # （pytest は本体の例外を failure と書く。引用の照らし common.red_check はこの message を読む）
@@ -3507,7 +3506,7 @@ def direct_fields(**over):
     return [{**FIELDS[0], "route": "direct", "route_why": "既存の期待の書き換えだけの項目", "tests": [], **over}]
 
 
-class FixGatesCase(Case):
+class FixGatesCase(SeedEdits, Case):
     """種の git（self.repo）と fix の run の置き場（self.board。元の盤面の代わり）と小さな実行器"""
 
     def setUp(self):
@@ -3527,32 +3526,8 @@ class FixGatesCase(Case):
         planmarks.save(self.board, 1, FIELDS if fields is None else fields)
         return self.board
 
-    def edit_tree(self, subs):
-        path = self.repo / "stats.py"
-        text = path.read_text(encoding="utf-8")
-        for old, new in subs.items():
-            self.assertIn(old, text)
-            text = text.replace(old, new)
-        path.write_text(text, encoding="utf-8")
-
-    def edit_tests(self, old, new):
-        path = self.repo / "test_stats.py"
-        text = path.read_text(encoding="utf-8")
-        self.assertIn(old, text)
-        path.write_text(text.replace(old, new), encoding="utf-8")
-
-    def add_test(self, body):
-        self.edit_tests("\n\nif __name__", body + "\n\nif __name__")
-
     def add_test_mean_of_two(self):
         self.add_test(NEW_TEST)
-
-    def add_test_that_passes_on_base(self, name):
-        self.add_test(f"\n    def {name}(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n")
-
-    def git(self, *args):
-        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
-                              env=hermetic.child_env()).stdout.strip()
 
     def fields_for(self, test_id):
         """受け入れのテスト test_id を 1 本持つ tdd の項目（単位は mean）"""
@@ -3564,11 +3539,6 @@ class FixGatesCase(Case):
 
     def ledger(self):
         return json.loads((self.board / gates.LEDGER).read_text(encoding="utf-8"))
-
-    def worktrees(self):
-        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
-                             env=hermetic.child_env()).stdout
-        return out.strip().splitlines()
 
 
 class TestRedGreen(FixGatesCase):
