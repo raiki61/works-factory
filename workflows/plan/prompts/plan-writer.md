@@ -129,9 +129,7 @@ For each of these means, some item writes in its works field `structure` (the li
 <!-- end means -->
 
 <!-- if ripple_units -->
-## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names that the unit keys name. Read it before you write the plan)
-
-A hit not covered is a hit that is in none of the item's paths it may write (allowed_paths), acceptance tests (tests), or tests to rewrite (rewrite_tests). Put what the fix touches (adjusting the callers, rewriting tests that assert a literal value) in that item's allowed_paths or rewrite_tests now. What you put in the plan can be written during the fix without asking about the scope (outside the scope, the only way is for the fix to ask for permission). Do not put in what you do not touch (a later review checks each hit: covered, not affected, or a hole).
+## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names in the keys of the "Units to fix in this round" above. Read it before you write the plan)
 
 {part:ripple-notes}
 
@@ -139,7 +137,7 @@ A hit not covered is a hit that is in none of the item's paths it may write (all
 <!-- end ripple_units -->
 
 <!-- if ripple_units_error -->
-## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names that the unit keys name. Read it before you write the plan)
+## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names in the keys of the "Units to fix in this round" above. Read it before you write the plan)
 
 Could not build the ripple list ({ripple_units_error}). Look up the callers and the tests yourself.
 <!-- end ripple_units_error -->
@@ -231,8 +229,6 @@ The review raised the blocks below in an earlier pass, and a later pass found th
 
 <!-- if prior_ripple -->
 ## Ripple list (looked up by the machine with git grep: the callers and tests of the names that the items change)
-
-A hit not covered is a hit that is in none of the item's paths it may write (allowed_paths), acceptance tests (tests), or tests to rewrite (rewrite_tests). Put what the fix touches (adjusting the callers, rewriting tests that assert a literal value) in that item's allowed_paths or rewrite_tests now. What you put in the plan can be written during the fix without asking about the scope (outside the scope, the only way is for the fix to ask for permission). Do not put in what you do not touch (a later review checks each hit: covered, not affected, or a hole).
 
 {part:ripple-notes}
 

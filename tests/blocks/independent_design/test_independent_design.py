@@ -73,11 +73,6 @@ class _RepoCase(unittest.TestCase):
         self.assertTrue(got["due"], got)
         return self.prep()["prompt"]
 
-    def write(self, name, text) -> str:
-        path = self.run.artifacts.parent / name
-        path.write_text(text, encoding="utf-8")
-        return str(path)
-
 
 class ShapeCase(unittest.TestCase):
     def test_inputs_carry_no_plan_judgment_or_diff(self):

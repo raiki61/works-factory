@@ -110,10 +110,6 @@ def writer_of(*replies):
     return lambda n, prompt: copy.deepcopy(replies[min(n, len(replies)) - 1])
 
 
-class NodeFailed(Exception):
-    """試験が落とした script の node（Archon は node を failed にして、後の node の trigger_rule に渡す）"""
-
-
 class PlanRun:
     """1 つの run の置き場と対象。include() で block を 1 度回す（Archon と同じ順に script を回し、AI の node は試験が返答を渡す）"""
 

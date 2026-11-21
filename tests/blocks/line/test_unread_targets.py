@@ -11,7 +11,7 @@ import unittest
 
 from tests.blocks import kit
 from tests.blocks.line.test_tiers import handed
-from tests.blocks.line.test_gates import ask_row, rounds
+from tests.blocks.line.test_gates import rounds
 
 BLOCK = "line"
 LINE_SCRIPT = "works:line-script"

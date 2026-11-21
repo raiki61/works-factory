@@ -108,12 +108,14 @@ def _frozen(place) -> pathlib.Path | None:
 
 
 def _scope(place) -> pathlib.Path | None:
-    """{plan_items, ruled_paths, agreed}（lib の fixboard.scope_brief。修正案の無い run は書かない）"""
+    """{plan_items, ruled_paths, agreed}（lib の fixboard.scope_brief。修正案の無い run は書かない）。外れた単位は board.held_now
+    （返した段で直す義務へ戻した単位は外れた印を持たず、差分の審査が照らす）"""
     from src import board
     place = pathlib.Path(place)
     if not (place / files.PLAN_REPLY_FILE).is_file():
         return None
-    return board.write_json(place / files.SCOPE_FILE, board.scope_brief(place, functools.partial(board.place_items, place)))
+    return board.write_json(place / files.SCOPE_FILE, board.scope_brief(place, functools.partial(board.place_items, place),
+                                                                 held=board.held_now(place)))
 
 
 def _tdd_refused(place) -> dict:

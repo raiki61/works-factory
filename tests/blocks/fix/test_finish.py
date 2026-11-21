@@ -21,11 +21,11 @@ import yaml
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix.support import MARKS, result, write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 YAML_PATH = kit.BLOCKS / "fix" / "works-factory-fix.yaml"
-MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed", "path_changed")
 JUDGMENT = {"units": [{"key": "A", "label": "block"}, {"key": "B", "label": "block"},
                       {"key": "C", "label": "suggest", "disposition": "do-now"}], "questions": []}
 
@@ -42,23 +42,6 @@ def lib_report():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def write(path, doc) -> pathlib.Path:
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    return path
-
-
-def result(gid, unit_ids, end_tree, start_tree, **extra) -> dict:
-    """組の子が out_dir/<gid>/result.json に書く結果（board.group_result の形）"""
-    doc = {"group_id": gid, "unit_ids": unit_ids, "end_tree": end_tree, "start_tree": start_tree,
-           "units": [{"unit_id": k, "status": "fixed", "reason": ""} for k in unit_ids],
-           "tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}, "conflicts": [], "objection": "",
-           "changed": {k: False for k in MARKS}, "allowed_tests": [], "verified": []}
-    doc.update(extra)
-    return doc
 
 
 TDD_ROW = {"unit_key": "A", "route": "tdd", "why": "", "tests": ["test_stats.py::test_mean"], "test_files": [],
@@ -244,7 +227,7 @@ class CollectCase(FinishPlace):
         self.assertEqual([self.art / ptr["path"] for ptr in out["removed"]],
                          [self.place / leftovers.REMOVED_FILE, self.place / "sub" / leftovers.REMOVED_FILE])
         self.assertLess(len(json.dumps(out["removed"])), 1000)
-        names = [json.loads(p.read_text(encoding="utf-8"))["removed"] for p in map(lambda ptr: self.art / ptr["path"], out["removed"])]
+        names = [json.loads(p.read_text(encoding="utf-8"))["removed"] for p in (self.art / ptr["path"] for ptr in out["removed"])]
         self.assertEqual([len(x) for x in names], [5000, 1], "控えの全件が pointer の先に残る（読み手の数え方は report と line の試験）")
 
     def test_unrestored_group_holds_the_tree_and_stops_for_a_human(self):

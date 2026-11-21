@@ -542,7 +542,6 @@ function highlight() {
 }
 function select(k, show) { selected = k; highlight(); if (show) side(k); }
 
-const esc = s => String(s ?? "");
 function swSide(k) {
   const o = O[k], s = $("side"); s.innerHTML = ""; s.classList.add("on"); s.dataset.k = k;
   const tools = el("div", { class: "tools" }); const x = el("button", { title: "閉じる（Esc）" }, "×"); x.onclick = () => s.classList.remove("on"); tools.append(x); s.append(tools);
@@ -835,16 +834,6 @@ function fitTo(k) { // 開いた枠を画面に収める（引いた時は名前
   const W = view.clientWidth, H = view.clientHeight; const r = { x: n.offsetLeft, y: n.offsetTop - 50, w: n.offsetWidth, h: n.offsetHeight + 50 };
   scale = Math.min(1, Math.min(W / (r.w + 60), H / (r.h + 60)));
   tx = (W - r.w * scale) / 2 - r.x * scale; ty = (H - r.h * scale) / 2 - r.y * scale; apply(); }
-function showAt(k) { // 開いた枠の入口のカードを、画面の左寄り・上下の真ん中に等倍で置く
-  const n = world.querySelector(`.card[data-k='${CSS.escape(k)}']`); if (!n) return start();
-  const H = view.clientHeight; scale = 1; tx = 60 - n.offsetLeft; ty = H / 2 - n.offsetTop - n.offsetHeight / 2; apply(); }
-function centerOn(k) {
-  const n = world.querySelector(`[data-k='${CSS.escape(k)}']`); if (!n) return fit();
-  const W = view.clientWidth, H = view.clientHeight;
-  const r = { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
-  scale = Math.max(0.35, Math.min(1, Math.min(W / (r.w + 80), H / (r.h + 80))));
-  tx = W / 2 - (r.x + r.w / 2) * scale; ty = H / 2 - (r.y + r.h / 2) * scale; apply();
-}
 let drag = null, dragMoved = false;
 view.addEventListener("pointerdown", ev => { if (ev.button !== 0 || ev.target.closest("#tl,#mini,#side,button,a,input,select,summary,pre")) return; drag = { x: ev.clientX, y: ev.clientY, tx, ty, id: ev.pointerId, on: false }; dragMoved = false; });
 const endDrag = () => { drag = null; view.classList.remove("drag"); };

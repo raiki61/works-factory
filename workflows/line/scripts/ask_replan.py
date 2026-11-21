@@ -166,7 +166,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
         rows += depart_rows([*gatemarks.means_rows(new_fields, worldmark.means_hints(means)),
                              *gatemarks.prescription_depart_rows(new_fields, planmarks.judged_prescriptions(judged))], ids, before_fix)
     else:
-        facts = [r for r in review_got["replan"] or []]
+        facts = list(review_got["replan"] or [])
         rows += depart_rows(review_got["deviations"] or [], ids, before_fix)
     for r in gates.replan_asks(facts, unattended_run=unattended) if facts else []:
         ident = r.get("item") if isinstance(r, dict) else None

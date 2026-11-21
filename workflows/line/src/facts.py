@@ -1030,7 +1030,6 @@ def ask_groups(values: dict, returns: dict, gates: dict, *, book, hits: list, un
     種の見出しは入力で 2 つの一方になる（gatemarks.spec_words）。題はここで集める行ごとの出どころから付ける: 判定の役の問い（保留にしたままの問い）は
     台帳の問いの title、載せなかった修正前の問いと独立の目の問いは行の title、修正の役の申し送りは fix の出力の handoff_titles（ここで 1 度だけ
     行にする）。どれも plainask.item_title が 1 行に畳む。保留の行の後ろの unreturned_lines の行は問いを持たないので題なし"""
-    import oneline
     import plainask
     deferred = _list(as_dict(values.get("ask_before_fix")).get("deferred"))
     plan_raw = [plainask.item_text(q) for q in deferred]   # 保留の行と重なる問いを引く鍵（畳む前の字）

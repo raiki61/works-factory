@@ -2,7 +2,7 @@
 run-page-v4）。持ち主が良いと見た試作の 4 版を、組みの形のまま移した物。
 
 - 読む物は入口が渡すデータ（viewer/runtrace.py の read と同じ欄。作り・記録・会話）だけで、DB は開かない（run の入力と置き場の根は
-  src/runread.py の run が読む）。ほかに読むのは雛形（viewer/page/）と、run の入力の頼みのファイル（JSON）と、run の写しの中の pack
+  src/runread.py の run が読む）。ほかに読むのは雛形（viewer/page/）と、run の写しの中の pack
   （指示の md の断片と筋書きの名）だけ。ファイルは書かず、ページの字を返す
 - 組む物: 段 → block → ループ → ノードの木・block の入出力（src/ioflow.py）・実行条件を記録の値で解いた分岐と、同じ値で分かれる兄弟を
   1 つにした分岐の合成ノード・リジェクト（受け付けの script が ok=false を返した周）・承認の回答・失敗・AI の費用の上位・指示の md の
@@ -13,8 +13,6 @@ run-page-v4）。持ち主が良いと見た試作の 4 版を、組みの形の
 import json
 import re
 import shlex
-import sys
-from datetime import datetime
 from pathlib import Path
 
 from viewer.src import fill, ioflow, runread, stages
@@ -93,15 +91,13 @@ def render(data: dict, target: Path, pack_name: str) -> str:
     def look(key):
         evs = leaf_events(key)
         if not evs:
-            sk = [s for s in skipped if (key and key[0] != "#stage" and under(key, s["tokens"]))]
             if key and key[0] == "#stage":
-                sk = [s for s in skipped if any(under(k, s["tokens"]) for k in tree[key]["kids"])]
+                sk = any(under(k, s["tokens"]) for s in skipped for k in tree[key]["kids"])
+            else:
+                sk = bool(key) and any(under(key, s["tokens"]) for s in skipped)
             return "skipped" if sk else "none"
         sts = [e["status"] for e in evs]
-        for s in ("failed", "running", "waiting"):
-            if s in sts:
-                return s
-        return "ok"
+        return next((s for s in stages.ORDER if s in sts), "ok")
 
 
     def cost(key):
@@ -112,8 +108,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         evs = [e for e in leaf_events(key) if e.get("start") and e.get("end")]
         if not evs:
             return None
-        p = lambda t: datetime.fromisoformat(t.replace("Z", "+00:00"))
-        return (max(p(e["end"]) for e in evs) - min(p(e["start"]) for e in evs)).total_seconds()
+        return (max(runread.when(e["end"]) for e in evs) - min(runread.when(e["start"]) for e in evs)).total_seconds()
 
 
     def what(key):
@@ -124,7 +119,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return it.get("desc") or ""
 
 
-    def first_sentence(s, n=46):
+    def first_sentence(s, n=80):
         s = (s or "").strip().split("\n")[0]
         s = s.split("。")[0]
         return s[:n] + ("…" if len(s) > n else "")
@@ -139,10 +134,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         if s is None:
             return ""
         return f"{s/60:.0f}分" if s >= 60 else f"{s:.0f}秒"
-
-
-    def esc(s):
-        return str(s).replace("\\", "\\\\").replace('"', '\\"')
 
 
     # ── 会話の記録（Claude Code の jsonl を viewer/src/session.py が読んだ物）と、プロンプトの中の値
@@ -204,14 +195,15 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         is_wire = (not t["kids"] and t["kind"] == "script" and (key[-1] in wiring or str(key[-1]).endswith(("-out", "-in"))))
         evs = own_events(key) if not t["kids"] else []
         md = it.get("md") if isinstance(it.get("md"), dict) else None
+        about = what(key)
+        skip = next((s for s in skipped if tuple(s["tokens"]) == key), None)
         objs[K(key)] = {
             "name": t["name"], "kind": t["kind"], "kindWord": KIND.get(t["kind"], t["kind"]), "state": look(key),
-            "what": first_sentence(what(key), 80), "whatFull": what(key), "cost": round(cost(key), 4), "time": fmt_s(secs(key)),
+            "what": first_sentence(about), "whatFull": about, "cost": round(cost(key), 4), "time": fmt_s(secs(key)),
             "runs": len(evs), "kids": [K(k) for k in t["kids"]], "parent": parent, "deps": deps, "wire": is_wire,
             "when": it.get("when") or "", "depsNames": it.get("deps") or [],
-            "skip": next((s.get("cause") for s in skipped if tuple(s["tokens"]) == key), None),
-            "skipAt": next((s.get("time") for s in skipped if tuple(s["tokens"]) == key), None),
-            "md": (md or {}).get("text", "")[:12000] if md else "", "mdPath": (md or {}).get("file", "") if md else "",
+            "skip": (skip or {}).get("cause"), "skipAt": (skip or {}).get("time"),
+            "md": md.get("text", "")[:12000] if md else "", "mdPath": md.get("file", "") if md else "",
             "script": it.get("script_file") or "", "doc": it.get("doc") or "",
             "events": [{"loop": e.get("loop"), "status": e["status"], "start": e.get("start"), "end": e.get("end"), "cost": e.get("cost"),
                         "error": e.get("error") or "", "output": (e.get("output") or "")[:8000], **talk(e, md)} for e in evs],
@@ -237,6 +229,14 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return t if len(t) <= n else t[:n] + f"…（残り {len(t) - n} 文字）"
 
 
+    def nearest(scope, node):
+        """scope から外へ向かって、node の名の兄弟が木に在る一番近い key（無ければ None）"""
+        for i in range(len(scope), -1, -1):
+            if tuple(scope[:i]) + (node,) in tree:
+                return tuple(scope[:i]) + (node,)
+        return None
+
+
     def code_reads(k, depth=0):
         """つなぎの script（code）が読んだ物を、block まで辿った一覧 [[名, key]]。*-out の script は、その block の返しを包む物なので、
         包んだ block に読み替える。辿れない物（run の入力など）は名だけ"""
@@ -248,11 +248,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 if node == "INPUTS":
                     got.append(["親の入力 " + str(r.get("field")), None])
                     continue
-                sk = None
-                for i in range(len(k) - 1, -1, -1):
-                    if tuple(k[:i]) + (node,) in tree:
-                        sk = tuple(k[:i]) + (node,)
-                        break
+                sk = nearest(k[:-1], node)
                 if not sk:
                     got.append([node, None])
                     continue
@@ -279,11 +275,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             if node == "INPUTS":
                 out.append({"kind": "inputs", "field": field})
                 continue
-            k = None
-            for i in range(len(scope), -1, -1):
-                if tuple(scope[:i]) + (node,) in tree:
-                    k = tuple(scope[:i]) + (node,)
-                    break
+            k = nearest(scope, node)
             kind = tree[k]["kind"] if k else "?"
             ent = {"kind": "block" if kind == "block" else "code" if kind in ("script", "bash") else kind, "key": K(k) if k else None, "name": node, "field": field}
             if ent["kind"] == "code" and k:
@@ -420,8 +412,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                     if o2.get("branch"):
                         o2["branch"]["sw"] = True
             SWITCHES.append(sk)
-    print("分岐のノード", len(SWITCHES), "うち道が分かれた", sum(1 for k in SWITCHES if sum(a["taken"] for a in objs[k]["arms"]) == 1),
-          file=sys.stderr)
     # 擬似の札: 開いた block の中の「受けた」「返した」
     for key, t in list(tree.items()):
         o = objs[K(key)]
@@ -430,7 +420,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 pk = K(key + (tag,))
                 objs[pk] = {"name": word, "kind": kind, "kindWord": "I/O", "state": o["state"], "what": "", "whatFull": "", "cost": 0, "time": "",
                             "runs": 0, "kids": [], "parent": K(key), "deps": [], "wire": False, "when": "", "depsNames": [], "skip": None, "skipAt": None,
-                            "md": "", "mdPath": "", "script": "", "doc": "", "events": [], "of": K(key)}
+                            "md": "", "mdPath": "", "script": "", "doc": "", "events": []}
                 o["kids"].append(pk)
     # ── 修正と検証道: block ごとに、設計書・プロンプトのテンプレート・筋書き・記録した入力で block だけを回し直す命令の下書き
     art_root = Path(run["output_root"]) / runread.ARTIFACTS / runread.RUNS_DIR / run["id"] if run.get("output_root") else None
@@ -447,7 +437,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return (v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)), False
 
 
-    pack_dir = pack
     for key, t in tree.items():
         o = objs[K(key)]
         it = t["item"]
@@ -455,7 +444,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             continue
         g = graphs[it["target"]]
         folder = Path(g["file"]).parent.name if g.get("file") else it["target"]
-        fixtures = sorted(p_.name for p_ in (pack_dir / folder / "fixtures").glob("*.yaml")) if pack_dir and (pack_dir / folder / "fixtures").is_dir() else []
+        fixtures = sorted(p_.name for p_ in (pack / folder / "fixtures").glob("*.yaml")) if pack and (pack / folder / "fixtures").is_dir() else []
         ai_md = []
         def ai_walk(items):
             for x in items:
@@ -464,7 +453,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 if x["kind"] == "loop":
                     ai_walk(x.get("kids") or [])
         ai_walk(g["items"])
-        args, conv, longest = [], [], 0
+        args, conv = [], []
         for prt in o.get("portsIn") or []:
             v = fl.block_inputs(key).get(prt["n"])
             if v in (None, "", [], {}):
@@ -473,12 +462,11 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             if c:
                 paths_ = json.loads(a) if a.startswith("[") else [a]
                 conv.append({"n": prt["n"], "missing": [x for x in paths_ if not Path(x).exists()]})
-            longest = max(longest, len(a))
             args.append(f"--input {prt['n']}={shlex.quote(a)}")
-        o["fixit"] = {"design": [f"docs/design/{d_}" if not str(d_).startswith("docs/") else d_ for d_ in (g.get("docs") or [])], "yaml": f"workflows/{g.get('file', '')}",
+        o["fixit"] = {"design": g.get("docs") or [], "yaml": f"workflows/{g.get('file', '')}",
                       "md": ai_md, "fixtures": [f"workflows/{folder}/fixtures/{x}" for x in fixtures], "tests": f"tests/blocks/{folder.replace('-', '_')}/",
                       "cmd": " \\\n  ".join([f"bin/works-factory workflow run {g['name']} --cwd {shlex.quote(str(target))}"] + args),
-                      "converted": conv, "longest": longest}
+                      "converted": conv}
 
     # ── ループの周とリジェクト（受け付けの script が ok=false を返した周）
     def parse_out(e):
@@ -513,8 +501,8 @@ def render(data: dict, target: Path, pack_name: str) -> str:
     for e in events:
         if e["kind"] == "wait":
             oo = parse_out(e)
-            GATES.append({"key": K(tuple(e["tokens"])), "decision": (oo or {}).get("decision") if isinstance(oo, dict) else None,
-                          "text": str((oo or {}).get("text") or "")[:2000] if isinstance(oo, dict) else "", "at": e.get("end") or e.get("start"), "status": e["status"]})
+            GATES.append({"key": K(tuple(e["tokens"])), "decision": oo.get("decision") if isinstance(oo, dict) else None,
+                          "text": str(oo.get("text") or "")[:2000] if isinstance(oo, dict) else "", "at": e.get("end") or e.get("start"), "status": e["status"]})
             objs[K(tuple(e["tokens"]))]["answer"] = GATES[-1]["decision"]
     FAILS = [{"key": K(tuple(e["tokens"])), "error": (e.get("error") or "")[:1500], "at": e.get("start")} for e in events if e["status"] == "failed" and e["kind"] not in runread.GROUP_KINDS]
     ai_cost = {}
@@ -525,15 +513,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 ai_cost[K(key)] = c_
     TOPCOST = sorted(ai_cost.items(), key=lambda x: -x[1])[:6]
     MISMATCH = [k for k, o in objs.items() if (o.get("branch") or {}).get("mismatch")]
-    REQUEST = None
-    _req = (run.get("inputs") or {}).get("request")
-    if isinstance(_req, str) and _req.endswith(".json") and Path(_req).is_file():
-        try:
-            REQUEST = json.loads(Path(_req).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            REQUEST = None
     SUMMARY = {"inputs": {k: (v if len(str(v)) < 400 else str(v)[:400] + "…") for k, v in (run.get("inputs") or {}).items()},
-               "request": REQUEST if REQUEST is None or len(json.dumps(REQUEST, ensure_ascii=False)) < 30000 else None,
                "counts": run.get("node_counts") or {}, "gates": GATES, "rejects": REJECTS, "fails": FAILS,
                "topcost": [[k, round(c_, 3)] for k, c_ in TOPCOST], "mismatch": MISMATCH, "seconds": run.get("seconds"), "outcome": run.get("outcome"),
                "result": run.get("result_word")}

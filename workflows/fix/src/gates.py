@@ -59,13 +59,13 @@ import pathlib
 import posixpath
 import shutil
 
-import cite  # noqa: E402  （.shared/core。名指しの形）
-import conflict  # noqa: E402  （.shared/core。修正案の欄の控え・テストの変更の許し）
-from src import board as fixboard  # noqa: E402  （lib。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
-import impact  # noqa: E402  （.shared/core。受け付けの置き場の trace の行の名・テストのファイルの見分け）
+import cite  # noqa: E402  （lib/。名指しの形）
+import conflict  # noqa: E402  （lib/。修正案の欄の控え・テストの変更の許し）
+from src import board as fixboard  # noqa: E402  （同じ block の src。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
+import impact  # noqa: E402  （lib/。受け付けの置き場の trace の行の名・テストのファイルの見分け）
 import jsonfile  # noqa: E402
-import planmarks  # noqa: E402  （.shared/core。修正案の書き換えの名指し・テストの定義の行）
-import planrange  # noqa: E402  （.shared/core。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
+import planmarks  # noqa: E402  （lib/。修正案の書き換えの名指し・テストの定義の行）
+import planrange  # noqa: E402  （lib/。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
 from src import common, tdd as tddloop  # noqa: E402  （同じブロックの lib。輪の関門の読み口をそのまま使う）
 from leftovers import Unreadable, git  # noqa: E402
 
@@ -80,6 +80,7 @@ NO_SUITE_WHY = "実行器が無い（元の結末に exe が無い）"
 NO_RUN = "受け入れのテストの事後の赤緑を確かめられない"   # skipped の頭（実行器が走らない・base の木を作れない）
 EDITED = "名指しの外の既存のテストの本体を変えた・消した（変えてよいのは修正案の rewrite_tests の名指しと、修正案が消す名を名指すテストと、裁定 fix_test_scope の範囲だけ）"
 OUT_OF_DUTY = "直す義務の外の単位（止めた・答え待ち・人に回した）だけを名指す項目——受け入れのテストの事後の赤緑は確かめない"
+STOPPED_BY_RULING = "返した段で、前の段の人に回した裁定が名指した試験の赤の義務は止めたまま"
 SKIPPED_OP = impact.ACCEPT_GATES_SKIPPED_OP   # 受けた受け付けの回に飛ばした理由を載せる置き場の trace の行（報告が数える）
 BASE_CACHE = "fixgates-base.json"   # base の木の結末の控え {鍵: JUnit の行か null}（_base_keys。置き場の根）
 RUN = "gates"   # 一式のログ・JUnit の名（suite-gates-<回>-now.log・…-base.log・…-red-<n>.log）
@@ -212,11 +213,14 @@ def _accept_tests(b, fields, repo=None, *, owed=None, withheld=(), returned=()) 
     子から写した合意も）のうち、直す義務の単位を名指す項目（unit_keys の無い項目も）の物。合意のテストは許しで義務でないので、今の木
     （repo）に定義が在る物だけ。
     凍結した欄は番号（item）を付けて with_agreed に通して読む。直す義務は fixboard.owed_units_but_asked(b, owed, withheld=,
-    returned=)（owed が None なら欄の項目が名指す単位の全部から引く）"""
+    returned=)（owed が None なら欄の項目が名指す単位の全部から引く）。返した段で前の段の人に回した裁定から直しへ戻した単位の、裁定が
+    名指した試験（fixboard.stopped_tests）は、項目の義務の単位の全部で止めた物だけ見ない（理由は STOPPED_BY_RULING）"""
     if owed is None:
         owed = {k for f in fields or [] if isinstance(f, dict) and isinstance(f.get("unit_keys"), list)
                 for k in f["unit_keys"] if isinstance(k, str)}
-    owed = fixboard.owed_units_but_asked(b, owed, withheld=withheld, returned=returned) if fields else set()
+    back = fixboard.returned_units(b) if fields else {}   # 直す義務と止める試験を 1 回の読みから引く
+    owed = fixboard.owed_units_but_asked(b, owed, withheld=withheld, returned=returned, back=back) if fields else set()
+    stops = fixboard.stopped_tests(b, back)
     numbered = [{**f, "item": n} if isinstance(f, dict) else f for n, f in enumerate(fields or [], 1)]
     seen = planrange.with_agreed([f for f in numbered if isinstance(f, dict)], conflict.agreed(b)) if fields else []
     out, why = {}, []
@@ -231,6 +235,11 @@ def _accept_tests(b, fields, repo=None, *, owed=None, withheld=(), returned=()) 
         if keys and not set(keys) & owed:
             why.append(f"{OUT_OF_DUTY}: 修正案の項目 {n}（単位 {'、'.join(keys)}）")
             continue
+        mine = [k for k in keys if k in owed]
+        held = {t.get("id") for t in rows if mine and all(t.get("id") in stops.get(k, ()) for k in mine)}
+        if held:
+            why.append(f"{OUT_OF_DUTY}: 修正案の項目 {n} の {'、'.join(sorted(held))}（{STOPPED_BY_RULING}）")
+            rows = [t for t in rows if t.get("id") not in held]
         for t in rows:
             if isinstance(t, dict) and isinstance(t.get("id"), str) and t["id"].strip():
                 got = out.setdefault(t["id"], {"id": t["id"], "unit_keys": [], "guard": t.get("red_kind") == planmarks.GUARD_KIND,
@@ -326,12 +335,13 @@ def named_facts(repo: pathlib.Path, rev: str, suite: str, ids: list, work: pathl
         base, why = _base_run(repo, rev, suite, need, copy, work)
         if base is None:
             return None, [f"{NO_RUN}（base の木: {'; '.join(why)}）"]
-        seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_case(i, base) for i in need}}
+        seen = {**common.load_json(cache, {}), **{keys[i]: rules.match_cases(i, base) for i in need}}
         jsonfile.write(cache, seen)
     out = {}
     for i in ids:
-        base = [seen[keys[i]]] if seen.get(keys[i]) else []   # base の木の結末のうちこのテストに当たる行（無ければ空）
-        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": base[0] if base else None,
+        base = seen.get(keys[i]) or []   # base の木の結末のうちこのテストに当たる行の全部（雛形の名は展開した行。無ければ空）
+        base = [base] if isinstance(base, dict) else base   # 1 行だけを控えた前の形の控え
+        out[i] = {"where": "red" if i in red else "base", "red": red.get(i), "base": rules.worst_case(i, base),
                   "probs": common.red_check([i], base, None, None)[0]}
     return out, []
 
@@ -343,7 +353,7 @@ def named_rows(tests: list, now: list, facts: dict) -> tuple[list, list]:
     rules = common.rules()
     rows, guards = [], []
     for t in tests:
-        c = rules.match_case(t["id"], now)
+        c = rules.worst_case(t["id"], now)
         if c is None or c["outcome"] != "passed":
             rows.append(_row("red_green", t["id"], f"今の木で {c['outcome'] if c else '一式の結末に居ない'}（受け入れのテストが緑でない）",
                              t["unit_keys"]))

@@ -16,8 +16,7 @@ import unittest
 
 from tests.blocks import kit
 
-depth = kit.load("line", "tiers")
-latedepth = depth   # 元 latedepth.py の signals も src/tiers.py に写した
+depth = kit.load("line", "tiers")   # 元 latedepth.py の signals も src/tiers.py に写した
 import headdepth  # noqa: E402  （KEEP の lib。kit.load が lib/ を sys.path に足す）
 
 UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
@@ -184,7 +183,7 @@ class RaiseCase(unittest.TestCase):
 
 
 class LateCase(unittest.TestCase):
-    """issue #760 の受け入れ: 修正の後の上げ直し（latedepth.signals）は run 全体の本数で上げず、中身を見る信号でだけ上げる"""
+    """issue #760 の受け入れ: 修正の後の上げ直し（depth.signals）は run 全体の本数で上げず、中身を見る信号でだけ上げる"""
     PATHS = [f"pkg/m{n}.py" for n in range(11)]
 
     def setUp(self):
@@ -199,7 +198,7 @@ class LateCase(unittest.TestCase):
         self.quiet = {"refused": [], "trace": [], "missing": [], "unread": []}
 
     def signals(self, touched=(), late=None, declared=()):
-        return latedepth.signals(self.items, [U1, U2], [*self.PATHS, *touched], origin="修正の差分 x", head_record=self.head,
+        return depth.signals(self.items, [U1, U2], [*self.PATHS, *touched], origin="修正の差分 x", head_record=self.head,
                                  late=late or self.quiet, declared=declared)
 
     def test_wide_run_inside_where_stays_light(self):

@@ -18,7 +18,6 @@ import carry      # lib/
 import cite       # lib/。人の答えが名指したファイルを、版に無ければほかの版で探す
 import converge   # lib/
 import gatemarks  # lib/
-import handoff    # lib/
 import judgmark   # lib/。開いた単位の選びと、直す義務・周が役を起こすかの決め（diagnose・verify・fix・line と共に読む判定の行の形）
 from judgmark import (LEDGER, NOTHING_OWED, PLAN_STUCK, STUCK_WHY, held_why, is_open, plan_slots, slots, units_of,   # noqa: F401
                       plan_stuck_reason as stuck_reason)
@@ -26,7 +25,6 @@ import jsonfile   # lib/
 import oneline    # lib/
 import planmarks  # lib/
 import rolekit    # lib/
-import structmark  # lib/
 
 from src import files, ripple
 

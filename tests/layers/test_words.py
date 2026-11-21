@@ -12,7 +12,6 @@ import inspect
 import io
 import pathlib
 import re
-import sys
 import tokenize
 import unittest
 from unittest import mock
@@ -73,14 +72,14 @@ def scope(root):
     """`(根からのパス, 種類)` を並べる。種類は md（json も行ごとに読む）・yaml・py・bin（docstring とコメントも読む py）"""
     root = pathlib.Path(root)
     found = []
-    found += [p for p in root.glob("docs/*.md")]
+    found += list(root.glob("docs/*.md"))
     found += guides(root)
-    found += [p for p in root.glob("docs/*.json")]
-    found += [p for p in root.glob("lib/*.md")] + [p for p in root.glob("lib/*.json")]
-    found += [p for p in root.glob("lib/borrow/*.json")]
-    found += [p for p in root.glob(BORROWED_PROMPT)]
+    found += list(root.glob("docs/*.json"))
+    found += list(root.glob("lib/*.md")) + list(root.glob("lib/*.json"))
+    found += list(root.glob("lib/borrow/*.json"))
+    found += list(root.glob(BORROWED_PROMPT))
     found += [p for p in root.glob("workflows/*/commands/**/*") if p.is_file()]
-    found += [p for p in root.glob("workflows/.shared/prompts/role-*.md")]   # 役の定義 5 本（今の lib/agents/*.md の行き先。integration.md の 4.3-13）
+    found += list(root.glob("workflows/.shared/prompts/role-*.md"))   # 役の定義 5 本（元の lib/agents/*.md の行き先。integration.md の 4.3-13）
     for path in sorted(set(found)):
         yield path.relative_to(root).as_posix(), "md"
     for path in sorted(root.glob("workflows/*/*.yaml")):

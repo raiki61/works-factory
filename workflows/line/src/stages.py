@@ -649,7 +649,7 @@ def rejudge_lines(rejudge: dict | None, objection: str, exit_: tuple, fixed_unit
     doc, why = exit_
     if doc is None:
         return [f"再審の記録が読めない（{why}）——再審の結果を確かめる", *left]
-    raw = [v for v in doc.get("verdicts") or []] if isinstance(doc.get("verdicts"), list) else []
+    raw = list(doc.get("verdicts") or []) if isinstance(doc.get("verdicts"), list) else []
     obj = oneline.one_line(doc.get("objection") or "") or objection
     opened, lowered = rejudge_opened(doc, fixed_units), rejudge_lowered(rejudge, doc)
     if not (raw or opened or lowered or obj):

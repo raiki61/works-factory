@@ -172,6 +172,20 @@ class TurnCase(_Case):
         for out in (got, with_prior):
             self.assertTrue(not out["item_kinds"] or out["prior"] is not None)
 
+    def test_choose_items_are_not_returned_to_the_fix_stage(self):
+        """返す項目のうち needs が choose の行（人が選ぶ物。最後の承認ノードの問いへ回る）は修正の段へ返さない: notes・only_items・
+        item_kinds・周の行に入れない。needs の無い行は今どおり返す。choose だけの findings は返す項目が無いのと同じに抜ける"""
+        pick = {"eye": "r2", "where": "docs/a.md", "text": "色を当てるか", "needs": "choose", "kind": "unfinished", "options": ["a", "b"], "recommend": "a"}
+        fix = {**ITEMS[0], "needs": "fix", "kind": "trim"}
+        got = self.run_turn(eyes=eyes(items=[fix, pick]))
+        self.assertTrue(got["go"])
+        self.assertEqual(got["notes"].splitlines(), ["独立の目 R1: src/a.py:12: 写しが残っている"])
+        self.assertEqual(got["only_items"], [1], "docs/a.md の choose の行は項目 2 に結ばない")
+        self.assertEqual(got["item_kinds"], [{"item": 1, "kind": "trim"}])
+        self.assertEqual(got["rows"][0]["items"], [fix])
+        only = self.run_turn(eyes=eyes(items=[pick]))
+        self.assertEqual((only["go"], only["exit"]), (False, self.e.NOTHING))
+
     def test_stay_route_stop_word_or_fallen_round_does_not_return(self):
         """目の route が stay・前の段の修正が止めの語か異議を返した・前の周の返りが欠けた時は go が偽で、抜けた訳が route_why か EXITS の語になる"""
         stay = self.run_turn(eyes=eyes("stay"))

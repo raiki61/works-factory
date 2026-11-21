@@ -28,12 +28,12 @@ sys.dont_write_bytecode = True
 
 import baseline_red  # noqa: E402  （lib。赤・緑の判定と実行器を走らせる口の正本）
 from baseline_red import run_suite  # noqa: E402  （lib。実行器を走らせる口の正本）
-import cite  # noqa: E402  （.shared/core。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
+import cite  # noqa: E402  （lib/。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import files as fixnames  # noqa: E402
-import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
-import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
+import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
 import tree_run  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
@@ -77,7 +77,7 @@ class Broken(Exception):
 
 
 def rules():
-    """赤・緑の判定の正本のモジュール（lib/baseline_red。red_problems・green_problems・match_case・parse_junit）。元は写しの TDD 版の
+    """赤・緑の判定の正本のモジュール（lib/baseline_red。red_problems・green_problems・match_cases・worst_case・parse_junit）。元は写しの TDD 版の
     rules（review-loop-tdd.py）を盤面の graph から読んだ"""
     return baseline_red
 
@@ -201,7 +201,7 @@ def red_check(named: list, cases: list, code, baseline, quotes=None, log=None, b
     given = {_norm_id(k): v for k, v in (quotes or {}).items() if isinstance(k, str)}
     unchecked = []
     for t in named:
-        c = rules().match_case(t, cases)
+        c = rules().worst_case(t, cases)   # 展開した行が 1 つでも failure でなければ red_problems が拒む
         if c is None or c["outcome"] != "failure":
             continue
         entry = given.get(_norm_id(t))
@@ -253,7 +253,7 @@ def red_rerun(tree, u: dict, exe: str, work: pathlib.Path, n, baseline=None) -> 
     if cases is None:
         return None, why
     if baseline is None:
-        cases = [c for t in tests if (c := rules().match_case(t, cases)) is not None]
+        cases = [c for t in tests for c in rules().match_cases(t, cases)]   # 雛形の名は展開した行の全部
     return red_check(tests, cases, code, baseline)[0], []
 
 

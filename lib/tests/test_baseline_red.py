@@ -209,11 +209,11 @@ class JudgeCase(unittest.TestCase):
 
     def test_match_case_by_tail(self):
         cases = [row("test_x", "failure", "pkg.test_a.TestA")]
-        self.assertIs(baseline_red.match_case("pkg/test_a.py::TestA::test_x", cases), cases[0])
-        self.assertIs(baseline_red.match_case("test_a.py::TestA::test_x", cases), cases[0])
-        self.assertIsNone(baseline_red.match_case("test_b.py::TestA::test_x", cases))
+        self.assertEqual(baseline_red.match_cases("pkg/test_a.py::TestA::test_x", cases), [cases[0]])
+        self.assertEqual(baseline_red.match_cases("test_a.py::TestA::test_x", cases), [cases[0]])
+        self.assertEqual(baseline_red.match_cases("test_b.py::TestA::test_x", cases), [])
         for bad in ("::test_x", "", "."):   # パスの部分が空の名指し（役が書いた id）は落ちずに当たりなし
-            self.assertIsNone(baseline_red.match_case(bad, cases), bad)
+            self.assertEqual(baseline_red.match_cases(bad, cases), [], bad)
 
     def test_match_case_nested_groups_and_path_classname(self):
         # classname にファイルのパス（実行器の根から・拡張子つき）を、name に入れ子の組の名を ' > ' で結んで入れる実行器の行。
@@ -226,14 +226,76 @@ class JudgeCase(unittest.TestCase):
                       "web/testing/__tests__/gates.test.ts::組 > 内の組 > 一致する",
                       "testing/__tests__/gates.test.ts::組::内の組 > 一致する"):
             with self.subTest(named):
-                self.assertIs(baseline_red.match_case(named, cases), cases[0])
-        self.assertIs(baseline_red.match_case("web/testing/__tests__/gates.test.ts::一致する", cases), cases[1])
-        self.assertIs(baseline_red.match_case("gates.test.ts::一致する", cases[2:]), cases[2])   # 根の直下のファイル
+                self.assertEqual(baseline_red.match_cases(named, cases), [cases[0]])
+        self.assertEqual(baseline_red.match_cases("web/testing/__tests__/gates.test.ts::一致する", cases), [cases[1]])
+        self.assertEqual(baseline_red.match_cases("gates.test.ts::一致する", cases[2:]), [cases[2]])   # 根の直下のファイル
         for named in ("web/other/gates.test.ts::組::内の組::一致する",       # 別のフォルダ
                       "web/testing/__tests__/gates.test.ts::別の組::内の組::一致する",
                       "web/testing/__tests__/gates.test.ts::内の組::組::一致する"):
             with self.subTest(named):
-                self.assertIsNone(baseline_red.match_case(named, cases[:1]))
+                self.assertEqual(baseline_red.match_cases(named, cases[:1]), [])
+
+    def test_match_case_template_name(self):
+        # 名指しが雛形の名（置き換えの印 `%s` の類・`$name` の類・`{0}` の類を持つ）で、実行器が展開した名で JUnit に出す行。
+        # 印を「何かの字」と読んで当てる（guided-resolver の #2579 の run 59de9168 で、`%s で選択肢の面が不透明` と名指した受け入れの
+        # 試験が `dark で選択肢の面が不透明` と出て、赤の確かめが 3 回とも「一式の結末に居ない」になった）
+        cases = [row("dark で選択肢の面が不透明", "failure", "src/select.test.ts"),
+                 row("light で選択肢の面が不透明", "failure", "src/select.test.ts")]
+        for named in ("src/select.test.ts::%s で選択肢の面が不透明",
+                      "src/select.test.ts::$theme で選択肢の面が不透明",
+                      "src/select.test.ts::${theme} で選択肢の面が不透明",
+                      "src/select.test.ts::{0} で選択肢の面が不透明",
+                      "src/select.test.ts::{theme} で選択肢の面が不透明"):
+            with self.subTest(named):
+                self.assertEqual(baseline_red.match_cases(named, cases), cases)
+        # 組の名の印も同じに読む・展開した名で名指せば印なしの比べで当たる
+        grouped = [row("テーマ dark > 面が不透明", "failure", "src/select.test.ts")]
+        self.assertEqual(baseline_red.match_cases("src/select.test.ts::テーマ %s::面が不透明", grouped), [grouped[0]])
+        self.assertEqual(baseline_red.match_cases("src/select.test.ts::light で選択肢の面が不透明", cases), [cases[1]])
+        # 字のまま一致する行が在れば、雛形の読みより先にそれを取る
+        literal = cases + [row("{0} で選択肢の面が不透明", "failure", "src/select.test.ts")]
+        self.assertEqual(baseline_red.match_cases("src/select.test.ts::{0} で選択肢の面が不透明", literal), [literal[2]])
+        for named in ("src/select.test.ts::%s で選択肢の面が透明",       # 印の外の字が違う
+                      "src/other.test.ts::%s で選択肢の面が不透明",       # 別のファイル
+                      "src/select.test.ts::で選択肢の面が不透明 %s"):     # 印の置き場が違う
+            with self.subTest(named):
+                self.assertEqual(baseline_red.match_cases(named, cases), [])
+        # 赤・緑の確かめも同じ突き合わせで「一式の結末に居ない」にせず、展開した行の全部を名指しの行として見る（片方を「名指しの外」にしない）
+        named = ["src/select.test.ts::%s で選択肢の面が不透明"]
+        self.assertEqual(baseline_red.red_problems(named, cases, 1), [])
+        half = [cases[0], row("light で選択肢の面が不透明", "passed", "src/select.test.ts")]
+        self.assertEqual(baseline_red.red_problems(named, half, 1),
+                         [f"{named[0]}（展開した名 light で選択肢の面が不透明）: もう通る——直す前に赤でないテストは修正の証拠にならない"])
+        green = [row(c["name"], "passed", c["classname"]) for c in cases]
+        self.assertEqual(baseline_red.green_problems(named, green, 0), [])
+        self.assertEqual(baseline_red.green_problems(named, half, 0),
+                         [f"{named[0]}（展開した名 dark で選択肢の面が不透明）: failure——名指しのテストが緑でない"])
+
+    def test_template_marks_stop_at_ascii_names(self):
+        # 名の印は ASCII の識別子（と点で結んだ欄）だけを食う。空白を挟まない日本語の名でも、印の後ろの字は字のまま比べる
+        # （`\$\w+` は Unicode の字まで食い、`$themeで…` が同じファイルの関係ない行の全部に当たった）
+        cases = [row("darkで選択肢の面が不透明", "failure", "src/select.test.ts"),
+                 row("まったく別の試験", "failure", "src/select.test.ts"),
+                 row("light で面が透明", "failure", "src/select.test.ts")]
+        self.assertEqual(baseline_red.match_cases("src/select.test.ts::$themeで選択肢の面が不透明", cases), cases[:1])
+        # 値の中の欄の名指し（`$a.b`）は欄まで含めて 1 つの印
+        shown = [row("apple で表示", "failure", "a.test.ts")]
+        self.assertEqual(baseline_red.match_cases("a.test.ts::$item.name で表示", shown), shown)
+        # 書式の印の旗に空白を数えない（`50% off` の `% o` は印でなく字のまま）
+        self.assertEqual(baseline_red.match_cases("a.test.ts::50% off", [row("50 ff", "failure", "a.test.ts")]), [])
+
+    def test_worst_case_reads_every_expanded_row(self):
+        # 結末で判じる呼び手が引く 1 行は、当たる行のうち一番悪い物（error・failure・skipped・passed の順）。展開した行の 2 つ目から
+        # だけが赤でも、緑と読まない
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        rows = [row("dark で選択肢の面が不透明", "passed", "src/select.test.ts"),
+                row("light で選択肢の面が不透明", "failure", "src/select.test.ts"),
+                row("auto で選択肢の面が不透明", "skipped", "src/select.test.ts")]
+        self.assertIs(baseline_red.worst_case(named, rows), rows[1])
+        self.assertIs(baseline_red.worst_case(named, rows[:1] + rows[2:]), rows[2])
+        self.assertIs(baseline_red.worst_case(named, rows[:1]), rows[0])
+        self.assertIsNone(baseline_red.worst_case("src/other.test.ts::%s で選択肢の面が不透明", rows))
+        self.assertFalse(hasattr(baseline_red, "match_case"), "最初の 1 行だけを返す口は置かない（結末を見る呼び手が 2 つ目からを見落とす）")
 
     def test_red_problems(self):
         named = ["test_a.py::TestA::test_x"]

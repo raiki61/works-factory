@@ -34,7 +34,7 @@ NO_UNFINISHED = f"目は{_FIX}と書いたが、作り残しの行の名指し�
 
 # ---------------------------------------------------------------- 入口
 def _blank(raw) -> bool:
-    return not ports.text(raw).strip() or ports.text(raw).strip() == "null"
+    return ports.text(raw).strip() in ("", "null")
 
 
 def _port(name: str, read):
@@ -239,11 +239,11 @@ def settle(doc: dict) -> dict:
 
 
 def findings(row: dict, compare) -> list:
-    """修正の段へ返す項目（出口の欄 findings）。比べの道で判定が fix-needed の時だけ、返答の違いのうち種が作り残しの行を
-    {where（無ければ空の字）, text（修正の段の notes に行ごとに入るので 1 行）} にして順に並べる。ほかは空"""
-    if row["status"] != seal.FIX_NEEDED:
-        return []
-    return [{"where": str(d.get("where") or ""), "text": oneline.one_line(d.get("text") or "")} for d in _rows(compare, UNFINISHED_KIND)]
+    """返す項目（出口の欄 findings）。比べの道で、返答の違いのうち種が作り残しの行を eyekit.back_row の行 {where（無ければ空の字）, text, needs,
+    kind, …} にして順に並べる（needs・kind は行ごとに役が書いた needs・fix_kind。書いていなければ fix・unfinished）。判定が fix-needed の時は
+    全部の行、ほかの判定の時は needs が choose の行だけ（人が選ぶ指摘は判定に依らず最後の承認ノードの問いへ届ける）"""
+    rows = [eyekit.back_row(d.get("where"), d.get("text"), d, eyekit.UNFINISHED) for d in _rows(compare, UNFINISHED_KIND)]
+    return rows if row["status"] == seal.FIX_NEEDED else [r for r in rows if r["needs"] == eyekit.NEEDS_CHOOSE]
 
 
 def finish(out) -> dict:

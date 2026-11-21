@@ -186,7 +186,7 @@ def markdown(got: dict) -> str:
     tail = ["差分に入った", "当たり", "本物", "誤り"]
     names = [c for c, _ in COLUMNS] + tail + [c for c, _ in TOKEN_COLUMNS]
     lines = [f"# ノードごとの表（{got['producer']}）", "",
-             f"- 公開ベンチの run の、ノードとサブグラフごとの時間・費用・トークン（入力・キャッシュの読み・書き・キャッシュ外・出力）・所見の数と行き先。",
+             "- 公開ベンチの run の、ノードとサブグラフごとの時間・費用・トークン（入力・キャッシュの読み・書き・キャッシュ外・出力）・所見の数と行き先。",
              f"- 作り手 {got['producer']}・課題 {got['tasks']} 件・判定役の結果は{'在る' if got['judged'] else '無い（全部 unjudged）'}。",
              f"- {got['note']}。",
              "- 番地を解いた: 所見の番地のパスがファイル名だけで、候補の key・where のパスか head の一意なファイルに推して解いた数"

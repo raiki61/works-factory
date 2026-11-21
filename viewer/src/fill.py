@@ -69,8 +69,6 @@ def first_lit(toks):
     for t in toks:
         if t[0] == "lit":
             return t[1]
-        if t[0] == "opt":
-            continue
     return None
 
 
@@ -123,8 +121,7 @@ def values(md_text, md_file, pack: Path, sent: str):
     st = {"pos": 0, "pending": None, "out": []}
     try:
         walk(tokens(text), ns, st, None)
-    except Miss as m:
-        values.last = str(m)
+    except Miss:
         return None
     if st["pending"] is not None:
         st["out"].append((st["pending"], st["pos"], len(ns.rstrip())))

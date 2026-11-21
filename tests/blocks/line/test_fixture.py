@@ -5,7 +5,6 @@
 import json
 import pathlib
 import shutil
-import sys
 import tempfile
 import unittest
 

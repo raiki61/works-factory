@@ -11,6 +11,9 @@ from collections.abc import Iterator
 
 import yaml
 
+# workflows/ の全部の YAML を読む試験は walk をここから読み、下の宣言の辺を継ぐ（1 つの block だけを読む試験は nodewalk から読む）
+from tests.bin.nodewalk import walk  # noqa: F401
+
 # 影響の地図（lib/impact.py）は、この下の変更でこの部品と、これを直に import する試験を選ぶ。読む置き場はここから組む
 RUNTIME_READS = ("workflows/",)
 WORKFLOWS = pathlib.Path(__file__).resolve().parents[2] / RUNTIME_READS[0]
@@ -20,14 +23,6 @@ def nodes(name: str) -> list[dict]:
     """工程 name（workflows/<ブロック>/<name>.yaml）の頭の節の並び"""
     (path,) = WORKFLOWS.glob(f"*/{name}.yaml")
     return yaml.safe_load(path.read_text(encoding="utf-8"))["nodes"]
-
-
-def walk(listed: list[dict]) -> Iterator[dict]:
-    """節の並びの節を、輪の中の入れ子まで書いたままの形で出す（include を開かない）"""
-    for node in listed:
-        yield node
-        if "loop_group" in node:
-            yield from walk(node["loop_group"]["nodes"])
 
 
 def _expanded(listed: list[dict]) -> list[tuple[str, dict]]:

@@ -71,12 +71,12 @@ class VerdictCase(unittest.TestCase):
             return got
 
         out = self.build(fixing(r1=("fix-needed", [one]), r2=("fix-needed", [two])))
-        self.assertEqual(out["findings"], [{"eye": "r1", "kind": "trim", **one}, {"eye": "r2", "kind": "unfinished", **two}])
+        self.assertEqual(out["findings"], [{"eye": "r1", "kind": "trim", "needs": "fix", **one}, {"eye": "r2", "kind": "unfinished", "needs": "fix", **two}])
         self.assertEqual(out["route"], "fix")
         self.assertFalse(out["ok"])
         pass_with = fixing(r1=("pass", [one]), r2=("fix-needed", [two]))
         out = self.build(pass_with)
-        self.assertEqual(out["findings"], [{"eye": "r2", "kind": "unfinished", **two}], "通った目の指摘は返す項目に入れない")
+        self.assertEqual(out["findings"], [{"eye": "r2", "kind": "unfinished", "needs": "fix", **two}], "通った目の指摘は返す項目に入れない")
         for why, got in (("設計違い", fixing(r1=("fix-needed", [one]), r3=("redesign-needed", None))),
                          ("確かめられない", fixing(r1=("pass", []), r3=("unverifiable", None))),
                          ("返す物が無い", fixing(r1=("fix-needed", []), r2=("pass", [])))):
@@ -110,6 +110,67 @@ class VerdictCase(unittest.TestCase):
         self.assertEqual(set(item["properties"]["kind"]["enum"]), set(self.v.KINDS.values()))
         schema = json.loads((kit.ROOT / "workflows" / "fix" / "schemas" / "item-kinds.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(set(schema["items"]["properties"]["kind"]["enum"]), set(self.v.KINDS.values()))
+
+    def test_each_finding_carries_needs_and_its_own_kind(self):
+        """返す項目は指摘ごとに目が書いた needs（fix・choose）と kind（trim・unfinished）を運ぶ（目ごとの決め打ちの種は、目が書かなかった
+        行の既定だけ）。route_of は needs が fix の行だけを数え、choose の行は返さずに最後の承認ノードの問い（questions。R4 の問いと同じ道）へ
+        選べる道と推しを添えて回す。choose だけが残った時は返さない"""
+        trim = {"where": "a.py:3", "text": "写しを消す", "needs": "fix", "kind": "trim"}
+        why = {"where": "b.py:1", "text": "WHY のコメントに確かめた構成が無い", "needs": "fix", "kind": "trim"}
+        pick = {"where": "c.css:9", "text": "optgroup にダークの色を当てる", "needs": "choose", "kind": "unfinished",
+                "options": ["当てる", "当てない"], "recommend": "当てない——承認した計画に無く、今のコードのどこも使っていない"}
+        got = passing()
+        got["r1"] = eye("r1", "fix-needed", findings=[trim])
+        got["r2"] = eye("r2", "fix-needed", premise_check=None, notes=["控え"], findings=[why, pick])
+        out = self.build(got)
+        self.assertEqual(out["findings"], [{"eye": "r1", **trim}, {"eye": "r2", **why}, {"eye": "r2", **pick}])
+        self.assertEqual(out["route"], "fix")
+        self.assertIn("2 件", out["route_why"], "数えるのは needs が fix の行だけ")
+        asked = [q for q in out["questions"] if isinstance(q, dict)]
+        self.assertEqual(len(asked), 1)
+        for word in ("R2", "c.css:9", "optgroup にダークの色を当てる", "当てる", "当てない——承認した計画に無く"):
+            self.assertIn(word, asked[0]["text"])
+        self.assertIn("R4 が見た人の方針とのぶつかり: x", out["questions"], "R4 の問いはそのまま残る")
+        only = passing()
+        only["r2"] = eye("r2", "fix-needed", premise_check=None, notes=["控え"], findings=[pick])
+        out = self.build(only)
+        self.assertEqual((out["route"], len(out["findings"])), ("stay", 1))
+        self.assertIn(self.v.NOTHING_TO_RETURN, out["route_why"])
+        self.assertIn("人が選ぶ", out["route_why"])
+        bare = passing()
+        bare["r1"] = eye("r1", "fix-needed", findings=[{"where": "", "text": "x", "needs": "choose", "kind": "trim"}])
+        text = next(q for q in self.build(bare)["questions"] if isinstance(q, dict))["text"]
+        self.assertIn(self.v.NO_OPTIONS, text, "選べる道と推しの無い choose の行も人に回し、無いことを言う")
+        spec = yaml.safe_load((kit.ROOT / "workflows" / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
+        node = next(n for n in spec["nodes"] if n["id"] == "verdict")
+        item = node["output_format"]["properties"]["findings"]["items"]
+        self.assertIn("needs", item["required"])
+        self.assertEqual(set(item["properties"]["needs"]["enum"]), {self.v.NEEDS_FIX, self.v.NEEDS_CHOOSE})
+
+    def test_choose_findings_are_asked_whatever_the_eye_verdict(self):
+        """目の判定が fix-needed でない時（pass・redesign-needed）も、その目の needs が choose の行は返す項目に載り、最後の承認ノードの問い
+        （questions）になる。返しは今どおり判定の語で決まり、choose の行では返さない。fix-needed でない目の needs が fix の行は載せない"""
+        pick = {"where": "c.css:9", "text": "色を当てるか", "needs": "choose", "kind": "unfinished", "options": ["当てる", "当てない"], "recommend": "当てない"}
+        fix = {"where": "a.py:1", "text": "写しを消す", "needs": "fix", "kind": "trim"}
+        for status in ("pass", "redesign-needed"):
+            with self.subTest(status=status):
+                got = passing()
+                got["r2"] = eye("r2", status, premise_check=None, notes=["控え"], findings=[fix, pick])
+                out = self.build(got)
+                self.assertEqual(out["findings"], [{"eye": "r2", **pick}])
+                self.assertEqual(out["route"], "stay")
+                asked = [q for q in out["questions"] if isinstance(q, dict)]
+                self.assertEqual(len(asked), 1)
+                self.assertIn("色を当てるか", asked[0]["text"])
+
+    def test_findings_without_needs_or_kind_fall_back_to_fix_and_the_eye_kind(self):
+        """欄 needs・kind を持たない行（古い出力）は needs を fix、kind を目の既定（R1 は trim・R2 は unfinished）にする（赤の義務と返しを黙って外さない）"""
+        got = passing()
+        got["r1"] = eye("r1", "fix-needed", findings=[{"where": "a.py:3", "text": "写しを消す"}])
+        got["r2"] = eye("r2", "fix-needed", premise_check=None, notes=["控え"], findings=[{"where": "", "text": "入口", "needs": "?", "kind": "?"}])
+        out = self.build(got)
+        self.assertEqual([(i["needs"], i["kind"]) for i in out["findings"]], [("fix", "trim"), ("fix", "unfinished")])
+        self.assertEqual(out["route"], "fix")
 
     def test_r2_questions_go_to_means_questions(self):
         """R2 の問い（頼みどおりの違い。docs/design/plan-review.md の 20 章の 6.3 の 2）はまとめの means_questions に入り、R4 の問いの
@@ -291,7 +352,7 @@ class WiringCase(unittest.TestCase):
 
     def test_include_inputs_are_passed(self):
         """include した block の inputs: の全部が with: で渡る（include した block が要る）"""
-        for name, node in self.includes.items():
+        for node in self.includes.values():
             block = node["include"].removeprefix("works-factory-")
             path = kit.BLOCKS / block / f"works-factory-{block}.yaml"
             with self.subTest(block=block):

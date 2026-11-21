@@ -29,6 +29,14 @@ from src.files import (  # noqa: F401
 ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
 
+def _rows(path: pathlib.Path) -> list:
+    """置き場の行の並びのファイル（無ければ空）。行の配列でなければ ValueError"""
+    rows = read_json(path, [])
+    if not isinstance(rows, list):
+        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    return rows
+
+
 def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> None:
     """受け付けの回 (pass_, attempt) に選んだ試験を走らせた知らせ（common.selected_problems の 2 つ目の返り。0 件しか走らなかった・
     走らせられない・実行器が無い・新しい赤なし）を、置き場 place の ACCEPT_TRACE_FILE の並びの末尾に 1 行足す。行の形は元の盤面の
@@ -37,9 +45,7 @@ def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> No
     import impact
     from src import common
     path = pathlib.Path(place) / ACCEPT_TRACE_FILE
-    rows = read_json(path, [])
-    if not isinstance(rows, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    rows = _rows(path)
     acc = common.accept_values(place) if state_file else {}   # 受け付けが書き戻した欄は置き場の accept.json（下書き 2.1）
     rows.append({"op": impact.ACCEPT_TRACE_OP, "node": FIX_ACCEPT_BY, "pass": pass_, "attempt": attempt, "note": note,
                  "ci_left": list(acc.get("ci_left") or []), "final_left": list(acc.get("final_left") or []),
@@ -52,9 +58,7 @@ def accept_trace_rows(place, results=()) -> list:
     置き場 place の行（裁定の後の受け付けの回）と、置き場の trace.jsonl の受け付けの行（事後の関門の束が赤緑を確かめずに受けた回・
     はみ出しの決着・範囲の相談。TRACED_OPS）を重ねずに並べた物。置き場の並びが行の配列でなければ ValueError"""
     path = pathlib.Path(place) / ACCEPT_TRACE_FILE
-    own = read_json(path, [])
-    if not isinstance(own, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    own = _rows(path)
     traced = trace_rows(place, lambda row: row.get("op") in traced_ops())
     out: list = []
     for row in [*(x for r in results for x in (r or {}).get("accept_trace") or []), *own, *traced]:
@@ -70,9 +74,7 @@ def add_writer_report(place, weapon: str, lines) -> None:
     if not lines:
         return
     path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
-    rows = read_json(path, [])
-    if not isinstance(rows, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    rows = _rows(path)
     write_json(path, [*rows, *({"weapon": weapon, "line": x} for x in lines)])
 
 
@@ -80,9 +82,7 @@ def writer_report_rows(place, results=()) -> list:
     """型の block の書き手の報告の行: 組の子の結果 results の writer_report の行（組の順。子の行は group_id を持つ）と、置き場 place の
     行（裁定の後の書き手と、組の子の run 自身の行）。置き場の並びが行の配列でなければ ValueError"""
     path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
-    own = read_json(path, [])
-    if not isinstance(own, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    own = _rows(path)
     return [row for row in [*(x for r in results for x in (r or {}).get("writer_report") or []), *own] if isinstance(row, dict)]
 
 
@@ -92,16 +92,118 @@ def base_rev(state, given: str = "") -> str:
     return ((state or {}).get("inputs") or {}).get("review_rev") or given or "HEAD"
 
 
-def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
+def _named_in(row, ids) -> set:
+    """申し出の行 row（と裁定）の字が名指す試験の id（ids のうち、id か `::` の後ろの名がどこかの字に在る物と、名指しの欄 between の
+    1 件のパスの部分〔最初の `:` の前〕が id のファイルの部分〔`::` の前〕と同じ物。ファイルと行だけの名指しも取りこぼさない）"""
+    ruling = row.get("ruling") if isinstance(row.get("ruling"), dict) else {}
+    ask = ruling.get("ask_why") if isinstance(ruling.get("ask_why"), dict) else {}
+    between = [b for b in row.get("between") or [] if isinstance(b, str)]
+    texts = [row.get("why_both_cannot_hold"), ruling.get("text"), ask.get("line"), *between]
+    text = "\n".join(t for t in texts if isinstance(t, str))
+    paths = {b.split(":", 1)[0] for b in between}
+    return {t for t in ids if t in text or t.rsplit("::", 1)[-1].split("[", 1)[0] in text or t.split("::", 1)[0] in paths}
+
+
+def _prior_gave_up(place) -> dict:
+    """前の段の輪の記録（common.records のうち印 PRIOR_LOOP の物）で、機械が諦めた単位ごとの諦めた段の集まり {key: {red・green}}
+    （記録の単位の gave_up。tdd._give_up が段 test を red、段 fix を green と書く）。読めない記録は数えない（止める側）"""
+    from src import common
+    out: dict = {}
+    for p in common.records(place):
+        doc = read_json(p, {})
+        if not (isinstance(doc, dict) and doc.get(PRIOR_LOOP) and isinstance(doc.get("units"), dict)):
+            continue
+        for k, u in doc["units"].items():
+            if isinstance(u, dict) and u.get("gave_up"):
+                out.setdefault(k, set()).add(u["gave_up"])
+    return out
+
+
+def _red_born(row, gave_up) -> bool:
+    """申し出が試験の赤から出た物か（名指した受け入れの試験の赤を確かめられずに人に回った物）: 機械が赤の段で 3 回拒まれて止めた
+    単位の申し出（source conflict.GAVE_UP_SOURCE で、前の段の輪の記録の諦めた段 gave_up〔_prior_gave_up〕がその単位で red だけの物。
+    理由の文では見分けない）か、種類が案どおりに書いても赤にならない（conflict.NOT_RED）・直す前から赤（conflict.RED_AT_BASE）。
+    ほかの申し出（直しの向きや範囲を人に聞いた物・機械が緑の段で諦めた物〔直しを緑にできず、人に聞くのは直しの向き〕・諦めた段が
+    記録に無い物）の裁定は、返した段でも単位ごと止める"""
+    import conflict
+    if row.get("source") == conflict.GAVE_UP_SOURCE:
+        return gave_up.get(row.get(conflict.UNIT_FIELD)) == {"red"}
+    return row.get(conflict.KIND_FIELD) in (conflict.NOT_RED, conflict.RED_AT_BASE)
+
+
+def ruled_stops(place) -> dict:
+    """返した段（values.json の item_kinds が空でない）で、前の段の人に回した裁定（ask_human。印 conflict.PRIOR の行）だけが掛かった
+    単位のうち、返した項目の直しへ戻す単位 → {tests: 止める受け入れの試験の id, rows: 直す返した項目の行 [{item, kind}]}。止めるのは裁定が名指した
+    試験の赤の義務だけ（docs/design/fix.md の 22.1）: 名指した試験は、裁定の行の字が名指す、その単位の項目の受け入れの試験（読めなければ
+    単位の項目の受け入れの試験の全部。赤の義務を黙って外さない）。直す返した項目は、その単位の項目に返した trim の行と、名指した試験を
+    持たない項目の unfinished の行。戻すのは試験の赤から出た申し出の裁定（_red_born）だけが掛かる単位で、直す項目が無い単位・今の段の
+    裁定やほかの直さない裁定・直しの向きや範囲を人に聞いた裁定も掛かる単位は載せない（単位ごと止める。人が決めると言った物を機械が越えない）。
+    最初の段・凍結した欄の無い run は {}。控えが読めなければ ValueError"""
+    import conflict
+    from src import runvals
+    kinds = runvals.read(place)["item_kinds"]
+    if not kinds:
+        return {}
+    fields = conflict.frozen_fields(pathlib.Path(place), 1) or []
+    holding = [r for r in conflict.items(place) if conflict.decision(r) not in (None, *conflict.FIX_DECISIONS)
+               and conflict.replan_state(r) != conflict.AMENDED]
+    by_unit: dict = {}
+    for r in holding:
+        for k in conflict.ruled_units(r):
+            by_unit.setdefault(k, []).append(r)
+
+    def tests_of(f) -> list:
+        return [t["id"] for t in (f.get("tests") or []) if isinstance(t, dict) and isinstance(t.get("id"), str)] \
+            if isinstance(f, dict) else []
+    gave_up = _prior_gave_up(place)
+    out: dict = {}
+    for k, rows in by_unit.items():
+        if not all(conflict.decision(r) == conflict.ASK and r.get(conflict.PRIOR) and _red_born(r, gave_up) for r in rows):
+            continue
+        mine = {n: f for n, f in enumerate(fields, 1) if isinstance(f, dict) and k in (f.get("unit_keys") or [])}
+        ids = list(dict.fromkeys(t for f in mine.values() for t in tests_of(f)))
+        named = set().union(*(_named_in(r, ids) for r in rows)) or set(ids)
+        rows = [{"item": row["item"], "kind": row["kind"]} for row in kinds if row["item"] in mine
+                and (row["kind"] == "trim" or not set(tests_of(mine[row["item"]])) & named)]
+        if rows:
+            out[k] = {"tests": sorted(named), "rows": rows}
+    return out
+
+
+def returned_units(place) -> dict:
+    """ruled_stops の読みの 1 か所。返した段の控えが読めなければ {}（どの単位も戻さず、裁定のまま単位ごと止める。止めた単位は直す義務に
+    無いので、約束と関所を今どおり組んでも食い違わない）。held_now・stopped_tests・route._redrawn が読む"""
+    try:
+        return ruled_stops(place)
+    except ValueError:
+        return {}
+
+
+def held_now(place, back=None) -> dict:
+    """直す義務から外す単位 {key: 理由}: 直す裁定でない裁定を受けた単位（conflict.held_by_rulings）から、返した段で返した項目の直しへ
+    戻す単位（back。None なら returned_units）を除いた物。裁定の控えが読めなければ ValueError"""
+    import conflict
+    held = conflict.held_by_rulings(place)
+    back = returned_units(place) if back is None else back
+    return {k: why for k, why in held.items() if k not in back}
+
+
+def stopped_tests(place, back=None) -> dict:
+    """返した段で、直しへ戻した単位ごとに赤の義務を止める受け入れの試験の id {key: {id}}（back の tests。None なら returned_units）"""
+    back = returned_units(place) if back is None else back
+    return {k: set(v["tests"]) for k, v in back.items()}
+
+
+def owed_units_but_asked(place, owed, *, withheld=(), returned=(), back=None) -> set:
     """直す義務の単位: owed（開いた単位から、人に諮っている fork の出どころ・depends を除いた物。元は盤面の写しの規則の
     _owed_units）から、関所に載せる問いのうち答えていない物の出どころ・depends（withheld。元は gatemarks.withheld）を除き、
     修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
-    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（conflict.held_by_rulings。ask_human・fix_plan_item）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
+    gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（held_now。ask_human・fix_plan_item。返した段で返した項目の直しへ戻す単位 back〔None なら returned_units〕は除かない）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
     import conflict
     got = (set(owed) - set(withheld)) | set(returned)
     try:
-        return got - set(conflict.held_by_rulings(place))
+        return got - set(held_now(place, back))
     except ValueError:   # 控えが読めない置き場は外さない（義務を減らさない側）
         return got
 
@@ -109,7 +211,7 @@ def owed_units_but_asked(place, owed, *, withheld=(), returned=()) -> set:
 def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     """(直す義務 owed_units_but_asked, 直す義務から外れた単位 {key: 理由})。外れた単位は、答えていない fork・escalate の問いの
     出どころ・depends（withheld_by {key: 問い}。元は gatemarks.withheld_by。理由はそこが組にした問い）と、直す裁定でない裁定を
-    受けた単位（conflict.held_by_rulings。理由はその裁定）。1 単位が withheld と裁定の両方に当たれば裁定の理由。控えが読めなければ
+    受けた単位（held_now。理由はその裁定）。1 単位が withheld と裁定の両方に当たれば裁定の理由。控えが読めなければ
     裁定の単位を外さない。
     withheld_by が None なら置き場の判定の写しと関所の答えから引く（gate_asks）。
     元 works/.shared/core/conflict.py:696（盤面の記録と問いの台帳を読んだ）"""
@@ -118,7 +220,7 @@ def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     owed = owed_units_but_asked(place, owed, withheld=set(withheld_by), returned=returned)
     out = {k: f"答え待ちの問い {q.get('key')}（{q.get('kind')}・{q.get('status')}）" for k, q in withheld_by.items()}
     try:
-        out.update(conflict.held_by_rulings(place))
+        out.update(held_now(place))
     except ValueError:
         pass
     return owed, {k: why for k, why in out.items() if k not in owed}
@@ -303,14 +405,16 @@ SEMANTIC_CLASH = ("意味の食い違い: 前に戻した組と同じファイ�
 
 def same_red(test_id: str, before, after) -> bool:
     """名指し test_id が当てた後に「前から同じ形で赤」か（docs/design/fix.md の 18 節。#837）: 直す前の結末 before と当てた後の
-    結末 after の両方に名指しに当たる行（baseline_red.match_case）が在り、どちらの行も error（読み込み・準備で落ちた。TDD の赤の
-    failure でない）で、失敗の文（fail_message）が空でなく字のまま同じ時だけ真。failure は数えない: 名指しは直す前に failure で
+    結末 after の両方に名指しに当たる行（baseline_red.match_cases。雛形の名なら展開した行の全部）が在り、当てた後のどの行も同じ
+    classname と name の直す前の行と組で error（読み込み・準備で落ちた。TDD の赤の failure でない）で、失敗の文（fail_message）が
+    空でなく字のまま同じ時だけ真。failure は数えない: 名指しは直す前に failure で
     赤だったテストなので、後の組が直しを壊して元の赤に戻した物と見分けられない。形の崩れた直す前の行は見ない"""
     import baseline_red
     rows = [c for c in before or [] if isinstance(c, dict) and isinstance(c.get("classname"), str) and isinstance(c.get("name"), str)]
-    b, a = baseline_red.match_case(test_id, rows), baseline_red.match_case(test_id, after or [])
-    return (a is not None and b is not None and a["outcome"] == b.get("outcome") == "error"
-            and bool(a.get("fail_message")) and b.get("fail_message") == a.get("fail_message"))
+    before_rows = {(c["classname"], c["name"]): c for c in baseline_red.match_cases(test_id, rows)}
+    now = baseline_red.match_cases(test_id, after or [])
+    return bool(now) and all((b := before_rows.get((a["classname"], a["name"]))) is not None and a["outcome"] == b.get("outcome") == "error"
+                             and bool(a.get("fail_message")) and b.get("fail_message") == a.get("fail_message") for a in now)
 
 
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD", shared=(),
@@ -347,11 +451,11 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
         old = [t for t in named if same_red(t, cases, ran)]
         for t in old if old_red is not None else ():
-            c = baseline_red.match_case(t, ran)
+            c = baseline_red.worst_case(t, ran)
             why = oneline.one_line(c.get("fail_message") or "")[:200]
             old_red.append(f"{t}（{c['outcome']}{f': {why}' if why else ''}）")
         rest = [t for t in named if t not in old]
-        hit = [c for t in rest if (c := baseline_red.match_case(t, ran)) is not None]
+        hit = [c for t in rest for c in baseline_red.match_cases(t, ran)]   # 雛形の名は展開した行の全部
         probs = baseline_red.green_problems(rest, hit, 0)
         if probs:
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]
@@ -1338,7 +1442,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・
 # consult-check・fix-ruled-prep の scripts が呼ぶ）。元 works/blk-fix/scripts/accept.py の受け付けの手順と、元
 # works/blk-fix/lib/consult.py:522 の頼みの節を、盤面の代わりに置き場のパスと値の引数で受ける形に書き直した物
-RULED_REPLY_FILE = "fix-ruled-reply.json"   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
+RULED_REPLY_FILE = fixnames.RULED_REPLY_FILE   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
 RULED_HEAD_FILE = "fix-ruled-head.json"     # 裁定の後の修正の段の頭の木 {tree}（fix-ruled-prep が 1 回目に書く）
 FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tree}（TDD の輪の後。fix-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）
@@ -1663,7 +1767,7 @@ def judge_query(place):
 def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
     """食い違いの申し出（欄 conflicts）を外した返答と、拒否の結果か止めた印。返り (返答, 結果 | None)。元
     works/blk-fix/scripts/accept.py:306（盤面の代わりに置き場 place、直す義務は値 owed で受ける）:
-    - 裁定がもう外した単位（conflict.held_by_rulings）の申し出は先に外す
+    - 裁定がもう外した単位（held_now）の申し出は先に外す
     - 申し出は機械が確かめ（conflict.problems_by_entry）、外れれば {ok: False, reason, lines: [(key|None, 文)]}。which_is_right:
       query の申し出は置き場の判定の写し judgment.json の単位の class_query を correct_lines に当てて試す（judge_query。元
       accept.py:325-326 の try_query=querytest.judge_hits(b.record["units"])）
@@ -1675,7 +1779,7 @@ def take_conflicts(reply: dict, place, repo, pass_: str, owed) -> tuple:
     reply = dict(reply)
     items = reply.pop("conflicts", None) or []
     if isinstance(items, list) and items:
-        known = conflict.held_by_rulings(place)
+        known = held_now(place)
         items = [i for i in items if not (isinstance(i, dict) and i.get("unit_key") in known)]
     owed = owed_units_but_asked(place, owed)
     if items:
