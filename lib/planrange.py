@@ -53,12 +53,8 @@ def test_ids(it: dict) -> list[str]:
                               if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"].strip()))
 
 
-def _oos_rows(it: dict) -> list[dict]:
-    return [r for r in it.get("out_of_scope") or [] if isinstance(r, dict) and isinstance(r.get("glob"), str) and r["glob"]]
-
-
 def _oos(it: dict) -> list[str]:
-    return [r["glob"] for r in _oos_rows(it)]
+    return [r["glob"] for r in it.get("out_of_scope") or [] if isinstance(r, dict) and isinstance(r.get("glob"), str) and r["glob"]]
 
 
 def item_globs(it: dict) -> list[str]:
@@ -123,7 +119,7 @@ def with_agreed(items: list[dict], agreed) -> list[dict]:
         for row in fresh:   # 同じ id は後の合意が前に勝つ（赤の種類を相談で直せる）
             new_tests[n] = [x for x in new_tests.setdefault(n, []) if x["id"] != row["id"]]
             new_tests[n].append({"id": row["id"], "red_kind": row.get("red_kind"), "agreed": True})
-        tests += [planmarks.test_paths({"tests": [row]})[0] for row in fresh if planmarks.test_paths({"tests": [row]})]
+        tests += [got[0] for got in (planmarks.test_paths({"tests": [row]}) for row in fresh) if got]
         for p in [*more.get(n, []), *tests]:
             p = posixpath.normpath(p)
             if p not in lift.setdefault(n, []):
