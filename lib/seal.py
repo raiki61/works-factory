@@ -121,7 +121,7 @@ def deleted_paths(text: str) -> list:
             gone = True
         elif line.startswith("--- ") and not line.startswith("--- /dev/null") and path is None:
             got = unquote_git_path(line[4:].strip())
-            path = got[2:] if got.startswith("a/") else got
+            path = got.removeprefix("a/")
     close()
     return out
 
