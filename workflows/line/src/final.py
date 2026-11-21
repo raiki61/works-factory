@@ -249,7 +249,7 @@ def final_head(got: dict, why: list) -> list:
     guarded = bool(got["protected_hits"]) or bool(got["allowed_tests"]) or bool(got["removed_tests"])
     held = got["held"]
     returned = eyesback.count((got["eyes_back"] or {}).get("rows"))   # 返した周の数は輪の記録の rows から数える（0 回なら頭の文に書かない）
-    happened = ("最後のテストと独立の目が済み、報告の前で止まった。"
+    happened = (f"最後のテストと独立の目が済み、報告の前で止まった。"
                 + (f"独立の目から修正の段へ {returned} 回返した。" if returned else "")
                 + f"テストは{tests_word(got)}。"
                 + ("開けた理由: " + "・".join(why) if why else
