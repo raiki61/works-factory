@@ -574,7 +574,7 @@ def read_json(path) -> dict | list | None:
 def path_of(value, opened) -> str:
     """pointer かパスの値（null・空・"null" は ""）を、在るファイルのパスの字に。opened は呼び手が宣言の form で照らす ports.file の読み
     （無いファイル・ほかの run の pointer・形に合わない中身は ValueError）"""
-    if value is None or value == "" or value == "null":
+    if value is None or value in ("", "null"):
         return ""
     if isinstance(value, str) and value.strip().startswith("{"):
         value = json.loads(value)
@@ -592,7 +592,7 @@ def located(value, what: str, unread: list, opened) -> str:
     （設計した状態: 読めない控えは聞く側に倒す。E23・docs/design/line.md の 2 節）。pointer の形の違い（object でない・型が違う・
     ほかの run の id・run directory の外を指す）は約束の誤りなので ValueError のまま（呼び手は落ちて works:line-script を返す）"""
     import ports
-    if value is None or value == "" or value == "null":
+    if value is None or value in ("", "null"):
         return ""
     if isinstance(value, str) and value.strip().startswith("{"):
         value = json.loads(value)
