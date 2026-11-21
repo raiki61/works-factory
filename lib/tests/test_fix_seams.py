@@ -21,17 +21,8 @@ if str(LIB) not in sys.path:
 
 from tests.bin.gitkit import committed_copy  # noqa: E402
 import lens  # noqa: E402
-import rolekit  # noqa: E402
-from tests.bin import hermetic  # noqa: E402
 
 SEED = LIB.parent / "tests" / "e2e" / "target-seed"
-SKIP = ("vendored/",)
-WHY = "整形の道具で 40 ファイルを一度に書き換えた"
-
-
-def _traced(place) -> list:
-    p = pathlib.Path(place) / "trace.jsonl"
-    return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines()] if p.is_file() else []
 
 
 class TempCase(unittest.TestCase):
