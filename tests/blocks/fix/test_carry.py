@@ -58,14 +58,6 @@ def _write(path, doc) -> pathlib.Path:
     return path
 
 
-def _change(unit, files):
-    """修正役の返答の changes の 1 行（自己申告の欄は tests/blocks/fix/support.py の SELF_REPORT）"""
-    from tests.blocks.fix.support import SELF_REPORT
-    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT,
-            "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
-                        "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
-
-
 class StagesCase(unittest.TestCase):
     """1 つの run の 2 つの修正の段（include の道で place が分かれる）と、組の子の run（別の run directory）"""
 
@@ -302,7 +294,7 @@ class RefixCase(StagesCase):
         path.write_text(path.read_text(encoding="utf-8").replace("sum(xs) / (len(xs) - 1)", "sum(xs) / len(xs)"), encoding="utf-8")
         path = self.repo / "test_stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
-        reply = {"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}
+        reply = {"changes": [support.change(MEAN, ["stats.py", "test_stats.py"])]}
         out = twin.script("fix_accept", reply_variant=support.reply_json(reply), consulted="false")
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
 

@@ -53,14 +53,6 @@ def _nodes() -> dict:
 NODES = _nodes()
 
 
-def _change(unit, files, **extra):
-    """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は tests/blocks/fix/support.py の SELF_REPORT）"""
-    from tests.blocks.fix.support import SELF_REPORT
-    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
-            "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
-                        "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
-
-
 def own_tests(loader, namespace: dict, *borrowers) -> unittest.TestSuite:
     """load_tests の中身: モジュール（namespace はその globals()）で書いた TestCase を全部回し、GroupChildScriptsCase を継いで
     道具立てを借りた case（borrowers）はそのクラスに書いた試験だけを回す（借りた元の試験を回し直さない）"""
@@ -370,7 +362,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)")
                          .replace("    return x\n", "    return lo\n"), encoding="utf-8")
-        reply = {"changes": [_change(MEAN, ["stats.py"])]}
+        reply = {"changes": [support.change(MEAN, ["stats.py"])]}
         out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json(reply),
                               consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
@@ -389,7 +381,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
                              encoding="utf-8")
         out = self.run_script("fix_ruled_accept", art=self.parent, consulted="false", iteration="1",
-                              reply_variant=support.reply_json({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]}))
+                              reply_variant=support.reply_json({"changes": [support.change(MEAN, ["stats.py", "test_stats.py"])]}))
         self.assertFalse(out["ok"], out)
         self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
 
@@ -414,7 +406,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(pathlib.Path(base["exe"]).resolve(), (self.repo / "ci" / "suite.py").resolve(), "写した元の結末も親の木で解く")
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("    return x\n", "    return lo\n"), encoding="utf-8")
-        reply = {"changes": [_change(MEAN, ["stats.py"])]}
+        reply = {"changes": [support.change(MEAN, ["stats.py"])]}
         out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json(reply),
                               consulted="false", iteration="1")
         self.assertFalse(out["ok"], out)
@@ -683,7 +675,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         test_file, _ = self.green_loop()
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("mean([2, 4]), 3)", "mean([2, 4]), 3.0)"),
                              encoding="utf-8")
-        out = self.accept({"changes": [_change(MEAN, ["stats.py", "test_stats.py"])]})
+        out = self.accept({"changes": [support.change(MEAN, ["stats.py", "test_stats.py"])]})
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
 
@@ -733,7 +725,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(b.read_json(self.place / b.SKIP_BEFORE_FILE),
                          {".archon/workflows/x.yaml": b.skip_digests(self.repo, (".archon/",))[".archon/workflows/x.yaml"]})
         copy.write_text("a: 2\n", encoding="utf-8")
-        out = self.accept({"changes": [_change(MEAN, ["stats.py"])]})
+        out = self.accept({"changes": [support.change(MEAN, ["stats.py"])]})
         self.assertFalse(out["ok"], out)
         head = b.FIX_CHECK_HEAD.format(head=b.FIX_CHECKS["pack"], cid="pack", count=1)
         self.assertIn(head, out["reason"])

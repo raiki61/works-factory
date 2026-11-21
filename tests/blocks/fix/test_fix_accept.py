@@ -4016,13 +4016,6 @@ _X_CLAIM = {"between": ["stats.py:9", "test_stats.py:8"], "why_both_cannot_hold"
 _X_SCOPE_RULING = {"decision": "fix_test_scope", "text": "テストの期待を直してよい", "limits": ["test_stats.py"]}
 
 
-def _x_change(unit, files, **extra):
-    """修正役の返答の changes の 1 行（closure の site は 1 つ）"""
-    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
-            "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
-                        "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
-
-
 class _XPlace(unittest.TestCase):
     """組 1 つの単独の run（mode group・out_dir 空）。intake と group_start を回した後の置き場と、target-seed の写しの作業ツリー"""
 
@@ -4104,7 +4097,7 @@ class FixLoopScriptsCase(_XPlace):
         """3 回目の拒否で、拒否が名指す単位だけを段の頭の木に戻して諦め、ほかの単位の直しを受けて輪を抜ける（keep-essence の 4）"""
         self._x_fix_mean()
         (self.repo / "bounds.py").write_text("def bound(x):\n    return x\n", encoding="utf-8")
-        reply = {"changes": [_x_change(_X_MEAN, ["stats.py"]), _x_change(_X_BOUND, ["bounds.py"])]}
+        reply = {"changes": [support.change(_X_MEAN, ["stats.py"]), support.change(_X_BOUND, ["bounds.py"])]}
         units = [_X_MEAN, _X_BOUND]
         for n in (1, 2):
             out = self._x_accept("fix_accept", reply, n, units=units)
@@ -4133,7 +4126,7 @@ class FixLoopScriptsCase(_XPlace):
         board = self.board
         self._x_fix_mean()
         self._x_accept("fix_accept", {"changes": []}, 1)
-        out = self._x_accept("fix_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 2)
+        out = self._x_accept("fix_accept", {"changes": [support.change(_X_MEAN, ["stats.py"])]}, 2)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         rows = [r for r in board.accept_trace_rows(self.place) if r["op"] == impact.ACCEPT_TRACE_OP]
         self.assertEqual([(r["pass"], r["attempt"]) for r in rows], [("first", 1), ("first", 2)])
@@ -4151,7 +4144,7 @@ class FixLoopScriptsCase(_XPlace):
         （義務の外 OUT_OF_DUTY は除く。board.gates_trace）、accept_trace_rows が運ぶ（報告の「受け付け N 回・理由」の数え方は report の試験）"""
         board, gates = self.board, self.gates
         self._x_fix_mean()
-        out = self._x_accept("fix_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 1)
+        out = self._x_accept("fix_accept", {"changes": [support.change(_X_MEAN, ["stats.py"])]}, 1)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         self.assertEqual([r for r in board.accept_trace_rows(self.place) if r["op"] == gates.SKIPPED_OP], [],
                          "受け入れのテストの無い項目は確かめる物が無い")
@@ -4165,10 +4158,10 @@ class FixLoopScriptsCase(_XPlace):
         """書き込みの記録が無い run は、段の頭の木からの変更が changes[].files にも bash_writes にも無ければ拒む（keep-essence の 5）"""
         self._x_fix_mean()
         (self.repo / "scratch.txt").write_text("下書き\n", encoding="utf-8")
-        out = self._x_accept("fix_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 1)
+        out = self._x_accept("fix_accept", {"changes": [support.change(_X_MEAN, ["stats.py"])]}, 1)
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
         self.assertIn(self.board.UNDECLARED + "scratch.txt", out["reason"])
-        declared = {"changes": [_x_change(_X_MEAN, ["stats.py"])],
+        declared = {"changes": [support.change(_X_MEAN, ["stats.py"])],
                     "bash_writes": [{"path": "scratch.txt", "why": "Bash で生成した下書きのファイル"}]}
         out = self._x_accept("fix_accept", declared, 2)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
@@ -4181,7 +4174,7 @@ class FixLoopScriptsCase(_XPlace):
         env, root = support.recorder_root(self.tmp)
         log = writelog.log_path(root, self.repo)
         log.parent.mkdir()
-        reply = {"changes": [_x_change(_X_MEAN, ["stats.py"])]}
+        reply = {"changes": [support.change(_X_MEAN, ["stats.py"])]}
         for script in ("fix_accept", "fix_ruled_accept"):
             with self.subTest(script=script):
                 git(self.repo, "checkout", "--", "stats.py")
@@ -4201,7 +4194,7 @@ class FixLoopScriptsCase(_XPlace):
         cfg = self.tmp / "claude-config"
         cfg.mkdir()
         self._x_fix_mean()
-        out = self._x_accept("fix_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 1,
+        out = self._x_accept("fix_accept", {"changes": [support.change(_X_MEAN, ["stats.py"])]}, 1,
                              env_extra={"CLAUDE_CONFIG_DIR": str(cfg)})
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         self.assertEqual(list(cfg.iterdir()), [], "根も記録も作らない")
@@ -4212,7 +4205,7 @@ class FixLoopScriptsCase(_XPlace):
         self._x_ok("fix_prep")
         self.assertTrue((self.place / "fix-head.json").is_file())
         self._x_fix_mean()
-        out = self._x_accept("fix_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 1)
+        out = self._x_accept("fix_accept", {"changes": [support.change(_X_MEAN, ["stats.py"])]}, 1)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
         self.assertTrue((self.repo / "tdd_note.txt").is_file())
 
@@ -4226,7 +4219,7 @@ class FixLoopScriptsCase(_XPlace):
         self._x_json("join.json", {"groups": [{"group_id": "g1", "unit_ids": [_X_MEAN], "returned": True, "reason": ""}],
                                    "units": [{"unit_id": _X_MEAN, "group_id": "g1", "status": "not_done", "reason": ""}]})
         self._x_fix_mean()
-        out = self._x_accept("fix_ruled_accept", {"changes": [_x_change(_X_MEAN, ["stats.py"])]}, 1)
+        out = self._x_accept("fix_ruled_accept", {"changes": [support.change(_X_MEAN, ["stats.py"])]}, 1)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)
 
     def test_consulted_turn_and_skipped_fixer(self):
@@ -4247,7 +4240,7 @@ class FixLoopScriptsCase(_XPlace):
         self._x_fix_mean()
         path = self.repo / "test_stats.py"
         path.write_text(path.read_text(encoding="utf-8").replace("mean([1, 2, 3]), 2", "mean([2, 4]), 3"), encoding="utf-8")
-        reply = {"changes": [_x_change(_X_MEAN, ["stats.py", "test_stats.py"])]}
+        reply = {"changes": [support.change(_X_MEAN, ["stats.py", "test_stats.py"])]}
         out = self._x_accept("fix_accept", reply, 1, art=child_art)
         self.assertFalse(out["ok"], out)
         self.assertIn("test_stats.py", out["reason"])
@@ -4308,7 +4301,7 @@ class FixLoopScriptsCase(_XPlace):
         board = self.board
         self._x_join(bound_status="not_done")
         (self.repo / "bounds.py").write_text("def bound(x):\n    return x\n", encoding="utf-8")
-        reply = {"changes": [_x_change(_X_BOUND, ["bounds.py"])],
+        reply = {"changes": [support.change(_X_BOUND, ["bounds.py"])],
                  "conflicts": [{"unit_key": _X_MEAN, **_X_CLAIM, "between": ["stats.py:9", "test_stats.py:9"]}]}
         out = self._x_accept("fix_ruled_accept", reply, 1)
         self.assertEqual((out["ok"], out["done"]), (False, False), out)
@@ -4348,7 +4341,7 @@ class FixLoopScriptsCase(_XPlace):
         extra = self.repo / "request_ok.json"
         before = extra.read_bytes()
         extra.write_bytes(before + b"\n")
-        return {"changes": [_x_change(_X_MEAN, ["stats.py", "request_ok.json"])]}, before
+        return {"changes": [support.change(_X_MEAN, ["stats.py", "request_ok.json"])]}, before
 
     def test_fix_accept_counts_in_the_rolekit_ledger_not_the_prompt_number(self):
         """fix_accept は INPUTS_ITERATION=1 のまま 3 回拒ませても、控えの拒否の数で最後の回が来る。拒否は rolekit の
@@ -4357,7 +4350,7 @@ class FixLoopScriptsCase(_XPlace):
         import rolekit
         self._x_fix_mean()
         (self.repo / "bounds.py").write_text("def bound(x):\n    return x\n", encoding="utf-8")
-        reply = {"changes": [_x_change(_X_MEAN, ["stats.py"]), _x_change(_X_BOUND, ["bounds.py"])]}
+        reply = {"changes": [support.change(_X_MEAN, ["stats.py"]), support.change(_X_BOUND, ["bounds.py"])]}
         units = [_X_MEAN, _X_BOUND]
         reasons = []
         for _ in (1, 2):
@@ -4447,14 +4440,14 @@ class FixAcceptCase(_XPlace):
         self._x_json("p2.plan_review.json", self.REVIEW)
         self._x_fix_mean()
         answer = {"key": "穴-平均の分母が空の列で割れる", "handled": "absorbed", "how": "空の列は 0 を返すように分母の前で分けた"}
-        bad = {"changes": [_x_change(_X_MEAN, ["stats.py"])],
+        bad = {"changes": [support.change(_X_MEAN, ["stats.py"])],
                "plan_faces": [answer, answer, {**answer, "key": "穴-事前審査に無い key を答えた"}]}
         out = self._x_accept("fix_accept", bad, 1)
         self.assertFalse(out["ok"], out)
         for phrase in ("plan_faces[1] の key が重複", "'穴-事前審査に無い key を答えた' は事前審査に無い", "'別案-len を直に使う' に応答が無い"):
             self.assertIn(phrase, out["reason"])
         self.assertNotIn("穴-上限の単位の別の組", out["reason"], "ほかの組の単位の穴は問わない")
-        good = {"changes": [_x_change(_X_MEAN, ["stats.py"])],
+        good = {"changes": [support.change(_X_MEAN, ["stats.py"])],
                 "plan_faces": [answer, {"key": "別案-len を直に使う", "handled": "declared", "how": "len は空の列で 0 割りになるので採らない"}]}
         out = self._x_accept("fix_accept", good, 2)
         self.assertEqual((out["ok"], out["done"]), (True, True), out)

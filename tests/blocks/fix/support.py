@@ -62,6 +62,14 @@ SELF_REPORT = {"bypass_tried": "修正を残したまま空の並びを渡して
                              "source": "https://docs.python.org/3/library/statistics.html"},
                "root_or_symptom": {"kind": "root", "why": "分母の式そのものを直した"}}
 
+
+
+def change(unit, files, **extra):
+    """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は SELF_REPORT）"""
+    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
+            "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
+                        "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
+
 # 走らせる試験を差分から自分で選ぶ実行器（tests/changed.py の形。#846）: 作業ツリーに HEAD からの差が在れば SUITE_WITH_MESSAGE と同じに
 # 全部（-k が在ればその語を id に含む物）を回し、差が無ければ（直す前の版の写し）既定では何も回さない。HEED_NAMED が真なら、差が無くても TDD_SUITE_ONLY=1 の後ろの名指し
 # 『<パス>::<クラス>::<名前>』だけを回す

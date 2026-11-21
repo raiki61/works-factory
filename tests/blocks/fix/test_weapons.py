@@ -1187,7 +1187,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
         self.fix_mean()
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("clamp(15, 0, 10), 10", "clamp(15, 0, 10), 10.0"),
                              encoding="utf-8")
-        out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py", "test_stats.py"])]})
+        out = self.accept({"changes": [support.change(tg.MEAN, ["stats.py", "test_stats.py"])]})
         self.assertFalse(out["ok"], out)
         self.assertIn("test_stats.py", self.frozen_reason(out["reason"]))
 
@@ -1254,7 +1254,7 @@ class AcceptWiringCase(tg.GroupChildScriptsCase):
     NAMED = {"evidence": {"named": [{"unit_key": tg.MEAN, "test": MEAN3}]}}   # 変える段の箱の義務（F2）を満たす名指し
 
     def variant_change(self, site, **extra):
-        change = tg._change(tg.MEAN, ["stats.py"])
+        change = support.change(tg.MEAN, ["stats.py"])
         return {**change, "closure": {**change["closure"], "sites": [site]}, **extra}
 
     def test_the_accept_rejects_variant_sites_that_miss_the_query_or_the_diff(self):
