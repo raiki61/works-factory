@@ -143,7 +143,6 @@ LINE_DISPUTED = "    退けた答え {key}: {how}"
 LINE_ITEMS = "    項目: 閉じた {closed}・開いた {open}・保留 {held}・相乗りの審査の block {synergy}"
 WORDS = {CLEAN: "block が消えた", SETTLED: "中央の穴が無くなった（端の block を申し送った）", PERSISTED: "同じ block が続いた",
          UNSETTLED: "開いた block が残ったまま止めた", AGAIN: "途中"}
-NONE = "無い"
 
 ANSWER_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["key", "handled", "how"],
@@ -330,10 +329,6 @@ def item_id(unit_keys) -> str:
 def item_hash(row: dict) -> str:
     """項目の行（名前に戻した物）の sha256"""
     return hashlib.sha256(json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-
-
-def _label(it: dict) -> str:
-    return f"項目 {it['n']}（{'、'.join(str(k) for k in it.get('unit_keys') or [])}）"
 
 
 def _attributed(units: list, items: list) -> list[int]:
@@ -1014,8 +1009,4 @@ def tree_split(reply: dict) -> tuple[dict, dict]:
     out, got = jsonfile.split(reply, (), TREE_KEYS)
     return out, {name: got.get(name) for name in TREE_KEYS}
 
-
-# ---------------------------------------------------------------- 文
-def _keys(keys) -> str:
-    return "、".join(keys) if keys else NONE
 
