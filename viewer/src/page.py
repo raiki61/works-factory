@@ -470,7 +470,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 conv.append({"n": prt["n"], "missing": [x for x in paths_ if not Path(x).exists()]})
             longest = max(longest, len(a))
             args.append(f"--input {prt['n']}={shlex.quote(a)}")
-        o["fixit"] = {"design": [f"docs/design/{d_}" if not str(d_).startswith("docs/") else d_ for d_ in (g.get("docs") or [])], "yaml": f"workflows/{g.get('file', '')}",
+        o["fixit"] = {"design": g.get("docs") or [], "yaml": f"workflows/{g.get('file', '')}",
                       "md": ai_md, "fixtures": [f"workflows/{folder}/fixtures/{x}" for x in fixtures], "tests": f"tests/blocks/{folder.replace('-', '_')}/",
                       "cmd": " \\\n  ".join([f"bin/works-factory workflow run {g['name']} --cwd {shlex.quote(str(target))}"] + args),
                       "converted": conv, "longest": longest}
