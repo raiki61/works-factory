@@ -7,7 +7,6 @@
   走らせ方が決まらない道の関わる試験だけの走らせ方（RelatedCase）・出力の欄 suite・suite_note・related・report
 - 筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py
 """
-import datetime
 import hashlib
 import json
 import os
