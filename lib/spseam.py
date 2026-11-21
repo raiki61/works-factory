@@ -295,7 +295,7 @@ def _prompt_problems(sid: str, sec: dict, src: pathlib.Path, item: dict, text: s
     out += [f"{sid}: literals {t} が本文に無い（{rel} の prompt）" for t in sorted({_norm(t) for t in sec.get("literals", [])} - found)]
     if not stray and (item.get("pin") or {}).get("files", {}).get(rel) == _sha(src / rel):   # 固定と違えば上の行が名指している
         try:
-            fill(sid, {h: "x" for h in holes}, src, item, {sid: sec})
+            fill(sid, dict.fromkeys(holes, "x"), src, item, {sid: sec})
         except ValueError as e:
             out.append(str(e))
     return out
