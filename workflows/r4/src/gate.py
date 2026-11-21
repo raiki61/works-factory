@@ -57,7 +57,7 @@ def passed_key(kind: str, x: str) -> tuple:
     """役の行 x を通した行と照らす鍵 (種類, 本文)。役が指示の通した行の頭「[<種類>] 」を写した時は、その種類が行の種類と同じ時だけ
     1 つ外す（ほかの種類の頭は外さず、聞き直す。docs/design/r4.md の 9 の 17）"""
     head = f"[{kind}] "
-    return kind, x[len(head):] if x.startswith(head) else x
+    return kind, x.removeprefix(head)
 
 
 def r4_gate_items(r4, passed: dict) -> list:
