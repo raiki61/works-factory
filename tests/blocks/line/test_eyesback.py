@@ -647,31 +647,51 @@ class ReportCase(_Case):
 
     def test_earlier_choose_findings_reach_the_final_questions_once(self):
         """前の周の目が人が選ぶ物とした指摘（周の行の asked）は、current が選ぶ最後の目の questions に足して最後の承認ノードの問いまで運ぶ。
-        同じ指摘（目の名と where のファイルの鍵）は 1 つにし、最後の目が出し直した物は最後の目の問いだけにする（二重に問いへ出さない）。
-        前の周どうしで重なれば新しい周の物を採る。結末の行の頭（ASKED_AT・ASKED_BEFORE）と問いの出どころの目は asked の 1 か所が決めて同じ"""
+        1 つにまとめるのは字が同じ指摘（目の名・where・text が同じ）だけで、最後の目が同じ字で出し直した物は最後の目の問いだけにする（二重に
+        問いへ出さない）。前の周どうしで同じ字なら新しい周の物を採る。同じファイルでも字の違う指摘は別の問いとして残す（消すと無人の run が
+        止まらずに進む。持ち主の決め eye-choose-stops）。結末の行の頭（ASKED_AT・ASKED_BEFORE）と問いの出どころの目は asked の 1 か所が決めて同じ"""
         choose = lambda item, **over: {**item, "needs": "choose", "options": ["a", "b"], "recommend": "a", **over}   # noqa: E731
         a1 = choose({"eye": "r2", "where": "docs/a.md:3", "text": "色を当てるか"})
         a2 = choose(a1, text="配色を選ぶか")
         c1 = choose({"eye": "r1", "where": "src/c.py", "text": "写しを残すか"})
         c_last = choose(c1, where="src/c.py:9", text="写しを残すか選ぶ")
-        rows = [self.e.row(1, eyes(items=[self.A, a1, c1]), [self.A]), self.e.row(2, eyes(items=[self.B, a2]), [self.B])]
-        last_eyes = {**self.PASSED, "findings": [c_last], "questions": [{"text": "最後の目の問い"}]}
+        rows = [self.e.row(1, eyes(items=[self.A, a1, c1]), [self.A]), self.e.row(2, eyes(items=[self.B, a1, a2]), [self.B])]
+        last_eyes = {**self.PASSED, "findings": [c1, c_last], "questions": [{"text": "最後の目の問い"}]}
         record = {"rows": rows, "exit": self.e.EXITS["settled"], "left": [], "checkpoint": None, "fixed": {"go": True}, "tests": {}, "eyes": last_eyes}
         got = self.e.asked(rows, last_eyes)
-        self.assertEqual([(k, i["text"]) for k, i in got], [(None, c_last["text"]), (2, a2["text"])])
+        self.assertEqual([(k, i["text"]) for k, i in got], [(None, c1["text"]), (None, c_last["text"]), (2, a1["text"]), (2, a2["text"])])
         _, _, now = self.e.current(record, None, None, None)
         texts = [q["text"] for q in now["questions"]]
         self.assertEqual(texts[0], "最後の目の問い")
-        self.assertEqual(len(texts), 2, texts)
-        self.assertIn(a2["text"], texts[1])
-        self.assertIn(self.e.ASKED_BEFORE.format(round=2), texts[1], "問いに出どころの目を言う")
-        self.assertFalse(any(c1["text"] + "（" in t for t in texts), "最後の目が出し直した指摘は前の周の問いを重ねない")
+        self.assertEqual(len(texts), 3, texts)
+        self.assertIn(a1["text"], texts[1])
+        self.assertIn(a2["text"], texts[2])
+        for t in texts[1:]:
+            self.assertIn(self.e.ASKED_BEFORE.format(round=2), t, "問いに出どころの目を言う")
+        self.assertFalse(any(c1["text"] + "（" in t for t in texts), "最後の目が同じ字で出し直した指摘は前の周の問いを重ねない")
         out = self.e.record_lines(record)
         self.assertIn(f"{self.e.ASKED_BEFORE.format(round=2)} {self.e.item_text(a2)}——{self.e.OUTCOMES['choose']}", out)
         self.assertIn(f"{self.e.ASKED_AT} {self.e.item_text(c_last)}——{self.e.OUTCOMES['choose']}", out)
-        self.assertFalse(any(self.e.item_text(a1) in line for line in out), "古い周の同じ指摘は結末の行にも出さない")
+        self.assertFalse(any(self.e.ASKED_BEFORE.format(round=1) in line for line in out), "古い周の同じ字の指摘は結末の行にも出さない")
         self.assertEqual(self.e.current({**record, "rows": []}, None, None, None)[2]["questions"], [{"text": "最後の目の問い"}])
         self.assertIs(self.e.current({**record, "eyes": None}, None, None, None)[2], None)
+
+    def test_different_choose_findings_in_one_file_all_reach_the_questions(self):
+        """同じファイルで where（行番号）の違う人が選ぶ物と、where の無い人が選ぶ物どうしは、挙げ直したかの鍵（_key）が同じでも別の問い
+        として全部残す。前の周の物も最後の目の物も、同じ周の中の物も消さない（言い換えの二重は残っても、問いが消えるより害が小さい）"""
+        choose = lambda **over: {"eye": "r2", "needs": "choose", "options": ["a", "b"], "recommend": "a", **over}   # noqa: E731
+        early = choose(where="docs/a.md:3", text="見出しの色を変えるか")
+        late = choose(where="docs/a.md:40", text="古い節を消すか")
+        plan_a, plan_b = choose(where="", text="方針 A"), choose(where="", text="方針 B")
+        rows = [self.e.row(1, eyes(items=[self.A, early, plan_a, plan_b]), [self.A])]
+        last_eyes = {**self.PASSED, "findings": [late, choose(where="", text="方針 C"), choose(where="", text="方針 D")], "questions": []}
+        record = {"rows": rows, "exit": self.e.EXITS["settled"], "left": [], "checkpoint": None, "fixed": {"go": True}, "tests": {}, "eyes": last_eyes}
+        got = [(k, i["text"]) for k, i in self.e.asked(rows, last_eyes)]
+        self.assertEqual(got, [(None, "古い節を消すか"), (None, "方針 C"), (None, "方針 D"), (1, "見出しの色を変えるか"), (1, "方針 A"), (1, "方針 B")])
+        texts = [q["text"] for q in self.e.current(record, None, None, None)[2]["questions"]]   # 最後の目の物は目のまとめが questions に置く
+        self.assertEqual(len(texts), 3, texts)
+        for want in ("見出しの色を変えるか", "方針 A", "方針 B"):
+            self.assertEqual(sum(want in t for t in texts), 1, (want, texts))
 
     def test_cap_word_matches_the_head(self):
         """結末の上限の字は、頭の文の『上限 LIMIT 回』と同じ字で言う"""

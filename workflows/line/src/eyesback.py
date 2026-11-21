@@ -488,17 +488,23 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) ->
     return out
 
 
+def _same(item: dict) -> tuple:
+    """同じ問いかを見る鍵（目の名・where・text が字のまま同じ）。挙げ直したかの鍵 _key より狭く、字の違う指摘を別の問いとして残す
+    （問いが消えると無人の run が止まらずに進む。持ち主の決め eye-choose-stops）"""
+    return str(item.get("eye") or ""), str(item.get("where") or "").strip(), oneline.one_line(item.get("text") or "")
+
+
 def asked(rows, eyes) -> list:
     """最後の承認ノードの問いへ回す人が選ぶ物の (出どころの周, 指摘) の並び。出どころは最後の目 eyes（None）か、k 周目に返す前の目
-    （周の行 k の asked。k）。同じ指摘（_key。目の名と where のファイル）は 1 つにし、最後の目の物、次に新しい周の物を採る（最後の目が
-    出し直した指摘を二重に問いへ出さない）。問いの足し（current）と結末の行（outcome_lines）はここの 1 か所で出どころを決める"""
-    out = [(None, dict(i)) for i in _chosen(eyes)]
-    seen = {_key(i) for _, i in out}
-    for r in reversed([r for r in rows or [] if isinstance(r, dict)]):
-        for i in r.get("asked") or []:
-            if isinstance(i, dict) and isinstance(i.get("text"), str) and i["text"] and _key(i) not in seen:
-                seen.add(_key(i))
-                out.append((r.get("round"), dict(i)))
+    （周の行 k の asked。k）。1 つにまとめるのは字が同じ指摘（_same。目の名・where・text）だけで、最後の目の物、次に新しい周の物を採る
+    （最後の目が同じ字で出し直した指摘を二重に問いへ出さない。同じファイルでも字の違う指摘は別の問いとして残す）。問いの足し（current）と
+    結末の行（outcome_lines）はここの 1 か所で出どころを決める"""
+    out, seen = [], set()
+    for k, items in [(None, _chosen(eyes)), *((r.get("round"), r.get("asked") or []) for r in reversed([r for r in rows or [] if isinstance(r, dict)]))]:
+        for i in items:
+            if isinstance(i, dict) and isinstance(i.get("text"), str) and i["text"] and _same(i) not in seen:
+                seen.add(_same(i))
+                out.append((k, dict(i)))
     return out
 
 
