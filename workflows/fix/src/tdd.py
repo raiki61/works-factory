@@ -13,7 +13,7 @@
 - tdd-loop の中: tdd-prep → prep（今の段の指示書を fixrules で組んで書く。頭に brief の節: 振り分けの段は
   直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し。単位が替わった周かを new_unit で返す）→
   役 tdd（修正役。同じ単位の段は前の周の会話を継ぎ、単位が替わる周だけ新しい会話で起きる。前の単位と今の単位のこれまで（段・
-  前の段の結果）は引き継ぎの節（handoff_lines）も状態から書く。振り分け・テスト・直し・整えを返す）→
+  前の段の結果）は引き継ぎの節（handoff_rows）も状態から書く。振り分け・テスト・直し・整えを返す）→
   tdd-step → step（返答を機械が確かめて段を進める）。段は route → 単位ごとに test → fix →（申告の在る単位だけ）refactor → 次の単位。
   step 1 回ごとに状態の calls に 1 行（n・確かめた段（申し出は conflict、実行器・test_cmd が走らずに抜けた回は runner）・単位・
   合否・その回に起こした一式と test_cmd の数・秒）を積む（秒は書くだけで止める条件に使わない）
@@ -95,11 +95,11 @@ sys.dont_write_bytecode = True
 
 from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates・fixboard が tddloop の名で読む）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
-from src import board as fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
+from src import board as fixboard  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as fixnames  # noqa: E402
-from src import rules as fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
+from src import rules as fixrules  # noqa: E402  （同じ block の src。指示書の組み立て）
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
-import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
+import planbrief  # noqa: E402  （lib/。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
 from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
 import writelog  # noqa: E402
@@ -363,12 +363,11 @@ def _briefs(board_dir: pathlib.Path, **sources) -> list:
 
 # 引き継ぎ（依頼 243 の 2）。輪の役は周ごとに新しい会話で起きる（同じ単位の段の間も会話を継がない）ので、前の単位が何を変えたかと、
 # 今の周の段・今の単位・この単位の前の段の結果を、会話の履歴でなく機械が状態から書いて渡す（prep の今の単位の節の後。振り分けの
-# 段は義務の単位の後）
-HANDOFF_HEAD = "## 前の単位の引き継ぎ（機械が状態から書いた物）"
+# 段は義務の単位の後）。節の見出しと、前の単位の直しを戻すなと言う文は prompts/parts/tdd.md が持つ（憲法の 2）
 
 
 def current_lines(st) -> list:
-    """今の周の段・今の単位・この単位の前の段の結果の行（handoff_lines が必ず載せる。元は同じ単位の段を同じ会話で続けたので、
+    """今の周の段・今の単位・この単位の前の段の結果の行（handoff_rows が必ず載せる。元は同じ単位の段を同じ会話で続けたので、
     指示書に書かなかった物: 段と拒まれた回・test の段の仮の実装のファイル・fix の段の直しと整えの申告の理由）"""
     phase = st["phase"]
     tries = st.get("tries") or 0
@@ -393,10 +392,9 @@ def current_lines(st) -> list:
     return rows + again
 
 
-def handoff_lines(st) -> list:
-    """今の単位より前に済んだ単位の 1 行ずつ（単位の key・直したファイル・緑にしたテスト・整え・止めた理由・direct に回した理由）と、
-    今の周の段・今の単位・この単位の前の段の結果（current_lines）。周ごとに新しい会話で起きるので、節はいつも載せる。返した段の
-    前の段が確かめ済みのテスト（_earlier）は載せない（id は prompts.tdd_values が値 earlier_tests で md に渡す）"""
+def earlier_rows(st) -> list:
+    """今の単位より前に済んだ単位の 1 行ずつ（単位の key・直したファイル・緑にしたテスト・整え・止めた理由・direct に回した理由）。
+    返した段の前の段が確かめ済みのテスト（_earlier）は載せない（id は prompts.tdd_values が値 earlier_tests で md に渡す）"""
     rows = []
     for k in st["queue"][:st["cur"]]:
         u = st["units"].get(k)
@@ -417,8 +415,7 @@ def handoff_lines(st) -> list:
         if u.get("refactor"):
             bits.append(f"整え {u['refactor']}")
         rows.append(f"- {k}: " + "・".join(bits))
-    head = ["前の単位の直しは作業ツリーに在る（緑の木）。戻したり作り直したりするな。", ""] if rows else []
-    return [HANDOFF_HEAD, "", *head] + rows + ([""] if rows else []) + current_lines(st) + [""]
+    return rows
 
 
 def _items(st, k) -> set:
@@ -463,13 +460,10 @@ def prep(state_file, sources=None) -> dict:
 
 
 def handoff_rows(st) -> tuple[bool, list]:
-    """(前の単位の行が在るか, 引き継ぎの行)。handoff_lines の見出しと決まった文を除いた行（見出しと文は md）"""
-    lines = handoff_lines(st)
-    head = ["前の単位の直しは作業ツリーに在る（緑の木）。戻したり作り直したりするな。", ""]
-    rows = lines[2:]   # 見出しと空行
-    had = rows[:2] == head
-    rows = rows[2:] if had else rows
-    return had, [r for r in rows if r]
+    """(前の単位の行が在るか, 引き継ぎの行)。引き継ぎの行は前に済んだ単位の行（earlier_rows）と、今の周の段・今の単位・この単位の
+    前の段の結果（current_lines）。周ごとに新しい会話で起きるので、節はいつも載せる（見出しと決まった文は md）"""
+    rows = earlier_rows(st)
+    return bool(rows), rows + current_lines(st)
 
 
 def together_rows(st, k) -> list:

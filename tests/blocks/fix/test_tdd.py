@@ -714,7 +714,7 @@ class TestUnitLoop(LoopCase):
         self.assertEqual((self.repo / "test_stats.py").read_text(encoding="utf-8"), before, "書いたテストを外す")
         self.assertFalse((self.repo / "helper.py").exists(), "単位の頭に戻す")
         self.assertEqual((got["done"], st["phase"], st["queue"][st["cur"]]), (False, "test", CLAMP))
-        lines = "\n".join(tdd.handoff_lines(st))
+        lines = "\n".join(tdd.handoff_rows(st)[1])
         self.assertIn(f"- {MEAN}: 食い違いの申し出で止めた", lines)
         self.assertNotIn("direct に回した", lines)
         ruler = RULER.read_text(encoding="utf-8")

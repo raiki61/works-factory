@@ -131,7 +131,9 @@ For each of these means, some item writes in its works field `structure` (the li
 <!-- if ripple_units -->
 ## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names in the keys of the "Units to fix in this round" above. Read it before you write the plan)
 
-{part:ripple-notes}
+The ripple list below is where the names the fix changes or removes are used in the target: the machine ran git grep for each name, and each line it found (a caller, a document, or a test) is a hit. A hit not covered is a hit that is in none of the plan item's paths it may write (allowed_paths), acceptance tests (tests), or tests to rewrite (rewrite_tests). Put what the fix touches (adjusting the callers, rewriting tests that assert a literal value) in that item's allowed_paths or rewrite_tests now. What you put in the plan can be written during the fix without asking about the scope (outside the scope, the only way is for the fix to ask for permission). Do not put in what you do not touch (after you write the plan, the plan review checks each hit not covered: covered, not affected, or a hole).
+
+How to read the marks in the ripple list: a name marked "a name with hits in many files" shows only the count, and its callers are not all listed. Read them and decide whether the fix touches them. A hit marked "a hit of a name to remove" is a reference that breaks after the removal.
 
 {ripple_units}
 <!-- end ripple_units -->
@@ -230,7 +232,9 @@ The review raised the blocks below in an earlier pass, and a later pass found th
 <!-- if prior_ripple -->
 ## Ripple list (looked up by the machine with git grep: the callers and tests of the names that the items change)
 
-{part:ripple-notes}
+The ripple list below is where the names the fix changes or removes are used in the target: the machine ran git grep for each name, and each line it found (a caller, a document, or a test) is a hit. A hit not covered is a hit that is in none of the plan item's paths it may write (allowed_paths), acceptance tests (tests), or tests to rewrite (rewrite_tests). Put what the fix touches (adjusting the callers, rewriting tests that assert a literal value) in that item's allowed_paths or rewrite_tests now. What you put in the plan can be written during the fix without asking about the scope (outside the scope, the only way is for the fix to ask for permission). Do not put in what you do not touch (after you write the plan, the plan review checks each hit not covered: covered, not affected, or a hole).
+
+How to read the marks in the ripple list: a name marked "a name with hits in many files" shows only the count, and its callers are not all listed. Read them and decide whether the fix touches them. A hit marked "a hit of a name to remove" is a reference that breaks after the removal.
 
 {prior_ripple}
 <!-- end prior_ripple -->
