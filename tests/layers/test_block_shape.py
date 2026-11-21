@@ -120,10 +120,6 @@ def ai_nodes(doc: dict) -> list[dict]:
     return [n for n in nodes(doc) if is_ai(n)]
 
 
-def preps(doc: dict) -> set[str]:
-    return {m.group(1) for n in ai_nodes(doc) if isinstance(n.get("prompt"), str) and (m := PROMPT_REF.match(n["prompt"]))}
-
-
 def fixture(folder: pathlib.Path, name: str = STANDALONE) -> dict | None:
     path = folder / "fixtures" / f"{name}.stubs.yaml"
     return yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
