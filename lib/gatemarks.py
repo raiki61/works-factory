@@ -14,7 +14,7 @@ undecided_because の規律（本流 p2.diagnose.md 8 項）を関所の項目�
 narrows を書く前に狭めを避ける形を当たり、無い時だけ narrows に書いて各行に探した結果（NO_NARROW）を書く。欄は決め手の欄と
 同じ道で役の型にだけ足して盤面へ渡す前に外し、関所の項目の尾に添えるが、関所を通す条件（decided）には使わない。
 - split(node, reply): 受け付け
-- narrow_gaps(node, reply): 修正案の narrows の行で狭めない案の欄を欠く・短い行（planblk.take が拒む）
+- narrow_gaps(node, reply): 修正案の narrows の行で狭めない案の欄を欠く・短い行（plan の take が拒む）
 - ask_gaps(node, reply)・ASK_CASES: 人に回る行のうち、人に聞く場合の印（①②③）を undecided_because の頭に名乗らない行（plan と
   plan-review の受け付けが拒む。持ち主の決め settle-by-standard）
 - NO_STANDARD: decided_by の頭の印。定石も依頼の本文も見つからず ①②③ のどれにも当たらない行は、印の後に探した所を書き、
@@ -65,7 +65,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
   素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
   HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
-- PLAIN・named(node)・status_named(status)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・specblk・境の節・報告が使う）
+- PLAIN・named(node)・status_named(status)・eye_named(name, status): 関所の文と報告が主語にする平易な名（内部の名は括弧へ。plan・spec・境の節・報告が使う）
 - quote(question)・QUOTE_NOTE: 盤面の問いの文を引用として載せる行と、関所で添える答え方の読み替えの 1 行
 - head3(happened, decide, push)・pushes(items)・push_of(items): 関所の文と報告の冒頭 3 行（起きたこと・決めてほしいこと・推し）と、推しを項目の行の欄から拾う口
   （欄 recommend を recommend_of で検めた値と、表示だけの欄 reason_push の値だけを読む。項目の文には読みを掛けない）
@@ -393,7 +393,7 @@ def item_lines(items) -> list:
 
 def gate_text(asking: dict, *, run_id: str, node: str, record_name: str) -> str:
     """盤面の問い {node, kinds, question, items, …} を答えを受ける関所の文にする（修正前の関所の line_edge.gate_text と仕様の関所の
-    specblk.gate_text が呼ぶ 1 つの組み立て）。冒頭 3 行（起きたこと＝どの関所に何の項目が何件・決めてほしいこと＝通すか
+    spec の gate.gate_text が呼ぶ 1 つの組み立て）。冒頭 3 行（起きたこと＝どの関所に何の項目が何件・決めてほしいこと＝通すか
     止めるか・推し＝項目の行の欄に載る推し）→ 台帳の問いへの答え方（ASK_GATE_HEAD）→ 問いの文の引用と読み替えの
     1 行（QUOTE_NOTE）→ 項目（item_lines）→ 答え方（answer.line。一言は record_name の記録に残る）。頭は平易な名で、盤面の節の
     名と種類の語は括弧に回す（named）"""
