@@ -61,7 +61,6 @@ import json
 import pathlib
 import re
 import shutil
-import sys
 import tempfile
 import unittest
 
