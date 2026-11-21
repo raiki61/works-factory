@@ -47,7 +47,7 @@ def _get_text(get, url: str):
 
 
 def _keep(text: str) -> str:
-    return text if len(text) <= KEEP_CHARS else text[:KEEP_CHARS]
+    return text[:KEEP_CHARS]
 
 
 def https_site(url) -> str:
