@@ -638,7 +638,7 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
     ids = set(element_ids(elements))
     every = _wanted(rows)
     wanted = [k for k in every if k not in kept]
-    count = {}
+    counts = {}
     out = []
     for e in entries:
         key = (e.get("item"), e.get("path"), e.get("symbol"))
@@ -648,13 +648,13 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
             elif not isinstance(_ref_of(e), str):
                 out.append("design_map の設計→案の行（item・path・symbol が null）には design_ref が要る（案に対の無い要素の id）")
             else:
-                count[("design", _ref_of(e))] = count.get(("design", _ref_of(e)), 0) + 1
+                counts[("design", _ref_of(e))] = counts.get(("design", _ref_of(e)), 0) + 1
             continue
-        count[key] = count.get(key, 0) + 1
+        counts[key] = counts.get(key, 0) + 1
     out += [f"design_map に{_label(*k)}の行が無い（files の add・remove の symbol と op が create・delete・rename の行ごとにちょうど 1 行）"
-            for k in wanted if not count.get(k)]
-    out += [f"design_map に{_label(*k)}の行が {count[k]} 行ある（ちょうど 1 行）" for k in every if count.get(k, 0) > 1]
-    out += [f"design_map の設計→案の行の design_ref {k[1]} が {n} 行ある（1 行にまとめよ）" for k, n in count.items()
+            for k in wanted if not counts.get(k)]
+    out += [f"design_map に{_label(*k)}の行が {counts[k]} 行ある（ちょうど 1 行）" for k in every if counts.get(k, 0) > 1]
+    out += [f"design_map の設計→案の行の design_ref {k[1]} が {n} 行ある（1 行にまとめよ）" for k, n in counts.items()
             if k[0] == "design" and n > 1]
     for e in entries:
         ref = _ref_of(e)
