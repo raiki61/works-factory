@@ -134,7 +134,7 @@ NODES = tuple(STEPS)
 RECOMMEND = plainask.RECOMMEND   # 人に回す行の推し（欄は RECOMMEND_KEYS。実の利用者の run ac9e02ab。機械が読める推しが無かった）
 FIELDS = ("decided_by", "undecided_because", "fences", "world", RECOMMEND)
 RECOMMEND_KEYS = ("answer", "note", "why")   # 頭が答え、残りが RECOMMEND_MIN 字以上の文
-RECOMMEND_ANSWERS = ("continue", "stop")
+RECOMMEND_ANSWERS = answer.VERBS   # 推しの答えは関所の答えの語と同じ
 RECOMMEND_WORDS = {"continue": "通す", "stop": "止める"}
 RECOMMEND_MIN = 4
 RECOMMEND_SAYS = ("承認ノードの一言にそのまま写せる通す範囲と条件か止める理由", "推す理由")   # RECOMMEND_KEYS[1:] の各欄に書く物
@@ -496,7 +496,7 @@ def recommend_gaps(node: str, reply: dict) -> list:
 PLAIN_FIELDS = ("undecided_because", "world", NO_NARROW)   # 関所の項目に字のまま載る行の欄（推しは RECOMMEND_KEYS[1:] も）
 
 
-def _plain_row(where: str, row) -> list:
+def _row_plain_gaps(where: str, row) -> list:
     if not isinstance(row, dict):
         return []
     out = [g for f in PLAIN_FIELDS for g in plainask.gaps(f"{where}.{f}", row.get(f))]
@@ -514,7 +514,7 @@ def plain_gaps(node: str, reply: dict) -> list:
     rows = _rows(node, reply)
     pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
              if node == "p2.fix_plan" else [(f"faces[{j}]", f) for j, f in enumerate(rows)])
-    out = [g for where, row in pairs for g in _plain_row(where, row)]
+    out = [g for where, row in pairs for g in _row_plain_gaps(where, row)]
     if node == "p2.plan_review" and isinstance(reply, dict) and isinstance(reply.get(converge.STUCK_PUSH), dict):
         out += [g for k in RECOMMEND_KEYS[1:] for g in plainask.gaps(f"{converge.STUCK_PUSH}.{k}", reply[converge.STUCK_PUSH].get(k))]
     return out
