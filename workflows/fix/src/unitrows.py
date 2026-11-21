@@ -74,7 +74,7 @@ def _norm(p):
     if not isinstance(p, str) or not p.strip():
         return None
     q = posixpath.normpath(p.strip().replace("\\", "/"))
-    return None if q.startswith("/") or q == ".." or q.startswith("../") or q == "." else q
+    return None if q.startswith(("/", "../")) or q in ("..", ".") else q
 
 
 def _bind(sites, cap, files, moved=None, declared=frozenset(), by_file=False):

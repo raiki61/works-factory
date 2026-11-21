@@ -500,7 +500,7 @@ def _unit_file_paths(u: dict, repo) -> tuple:
     root = pathlib.Path(repo).resolve()
     kept, dropped = [], []
     for p in raw:
-        q = pathlib.PurePosixPath(p[2:] if p.startswith("./") else p)
+        q = pathlib.PurePosixPath(p.removeprefix("./"))
         ok = (not q.is_absolute() and ".." not in q.parts and not any(c in p for c in "*?[:")
               and (root / q).is_file())
         (kept if ok else dropped).append(str(q) if ok else p)

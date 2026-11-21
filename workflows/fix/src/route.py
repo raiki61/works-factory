@@ -216,7 +216,7 @@ def prep(state_file, sources=None) -> dict:
 
 
 def _route(st, reply, repo) -> list:
-    """振り分けの返答を確かめる（今の tdd._route のまま。振る単位は状態の open_units から外れた単位を除いた物）。通れば単位ごとの
+    """振り分けの返答を確かめる（元の tdd._route のまま。振る単位は状態の open_units から外れた単位を除いた物）。通れば単位ごとの
     行（tdd・direct）を置いて段を ROUTED にする"""
     rows = reply.get("units")
     if not isinstance(rows, list) or not all(isinstance(r, dict) and isinstance(r.get("unit_key"), str) for r in rows):

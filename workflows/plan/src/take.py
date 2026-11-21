@@ -12,8 +12,6 @@ import json
 import pathlib
 import posixpath
 
-import ports
-
 import accept as accept_  # lib/
 import converge   # lib/
 import gatemarks  # lib/

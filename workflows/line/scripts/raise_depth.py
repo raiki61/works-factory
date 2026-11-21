@@ -35,7 +35,7 @@ READ_ERRORS = (OSError, ValueError, TypeError, AttributeError, KeyError)
 def _path(raw, field: str):
     """作り手の返りの欄 field の pointer かパスの字・値の先のパス（null・空は None。その欄の宣言の form で照らす。src.stages.resolve）"""
     from src import stages
-    if raw is None or raw == "" or raw == "null":
+    if raw is None or raw in ("", "null"):
         return None
     return stages.resolve(raw, field)
 

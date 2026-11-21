@@ -20,7 +20,7 @@ design_talk・request_answers・design_item・stuck_push・design_items・_conti
   対話モードの run は設計の相談の承認ノード（TALK_GATE）の合意 agreed を受け、合意した行を聞き直さない
 - direction_stop(gate, taken, checked, *, due) -> (止めの語, 訳): 修正前の承認の一言の向きで修正の前に止めるか（仕様駆動の道と写しの道。
   承認ノードが開いて人が通す語で答えた時だけ照らし、判定の block の返りが {ok: 真, aligned: 真} でなければ stopby.ANSWER_REDIRECTED）
-- replan_rows(...)・replan(...): 案の直しの承認ノード（2 節の 3）の「聞くか」と項目の行
+- replan_asks(rows, *, unattended_run): 案の直しの承認ノード（2 節の 3）で聞く行
 - policy_change(record, cwd, folder)・change_row(ch): 固めた方針の文書と今の文書の版の比べ（元 boardview）
 - path_of(value, opened)・read_json(path): pointer かパスの値を、宣言の form で照らした（opened）ファイルのパスに・ファイルの JSON
 - review_verdict(...): 修正が使った案を審査した最後の往復の結論 {round, verdict, blocks, why}（独立の目の port review。元
@@ -574,7 +574,7 @@ def read_json(path) -> dict | list | None:
 def path_of(value, opened) -> str:
     """pointer かパスの値（null・空・"null" は ""）を、在るファイルのパスの字に。opened は呼び手が宣言の form で照らす ports.file の読み
     （無いファイル・ほかの run の pointer・形に合わない中身は ValueError）"""
-    if value is None or value == "" or value == "null":
+    if value is None or value in ("", "null"):
         return ""
     if isinstance(value, str) and value.strip().startswith("{"):
         value = json.loads(value)
@@ -592,7 +592,7 @@ def located(value, what: str, unread: list, opened) -> str:
     （設計した状態: 読めない控えは聞く側に倒す。E23・docs/design/line.md の 2 節）。pointer の形の違い（object でない・型が違う・
     ほかの run の id・run directory の外を指す）は約束の誤りなので ValueError のまま（呼び手は落ちて works:line-script を返す）"""
     import ports
-    if value is None or value == "" or value == "null":
+    if value is None or value in ("", "null"):
         return ""
     if isinstance(value, str) and value.strip().startswith("{"):
         value = json.loads(value)

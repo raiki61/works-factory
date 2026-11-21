@@ -41,6 +41,7 @@ THICKNESS = {"auto": "", "light": LIGHT, "standard": STANDARD, "heavy": HEAVY}
 # 未知の種類の語と種類 → 段の表は diagnose・plan も読むので lib/headdepth に在る（役の output_format の unknown の enum の並び）
 NONE, CAUSE, SHAPE, SCOPE, UNKNOWNS = headdepth.NONE, headdepth.CAUSE, headdepth.SHAPE, headdepth.SCOPE, headdepth.UNKNOWNS
 WHERE_SPAN = 30   # 軽量の根拠の where の行の範囲の幅の上限。直す所を 1 画面で名指せない範囲はファイルを指すのと変わらない
+NO_INTAKE = "入口の控えが無い（入口の node が落ちた）"
 NO_ROWS = "依頼の行が無い（行ごとの未知の種類を引けない）"
 NO_REPLY = "役の返答が受け付けに届いていない（役が走らなかったか落ちた）"
 NOT_ACCEPTED = "役の返答が受け付けを通らない（{why}）"
@@ -257,10 +258,10 @@ def finish(out) -> dict:
     out = pathlib.Path(out)
     intake_doc = jsonfile.read_or(out / INTAKE_FILE)
     if not (out / RECORD_FILE).is_file():
-        return fallback(out, "入口の控えが無い（入口の node が落ちた）")
+        return fallback(out, NO_INTAKE)
     doc = headdepth.read_file(out / RECORD_FILE)
     if not isinstance(intake_doc, dict):
-        return fallback(out, "入口の控えが無い（入口の node が落ちた）")
+        return fallback(out, NO_INTAKE)
     if intake_doc.get("failed"):
         return _result(out, status="failed", reason=str(intake_doc.get("reason") or "入口が落ちた"), doc=doc)
     if intake_doc.get("due") and not doc["items"]:

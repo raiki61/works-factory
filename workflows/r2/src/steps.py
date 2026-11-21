@@ -34,7 +34,7 @@ NO_UNFINISHED = f"目は{_FIX}と書いたが、作り残しの行の名指し�
 
 # ---------------------------------------------------------------- 入口
 def _blank(raw) -> bool:
-    return not ports.text(raw).strip() or ports.text(raw).strip() == "null"
+    return ports.text(raw).strip() in ("", "null")
 
 
 def _port(name: str, read):

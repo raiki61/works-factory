@@ -65,7 +65,7 @@ Follow the procedure of the template below to inspect. Where it collides with th
 
 ### Verdict words
 
-This table only shows which field and value each word of the template corresponds to. The field values are decided from the rows of your answer by the "Two verdicts" rules above, and if the table disagrees, this prompt wins.
+This table maps each verdict word of the sub-agent template above to a works word and to a value of a verdict field (`compliance.verdict` or `quality.verdict`) of the JSON you return; it only shows that correspondence. The field values are decided from the rows you write in that JSON (the rows of `compliance.items` and the holes in `faces`) by the "Two verdicts" rules above, and if the table disagrees, this prompt wins.
 
 | Template word | works word | Field value |
 | --- | --- | --- |
@@ -73,7 +73,7 @@ This table only shows which field and value each word of the template correspond
 | (`plan_items` of the material is empty) | n/a | `compliance.verdict`: `{not_applicable}` (whatever the template word) |
 | (a hole in `faces` is not tied to a compliance row) | n/a | `quality.verdict`: `{fail_word}` (whatever the template word) |
 
-When you read a borrowed skill (superpowers), follow the reinterpretation below. This is a direct instruction to the role and it wins over the sentences of the skill. If you start a sub-agent with Agent, write in its prompt to Read this file: {overlay_path}
+{part:borrowed-skills}
 
 {overlay}
 

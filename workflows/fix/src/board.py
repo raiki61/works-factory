@@ -29,6 +29,14 @@ from src.files import (  # noqa: F401
 ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
 
+def _rows(path: pathlib.Path) -> list:
+    """置き場の行の並びのファイル（無ければ空）。行の配列でなければ ValueError"""
+    rows = read_json(path, [])
+    if not isinstance(rows, list):
+        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    return rows
+
+
 def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> None:
     """受け付けの回 (pass_, attempt) に選んだ試験を走らせた知らせ（common.selected_problems の 2 つ目の返り。0 件しか走らなかった・
     走らせられない・実行器が無い・新しい赤なし）を、置き場 place の ACCEPT_TRACE_FILE の並びの末尾に 1 行足す。行の形は元の盤面の
@@ -37,9 +45,7 @@ def tests_trace(place, state_file, note: str, *, pass_: str, attempt: int) -> No
     import impact
     from src import common
     path = pathlib.Path(place) / ACCEPT_TRACE_FILE
-    rows = read_json(path, [])
-    if not isinstance(rows, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    rows = _rows(path)
     acc = common.accept_values(place) if state_file else {}   # 受け付けが書き戻した欄は置き場の accept.json（下書き 2.1）
     rows.append({"op": impact.ACCEPT_TRACE_OP, "node": FIX_ACCEPT_BY, "pass": pass_, "attempt": attempt, "note": note,
                  "ci_left": list(acc.get("ci_left") or []), "final_left": list(acc.get("final_left") or []),
@@ -52,9 +58,7 @@ def accept_trace_rows(place, results=()) -> list:
     置き場 place の行（裁定の後の受け付けの回）と、置き場の trace.jsonl の受け付けの行（事後の関門の束が赤緑を確かめずに受けた回・
     はみ出しの決着・範囲の相談。TRACED_OPS）を重ねずに並べた物。置き場の並びが行の配列でなければ ValueError"""
     path = pathlib.Path(place) / ACCEPT_TRACE_FILE
-    own = read_json(path, [])
-    if not isinstance(own, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    own = _rows(path)
     traced = trace_rows(place, lambda row: row.get("op") in traced_ops())
     out: list = []
     for row in [*(x for r in results for x in (r or {}).get("accept_trace") or []), *own, *traced]:
@@ -70,9 +74,7 @@ def add_writer_report(place, weapon: str, lines) -> None:
     if not lines:
         return
     path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
-    rows = read_json(path, [])
-    if not isinstance(rows, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    rows = _rows(path)
     write_json(path, [*rows, *({"weapon": weapon, "line": x} for x in lines)])
 
 
@@ -80,9 +82,7 @@ def writer_report_rows(place, results=()) -> list:
     """型の block の書き手の報告の行: 組の子の結果 results の writer_report の行（組の順。子の行は group_id を持つ）と、置き場 place の
     行（裁定の後の書き手と、組の子の run 自身の行）。置き場の並びが行の配列でなければ ValueError"""
     path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
-    own = read_json(path, [])
-    if not isinstance(own, list):
-        raise ValueError(f"{path} が行の並び（JSON の array）でない")
+    own = _rows(path)
     return [row for row in [*(x for r in results for x in (r or {}).get("writer_report") or []), *own] if isinstance(row, dict)]
 
 
@@ -1340,7 +1340,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・
 # consult-check・fix-ruled-prep の scripts が呼ぶ）。元 works/blk-fix/scripts/accept.py の受け付けの手順と、元
 # works/blk-fix/lib/consult.py:522 の頼みの節を、盤面の代わりに置き場のパスと値の引数で受ける形に書き直した物
-RULED_REPLY_FILE = "fix-ruled-reply.json"   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
+RULED_REPLY_FILE = fixnames.RULED_REPLY_FILE   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
 RULED_HEAD_FILE = "fix-ruled-head.json"     # 裁定の後の修正の段の頭の木 {tree}（fix-ruled-prep が 1 回目に書く）
 FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tree}（TDD の輪の後。fix-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）

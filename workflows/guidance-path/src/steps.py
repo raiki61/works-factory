@@ -36,6 +36,8 @@ NEW, NEW_ = "{new}", "{new_}"   # 閉じるべき所の中の、新しい block 
 # Read(./<所>) で塞ぎ、受け付けは開いたと言う返答を拒む。tests/blocks/guidance_path が YAML と突き合わせる
 HIDDEN = ("workflows/guidance-path", "tests/blocks/guidance_path", "docs/design/guidance-path.md", ".archon")
 NONE = "(none)"
+NO_INTAKE = "入口の控えが無い（入口の node が落ちた）"
+NO_REQUEST_LEFT = "辿る頼みが残っていない（輪の done の配線の誤り）"
 
 
 def _read(path, default=None):
@@ -170,7 +172,7 @@ def walk_prompt(out) -> dict:
     doc = _need(out, INTAKE)
     req = _next(out)
     if req is None:
-        raise ValueError("辿る頼みが残っていない（輪の done の配線の誤り）")
+        raise ValueError(NO_REQUEST_LEFT)
     rejected = rolekit.rejected(out, walk_role(req["id"]))
     values = {"rejection": rolekit.rejects_text(rejected), "request": req["request"],
               "entry": "\n".join(f"- {e}" for e in doc["entry"]), "lang": doc["lang"]}
@@ -225,7 +227,7 @@ def walk_accept(out, raw) -> dict:
     out = pathlib.Path(out)
     req = _next(out)
     if req is None:
-        return {"ok": False, "done": True, "reason": "辿る頼みが残っていない（輪の done の配線の誤り）"}
+        return {"ok": False, "done": True, "reason": NO_REQUEST_LEFT}
     role = walk_role(req["id"])
 
     def take(reply):
@@ -249,7 +251,7 @@ def compare(out) -> dict:
     out = pathlib.Path(out)
     doc = _read(out / INTAKE)
     if doc is None or doc.get("reason"):
-        return {"due": False, "misses": 0, "reason": (doc or {}).get("reason") or "入口の控えが無い（入口の node が落ちた）"}
+        return {"due": False, "misses": 0, "reason": (doc or {}).get("reason") or NO_INTAKE}
     walks = _read(out / WALKS, {})
     rows = []
     for req in doc["requests"]:
@@ -340,7 +342,7 @@ def finish(out) -> dict:
     fixes = _read(out / FIXES, [])
     reasons, status = [], "ok"
     if not doc:
-        status, reasons = "failed", ["入口の控えが無い（入口の node が落ちた）"]
+        status, reasons = "failed", [NO_INTAKE]
     elif doc.get("reason"):
         status, reasons = "failed", [doc["reason"]]
     rows = []
