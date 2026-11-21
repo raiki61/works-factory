@@ -91,9 +91,7 @@ def build(data: dict) -> dict:
         KIND: "AGENT", RUN_ID: run["id"], STATUS: run.get("status") or "", OUTCOME: run.get("outcome") or NO_OUTCOME,
         **({LINE_OUTCOME: run.get("result_word") or NO_OUTCOME} if line else {}),
         **({COST: run["cost"]} if run.get("cost") is not None else {}), OUTPUT: _costs(data, events, table)})
-    parents = {}
-    for e in events:
-        parents[id(e)] = _parent(e, events)
+    parents = {id(e): _parent(e, events) for e in events}
     # 段の番号を持つ出来事は stages.attach の後だけに在り、その時は段の集計も在る（無ければ KeyError で止める）
     summed = data["stages"]["run"] if any(e.get("stage") for e in events) else []
     stage_spans = {}
@@ -180,11 +178,12 @@ class _Tree:
                 meta = agent["meta"]
                 first, last = agent.get("span") or [None, None]
                 up = calls[meta["use"]]
-                node = self.span(f"{up['key']}|agent|{agent['id']}", up["span"], meta.get("description") or f"subagent {agent['id']}",
+                where = f"{up['key']}|agent|{agent['id']}"
+                node = self.span(where, up["span"], meta.get("description") or f"subagent {agent['id']}",
                                  first, last, {KIND: "AGENT", DESCRIPTION: meta.get("description"), AGENT_TYPE: meta.get("type"),
                                                 AGENT_DEPTH: meta.get("depth"), AGENT_SHAPE: meta.get("shape"),
                                                 INPUT: _opening(agent, self.texts)})
-                self._turns(f"{up['key']}|agent|{agent['id']}", node, agent, calls)
+                self._turns(where, node, agent, calls)
         # 写しの往復の呼び出しに結ぶ下請けは、写しと同じく span にしない（数えない）
         copied = {c["id"] for t in said["turns"] if t.get("copied") for c in t["calls"]}
         return sum(1 for a in agents if (a.get("meta") or {}).get("use") not in copied)
