@@ -1,7 +1,7 @@
-"""修正役の後始末と、作業ツリーを木の姿へ戻す手続き（blk-fix の節 ignored_before・clean・assert_changed が import するモジュール。節ではないので scripts/ でなくここに置く）。
+"""修正役の後始末と、作業ツリーを木の姿へ戻す手続き（fix の block の ignored_before・clean・assert_changed が import するモジュール）。
 戻しの手続き touched・restore・restore_paths の使い手は 2 つ: 修正の block（workflows/fix/src/common.py が同じ名で引く）と line の封じる前の戻し（workflows/line/src/eyesback.py の restore_before_seal）。
 
-- git・git_names:     git を呼ぶ手続き（-z で読むパスの一覧も。Unreadable と合わせて、blk-fix の正本はここの 1 本。期限は付けない）
+- git・git_names:     git を呼ぶ手続き（-z で読むパスの一覧も。Unreadable と合わせて、fix の block の正本はここの 1 本。期限は付けない）
 - snapshot:           作業ツリーの今の姿（未追跡の新しいファイルも）を一時の index で固めた木の sha（本物の index は触らない）
 - touched:            木 a から木 b で変わったパス（足した・消したを含む）
 - restore:            作業ツリーを木の姿に戻す（その後に変わった・足した・消したファイルだけ）
