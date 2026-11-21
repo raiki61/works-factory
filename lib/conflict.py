@@ -869,10 +869,7 @@ def edit_rulings(b, pass_: str) -> bool:
 def broken_tests(b) -> list:
     """置き場 b の BROKEN_TESTS_FILE の行 [{path, ids}]（関わる試験で直す前から壊れていた物のファイルと落ちていた試験の鍵。fix の TDD の
     輪の頭が書く）。無い・読めない・形の違う行は捨てる"""
-    try:
-        doc = json.loads((pathlib.Path(b) / BROKEN_TESTS_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    doc = jsonfile.read_or(pathlib.Path(b) / BROKEN_TESTS_FILE)
     rows = doc.get("tests") if isinstance(doc, dict) else None
     return [{"path": r["path"], "ids": [str(i) for i in r.get("ids") or []]} for r in rows or []
             if isinstance(r, dict) and isinstance(r.get("path"), str) and r["path"].strip()]
