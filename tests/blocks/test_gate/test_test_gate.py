@@ -196,6 +196,10 @@ class ScriptCase(unittest.TestCase):
     def place(self, mode: str) -> pathlib.Path:
         return self.artifacts / f"test-gate-{mode}"
 
+    def run_doc(self, mode: str = "base") -> dict:
+        """段 mode の走らせた記録（declared_checks.RUN_FILE）"""
+        return json.loads((self.place(mode) / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
+
     def port_env(self, mode: str) -> dict:
         ports = {"mode": mode, "reuse_dir": str(self.artifacts / "test-reuse"), "user_env_dir": str(self.artifacts), **self.given}
         return {f"INPUTS_{k.upper()}": str(v) for k, v in ports.items()}
@@ -956,9 +960,6 @@ class SuiteLoopCase(ScriptCase):
     def state(self) -> dict:
         return json.loads((self.place("base") / "suite-state.json").read_text(encoding="utf-8"))
 
-    def run_doc(self) -> dict:
-        return json.loads((self.place("base") / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
-
     def round(self, body=None) -> tuple:
         """輪の 1 周（prep が書くと言えば、書き手の返りとして body を置く。None は書き手が落ちた周）。(prep の返り, try の返り)"""
         prep = self.ok("suite_prep", "base")
@@ -1094,9 +1095,6 @@ class RelatedCase(ScriptCase):
     def args(self, mode: str) -> list:
         path = self.place(mode) / "runner-args.txt"
         return path.read_text(encoding="utf-8").splitlines() if path.is_file() else None
-
-    def run_doc(self, mode: str) -> dict:
-        return json.loads((self.place(mode) / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
 
     def test_the_given_runner_gets_only_the_related_test_files(self):
         self.touch()
@@ -1280,9 +1278,6 @@ class BaseRunsNothingCase(ScriptCase):
         self.runner.write_text(self.RUNNER, encoding="utf-8")
         self.runner.chmod(0o755)
         self.write_start(base=self.head)
-
-    def run_doc(self, mode: str = "base") -> dict:
-        return json.loads((self.place(mode) / declared_checks.RUN_FILE).read_text(encoding="utf-8"))
 
     def test_the_base_runs_no_test_at_all(self):
         """宣言の段・test_cmd・宣言の準備・人が渡した実行器のどれも走らせない。最後のテストは今までどおり走らせる"""
