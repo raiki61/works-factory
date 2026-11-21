@@ -59,13 +59,13 @@ import pathlib
 import posixpath
 import shutil
 
-import cite  # noqa: E402  （.shared/core。名指しの形）
-import conflict  # noqa: E402  （.shared/core。修正案の欄の控え・テストの変更の許し）
-from src import board as fixboard  # noqa: E402  （lib。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
-import impact  # noqa: E402  （.shared/core。受け付けの置き場の trace の行の名・テストのファイルの見分け）
+import cite  # noqa: E402  （lib/。名指しの形）
+import conflict  # noqa: E402  （lib/。修正案の欄の控え・テストの変更の許し）
+from src import board as fixboard  # noqa: E402  （同じ block の src。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
+import impact  # noqa: E402  （lib/。受け付けの置き場の trace の行の名・テストのファイルの見分け）
 import jsonfile  # noqa: E402
-import planmarks  # noqa: E402  （.shared/core。修正案の書き換えの名指し・テストの定義の行）
-import planrange  # noqa: E402  （.shared/core。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
+import planmarks  # noqa: E402  （lib/。修正案の書き換えの名指し・テストの定義の行）
+import planrange  # noqa: E402  （lib/。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
 from src import common, tdd as tddloop  # noqa: E402  （同じブロックの lib。輪の関門の読み口をそのまま使う）
 from leftovers import Unreadable, git  # noqa: E402
 
