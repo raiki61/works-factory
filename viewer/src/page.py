@@ -14,7 +14,6 @@ import json
 import re
 import shlex
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from viewer.src import fill, ioflow, runread, stages
@@ -112,8 +111,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         evs = [e for e in leaf_events(key) if e.get("start") and e.get("end")]
         if not evs:
             return None
-        p = lambda t: datetime.fromisoformat(t.replace("Z", "+00:00"))
-        return (max(p(e["end"]) for e in evs) - min(p(e["start"]) for e in evs)).total_seconds()
+        return (max(runread.when(e["end"]) for e in evs) - min(runread.when(e["start"]) for e in evs)).total_seconds()
 
 
     def what(key):
