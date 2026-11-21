@@ -1,5 +1,5 @@
 """承認済みの修正案の項目の範囲で、変わったパスを照らす決まりの 1 か所（修正案の範囲の照らし。依頼 218）。修正の受け付け
-（blk-fix の planscope。単位に結べる行の照らしと欠けの照らしはそちら）と、手直しの受け付け（refix.accept_fix）が同じ決まりで使う。
+（fix の scope。単位に結べる行の照らしと欠けの照らしはそちら）と、手直しの受け付け（delta-review の touchup.accept_fix）が同じ決まりで使う。
 
 語:
 - 項目の範囲: allowed_paths の glob と、tests・rewrite_tests の id のファイル（planmarks.test_paths）。glob の並びで言えば item_globs
@@ -17,10 +17,10 @@
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
 - scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス,
-  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・planscope.check）と役の指示の範囲の行
+  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・fix の scope の照らし）と役の指示の範囲の行
   （fix の src/rules.py の scope_rows）と役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
 - fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く
-- test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの planscope.problems と指示書が同じ値を引く）
+- test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの fix の scope.problems と指示書が同じ値を引く）
 - check_paths(b, paths, *, items, ruled, by, round_): 承認済みの修正案の項目 items で paths を outside で照らす (行, 記録)。
   合意と裁定は置き場 b から読む。照らさない項目（修正案の無い・範囲の欄の無い控え）は ([], {"checked": False, "why": 理由})。
   欄の控えが凍結の印と食い違えば conflict.fields_broken の道（ValueError）
@@ -48,7 +48,7 @@ def globs(it: dict) -> list[str]:
 
 def test_ids(it: dict) -> list[str]:
     """項目の tests の id（範囲の相談の合意で足した印 agreed の行も。現れた順・重なりは 1 つ）。修正の段の受け付けは、ここに無い
-    新しいテストを拒む（planscope.problems の 6）。修正役の指示（fix の src/rules.py の tests_rows）も同じ値を貼る"""
+    新しいテストを拒む（fix の scope.problems の 6）。修正役の指示（fix の src/rules.py の tests_rows）も同じ値を貼る"""
     return list(dict.fromkeys(row["id"] for row in it.get("tests") or []
                               if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"].strip()))
 
@@ -74,7 +74,7 @@ def inside(path: str, it: dict) -> bool:
 
 def owner(path: str, items: list[dict]):
     """path を結ぶ項目: 範囲に入る（inside）最初の項目、無ければ items の最初。items が空なら None（受け付けがはみ出しを範囲の
-    相談に回す時に、頼みをどの項目に結ぶかの決まりの 1 か所。planscope・fixgates・受け付けが呼ぶ）"""
+    相談に回す時に、頼みをどの項目に結ぶかの決まりの 1 か所。fix の scope・gates・受け付けが呼ぶ）"""
     return next((it for it in items if inside(path, it)), items[0] if items else None)
 
 
@@ -105,7 +105,7 @@ def with_agreed(items: list[dict], agreed) -> list[dict]:
     にも並べ、字のまま同じパスに限ってその項目の out_of_scope から外す（oos_hit。案を書いた役が自分の外した物を考え直して許した。
     持ち主 2026-10-07）。許した新しいテスト {id, red_kind} は、その項目の写しの tests の後ろに印 agreed つきで足す（テストのファイルは
     planmarks.test_paths で範囲に入る。案の外で足したテストの拒否の行に当たらず、今の木に在れば事後の関門が赤緑を確かめる）。印 agreed の
-    行は許しで義務ではない（修正役が書かなくても・別の名で書いても欠けにしない。planscope の欠けの照らしと fixgates が外す）。同じ id は
+    行は許しで義務ではない（修正役が書かなくても・別の名で書いても欠けにしない。fix の scope の欠けの照らしと gates が外す）。同じ id は
     後の合意が前に勝つ。元の項目は変えない。
     ほかの項目は変えない。テストの書き換えの許しは conflict.test_permits が持つ"""
     more: dict = {}
