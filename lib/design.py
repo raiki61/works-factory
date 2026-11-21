@@ -218,7 +218,9 @@ def head_file(repo, path) -> str:
 def _marks(line) -> tuple:
     """(記号 1 文字, 並びの長さ, 並びの後の残り)。行頭の空白 3 つまでを除いた後が英数字でも空白でもない同じ文字の連なりで
     なければ ("", 0, "")"""
-    s = line[len(line) - len(line.lstrip(" ")):] if len(line) - len(line.lstrip(" ")) <= 3 else ""
+    s = line.lstrip(" ")
+    if len(line) - len(s) > 3:
+        s = ""
     if not s or s[0].isalnum() or s[0].isspace():
         return "", 0, ""
     n = len(s) - len(s.lstrip(s[0]))
