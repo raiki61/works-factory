@@ -689,12 +689,17 @@ def fields_broken(b, e: Exception, *, by: str = stopby.FIX, stop=None) -> Except
     return ValueError(why)
 
 
-def _plan_rewrites(b, round_: int = 1) -> list[dict]:
-    """planmarks.rewrites。控えが凍結の印と食い違えば（FieldsBroken）fields_broken の道（ValueError（止めるのは呼び手））"""
+def _marks_read(read, b, round_: int):
+    """read(fixboard.marks_view(b, round_))。控えが凍結の印と食い違えば（FieldsBroken）fields_broken の道（ValueError）"""
     try:
-        return planmarks.rewrites(fixboard.marks_view(b, round_))
+        return read(fixboard.marks_view(b, round_))
     except planmarks.FieldsBroken as e:
         raise fields_broken(b, e) from None
+
+
+def _plan_rewrites(b, round_: int = 1) -> list[dict]:
+    """planmarks.rewrites。控えが凍結の印と食い違えば（FieldsBroken）fields_broken の道（ValueError（止めるのは呼び手））"""
+    return _marks_read(planmarks.rewrites, b, round_)
 
 
 def plan_rewrite_ids(b, round_: int = 1) -> list:
@@ -707,19 +712,13 @@ def plan_rewrite_ids(b, round_: int = 1) -> list:
 
 def _plan_removes(b, round_: int = 1) -> list[dict]:
     """planmarks.removes_permits。_plan_rewrites と同じく、控えが食い違えば ValueError（止めるのは呼び手）"""
-    try:
-        return planmarks.removes_permits(fixboard.marks_view(b, round_))
-    except planmarks.FieldsBroken as e:
-        raise fields_broken(b, e) from None
+    return _marks_read(planmarks.removes_permits, b, round_)
 
 
 def frozen_fields(b, round_: int = 1) -> list | None:
     """今の周の凍結した修正案の欄の並び（planmarks.frozen。控えが無ければ None）。控えが凍結の印と食い違えば、_plan_rewrites と
     同じく ValueError（止めるのは呼び手）（fields_broken の道。TDD の輪の約束を黙って空にしない）"""
-    try:
-        return planmarks.frozen(fixboard.marks_view(b, round_))
-    except planmarks.FieldsBroken as e:
-        raise fields_broken(b, e) from None
+    return _marks_read(planmarks.frozen, b, round_)
 
 
 def plan_asks(b, op: str = ASKED_OP, *, carried: bool = False) -> list[dict]:
