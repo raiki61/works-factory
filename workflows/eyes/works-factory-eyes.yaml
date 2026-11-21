@@ -188,7 +188,8 @@ nodes:
         r2: *row
         r3: *row
         r4: *row
-        # 問いの要素は字でも {text, title} の行でもよい（題は本文を書いた R2・R4 の役が書き、line の facts が読み口 plainask で読む。eyes は運ぶだけ）
+        # 問いの要素は字でも {text, title} の行でもよい（題は本文を書いた R2・R4 の役が書き、line の facts が読み口 plainask で読む。eyes は運ぶだけ）。
+        # questions は R4 の問いの後に、R1・R2 の needs が choose の返す項目を問いにした行 {text} を足す（src/verdict.py の choose_questions）
         questions: {type: array, items: &eye_question {type: [string, object], properties: {text: {type: string}, title: {type: string}, recommend: {type: object, properties: {answer: {type: string}, note: {type: string}, why: {type: string}}}}, required: [text]}}
         means_questions: {type: array, items: *eye_question}
         passes:
@@ -216,17 +217,20 @@ nodes:
         after_ok: {type: boolean}
         findings:
           type: array
-          description: '修正の段へ返す項目（判定が fix-needed の R1・R2 の出口の findings に目の名と種を付けて並べた物。種は R1 の指摘が trim〔削れる物〕・R2 の指摘が unfinished〔作り残し〕）'
+          description: '返す項目（R1・R2 の出口の findings に目の名を付けて並べた物。needs が fix の行は判定が fix-needed の目の物だけ、choose の行は目の判定に依らず載せる）。needs は指摘ごとに目が判じた、直す側で片づくか（fix。修正の段へ返す）人が選ぶか（choose。返さずに選べる道と推しを添えて questions に足し、最後の承認ノードの問いへ回す）。kind も指摘ごとに目が選ぶ種（trim〔振る舞いを変えない直し〕・unfinished〔作り残し〕）'
           items:
             type: object
             additionalProperties: false
-            required: [eye, kind, where, text]
+            required: [eye, needs, kind, where, text]
             properties:
               eye: {type: string, enum: [r1, r2]}
+              needs: {type: string, enum: [fix, choose]}
               kind: {type: string, enum: [trim, unfinished]}
               where: {type: string}
               text: {type: string}
-        route: {type: string, enum: [fix, stay], description: '修正の段へ返すか。判定の語からまとめが決める（AI に書かせない）'}
+              options: {type: array, items: {type: string}}
+              recommend: {type: string}
+        route: {type: string, enum: [fix, stay], description: '修正の段へ返すか。判定の語と needs が fix の返す項目の数からまとめが決める（AI に書かせない）'}
         route_why: {type: string, description: '返す訳か、返さない訳（設計違いの目の名・前提の検算・確かめられない目の名・返す物が無い・目を回していない）'}
         report: {type: array, items: {type: string}}
         sections:

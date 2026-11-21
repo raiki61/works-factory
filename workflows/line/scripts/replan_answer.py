@@ -104,7 +104,6 @@ def compute() -> dict:
            "asked": os.environ.get("INPUTS_ASKED"), "pushed": os.environ.get("INPUTS_PUSHED"), "items": os.environ.get("INPUTS_ITEMS"),
            "first_ripple": os.environ.get("INPUTS_FIRST_RIPPLE"), "units_tier": os.environ.get("INPUTS_UNITS_TIER")}
     import answer
-    from src import gates
 
     asked = ports.parsed(raw["asked"]) or []
     replan = ports.picked(os.environ.get("INPUTS_REPLAN"), REPLAN)

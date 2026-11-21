@@ -195,7 +195,7 @@ def format_problems(text) -> list:
     out, fence = [], False
     for i, line in enumerate(str(text or "").splitlines(), 1):
         s = line.strip()
-        if s.startswith("```") or s.startswith("~~~"):
+        if s.startswith(("```", "~~~")):
             fence = not fence
             continue
         if fence or not s.startswith("|"):

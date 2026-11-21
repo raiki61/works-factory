@@ -132,9 +132,15 @@ nodes:
           type: array
           items:
             type: object
-            required: [where, why]
+            required: [where, why, needs, fix_kind]
             additionalProperties: false
             properties:
+              # 指摘ごとに、直す側で片づくか（fix）人が選ぶか（choose）と、振る舞いを変えない直し（trim）か作り残し（unfinished）か。choose の行は
+              # 選べる道 options と推し recommend を書く（決めの字は prompts/r1-minimality.md が入れる断片 eye-needs。返す項目の行は lib/eyekit.py の back_row）
+              needs: {type: string, enum: [fix, choose]}
+              fix_kind: {type: string, enum: [trim, unfinished]}
+              options: {type: array, items: {type: string, minLength: 1}}
+              recommend: {type: string, minLength: 1}
               # where の minLength: 照合される側（p2.diagnose.carried_r1[].where）は minLength を持つのに、正本のこちらが持たないと、空文字が schema を通ったうえで数える口から黙って落ち、次の周の judge はその候補について 1 行も書かなくてよくなる（実測 2026-09-16・静的）
               where:
                 type: string
@@ -189,14 +195,18 @@ nodes:
           items: {type: string}
         findings:
           type: array
-          description: '修正の段へ返す項目。判定が fix-needed の時だけ、削れる物の行（deletions）を 1 行の字にして並べる。名指しの無い fix-needed は判定の reason の 1 行。ほかは空'
+          description: '返す項目。削れる物の行（deletions。判定が fix-needed の時は全部、ほかの判定の時は needs が choose の行だけ）を 1 行の字にして、役が行ごとに書いた needs（fix・choose）と kind（trim・unfinished）を付けて並べる（choose の行は選べる道 options と推し recommend も）。名指しの無い fix-needed は判定の reason の 1 行（fix・trim）。ほかは空'
           items:
             type: object
             additionalProperties: false
-            required: [where, text]
+            required: [where, text, needs, kind]
             properties:
               where: {type: string}
               text: {type: string}
+              needs: {type: string, enum: [fix, choose]}
+              kind: {type: string, enum: [trim, unfinished]}
+              options: {type: array, items: {type: string}}
+              recommend: {type: string}
         report:
           type: array
           items: {type: string}

@@ -326,7 +326,7 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual([r["items"][0]["text"] for r in first["rows"]], ["同じ内容の写しが残っている"])
         self.assertIn("独立の目 R1: app.py:3: 同じ内容の写しが残っている", first["notes"])
         self.assertFalse(second["go"], second)
-        self.assertEqual(second["exit"], "返す物が無い")
+        self.assertTrue(second["exit"].startswith("返す物が無い"), second["exit"])
         self.assertEqual(len(second["rows"]), 1)
         for node in ("back-1-fix__finish", "back-1-fixed", "back-1-gate__result", "back-1-eyes__verdict", "back-2", "eyes-back"):
             self.assertTrue(ran(trace, node), node)
@@ -338,7 +338,8 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual([s["stage"] for s in fixed["stages"]], [1, 2], "返した段が最初の修正の段の次に積まれる")
         self.assertEqual(len(fixed["more"]), 1)
         last = out(trace, "eyes-back")
-        self.assertEqual((last["exit"], last["sealable"], last["eyes_ok"], last["green_ok"]), ("返す物が無い", True, True, True))
+        self.assertTrue(last["exit"].startswith("返す物が無い"), last["exit"])
+        self.assertEqual((last["sealable"], last["eyes_ok"], last["green_ok"]), (True, True, True))
         self.assertEqual(last["fingerprint"]["diff_hash"], "e" * 64, "最後の周の試験の指紋")
         self.assertEqual(last["eyes"]["r1"]["status"], "pass")
         self.assertTrue(ran(trace, "merge-seal__merge"))
@@ -348,6 +349,17 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual(asked["r2"]["status"], "pass")
         self.assertEqual(out(trace, "result")["r2_status"], "pass")
         self.assertIn("独立の目から修正の段へ 1 回返した", asked["text"])
+
+    def test_choose_finding_is_not_returned_and_reaches_the_final_approval(self):
+        """R2 が判定 pass のまま人が選ぶ（needs が choose）とした指摘は修正の段へ返らず（notes と周の行に入らず、2 周目の頭も返さない）、
+        最後の承認ノードの文に問いとして 1 度だけ出る"""
+        trace = self.trace
+        first, second = out(trace, "back-1"), out(trace, "back-2")
+        self.assertNotIn("空の入力にも見出しを出すか", first["notes"])
+        self.assertEqual([i["text"] for r in first["rows"] for i in r["items"]], ["同じ内容の写しが残っている"])
+        self.assertFalse(second["go"], "choose の行だけでは返さない")
+        text = out(trace, "ask-final")["text"]
+        self.assertEqual(text.count("R2: app.py:9: 空の入力にも見出しを出すか（選べる道: 1) 出す／2) 出さない。"), 1, text)
 
 
 class NoApplyTest(unittest.TestCase):

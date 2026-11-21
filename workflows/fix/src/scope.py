@@ -1,4 +1,4 @@
-"""承認済みの修正案の項目と修正の差分を機械が照らす（blk-fix。依頼 218）。修正の受け付け（scripts/accept.py の check_plan_scope）が
+"""承認済みの修正案の項目と修正の差分を機械が照らす（blk-fix。依頼 218）。修正の受け付け（src/facts.py の check_plan_scope）が
 呼び、外れを同じ brief のまま修正役に返す。AI を通さない。
 
 語:
@@ -43,7 +43,7 @@
   . か :: の修飾子は、そのファイルの最上位のクラスなら クラス.名、モジュール名か :: の前のパスなら最上位の素の名で照らす。.py でない・構文が読めないファイルは、足した行に定義の行（def・class・代入・関数の形）が在れば
   残る。名を挙げるだけの行（消えたことを確かめる hasattr・変更の記録の注記）は残ったと見ない
 
-範囲の読み（項目の範囲・out_of_scope・合意・許しのパス）と単位に結べないパスの照らしは .shared/core/planrange.py に在り、
+範囲の読み（項目の範囲・out_of_scope・合意・許しのパス）と単位に結べないパスの照らしは lib/planrange.py に在り、
 手直しの受け付け（refix.accept_fix）も同じ物を呼ぶ。ここはそれに単位に結べる行の照らしと欠け・余分の照らしを足す。
 
 拒否の行はどれも、行の単位の key か項目の unit_keys の全部を字のまま含める（最後の回に parking.bind が単位に結ぶ）。
@@ -71,7 +71,7 @@ import changemap  # noqa: E402   ファイルの言語の名（fence_lang）
 import conflict  # noqa: E402   直す裁定の limits のパス（ruled_paths）
 import leftovers  # noqa: E402
 import planmarks  # noqa: E402
-import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。.shared/core）
+import planrange  # noqa: E402   範囲の読みと単位に結べないパスの照らし（手直しの受け付けと同じ決まりの 1 か所。lib/）
 from planrange import LIFTED, NO_PLAN, NO_SCOPE, with_agreed  # noqa: E402,F401   このモジュールの口の名（試験と受け付けが読む）
 from src import common  # noqa: E402   試験のモジュールの名の型（PYTEST_FILE）の正本
 

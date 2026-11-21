@@ -2632,7 +2632,7 @@ class FixgatesSeamCase(SeamTemp):
             fixgates.problems(self.place, self.repo, "HEAD", "", 1, state={"inputs": {"review_rev": self.rev}},
                               owed=[self.MEAN], withheld=[self.MEAN], returned=())
         rev.assert_called_once_with({"inputs": {"review_rev": self.rev}}, "HEAD")
-        duty.assert_called_once_with(self.place, [self.MEAN], withheld=[self.MEAN], returned=())
+        duty.assert_called_once_with(self.place, [self.MEAN], withheld=[self.MEAN], returned=(), back={})
         why = fixgates.skipped(self.place, pass_="first", attempt=1)
         self.assertTrue(why and why[0].startswith(fixgates.OUT_OF_DUTY), why)
 

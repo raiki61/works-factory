@@ -18,17 +18,17 @@ The rules above (the source of the writing roles' rules, which the machine puts 
 
 ## Borrowed skill seat
 
-Read `{seat_skill}` with the Skill tool and proceed by its procedure. The promises of this prompt (the JSON to return, the machine gates, the order of the steps) and the reinterpretation below win over the borrowed sentences.
+Read the borrowed skill `{seat_skill}` with the Skill tool and proceed by its procedure. The promises of this prompt (the JSON to return, the machine gates, the order of the steps) and the reinterpretation below win over the sentences of that skill.
 
-Where it applies:
+Where the skill's procedure applies:
 
 {seat_applies}
 
-Where it does not apply (do not follow):
+Where the skill's procedure does not apply (do not follow it there):
 
 {seat_not_applies}
 
-When you read a borrowed skill (superpowers), follow the reinterpretation below. This is a direct instruction to the role and it wins over the sentences of the skill. If you start a sub-agent with Agent, write in its prompt to Read this file: {overlay_path}
+{part:borrowed-skills}
 
 {overlay}
 
