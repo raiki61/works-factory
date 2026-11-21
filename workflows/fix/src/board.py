@@ -1338,7 +1338,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・
 # consult-check・fix-ruled-prep の scripts が呼ぶ）。元 works/blk-fix/scripts/accept.py の受け付けの手順と、元
 # works/blk-fix/lib/consult.py:522 の頼みの節を、盤面の代わりに置き場のパスと値の引数で受ける形に書き直した物
-RULED_REPLY_FILE = "fix-ruled-reply.json"   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
+RULED_REPLY_FILE = fixnames.RULED_REPLY_FILE   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
 RULED_HEAD_FILE = "fix-ruled-head.json"     # 裁定の後の修正の段の頭の木 {tree}（fix-ruled-prep が 1 回目に書く）
 FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tree}（TDD の輪の後。fix-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）
