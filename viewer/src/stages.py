@@ -16,6 +16,8 @@ import runlog   # lib/（viewer/src/__init__.py が sys.path に足す）
 from viewer.src import runread, shape
 
 TABLE = json.loads((Path(__file__).resolve().parents[1] / "stages.json").read_text(encoding="utf-8"))
+# 状態を決める順（先に在る物が勝つ）。人の答え待ちを走り中より先に見せる。ページ（src/page.py）も同じ順で決める
+ORDER = ("failed", "waiting", "running")
 
 
 def check(graphs: dict) -> list[str]:
@@ -77,7 +79,7 @@ def _sum(n: int, run: dict, through: set[str]) -> dict:
     # 段の状態は所（run・道・周）ごとの最後の結果で決める。落ちた後に起き直して通った所は通ったにし、一度落ちたことは印 fell に残す
     last = {(e["run"], tuple(e["tokens"]), tuple(e["loop"])): e["status"] for e in deciding}
     seen = set(last.values())
-    state = next((s for s in ("failed", "waiting", "running") if s in seen), "ok" if deciding else
+    state = next((s for s in ORDER if s in seen), "ok" if deciding else
                  "skipped" if any(s.get("stage") == n for s in run["skipped"]) else "none")
     start, end = (min(times, key=runread.when), max(times, key=runread.when)) if times else (None, None)
     return {"state": state, "fell": state != "failed" and any(e["status"] == "failed" or e.get("fell") for e in deciding),

@@ -97,10 +97,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 sk = bool(key) and any(under(key, s["tokens"]) for s in skipped)
             return "skipped" if sk else "none"
         sts = [e["status"] for e in evs]
-        for s in ("failed", "running", "waiting"):
-            if s in sts:
-                return s
-        return "ok"
+        return next((s for s in stages.ORDER if s in sts), "ok")
 
 
     def cost(key):
