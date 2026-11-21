@@ -32,8 +32,6 @@ NEW_TEST = '''
     def test_mean_of_two(self):
         self.assertEqual(mean([2, 4]), 3)
 '''
-CHANGED_MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
-                 "path_changed")
 
 runvals = kit.load("fix", "runvals")
 if str(ROOT / "lib" / "graphloops") not in sys.path:
@@ -768,7 +766,7 @@ class GroupChildScriptsCase(unittest.TestCase):
         self.assertEqual(result["end_tree"], leftovers.snapshot(self.repo))
         self.assertNotEqual(result["end_tree"], result["start_tree"])
         self.assertEqual((result["tdd"]["ran"], result["tdd"]["units"]), (False, []))
-        self.assertEqual(result["changed"], {**{k: k == "gates_changed" for k in CHANGED_MARKS},
+        self.assertEqual(result["changed"], {**{k: k == "gates_changed" for k in support.MARKS},
                                              "premise_drift_note": "上限を測り直した"})
         self.assertEqual(result["x_scalars"], {"x_moved": 2})
         self.assertEqual(result["unsatisfied"], [{"before": "a", "after": "b"}], "子の置き場の注文の索引の守れない依存の対")
