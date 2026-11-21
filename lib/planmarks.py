@@ -16,19 +16,19 @@
   修正前の版のテストの中身。split が欄 removes_tests に置く許しの行）
 - FILES_SCHEMA・SYMBOL_CHANGES: 修正案の項目の欄 files（ファイル構成の行。足す物・消す物を 1 ファイルごとの {path, op, from?,
   responsibility, symbols:[{name, change, why?, replaced_by?}], home:{concept, why}, considered:[{path, why_not}], why?, replaced_by?} にした物）の型の住処（yaml の plan_reply の
-  files はその写し）。読みの口は file_rows(item)・symbol_rows(row)・file_symbols(item, change)・removed_paths(item)。読み手（planscope・ripple・design・
+  files はその写し）。読みの口は file_rows(item)・symbol_rows(row)・file_symbols(item, change)・removed_paths(item)。読み手（fix の scope・plan の ripple・design・
   planbrief）は欄の字を自分で読まず、この口を引く
 - IDENT・search_word(name)・declared_name(d)・word_re(name)・test_functions(src, path)・test_names(src, path)・test_defs(tree, path)・code_idents(node)・DOTTED_NAME: files の
-  symbols の name を差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（blk-fix の planscope・tddloop・blk-plan の ripple が
-  同じ物を呼ぶ）・テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集めと、名と読む点の付いた文字列の形（tddloop も
+  symbols の name を差分や本体で探す語の決まり（1 行の読み方）・テストの関数の源の引き（fix の scope・common と plan の ripple が
+  同じ物を呼ぶ）・テストの関数がコードで使う名の引き（split が removes_tests を引く）・コードの識別子の名の集めと、名と読む点の付いた文字列の形（fix の common も
   使う）
 - 項目の間の依存（DEPENDS_KEY=depends_on。後の項目が前の項目の単位と受ける物を書く works の欄）: depends_gaps(items) は案の全体を受ける
   依存の照らしの 1 つの口（take_plan と案の直しの _plan_errors が案の全体を渡して呼ぶ）、home_gaps(items) は同じ案の全体を受ける考えの住処の
   照らし（files の行の home.concept が案の 2 行に出たら拒む。純な関数）、depends_pairs(items, among=None) は組を作る
   (前の単位, 後の単位) の対（among の外の単位を通る依存は中の端どうしに縮める）、renumber(item, name_of) は UNIT_REFS の欄の単位の no を名に戻す
-  （planfile.named が呼ぶ）
+  （plan の steps が呼ぶ）
 - unit_contract(fields, key): 1 つの単位の約束（その単位を名指す項目の道・受け入れのテスト・書き換えの id・整えの申告を合わせた物。TDD の輪が読む）
-- append_trace(folder, op, **row): 開いた盤面の書き口の無い時に trace.jsonl（TRACE_FILE）へ足す行 {t, op, …}（save と planfile が書く）
+- append_trace(folder, op, **row): 開いた盤面の書き口の無い時に trace.jsonl（TRACE_FILE）へ足す行 {t, op, …}（save と plan の take・plan-review の proof が書く）
 - 凍結（SAVED_OP・frozen(b)・FieldsBroken）: save は控えを置いた後、盤面の trace に印 {round, sha256（控えのバイトの sha256）} を
   1 行書く。テストの変更の許しの元（rewrites）と brief の切り出しは frozen で読み、今の周の印と控えが食い違えば（受け付けの後に
   書き換えた・消した）FieldsBroken。読む側が盤面を止める（黙って許しを広げない・黙って捨てない）。印の無い控えは無い物（None）
@@ -46,7 +46,7 @@
 - approved_items(b): 今の周の承認済みの修正案の項目と凍結した欄を同じ番号で合わせた並び（修正の受け付けが差分と照らす）
 - joined(it, f): 案の項目の行に同じ番号の欄の行の KEYS を重ねた行（approved_items と事前審査の往復の控えの行が使う）
 - handed(ruling, items): 裁かれた項目の番号の字（fix の replan_items）を案の項目の番号に読み、番号でない行と案の外の番号は訳を返す
-  （案の直しの周を開く planfile と、案の直しの事前審査を開く boardview が同じ物を呼ぶ）
+  （案の直しの周を開く plan の steps と、案の直しの事前審査を開く plan-review の steps が同じ物を呼ぶ）
 - 約束の欄と手段の欄（依頼 226）: CONTRACT_KEYS・CONTRACT_TEST_KEYS（tests[] の行の約束の欄）は変えると関所に戻す物、
   MEANS_KEYS は修正案の役が同じ run の中で直してよい物。contract_diff(old, new) が違う約束の欄の名を返す
   widened(old, new) は違いが範囲を広げる欄（WIDEN_KEYS: allowed_paths に足す・out_of_scope から外す）だけの時に足した・外した glob を返す
@@ -100,7 +100,7 @@ MEANS_KEYS = ("approach", "files", "shrink_first", "route", "route_why", "tests"
 # 範囲を広げる欄（widened が見る）: allowed_paths に足す・out_of_scope から外すだけの直しは、範囲を広げるだけの直し
 WIDEN_KEYS = ("allowed_paths", "out_of_scope")
 AMENDED_KEY = "amended"            # 控えの鍵 {"<項目の番号>": {CORE_KEYS の欄}}（差し替えた項目の核の欄）
-AMEND_OP = "plan_amended"          # 差し替えの trace の行（planfile が書く） {round, items: [番号…]}（SAVED_OP の行の直後）
+AMEND_OP = "plan_amended"          # 差し替えの trace の行（plan の take が書く） {round, items: [番号…]}（SAVED_OP の行の直後）
 # route_why は route が tdd でない時だけ要る（gaps が見る）
 REQUIRED = ("route", "tests", "rewrite_tests", "refactor", "allowed_paths", "out_of_scope")
 # 範囲の相談の合意で入る新しいテストだけが使う赤の種類: 守りのテスト（base で緑でよい。人の条件「X を壊さないことを確かめよ」の型）。
@@ -252,7 +252,7 @@ def test_functions(src: str, path: str) -> dict[str, str]:
 def code_idents(node) -> set[str]:
     """節 node の下でコードの識別子として使う名（名前・属性・引数・キーワード・import の各段と別名・定義の名。注釈の中の名も）。
     文字列の中の語（文字列で書いた注釈 "Book" も）は入れない（文字列のどれを名と読むかは呼び手が足す。planmarks._code_names・
-    tddloop._old_names）。`from X import Y` の X は名前空間に名を作らないので入れない"""
+    fix の common._old_names）。`from X import Y` の X は名前空間に名を作らないので入れない"""
     out = set()
     for n in ast.walk(node):
         if isinstance(n, ast.Name):
@@ -817,7 +817,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
 # ---------------------------------------------------------------- 項目の間の依存（depends_on）
 def renumber(item: dict, name_of: Callable) -> dict:
     """項目 item（その場で書き換える）の単位を持つ欄（UNIT_REFS: unit_keys と depends_on[].unit）の単位の no を name_of(no) の単位の名に
-    戻し、item を返す。字は name_of にそのまま通す（planblk.unit_name は字をそのまま返す。案の直しの返答は unit_keys を字で写すので、
+    戻し、item を返す。字は name_of にそのまま通す（plan-review の unit_name は字をそのまま返す。案の直しの返答は unit_keys を字で写すので、
     depends_on[].unit も字で書く）。形の崩れた欄（並びでない・object でない行）は触らない"""
     for field, sub in UNIT_REFS:
         rows = item.get(field)
@@ -1199,7 +1199,7 @@ def approved_items(b) -> list[dict] | None:
 def paired(plan: list, fields: list, where: str) -> list[tuple[dict, dict]]:
     """案の項目の行の並び plan と欄の行の並び fields（where に在る物）を同じ番号で組んだ (項目, 欄) の並び（dict でない行は空の dict）。
     数が違えば FieldsBroken（同じ周の受け付けが同じ並びで書くので、組めば番号がずれる）。承認済みの項目（approved_items）・
-    事前審査の往復の控えの行（boardview.open_pass）・項目ごとの brief（planbrief）が同じ物を呼ぶ"""
+    事前審査の往復の控えの行（plan-review の steps）・項目ごとの brief（planbrief）が同じ物を呼ぶ"""
     if len(fields) != len(plan):
         raise FieldsBroken(f"修正案の項目の数 {len(plan)} と {where} の欄の数 {len(fields)} が違う（同じ周の受け付けが同じ並びで書く物）")
     return [(it if isinstance(it, dict) else {}, f if isinstance(f, dict) else {}) for it, f in zip(plan, fields)]
@@ -1207,7 +1207,7 @@ def paired(plan: list, fields: list, where: str) -> list[tuple[dict, dict]]:
 
 def joined(it: dict, f: dict) -> dict:
     """案の項目の行 it に同じ番号の欄の行 f（plan-fields.json の行）の KEYS の物を重ねた行（unit_keys は案の物）。
-    承認済みの項目（approved_items）と事前審査の往復の控えの行（boardview.open_pass）が同じ物を呼ぶ"""
+    承認済みの項目（approved_items）と事前審査の往復の控えの行（plan-review の steps）が同じ物を呼ぶ"""
     return {**it, **{k: f[k] for k in KEYS if k in f}}
 
 
