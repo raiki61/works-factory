@@ -41,7 +41,7 @@ Read "How to fix" and "When to stop instead of fixing" for every fix; read "Foll
 
 ### Following a pre-reviewed plan
 
-Answer every hole and every smaller alternative the pre-review raised: taken in, and how; or left, and why (for a false positive, where in the real code it is wrong). Leaving a blocking hole unanswered does not make it go away; expect the next review to raise it again as blocking. Saying "hand it to a person" inside an answer does not reach the person; put it where the person reads what they must decide.
+Answer every hole and every smaller alternative the pre-review raised: taken in, and how; or left, and why (for a false positive, where in the real code it is wrong). A blocking hole you answer as left does not go away; expect the next review to raise it again as blocking. Saying "hand it to a person" inside an answer does not reach the person; put it where the person reads what they must decide.
 
 ### When the work is split across helpers
 
