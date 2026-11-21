@@ -65,7 +65,7 @@ Follow the procedure of the template below to inspect. Where it collides with th
 
 ### Verdict words
 
-This table maps each verdict word of the sub-agent template above to a works word and to a value of a verdict field (`compliance.verdict` or `quality.verdict`) of the JSON you return; it only shows that correspondence. The field values are decided from the rows you write in that JSON (the rows of `compliance.items` and the holes in `faces`) by the "Two verdicts" rules above, and if the table disagrees, this prompt wins.
+This table maps each verdict word of the sub-agent template above to a works word and to a value of a verdict field (`compliance.verdict` or `quality.verdict`) of the JSON you return; the last two rows are not template words but conditions that set a field value whatever the template word says. The table only shows these correspondences. The field values are decided from the rows you write in that JSON (the rows of `compliance.items` and the holes in `faces`) by the "Two verdicts" rules above, and if the table disagrees, this prompt wins.
 
 | Template word | works word | Field value |
 | --- | --- | --- |
