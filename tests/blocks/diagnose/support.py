@@ -1,6 +1,5 @@
 """診断の block の試験の助け（試験のモジュールではない）: 種のリポジトリ（tests/e2e/target-seed）を commit した使い捨ての対象と、
 block の src を読み込む口。"""
-import pathlib
 import shutil
 
 from tests.bin.gitkit import git
