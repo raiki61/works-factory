@@ -33,8 +33,8 @@ HELD（保留。後の往復でも保留）・ほかは OPEN（端の block が�
 （相乗りの審査の道）。抜け方は全部の項目が閉じれば CLEAN、ほかは decide の決まりを開いた項目の block で読む（docstring が正本）。
 note_plan の無い控え（行に items が無い）は今までどおり全体で 1 つ。
 
-- block_faces(review)・decide(passes)・proceeds(outcome): block の face と、続けるか止めるかの語（CLEAN・SETTLED・AGAIN・PERSISTED・
-  UNSETTLED）と、その語で直しへ進むか
+- block_faces(review)・decide(passes): block の face と、続けるか止めるかの語（CLEAN・SETTLED・AGAIN・PERSISTED・
+  UNSETTLED）
 - REACH・CENTRAL・PERIPHERAL・REACH_SCHEMA・central(face)・central_keys(passes, keys): 穴の中央・端の札の欄と値と型（役の型の
   faces の reach はこの写し）、札の読み（札の無い face と faces の無い古い行は中央と読む）
 - sentences(row)・sentence_diff(old, new): 項目の行を (場所, 文) の組に分ける口と、前後の行の組の差（消した・足した・残った）。
@@ -73,8 +73,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - prev_row(b, n)・answered_hits(b, n)・answered_file_notes(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答え・
   下請けが読んだファイルの覚えと、suggest の穴（往復の行の notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
   owed_faces が引く開いた項目の物だけで、閉じた・保留の項目の物と審査が消えたと言った物は参考として渡る）
-- stuck_reason(b)・lines(b): 関所の理由・報告の行（往復ごとの行は前の往復の block を審査が suggest に下げた key も名指し、disputed と
-  答えた穴の key と根拠を 1 行ずつ後ろに足す）。修正案の役と事前審査の役に返す節の文（前の revise_section・review_section と頼みの文）は
+- 修正案の役と事前審査の役に返す節の文（前の revise_section・review_section と頼みの文）は
   plan・plan-review の md（integration.md 4.3-追加-1）
 
 返答から欄を外す道は jsonfile.split。外した欄は足し欄の控えでなく、この往復の控えに置く。
