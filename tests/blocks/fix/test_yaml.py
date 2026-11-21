@@ -10,6 +10,7 @@ import unittest
 
 import yaml
 
+from tests.bin.stepnames import walk
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -28,14 +29,7 @@ def top(doc=DOC) -> dict:
 
 def every(doc=DOC) -> dict:
     """node を loop_group の中まで（入れ子の輪も。id → node）"""
-    out = {}
-
-    def walk(nodes):
-        for n in nodes:
-            out[n["id"]] = n
-            walk((n.get("loop_group") or {}).get("nodes") or [])
-    walk(doc["nodes"])
-    return out
+    return {n["id"]: n for n in walk(doc["nodes"])}
 
 
 def inner(loop) -> dict:
