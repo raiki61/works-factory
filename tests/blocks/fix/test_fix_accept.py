@@ -2409,7 +2409,6 @@ class FactchecksSeamCase(SeamTemp):
         self.cfg = {"board": str(self.place), "repo": str(self.repo), "base_rev": self.rev, "tdd_record": "", "pass": "first"}
 
     def shas(self) -> dict:
-        import hashlib
         return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(self.place.rglob("*")) if p.is_file()}
 
     def agree(self, paths):
@@ -2444,7 +2443,6 @@ class FactchecksSeamCase(SeamTemp):
 
     def test_precheck_checks_the_frozen_files_of_the_returns_the_acceptance_checks(self):
         """事前の確かめは、受け付けと同じく返しの控えの凍ったファイルを注文の許しで照らす（duties.frozen_by_returns）。置き場は書かない"""
-        import hashlib
         test_file = self.repo / "test_stats.py"
         (self.place / "returns").mkdir()
         (self.place / "returns" / "1.json").write_text(json.dumps(
@@ -2538,7 +2536,6 @@ class FactchecksSeamCase(SeamTemp):
     def test_precheck_reads_the_loop_record_named_by_the_consult_config(self):
         """相談の控えの値 tdd_record（輪の記録のパス）が指す記録の凍結と suite_made を、事前の確かめが
         受け付けと同じ口（check_frozen・check_writes）で読む。輪の状態のファイルは置かない"""
-        import hashlib
         test_file = self.repo / "test_stats.py"
         d = self.place / "tdd-1"
         d.mkdir()
