@@ -104,7 +104,7 @@ def repo_of(url):
     else:
         return None
     path = path.strip("/")
-    parts = (path[:-len(".git")] if path.endswith(".git") else path).split("/")
+    parts = path.removesuffix(".git").split("/")
     if len(parts) != 2 or not all(SEGMENT.match(p) for p in parts):
         return None
     return {"kind": got["kind"], "host": host, "owner": parts[0], "name": parts[1]}
