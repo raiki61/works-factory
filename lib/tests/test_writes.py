@@ -18,7 +18,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-from tests.bin.gitkit import committed_copy, git  # noqa: E402
+from tests.bin.gitkit import committed_copy  # noqa: E402
 import leftovers  # noqa: E402
 import writes  # noqa: E402
 from tests.bin import hermetic  # noqa: E402
