@@ -10,7 +10,7 @@
   呼ばない workflow）の返りは人（`workflow get`）と起動の殻が読むので照らさない。block の `inputs:` の名は、その block の YAML の字の
   `$INPUTS.<名>` か、その block の `scripts/`・`src/` の Python の `INPUTS_<名>` の読みが読む（ほかの名の `with:` の鍵で script に渡した字は
   その名の読みでない）。種 `tests/layers/seeds/e5-unread-return`・`e5-unread-input`。
-- 「作り手の欄を 3 つ以上受ける block の port は pointer 1 つ」（E5 の 2 つ目の行）は照らさず、人が見る。この決まりは block の port（`inputs:`）だけに当て、メイングラフと graph の中のノードどうしの結び（script のノードが `with:` で欄を 1 本ずつ受ける形）には当てない。
+- 「作り手の欄を 3 つ以上受ける block の port は pointer 1 つ」（E5 の 2 つ目の行）は照らさず、人が見る。この決まりは block の port（`inputs:`。include される graph の `inputs:` も入る）だけに当て、メイングラフと graph の中のノードどうしの結び（graph の script のノードが `with:` で欄を 1 本ずつ受ける形）には当てない。
 - 許す物の表（`ALLOWED["E5"]`）は持たない（持ち主の決め `shape-checks-only`）。
 - 輪（`loop_group`）の中の役のノードは自分の `with:` を結ばない（落とし穴 K5。役の `with:` は include の時に既定の字で固まる。前の周の値は輪の頭の script のノードが `$LOOP_PREV` で結んで返す）。種 `tests/layers/seeds/k5-loop-role-with`。
 """
