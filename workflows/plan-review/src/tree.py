@@ -497,7 +497,7 @@ def _item_material(b, n: int, it: dict, doc: dict, pre: list, errs: list) -> str
         _errors_part(n, answer_file(b, n), errs) if errs else "") if x) + "\n"
 
 
-def _synergy_material(b, rows: list, last: dict, doc: dict) -> str:
+def _synergy_material(rows: list, last: dict, doc: dict) -> str:
     """相乗りの材料（全部の項目の状態と行・重なりの行）"""
     states = [f"- {converge.ITEM_CITE.format(n=n)}（{(last.get(n) or {}).get('state', converge.OPEN)}）: {json.dumps(it, ensure_ascii=False)}"
               for n, it in enumerate(rows, 1)]
@@ -568,7 +568,7 @@ def write_tree(place, b, intake: dict, material_path, n: int, repo=None) -> tupl
     if len(rows) >= 2:
         sv, sw = _fill("part:" + SYNERGY_BRIEF, place, intake, repo, b,
                        {"synergy_schema": json.dumps(synergy_schema(b), ensure_ascii=False), "answer_file": str(synergy_file(b))}, {})
-        synergy.write_text(head + "\n" + prompt.render_part("synergy-brief", sv, sw) + "\n" + _synergy_material(b, rows, last, doc),
+        synergy.write_text(head + "\n" + prompt.render_part("synergy-brief", sv, sw) + "\n" + _synergy_material(rows, last, doc),
                            encoding="utf-8")
     else:
         synergy.unlink(missing_ok=True)
