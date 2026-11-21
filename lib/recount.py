@@ -148,10 +148,10 @@ def _after_problems(reply: dict, place, base_rev: str, repo, red_units=None) -> 
     errs = []
     changes = [c for c in reply.get("changes") or [] if isinstance(c, dict)
                and (red_units is None or c.get("unit_key") in red_units)]
-    if changes and (reply.get("fix_closure") or {}).get("status") == "clean":
-        if not any(s.get("red_seen") for c in changes for s in (c.get("closure") or {}).get("sites") or []):
-            errs.append("閉鎖の実証で赤を一度も見ていないのに fix_closure=clean——found にして赤を見ていない site を書くか、"
-                        "退行を注入して赤を見てから出せ")
+    if (changes and (reply.get("fix_closure") or {}).get("status") == "clean"
+            and not any(s.get("red_seen") for c in changes for s in (c.get("closure") or {}).get("sites") or [])):
+        errs.append("閉鎖の実証で赤を一度も見ていないのに fix_closure=clean——found にして赤を見ていない site を書くか、"
+                    "退行を注入して赤を見てから出せ")
     return errs + ref_problems(reply, place, base_rev, repo)
 
 
@@ -316,7 +316,7 @@ def recount_problems(reply: dict, place, base_rev: str, repo, *, judged=None, ow
         if why:
             errs.append(why)
             continue
-        cap = total if total else after   # 修正前が 0 件の問いは、修正で生まれた数まで site を書ける
+        cap = total or after   # 修正前が 0 件の問いは、修正で生まれた数まで site を書ける
         if closed > cap:
             errs.append(f"{head}: closure.sites が {closed} 件なのに、engine が how を修正前の版で数えた母数は {total}"
                         f"（修正前が 0 件なら修正後の {after}）——母数を超えて塞げない"
