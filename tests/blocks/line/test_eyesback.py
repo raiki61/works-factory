@@ -185,7 +185,32 @@ class TurnCase(_Case):
         self.assertEqual(got["item_kinds"], [{"item": 1, "kind": "trim"}])
         self.assertEqual(got["rows"][0]["items"], [fix])
         only = self.run_turn(eyes=eyes(items=[pick]))
-        self.assertEqual((only["go"], only["exit"]), (False, self.e.NOTHING))
+        self.assertEqual((only["go"], only["exit"]), (False, self.e.EXITS["settled"]))
+
+    def test_only_choose_findings_left_leaves_the_loop_as_settled(self):
+        """案 4 節の 4: 残った返す項目が全部 needs: choose（人が選ぶ物）なら、上限の前でも『直す側で片づく物が残っていない』で抜ける
+        （EXITS の settled。目の route_why の『返す物が無い』の後ろの添え〔人が選ぶ物の件数・確かめられない目〕は残す）。上限を越えた周でも
+        片づく物が無ければ上限の訳でなくこの訳で抜け、上限 LIMIT は残る。設計違いの目・前提の検算で返さない時は目の訳のまま、
+        choose の無い『返す物が無い』も今の字のまま"""
+        pick = {"eye": "r2", "where": "docs/a.md", "text": "色を当てるか", "needs": "choose", "kind": "unfinished", "options": ["a", "b"], "recommend": "a"}
+        tail = "（人が選ぶ物 1 件は返さず、最後の承認ノードの問いへ回した）"
+        chosen = eyes("stay", items=[pick], route_why="返す物が無い" + tail)
+        first = self.run_turn(tests=gate_got("h1"))
+        later = self.run_turn(k=2, prev=first, tests=gate_got("h2"), eyes=chosen)
+        self.assertEqual((later["go"], later["exit"], len(later["rows"]), later["left"]), (False, self.e.EXITS["settled"] + tail, 1, []))
+        self.assertFalse(self.e.capped(later))
+        self.assertEqual(self.run_turn(eyes=chosen)["exit"], self.e.EXITS["settled"] + tail)
+        record = first
+        for k in (2, 3):
+            record = self.run_turn(k=k, prev=record, tests=gate_got(f"h{k}"))
+        past = self.run_turn(k=4, prev=record, tests=gate_got("h4"), eyes=chosen)
+        self.assertEqual(past["exit"], self.e.EXITS["settled"] + tail, "片づく物が無ければ上限の訳で抜けない")
+        self.assertEqual(self.e.LIMIT, 3)
+        unverifiable = eyes("stay", items=[pick], route_why="返す物が無い" + tail + "（確かめられない目: R1）")
+        self.assertEqual(self.run_turn(eyes=unverifiable)["exit"], self.e.EXITS["settled"] + tail + "（確かめられない目: R1）")
+        redesign = eyes("stay", items=[pick], route_why="設計違いの目が在る（R2）")
+        self.assertEqual(self.run_turn(eyes=redesign)["exit"], "設計違いの目が在る（R2）")
+        self.assertEqual(self.run_turn(eyes=eyes("stay", items=[]))["exit"], "返す物が無い（どの目も通った）")
 
     def test_stay_route_stop_word_or_fallen_round_does_not_return(self):
         """目の route が stay・前の段の修正が止めの語か異議を返した・前の周の返りが欠けた時は go が偽で、抜けた訳が route_why か EXITS の語になる"""
@@ -596,6 +621,28 @@ class ReportCase(_Case):
         rows = [self.e.row(1, eyes(), [{**self.A, "where": "src/a.py:12:5"}]), self.e.row(2, eyes(), [a2])]
         out = self.e.lines(rows, "返す物が無い", eyes=self.PASSED)
         self.assertIn(f"1 周目に返した {self.e.item_text({**self.A, 'where': 'src/a.py:12:5'})}——{self.e.OUTCOMES['again']}", out)
+
+    def test_choose_findings_get_the_choose_outcome(self):
+        """返した指摘を次の周の目が同じ目・同じファイルで人が選ぶ物（needs: choose）として挙げたら、直したと言わず人が選ぶ物にする（途中の周は
+        周の行の asked が、最後の周は最後の目の findings が持つ）。最後の目が挙げた人が選ぶ物のうち、最後の周に返した指摘と鍵の重ならない物は、
+        返していない指摘として 1 行ずつ人が選ぶ物と言う。周の行は人が選ぶ物が無ければ asked を持たない"""
+        choose = lambda item, **over: {**item, "needs": "choose", "options": ["a", "b"], "recommend": "a", **over}   # noqa: E731
+        c = {"eye": "r2", "where": "docs/c.md:3", "text": "色を当てるか"}
+        a2 = choose(self.A, where="src/a.py:40", text="写しを残すか選ぶ")
+        last_eyes = {"r1": {"status": "fix-needed"}, "r2": {"status": "fix-needed"}, "findings": [a2, choose(c)], "route": "stay"}
+        rows = [self.e.row(1, eyes(), [self.A, self.B])]
+        self.assertNotIn("asked", rows[0])
+        out = self.e.lines(rows, self.e.EXITS["settled"], eyes=last_eyes)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['choose']}", out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.B)}——{self.e.OUTCOMES['fixed']}", out)
+        self.assertIn(f"{self.e.ASKED_AT} {self.e.item_text(choose(c))}——{self.e.OUTCOMES['choose']}", out)
+        self.assertFalse(any(self.e.item_text(a2) in line for line in out), "返した指摘と鍵の重なる人が選ぶ物は重ねて言わない")
+        mid_eyes = eyes(items=[a2, self.B])
+        rows2 = [self.e.row(1, eyes(), [self.A]), self.e.row(2, mid_eyes, [self.B])]
+        self.assertEqual(rows2[1]["asked"], [a2])
+        mid = self.e.lines(rows2, "返す物が無い（どの目も通った）", eyes=self.PASSED)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['choose']}", mid)
+        self.assertNotIn("asked", self.e.row(1, eyes(items=[self.A]), [self.A]))
 
     def test_cap_word_matches_the_head(self):
         """結末の上限の字は、頭の文の『上限 LIMIT 回』と同じ字で言う"""
