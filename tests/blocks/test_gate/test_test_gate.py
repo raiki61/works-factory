@@ -26,6 +26,7 @@ import yaml
 from bin._lib import isolate, launcher
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
+from tests.bin.stepnames import walk
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -52,12 +53,6 @@ PORTS = ("mode", "test_cmd", "tdd_suite", "base", "entry_base", "request", "requ
 
 def workflow() -> dict:
     return yaml.safe_load((BLOCK / "works-factory-test-gate.yaml").read_text(encoding="utf-8"))
-
-
-def walk(nodes):
-    for n in nodes:
-        yield n
-        yield from walk((n.get("loop_group") or {}).get("nodes") or [])
 
 
 def node(nid: str) -> dict:
