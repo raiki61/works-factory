@@ -19,7 +19,7 @@
 - listed_files: 借りる一覧と部品が名指す、固定に在るべきファイル
 - seam_problems: 継ぎ目ごとの契約の破れ（錨・読み替えの決まり・穴・出口の語・固定に無いファイル）を 1 行ずつ
 - contract_problems: pin_problems と seam_problems をつないだ物
-- fill・word: 部品の型の穴を埋めた文・出口の語の対応
+- fill: 部品の型の穴を埋めた文
 
 Claude Code が版のフォルダに置く印（MARKERS）と .DS_Store（IGNORED）は数えない。版のフォルダの外を指すパス（絶対のパス・..）と
 symlink は読まずに 1 行で名指す（たどらない）。標準ライブラリだけを使い、works のほかのモジュールを
