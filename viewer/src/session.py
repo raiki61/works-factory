@@ -17,7 +17,7 @@ Claude Code の版は工場が止めていないので、記録の形は試験�
   （api-request-shape）と添え書き（api-request-blob）は、その型の行が記録に在ったかを recorded に持つ（無い時に、欄が空なのか記録に無いのかを
   見分けるため。普通の利用者の Claude Code でこの 2 つの型が出るかは確かめていない）。往復は最初の行の時刻 at を持ち、道具の
   呼び出しは切る前の入力の字の番号 text を持ち、会話は作業の場所 cwd（最初に cwd を持つ行の値）を持つ。
-  since が在れば、それより前の往復に copied を付ける（続けた会話の記録は前の会話の往復を写して持つ。無駄の手がかりは数えず、流れには
+  since が在れば、それより前の往復に copied を付ける（続けた会話の記録は前の会話の往復を写して持つ。トレースの span にせず〔src/trace.py〕、流れには
   残す。LLM に入った物なので）。読めない時刻の往復は時刻を持たず、読めなかった物に数える。
   トレースの組み（src/trace.py）のために、往復は始め start（返事の行の requestRef が指す api-request の時刻。無ければ前の user の行
   〔道具の結果か指示〕の時刻、それも無ければ最初の行の時刻）と終わり end（同じ message.id の最後の行の時刻）と模型 model を、道具の
@@ -85,8 +85,7 @@ def collect(run: dict, projects: Path, keep) -> dict:
         try:
             found = find(projects, preview)
         except (LookupError, ValueError) as error:
-            what = AMBIGUOUS if isinstance(error, LookupError) else STRANGE
-            run["unread"][what] = run["unread"].get(what, 0) + 1
+            _count(run, AMBIGUOUS if isinstance(error, LookupError) else STRANGE)
             sessions[preview] = None
             continue
         if found is not None:
@@ -260,7 +259,7 @@ def _request(row, clock, ts):
 
 def _assistant(got, row, keep, turns, by_id, clock):
     """1 つの返事は content の片ごとに行が分かれ、同じ message.id を持つ。往復の時刻は最初の行の時刻。往復と流れに入れる値（返事の
-    id・トークンの数・道具の呼び出しの id と名・字）は、先に形を確かめる（後で使う無駄の手がかりと道具の結果の結びで落ちない）"""
+    id・トークンの数・道具の呼び出しの id と名・字）は、先に形を確かめる（後で使う道具の結果の結びで落ちない）"""
     message = row.get("message") or {}
     at = row.get("timestamp") if isinstance(row.get("timestamp"), str) else None
     odd = bool(at) and runread.try_when(at) is None
@@ -342,5 +341,6 @@ def _string(value) -> str:
 
 
 def _count(got, what):
+    """got（会話の読みか run。どちらも読めなかった物の数え unread を持つ）の what を 1 つ数える"""
     got["unread"][what] = got["unread"].get(what, 0) + 1
 

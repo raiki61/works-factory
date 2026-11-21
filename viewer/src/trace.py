@@ -91,9 +91,7 @@ def build(data: dict) -> dict:
         KIND: "AGENT", RUN_ID: run["id"], STATUS: run.get("status") or "", OUTCOME: run.get("outcome") or NO_OUTCOME,
         **({LINE_OUTCOME: run.get("result_word") or NO_OUTCOME} if line else {}),
         **({COST: run["cost"]} if run.get("cost") is not None else {}), OUTPUT: _costs(data, events, table)})
-    parents = {}
-    for e in events:
-        parents[id(e)] = _parent(e, events)
+    parents = {id(e): _parent(e, events) for e in events}
     # 段の番号を持つ出来事は stages.attach の後だけに在り、その時は段の集計も在る（無ければ KeyError で止める）
     summed = data["stages"]["run"] if any(e.get("stage") for e in events) else []
     stage_spans = {}
@@ -123,17 +121,17 @@ def build(data: dict) -> dict:
         if said is None or e["kind"] in runread.GROUP_KINDS:
             continue
         if e["session"] in used:
-            unread[SHARED] = unread.get(SHARED, 0) + 1
+            _add(unread, SHARED, 1)
             continue
         used.add(e["session"])
         tree.attrs(node, SESSION, e["session"])
         tree.attrs(node, INPUT, _opening(said, texts))
         orphans = tree.session(_key(e), node, said)
         if orphans:
-            unread[ORPHAN] = unread.get(ORPHAN, 0) + orphans
+            _add(unread, ORPHAN, orphans)
         for got in _all(said):
             for what, n in got["unread"].items():
-                unread[what] = unread.get(what, 0) + n
+                _add(unread, what, n)
     if unread:
         tree.attrs(root, UNREAD, json.dumps(unread, ensure_ascii=False, sort_keys=True))
     return {"trace_id": _hash(f"trace|{run['id']}", 32), "spans": tree.spans, "unread": unread}
@@ -164,7 +162,7 @@ class _Tree:
         span["attributes"][name] = value
 
     def text(self, mark) -> str:
-        return self.texts.get(mark, "") if mark is not None else ""
+        return self.texts.get(mark, "")   # 字の番号は sha の頭なので None の鍵は無い
 
     def session(self, key: str, parent: dict, said: dict) -> int:
         """会話の往復と道具を parent の下に置き、下請けをその Agent の道具の下に置く（下請けの中の下請けも）。親に結べない下請けの数を返す"""
@@ -180,11 +178,12 @@ class _Tree:
                 meta = agent["meta"]
                 first, last = agent.get("span") or [None, None]
                 up = calls[meta["use"]]
-                node = self.span(f"{up['key']}|agent|{agent['id']}", up["span"], meta.get("description") or f"subagent {agent['id']}",
+                where = f"{up['key']}|agent|{agent['id']}"
+                node = self.span(where, up["span"], meta.get("description") or f"subagent {agent['id']}",
                                  first, last, {KIND: "AGENT", DESCRIPTION: meta.get("description"), AGENT_TYPE: meta.get("type"),
                                                 AGENT_DEPTH: meta.get("depth"), AGENT_SHAPE: meta.get("shape"),
                                                 INPUT: _opening(agent, self.texts)})
-                self._turns(f"{up['key']}|agent|{agent['id']}", node, agent, calls)
+                self._turns(where, node, agent, calls)
         # 写しの往復の呼び出しに結ぶ下請けは、写しと同じく span にしない（数えない）
         copied = {c["id"] for t in said["turns"] if t.get("copied") for c in t["calls"]}
         return sum(1 for a in agents if (a.get("meta") or {}).get("use") not in copied)
@@ -316,6 +315,10 @@ def _costs(data: dict, events: list, table: list) -> str:
     return "\n".join(lines)
 
 
+def _add(unread: dict, what: str, n: int) -> None:
+    unread[what] = unread.get(what, 0) + n
+
+
 def _all(said: dict):
     yield said
     for agent in said.get("agents") or []:
@@ -343,8 +346,7 @@ def _last(events: list):
 def _plus(start: str, seconds) -> str | None:
     if seconds is None:
         return None
-    end = runread.when(start) + timedelta(seconds=seconds)
-    return end.strftime("%Y-%m-%dT%H:%M:%S.") + f"{end.microsecond // 1000:03d}Z"
+    return runread.stamp(runread.when(start) + timedelta(seconds=seconds))
 
 
 def _hash(text: str, size: int) -> str:

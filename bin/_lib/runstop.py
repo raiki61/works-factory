@@ -113,8 +113,12 @@ class Archon:
     def __init__(self, head: list[str], env: Mapping[str, str], cwd: str | None):
         self.head, self.env, self.cwd = head, env, cwd
 
+    def at_cwd(self) -> list[str]:
+        """Archon の命令に足す --cwd の旗（--cwd を打たれていなければ足さない）"""
+        return ["--cwd", self.cwd] if self.cwd else []
+
     def read(self, *args: str) -> object:
-        done = subprocess.run([*self.head, *args, "--json", *(["--cwd", self.cwd] if self.cwd else [])], env=self.env,
+        done = subprocess.run([*self.head, *args, "--json", *self.at_cwd()], env=self.env,
                               capture_output=True, text=True, encoding="utf-8")
         return childsweep.last_json(done.stdout)
 
@@ -154,7 +158,7 @@ class Archon:
             if isinstance(run, str):   # 読めない子の run は、running かを確かめられないので片付けられなかった物に数える
                 left.append(kid)
             elif run.get("status") == RUNNING:
-                done = subprocess.run([*self.head, "workflow", "abandon", kid, *(["--cwd", self.cwd] if self.cwd else [])],
+                done = subprocess.run([*self.head, "workflow", "abandon", kid, *self.at_cwd()],
                                       env=self.env, capture_output=True, text=True, encoding="utf-8")
                 if done.returncode != 0:
                     left.append(kid)

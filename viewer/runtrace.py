@@ -85,7 +85,7 @@ def timed(built: dict) -> int:
     filled = 0
     for span in built["spans"]:
         if not (span["start"] and span["end"]):
-            span["start"], span["end"] = times(by_id.get(span["parent"])) if span["parent"] else (None, None)
+            span["start"], span["end"] = times(by_id.get(span["parent"]))
             if span["start"] is None:
                 span["start"], span["end"] = built["spans"][0]["start"], built["spans"][0]["end"]
             span["attributes"][trace.TIME_FROM_ANCESTOR] = True
