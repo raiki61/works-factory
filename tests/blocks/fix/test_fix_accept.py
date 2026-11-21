@@ -426,6 +426,39 @@ class TestNamedRowsTemplate(_LSrc):
         rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], green, facts)
         self.assertEqual([r for r in rows if r["detail"].startswith("今の木")], [])
 
+    def test_named_facts_reads_base_cache_rows_and_old_single_row(self):
+        """base の木の結末の控え（gates.named_facts の cache）は、名指しに当たる行の並び。雛形の名は展開した行の全部を控えから読み、
+        base の欄は一番悪い行、probs は全部の行で照らす。1 行だけを控えた前の形（dict）は 1 行の並びとして読む"""
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        dark = {"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"}
+        light = {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure", "fail_message": "m"}
+        with tempfile.TemporaryDirectory() as d:
+            cache, root = pathlib.Path(d) / "cache.json", pathlib.Path(d)
+            with mock.patch.object(fixgates, "_red_tree_probs", return_value=({}, [])), \
+                    mock.patch.object(fixgates, "_test_files", return_value=[]), \
+                    mock.patch.object(fixgates, "_base_keys", return_value={named: "k"}), \
+                    mock.patch.object(fixgates, "_base_run", side_effect=AssertionError("控えに在るので走らせない")):
+                for label, kept, worst, red in (("行の並び", [dark, light], light, False), ("前の 1 行の形", light, light, True)):
+                    with self.subTest(label):
+                        cache.write_text(json.dumps({"k": kept}), encoding="utf-8")
+                        out, why = fixgates.named_facts(root, "HEAD", "run", [named], root / "w", cache, None, "t")
+                        self.assertEqual((why, out[named]["base"]), ([], worst))
+                        self.assertEqual(out[named]["probs"] == [], red, out[named]["probs"])
+
+    def test_red_rerun_reads_every_expanded_row(self):
+        """赤の木の確かめ直し（common.red_rerun。元の結末 baseline が None の事後の関門の道）も、雛形の名の名指しは展開した行の全部を
+        名指しの行として red_check へ渡す。1 つ目の行が failure でも 2 つ目が通るなら赤と認めない（最初の 1 行だけを渡すと、2 つ目の
+        「もう通る」を見落とす）"""
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        ran = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "failure", "fail_message": "m"},
+               {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "passed"}]
+        u = {"tests": [named], "test_files": [], "test_hashes": {}, "red_tree": "t"}
+        with mock.patch.object(common, "snapshot", return_value="s"), mock.patch.object(common, "restore"), \
+                mock.patch.object(common, "run_suite", return_value=(ran, 1, "")):
+            probs, why = common.red_rerun("tree", u, "exe", pathlib.Path("w"), 1)
+        self.assertEqual(why, [])
+        self.assertTrue(any("light で選択肢の面が不透明" in p for p in probs), probs)
+
 
 class RedGreenKeptCase(FixGatesCase):
     """事後の関門の赤緑（gates._red_green）の振る舞いの控え（docs/design/fix.md の 22.4 の、起点の木と返した木の赤緑）。

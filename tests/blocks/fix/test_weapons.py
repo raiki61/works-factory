@@ -356,6 +356,18 @@ class WeaponDutiesCase(unittest.TestCase):
         self.assertEqual(pin.twice({"twice": None}), [])
         self.assertEqual(pin.twice({"twice": ["2 回目に落ちた"]}), ["2 回目に落ちた"])
 
+    def test_twice_reads_every_expanded_row(self):
+        """足した試験を 2 回走らせる確かめ（duties._twice）は、雛形の名の試験を展開した行の全部が通る時だけ通ったと見る。1 つ目の行が
+        通っても 2 つ目が落ちれば、その回の「通らない」の文にする（最初の 1 行だけを見ると、2 つ目の落ちを見落とす）"""
+        import baseline_red
+        added = ["src/select.test.ts::%s で選択肢の面が不透明"]
+        ran = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"},
+               {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure"}]
+        with tempfile.TemporaryDirectory() as d, unittest.mock.patch.object(baseline_red, "run_suite", return_value=(ran, 1, [])):
+            got = duties._twice({"exe": "run"}, d, added, pathlib.Path(d) / "w")
+        self.assertEqual(len(got), 2, got)
+        self.assertTrue(all("通らない" in t for t in got), got)
+
     def test_remove_in_permits(self):
         f = {"removed": ["t.py::a"], "permits": [{"kind": "remove", "test": "t.py::a"}]}
         self.assertEqual(remove.removed_in_permits(f), [])
