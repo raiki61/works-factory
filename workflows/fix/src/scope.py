@@ -1,4 +1,4 @@
-"""承認済みの修正案の項目と修正の差分を機械が照らす（blk-fix。依頼 218）。修正の受け付け（scripts/accept.py の check_plan_scope）が
+"""承認済みの修正案の項目と修正の差分を機械が照らす（blk-fix。依頼 218）。修正の受け付け（src/facts.py の check_plan_scope）が
 呼び、外れを同じ brief のまま修正役に返す。AI を通さない。
 
 語:
