@@ -5,8 +5,7 @@
 import json
 import re
 
-REF = re.compile(r"\$([A-Za-z0-9_-]+)\.output((?:\.[A-Za-z0-9_]+)*)")
-INREF = re.compile(r"\$INPUTS\.([A-Za-z0-9_]+)")
+from viewer.src.shape import INPUT_REF as INREF, REF
 
 
 def parse(text):
