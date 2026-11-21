@@ -1685,7 +1685,7 @@ nodes:
         answers: *answer
         skip_rerun: {type: array, items: {type: string}}
         more: {<<: *pointer_or_null, description: 'json(more.schema.json): この周より前に返した段の修正の got の並び（合わせの more の指し先のまま運ぶ）'}
-        rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目と、返した時の作業ツリーの木 tree）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, kind: {type: string}, where: {type: string}, text: {type: string}}}}, tree: {type: string, description: '返した時の作業ツリーの木の sha（取れなかった行は持たない）'}}}}
+        rows: &back_rows {type: array, description: '返した周の記録（周ごとに、返した時の R1・R2 の判定の語と返した項目と、返した時の作業ツリーの木 tree と、その目が人が選ぶ物とした指摘 asked）', items: {type: object, properties: {round: {type: integer}, r1: {type: string}, r2: {type: string}, items: {type: array, items: &eye_item {type: object, properties: {eye: {type: string}, needs: {type: string}, kind: {type: string}, where: {type: string}, text: {type: string}}}}, tree: {type: string, description: '返した時の作業ツリーの木の sha（取れなかった行は持たない）'}, asked: {type: array, description: '返した時の目が needs: choose とした指摘（返さない。無い行は持たない）', items: *eye_item}}}}
         exit: {type: string, description: '返す周のループを抜けた訳（返す周は空）'}
         left: {type: array, description: '抜けた時に残った作り残し（上限なら最後の周の目の findings、返した段が止まった・落ちたなら最後に返した周の項目、差分が変わらなければ今の周の目の項目）', items: *eye_item}
         fixed: {<<: *fixed_output, type: [object, 'null'], description: '最後に試験と独立の目を通った状態の合わせの出力（返した段が止まった・落ちた周は、返した段の合わせの封じる差分を語る欄を返す前の物に替えた物）'}

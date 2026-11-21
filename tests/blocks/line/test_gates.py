@@ -582,7 +582,8 @@ def final_got(final, **over) -> dict:
            "hash": "h", "deleted": [], "sealed_diff": "", "fenced": [], "after": [], "passes": [], "r2_inputs": [], "converge": [],
            "parallel_after": None, "held": [], "answered": [], "unmatched": [], "unread_holds": [], "lost_ties": [], "unread": [],
            "eyes_back": {"rows": [], "exit": "返す物が無い", "left": []},   # 独立の目から修正の段へ返さずに抜けた輪の記録
-           "back_restore": None}   # 封じる前の戻しの結末（戻す節が飛んだ run は null）
+           "back_restore": None,   # 封じる前の戻しの結末（戻す節が飛んだ run は null）
+           "back_costs": {"by_round": {}, "why": ""}}   # 返した周ごとの費用（eyesback.costs_now の形）
     return {**got, **over}
 
 
@@ -632,7 +633,7 @@ class AskFinalCase(unittest.TestCase):
         eb = kit.load(BLOCK, "eyesback")
         got = final_got(self.f, eyes_back={"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": []})
         text = self.ask(got)["text"]
-        self.assertIn("独立の目から修正の段へ 2 回返した。", text.splitlines()[0])
+        self.assertIn("独立の目から修正の段へ 2 回返した（上限 3 回。", text.splitlines()[0])
         self.assertIn(f"## {eb.HEAD}（2 回）", text)
         words = __import__("gatemarks").REVIEW_WORDS
         for line in eb.lines(self.BACK_ROWS, "返す物が無い（どの目も通った）"):
@@ -644,6 +645,20 @@ class AskFinalCase(unittest.TestCase):
         none = self.ask(final_got(self.f, eyes_back={"rows": [], "exit": "返す物が無い", "left": []}))["text"]
         self.assertNotIn("回返した", none)
         self.assertNotIn(eb.HEAD, none)
+
+    def test_head_names_the_limit_and_each_rounds_cost(self):
+        """頭の文の返した回数に上限と周ごとの費用（材料の back_costs。ask-final の script が run の記録から eyesback.costs_now で読む）が付き、
+        返した周の節の行は記録まるごとを eyesback.record_lines に渡した物（指摘ごとの結末と周ごとの費用を含む）"""
+        eb = kit.load(BLOCK, "eyesback")
+        costs = {"by_round": {1: 1.25, 2: 0.5}, "why": ""}
+        record = {"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": [],
+                  "eyes": {"r1": {"status": "pass"}, "r2": {"status": "pass"}, "findings": []}}
+        text = self.ask(final_got(self.f, eyes_back=record, back_costs=costs))["text"]
+        self.assertIn(eb.head_text(self.BACK_ROWS, costs), text.splitlines()[0])
+        self.assertIn(f"上限 {eb.LIMIT} 回。費用: 1 周目 $1.2500・2 周目 $0.5000", text.splitlines()[0])
+        for line in eb.record_lines(record, None, costs):
+            self.assertIn(f"- {line}", text)
+        self.assertIn(eb.OUTCOMES["fixed"], text)
 
     def test_fallen_return_loop_is_named(self):
         """材料の eyes_back が None の run と、eyes_back の exit が『輪の節が落ちた』の run では BACK_FELL が開き方に依らず開く理由に出る。
@@ -686,7 +701,7 @@ class AskFinalCase(unittest.TestCase):
             self.assertIn(word, text)
         for word in ("工場の不具合", "安全の上限"):
             self.assertNotIn(word, text)
-        self.assertIn("独立の目から修正の段へ 3 回返した。", text.splitlines()[0])
+        self.assertIn("独立の目から修正の段へ 3 回返した（上限 3 回。", text.splitlines()[0])
         out = self.ask(got, mode="protected_only", unattended=True)
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, __import__("stopby").NEEDS_HUMAN))
         self.assertFalse(any(self.f.BACK_FELL in phrase for phrase in self.f.final_needs(got)), "3 周で抜けたのは輪の節が落ちたのとは別")
@@ -1660,7 +1675,7 @@ class ScriptCase(unittest.TestCase):
         out = ask(record)
         self.assertEqual((out["fingerprint"], out["green_ok"], out["eyes_ok"], out["r2"]),
                          ({"head": "h", "diff_hash": "last"}, True, True, {"status": "pass", "reason": "pass の訳"}))
-        self.assertIn("独立の目から修正の段へ 1 回返した。", out["text"])
+        self.assertIn("独立の目から修正の段へ 1 回返した（上限 3 回。", out["text"])
         self.assertIn("通さなかった目: 無い", out["text"], "文の目の行も最後の周の目")
         self.assertIn(eb.HEAD, out["text"])
         fell = ask({**record, "exit": eb.EXITS["fell"], "fixed": None, "tests": None, "eyes": None, "sealable": False, "rows": []})

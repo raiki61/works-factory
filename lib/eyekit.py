@@ -17,6 +17,8 @@
   0.9。目ごとの決め直しは呼び手の block が settle で渡す）と、報告の頭の 1 行
 - NEEDS・FIX_KINDS・settled(needs, kind, default_kind)・back_row(where, text, row, kind): R1・R2 が返す項目の 1 行（指摘ごとの needs〔fix・choose〕と
   kind〔trim・unfinished〕。docs/design/judge-eyes.md の 2.4）。欄が語の外か無い時に既定へ倒す決めは settled の 1 か所
+- choose_question(item): needs が choose の返す項目 1 行を最後の承認ノードの問いの字にする（eyes のまとめと、前の周の目の指摘を運ぶ line の返す輪が
+  同じ字で組む）
 """
 from __future__ import annotations
 
@@ -53,6 +55,8 @@ NO_REPO_REVIEW_MD = "(none at the root of the target repository)"   # 元 prep.p
 # 赤を求める側）。列挙の正本は R1・R2 の役の返答の形と eyes のまとめの形で、試験が突き合わせる
 NEEDS_FIX, NEEDS_CHOOSE = NEEDS = ("fix", "choose")
 TRIM, UNFINISHED = FIX_KINDS = ("trim", "unfinished")
+NO_OPTIONS = "選べる道が書かれていない"
+NO_RECOMMEND = "推しが書かれていない"
 
 
 # ---------------------------------------------------------------- 累積差分
@@ -264,3 +268,13 @@ def back_row(where, text, row, kind: str) -> dict:
         got.update({**({"options": options} if options else {}), **({"recommend": recommend} if recommend else {})})
     return got
 
+
+def choose_question(item: dict) -> str:
+    """needs が choose の返す項目 {eye, where, text, options?, recommend?} 1 行の問いの字『R2: <where>: <text>（選べる道: 1) …／2) …。推し: …）』。
+    選べる道か推しが無い行も人に回し、無いことを言う（NO_OPTIONS・NO_RECOMMEND）"""
+    options = [str(o) for o in item.get("options") or [] if str(o).strip()]
+    ways = "／".join(f"{n}) {o}" for n, o in enumerate(options, 1)) if options else ""
+    where = f"{item['where']}: " if item.get("where") else ""
+    return (f"{str(item.get('eye') or '').upper()}: {where}{oneline.one_line(item.get('text') or '')}（"
+            + (f"選べる道: {ways}" if ways else NO_OPTIONS) + "。"
+            + (f"推し: {oneline.one_line(item['recommend'])}" if item.get("recommend") else NO_RECOMMEND) + "）")

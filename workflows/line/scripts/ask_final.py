@@ -73,7 +73,7 @@ def compute() -> dict:
                        seal_got=seal, spec_check=ports.picked(os.environ.get("INPUTS_SPEC_CHECK"), SPEC), parallel_after=parallel_after,
                        replan_answer=ports.parsed(raw["replan_answer"]), widened=widened if isinstance(widened, list) else [],
                        record=record, given=given, rounds_lines=rounds_lines, unread=unread, eyes_back=eyes_back,
-                       back_restore=ports.parsed(raw["back_restore"]), missing=missing)
+                       back_restore=ports.parsed(raw["back_restore"]), back_costs=eyesback.costs_now(), missing=missing)
     out = final.ask(got, mode=ports.text(raw["final_gate"]), unattended=bool(given.get("unattended")), run_id=os.environ["WORKFLOW_ID"])
     return {**final.keep(out, ports.place()), **final.merge_values(tests, eyes, seal)}
 

@@ -174,6 +174,7 @@ def compute():
     values["fixed"], values["test_gate_final"], values["eyes"] = eyesback.current(
         values.get("eyes_back"), values.get("fixed"), values.get("test_gate_final"), values.get("eyes"))
     values["fixed"] = fixedfiles.opened(values["fixed"])   # 合わせの返りの伸びる欄（段の返り・単位など）は place のファイルを指すので中身を読む
+    values["back_costs"] = eyesback.costs_now()   # 返した周ごとの費用（返した周の節が読む。run の記録から）
     record, why = record_of(values.get("start"))
     built = facts.build(values, record, why, cwd=Path.cwd())
     secs = sections.build(values, record or {}, cwd=Path.cwd(), folder=ports.place())

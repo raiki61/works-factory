@@ -303,6 +303,8 @@ class EyesBackTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.trace = line_traces(("eyes-back",))["eyes-back"]
+        # 2 周目の目は R2 の needs: choose の指摘 1 件だけを残すので、輪は settled の字に目の訳の添えを付けて抜ける
+        cls.settled_one = kit.load(BLOCK, "eyesback").EXITS["settled"] + "（人が選ぶ物 1 件は返さず、最後の承認ノードの問いへ回した）"
 
     def test_r1_fix_needed_returns_once_then_passes(self):
         """修正の段が 1 度返り、2 周目の頭が返さずに抜け、最後の承認ノードと封じと返す node の R2 が最後の周の判定と指紋を読む"""
@@ -312,7 +314,7 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual([r["items"][0]["text"] for r in first["rows"]], ["同じ内容の写しが残っている"])
         self.assertIn("独立の目 R1: app.py:3: 同じ内容の写しが残っている", first["notes"])
         self.assertFalse(second["go"], second)
-        self.assertTrue(second["exit"].startswith("返す物が無い"), second["exit"])
+        self.assertEqual(second["exit"], self.settled_one, "2 周目の目に残るのは R2 の人が選ぶ物だけなので、直す側で片づいたとして抜ける")
         self.assertEqual(len(second["rows"]), 1)
         for node in ("back-1-fix__finish", "back-1-fixed", "back-1-gate__result", "back-1-eyes__verdict", "back-2", "eyes-back"):
             self.assertTrue(ran(trace, node), node)
@@ -325,7 +327,7 @@ class EyesBackTest(unittest.TestCase):
         self.assertEqual(fixed["stages"]["path"], "fixed/1/stages.json", "返した段が最初の修正の段の次の記録に積まれる")
         self.assertEqual(fixed["more"]["path"], "fixed/1/more.json", "返した段の修正の返りの並びも置き場のファイル")
         last = out(trace, "eyes-back")
-        self.assertTrue(last["exit"].startswith("返す物が無い"), last["exit"])
+        self.assertEqual(last["exit"], self.settled_one)
         self.assertEqual((last["sealable"], last["eyes_ok"], last["green_ok"]), (True, True, True))
         self.assertEqual(last["fingerprint"]["diff_hash"], "e" * 64, "最後の周の試験の指紋")
         self.assertEqual(last["eyes"]["r1"]["status"], "pass")
