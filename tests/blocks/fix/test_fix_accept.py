@@ -2297,11 +2297,7 @@ R_RESIDUE = {"sum(xs) / (len(xs) - 1)": "sum(xs) / len(xs)  # 前は sum(xs) / (
 
 
 # 修正役の返答の changes の行の自己申告の欄（recount._reply_shape_problems が照らす。数え直しの試験の外の欄）
-SELF_REPORT = {"bypass_tried": "修正を残したまま空の並びを渡して破りに行き、例外で止まるのを見た",
-                "breaks": {"how": "git grep -n mean", "result": "呼び手は 1 か所で、戻り値の型は変わらない"},
-                "precedent": {"problem": "平均の分母の誤り", "verdict": "adopt", "reason": "標準の定義に合わせる",
-                              "source": "https://docs.python.org/3/library/statistics.html"},
-                "root_or_symptom": {"kind": "root", "why": "分母の式そのものを直した"}}
+SELF_REPORT = support.SELF_REPORT
 
 
 def _fix_row(key, sites, **cov):
@@ -4055,12 +4051,6 @@ _X_JUDGMENT = {"units": [
         "how": {"patterns": ["(len(xs) - 1)"], "fixed": True, "paths": ["stats.py"], "count": "lines"},
         "counts": "defects", "total": 1}},
     {"key": _X_BOUND, "label": "block"}], "questions": []}
-# 修正役の返答の自己申告の欄（lib/tests/test_fix_seams.py の SELF_REPORT と同じ値）
-_X_SELF_REPORT = {"bypass_tried": "修正を残したまま空の並びを渡して破りに行き、例外で止まるのを見た",
-                  "breaks": {"how": "git grep -n mean", "result": "呼び手は 1 か所で、戻り値の型は変わらない"},
-                  "precedent": {"problem": "平均の分母の誤り", "verdict": "adopt", "reason": "標準の定義に合わせる",
-                                "source": "https://docs.python.org/3/library/statistics.html"},
-                  "root_or_symptom": {"kind": "root", "why": "分母の式そのものを直した"}}
 _X_CHANGED_MARKS = {"mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed",
                     "path_changed"}
 _X_CLAIM = {"between": ["stats.py:9", "test_stats.py:8"], "why_both_cannot_hold": "テストの期待が誤った平均を前提にしている",
@@ -4070,7 +4060,7 @@ _X_SCOPE_RULING = {"decision": "fix_test_scope", "text": "テストの期待を�
 
 def _x_change(unit, files, **extra):
     """修正役の返答の changes の 1 行（closure の site は 1 つ）"""
-    return {"unit_key": unit, "files": files, "what": "直した", **_X_SELF_REPORT, **extra,
+    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
             "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
                         "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
 
