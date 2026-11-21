@@ -24,6 +24,10 @@ back-k-gate〔最後の試験〕・back-k-eyes〔独立の目〕）、最後に�
   返す前の状態であること・戻しの結末・差分が変わらなかったので返す前と同じ状態であることも言う。字は UNFIXED・SEALED_BEFORE・KEPT_AWAY・UNTOUCHED・
   RESTORE_FAILED・NO_RESTORE_RECORD・SAME_AS_BEFORE）
 - broken(eyes_back, head) -> 集めが飛んだのに周の頭が走ったか（報告が BROKE の 1 行を出す）
+- round_costs(cost, prefix)・costs_now() -> 周ごとの費用（run の記録の node ごとの費用のうち周 k の節の和。costs_now は {by_round, why}）
+- head_text(rows, costs) -> 最後の承認ノードの頭の文の『n 回返した（上限 LIMIT 回。費用: …）。』（0 回は空）
+- outcome_lines(rows, exit_, left, checkpoint, eyes) -> 返した項目ごとの結末の行（字は OUTCOMES）。record_lines(record, back_restore, costs) は
+  記録まるごとから lines を組む 1 か所（最後の承認ノードと報告の節が読む）
 """
 from __future__ import annotations
 
@@ -34,6 +38,8 @@ import green_cert
 import leftovers
 import oneline
 import planrange
+import runlog
+import seal
 
 LIMIT = 3
 HEAD = "独立の目から修正の段へ返した物"
@@ -71,6 +77,15 @@ RESTORE_NO_TREE = "戻す先の木が記録に無い（返す周の頭が作業�
 RESTORE_ERROR = "作業ツリーを返す前の姿に戻す途中で落ちた（書き換えの控えを書けなかったか、戻しの git が失敗した）"
 RESTORE_DIFFERS = "作業ツリーを返す前の木に戻したが、返す前の指紋と合わない（返した段が commit したか、HEAD を動かした）"
 _LINE_AT = re.compile(r":\d+(?:-\d+)?$")
+_ROUND_STEP = re.compile(r"back-(\d+)(?:$|-|__)")   # 周 k の節の node の id（back-k・back-k-fix・back-k-fix__<中の id> など）
+OUTCOMES = {
+    "fixed": "直した（次の独立の目が同じ目・同じファイルで挙げなかった）",
+    "again": "次の独立の目が同じ目・同じファイルで挙げ直したので、次の周へ返した",
+    "left": "直り切らずに残った",
+    "cap": f"上限（{LIMIT} 周）で残った",
+    "unseen": "直ったかを確かめていない（次の独立の目のその目の判定が無いか、返す前の状態を封じた）",
+}
+COST_UNREAD = "run の記録が読めない"
 
 
 def _d(value) -> dict:
@@ -328,6 +343,93 @@ def current(eyes_back, fixed, tests, eyes) -> tuple:
     return fixed, tests, eyes
 
 
+# ---------------------------------------------------------------- 周ごとの費用
+def round_costs(cost, prefix: str = "") -> dict:
+    """node ごとの費用（runlog.facts の cost。node の id → USD）から、周の番号 → その周の節（back-k・back-k-*・back-k__*）の費用の和。
+    prefix は line を include した頭（runlog.own_prefix）で、頭の違う node は数えない"""
+    out: dict = {}
+    for step, usd in (cost or {}).items():
+        if not isinstance(step, str) or not step.startswith(prefix) or runlog.number(usd) is None:
+            continue
+        hit = _ROUND_STEP.match(step[len(prefix):])
+        if hit:
+            out[int(hit.group(1))] = out.get(int(hit.group(1)), 0.0) + float(usd)
+    return out
+
+
+def costs_now() -> dict:
+    """この run の記録（lib の runlog）から読んだ周ごとの費用 {by_round: {周の番号: USD}, why: 読めなかった訳}。最後の承認ノードと
+    報告の材料を組む script が呼ぶ（返した周の節は、どちらも周が済んだ後に走る）"""
+    rows, why = runlog.read()
+    if rows is None:
+        return {"by_round": {}, "why": why or COST_UNREAD}
+    return {"by_round": round_costs(runlog.facts(rows)["cost"], runlog.own_prefix()), "why": ""}
+
+
+def _cost_of(costs, k) -> str:
+    got = _d(costs)
+    usd = _d(got.get("by_round")).get(k)
+    if usd is None:
+        usd = _d(got.get("by_round")).get(str(k))
+    if runlog.number(usd) is not None:
+        return f"${float(usd):.4f}"
+    return ""
+
+
+def _cost_unread(costs) -> str:
+    return str(_d(costs).get("why") or "") if isinstance(costs, dict) else "費用の記録が届いていない"
+
+
+def head_text(rows, costs) -> str:
+    """最後の承認ノードの頭の文の返した回数の字『独立の目から修正の段へ n 回返した（上限 LIMIT 回。費用: 1 周目 $x・…）。』。0 回なら空。
+    costs は costs_now の形（None は届いていない）"""
+    done = [r for r in rows or [] if isinstance(r, dict)]
+    if not done:
+        return ""
+    unread = _cost_unread(costs)
+    spent = ("費用: 取れない（" + unread + "）" if unread else
+             "費用: " + "・".join(f"{r.get('round')} 周目 {_cost_of(costs, r.get('round')) or '記録に無い'}" for r in done))
+    return f"独立の目から修正の段へ {len(done)} 回返した（上限 {LIMIT} 回。{spent}）。"
+
+
+# ---------------------------------------------------------------- 指摘ごとの結末
+def _key(item: dict) -> tuple:
+    """挙げ直したかを見る鍵（目の名と where のファイル。行の番号は落とす）。where の無い指摘は同じ目の where の無い指摘どうしで同じ鍵になる
+    （言い換えで直したと読み違えないよう、広く同じと見る側に倒す）"""
+    return str(item.get("eye") or ""), _LINE_AT.sub("", str(item.get("where") or "").strip())
+
+
+def _status(eyes_row, eye: str) -> str:
+    return str(_d(_d(eyes_row).get(eye)).get("status") or "")
+
+
+def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None) -> list:
+    """返した項目ごとの結末の行『k 周目に返した <項目>: <結末>』（字は OUTCOMES）。次の周の行（最後の周は最後の目 eyes の findings と
+    残った作り残し left）が同じ鍵の項目を持てば挙げ直した物（最後の周なら残った物、上限の抜け方なら上限で残った物）、持たなければ直した物。
+    次の目のその目の判定が通った（pass）か直しが要る（fix-needed）でない時と、返す前の状態を封じた最後の周（checkpoint）は確かめていない物"""
+    done = [r for r in rows or [] if isinstance(r, dict)]
+    out = []
+    for n, r in enumerate(done):
+        final = n == len(done) - 1
+        if final:
+            after_row = None if isinstance(checkpoint, dict) else eyes
+            after = [*(i for i in left or [] if isinstance(i, dict)), *_items(after_row)] if isinstance(after_row, dict) else []
+        else:
+            after_row, after = done[n + 1], [i for i in done[n + 1].get("items") or [] if isinstance(i, dict)]
+        seen = {_key(i) for i in after}
+        for item in (i for i in r.get("items") or [] if isinstance(i, dict)):
+            eye = str(item.get("eye") or "")
+            status = _status(after_row, eye) if final else str(_d(after_row).get(eye) or "")
+            if not isinstance(after_row, dict) or status not in (seal.PASSED, seal.FIX_NEEDED):
+                word = OUTCOMES["unseen"]
+            elif _key(item) in seen:
+                word = OUTCOMES["again"] if not final else OUTCOMES["cap"] if exit_ == CAP_WHY else OUTCOMES["left"]
+            else:
+                word = OUTCOMES["fixed"]
+            out.append(f"{r.get('round')} 周目に返した {item_text(item)}——{word}")
+    return out
+
+
 # ---------------------------------------------------------------- 返した周の行
 def _sealed_lines(exit_: str, checkpoint, back_restore) -> list:
     """封じに出した状態の出どころの行: checkpoint（返す前の状態を封じた周の記録）が在れば封じたのが返す前の状態であることと戻しの結末（戻せなくても控えが在ればその在りか）を、
@@ -350,25 +452,44 @@ def _sealed_lines(exit_: str, checkpoint, back_restore) -> list:
     return out
 
 
-def lines(rows, exit_: str = "", left=(), checkpoint=None, back_restore=None) -> list:
+def lines(rows, exit_: str = "", left=(), checkpoint=None, back_restore=None, *, eyes=None, costs=None) -> list:
     """最後の承認ノードと報告が同じ行に読む、返した周の行。返した周ごとに『k 周目: 返した（R1: <語>・R2: <語>）——返した項目: …』を並べ、
     返した周が 1 つ以上在れば返した段が通っていない確かめの 1 行と、抜けた訳の 1 行を付ける。上限の抜け方の訳は残った作り残しを名指し、ほかの
     抜け方で残った作り残し left が在れば返したが直せなかった項目の 1 行（UNFIXED）を足す。checkpoint（返す前の状態を封じた周の記録）が在れば
     封じに出したのが何周目に返す前の状態かの行（SEALED_BEFORE）と、戻しの結末 back_restore（封じる前の戻しの返り。null は記録が無い）を言う
     行を足し、抜けた訳が差分の変わらなかった時は返す前と同じ状態の行（SAME_AS_BEFORE）を足す。0 回の時は、目が返そうとした項目 left が在れば
-    返さなかった訳と項目の 1 行（UNRETURNED）、無ければ空。目の語の言い方は gatemarks.REVIEW_WORDS（字をここで持たない）"""
+    返さなかった訳と項目の 1 行（UNRETURNED）、無ければ空。目の語の言い方は gatemarks.REVIEW_WORDS（字をここで持たない）。
+    costs（costs_now の形）が在れば周の行にその周の費用を添え、周の行の後に返した項目ごとの結末の行（outcome_lines。最後の周は最後の目 eyes で決める）を並べる"""
     done = [r for r in rows or [] if isinstance(r, dict)]
     if not done:
         return [UNRETURNED.format(why=exit_ or "訳の記録が無い", items=left_text(left))] if left_text(left) else []
     word = lambda s: gatemarks.REVIEW_WORDS.get(s, s or "判定の語が無い")   # noqa: E731
     out = [f"{r.get('round')} 周目: 返した（R1: {word(r.get('r1'))}・R2: {word(r.get('r2'))}）——返した項目: "
-           + ("／".join(item_text(i) for i in r.get("items") or [] if isinstance(i, dict)) or "無し") for r in done]
+           + ("／".join(item_text(i) for i in r.get("items") or [] if isinstance(i, dict)) or "無し") + _round_cost(costs, r.get("round"))
+           for r in done]
+    out += outcome_lines(done, exit_, left, checkpoint, eyes)
     out.append(NOT_REVIEWED)
     if exit_:
         out.append(f"輪を抜けた訳: {cap_text(left) if exit_ == CAP_WHY else exit_}")
     if exit_ != CAP_WHY and left_text(left):
         out.append(UNFIXED.format(items=left_text(left)))
     return [*out, *_sealed_lines(exit_, checkpoint, back_restore)]
+
+
+def _round_cost(costs, k) -> str:
+    """周の行に添える費用の字。costs が無ければ空"""
+    if not isinstance(costs, dict):
+        return ""
+    if _cost_unread(costs):
+        return f"（この周の費用は取れない: {_cost_unread(costs)}）"
+    return f"（この周の費用 {_cost_of(costs, k)}）" if _cost_of(costs, k) else "（この周の費用は記録に無い）"
+
+
+def record_lines(record, back_restore=None, costs=None) -> list:
+    """返す輪の集めの記録まるごと（rows・exit・left・checkpoint・最後の目 eyes）と戻しの結末と周ごとの費用から lines を組む 1 か所
+    （最後の承認ノードの節と報告の節が同じ口で読む）"""
+    got = _d(record)
+    return lines(got.get("rows"), got.get("exit") or "", got.get("left"), got.get("checkpoint"), back_restore, eyes=got.get("eyes"), costs=costs)
 
 
 def broken(eyes_back, head) -> bool:

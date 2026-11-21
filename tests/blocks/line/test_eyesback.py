@@ -13,6 +13,7 @@ import inspect
 import io
 import json
 import os
+import pathlib
 import re
 import runpy
 import tempfile
@@ -483,6 +484,89 @@ class LinesCase(_Case):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportCase(_Case):
+    """返した周の節と最後の承認ノードの頭の文が、上限・周ごとの費用・指摘ごとの結末を言う（案 docs/plans/2026-11-16-eyes-back-sort.md の
+    4 節の 5）。費用は run の記録の node ごとの費用のうち周 k の節（back-k・back-k-*・back-k__*）の和で、記録を読めなければ取れない訳を言う。
+    指摘ごとの結末は、次の周の目（最後の周は記録の最後の目と残った作り残し）が同じ目・同じファイルで挙げ直したかで決め、挙げ直した物は
+    残った物（上限の抜け方は上限で残った物）、挙げなかった物は直した物、次の目の判定が出ていない・返す前の状態を封じた周は確かめていない物にする"""
+
+    A = {"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}
+    B = {"eye": "r2", "where": "", "text": "入口が足りない"}
+    PASSED = {"r1": {"status": "pass"}, "r2": {"status": "pass"}, "findings": [], "route": "stay"}
+
+    def test_round_costs_sum_each_rounds_nodes(self):
+        cost = {"back-1": 0.0, "back-1-fix__intake": 1.0, "back-1-eyes__r1": 0.5, "back-1-gate__run": 0.25, "back-2-fix__intake": 0.75,
+                "back-10-fix__x": 9.0, "fix__intake": 3.0, "eyes-back": 0.0, "eyes__r1": 2.0, "back-1x": 7.0}
+        self.assertEqual(self.e.round_costs(cost), {1: 1.75, 2: 0.75, 10: 9.0})
+        self.assertEqual(self.e.round_costs({"line__back-1-fix__a": 1.0, "back-1-fix__a": 5.0}, prefix="line__"), {1: 1.0})
+
+    def test_costs_now_reads_the_run_record(self):
+        rows = [{"step": "back-1-fix__intake", "type": "node_complete", "cost_usd": 1.5},
+                {"step": "back-1-eyes__r2", "type": "node_complete", "cost_usd": 0.5},
+                {"step": "fix__intake", "type": "node_complete", "cost_usd": 4.0}]
+        with tempfile.TemporaryDirectory() as tmp:
+            (pathlib.Path(tmp) / "run1.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+            with mock.patch.dict(os.environ, {"LOG_DIR": tmp, "WORKFLOW_ID": "run1", "ARCHON_NODE_EXECUTION": "{}"}):
+                self.assertEqual(self.e.costs_now(), {"by_round": {1: 2.0}, "why": ""})
+            with mock.patch.dict(os.environ, {"LOG_DIR": tmp, "WORKFLOW_ID": "none"}):
+                got = self.e.costs_now()
+        self.assertEqual(got["by_round"], {})
+        self.assertIn("読めない", got["why"])
+
+    def test_head_names_the_limit_and_each_rounds_cost(self):
+        rows = [self.e.row(1, eyes(), [self.A]), self.e.row(2, eyes(), [self.A])]
+        head = self.e.head_text(rows, {"by_round": {1: 1.75, 2: 0.5}, "why": ""})
+        self.assertEqual(head, f"独立の目から修正の段へ 2 回返した（上限 {self.e.LIMIT} 回。費用: 1 周目 $1.7500・2 周目 $0.5000）。")
+        unread = self.e.head_text(rows, {"by_round": {}, "why": "記録が無い"})
+        self.assertIn("費用: 取れない（記録が無い）", unread)
+        self.assertIn("費用: 取れない（", self.e.head_text(rows, None))
+        self.assertEqual(self.e.head_text([], {"by_round": {}, "why": ""}), "", "0 回なら頭の文に書かない")
+
+    def test_each_round_line_carries_its_cost(self):
+        rows = [self.e.row(1, eyes(), [self.A]), self.e.row(2, eyes(), [self.A])]
+        out = self.e.lines(rows, "返す物が無い", costs={"by_round": {1: 1.75}, "why": ""})
+        self.assertIn("この周の費用 $1.7500", out[0])
+        self.assertIn("この周の費用は記録に無い", out[1])
+
+    def test_each_finding_gets_its_outcome(self):
+        """1 周目の A は 2 周目の目が同じ目・同じファイルで挙げ直した（字は違う）ので残って次の周へ返した物、B は挙げなかったので直した物。
+        最後の周の A は最後の目が通したので直した物。上限の抜け方で最後の目が挙げ直した物は上限で残った物"""
+        a2 = {**self.A, "where": "src/a.py:30", "text": "写しがまだ残っている"}
+        rows = [self.e.row(1, eyes(), [self.A, self.B]), self.e.row(2, eyes(), [a2])]
+        out = self.e.lines(rows, "返す物が無い（どの目も通った）", eyes=self.PASSED)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['again']}", out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.B)}——{self.e.OUTCOMES['fixed']}", out)
+        self.assertIn(f"2 周目に返した {self.e.item_text(a2)}——{self.e.OUTCOMES['fixed']}", out)
+        rows3 = [self.e.row(k, eyes(), [self.A]) for k in (1, 2, 3)]
+        capped = self.e.lines(rows3, self.e.CAP_WHY, [self.A], eyes=eyes(items=[self.A]))
+        self.assertIn(f"3 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['cap']}", capped)
+        left = self.e.lines(rows[:1], self.e.EXITS["unchanged"], [self.A], eyes=eyes(items=[self.A]))
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['left']}", left)
+
+    def test_unreviewed_findings_are_not_called_fixed(self):
+        """返す前の状態を封じた周（checkpoint）と、次の目がその目の判定を出していない周の指摘は、直したと言わず確かめていない物にする"""
+        rows = [self.e.row(1, eyes(), [self.A, self.B])]
+        held = self.e.lines(rows, self.e.EXITS["fell"], [self.A, self.B], checkpoint={"round": 1, "tree": "t1"}, eyes=self.PASSED)
+        unverifiable = {**self.PASSED, "r2": {"status": "unverifiable"}}
+        partly = self.e.lines(rows, "返す物が無い", eyes=unverifiable)
+        no_eyes = self.e.lines(rows, "返す物が無い", eyes=None)
+        for name, out, unseen in (("封じた", held, (self.A, self.B)), ("R2 が判定を出さない", partly, (self.B,)), ("目が無い", no_eyes, (self.A, self.B))):
+            with self.subTest(name):
+                for item in unseen:
+                    self.assertIn(f"1 周目に返した {self.e.item_text(item)}——{self.e.OUTCOMES['unseen']}", out)
+                self.assertFalse(any(self.e.item_text(i) in line and line.endswith(self.e.OUTCOMES["fixed"]) for i in unseen for line in out), out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['fixed']}", partly)
+
+    def test_record_lines_take_the_whole_record(self):
+        """最後の承認ノードと報告の節は記録まるごとと戻しの結末と費用を record_lines に渡し、記録の最後の目で結末を決める"""
+        record = {"rows": [self.e.row(1, eyes(), [self.A])], "exit": "返す物が無い", "left": [], "checkpoint": None, "eyes": self.PASSED}
+        out = self.e.record_lines(record, None, {"by_round": {1: 1.0}, "why": ""})
+        self.assertEqual(out, self.e.lines(record["rows"], record["exit"], record["left"], None, None, eyes=self.PASSED,
+                                           costs={"by_round": {1: 1.0}, "why": ""}))
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['fixed']}", out)
+        self.assertEqual(self.e.record_lines(None, None, None), [])
 
 
 class RestoreCase(_Case):

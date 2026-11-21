@@ -248,9 +248,10 @@ def final_needs(got: dict) -> list:
 def final_head(got: dict, why: list) -> list:
     guarded = bool(got["protected_hits"]) or bool(got["allowed_tests"]) or bool(got["removed_tests"])
     held = got["held"]
-    returned = eyesback.count((got["eyes_back"] or {}).get("rows"))   # 返した周の数は輪の記録の rows から数える（0 回なら頭の文に書かない）
+    # 返した周の数は輪の記録の rows から数え、上限と周ごとの費用を添える（0 回なら頭の文に書かない）
+    returned = eyesback.head_text((got["eyes_back"] or {}).get("rows"), got.get("back_costs"))
     happened = (f"最後のテストと独立の目が済み、報告の前で止まった。"
-                + (f"独立の目から修正の段へ {returned} 回返した。" if returned else "")
+                + returned
                 + f"テストは{tests_word(got)}。"
                 + ("開けた理由: " + "・".join(why) if why else
                    f"承認ノードはいつも開く設定（{gates.head_words({gates.FINAL_KEY: gates.ALWAYS})}）で、ほかに開けた理由は無い")
@@ -263,11 +264,10 @@ def final_head(got: dict, why: list) -> list:
 
 
 def returned_section(got: dict) -> list:
-    """返した周の節（見出しは eyesback.HEAD、行は eyesback.lines。報告の節と同じ口。記録の checkpoint と戻しの結末 back_restore も渡す。
-    行が無ければ出さない）"""
+    """返した周の節（見出しは eyesback.HEAD、行は eyesback.record_lines。報告の節と同じ口。記録まるごとと戻しの結末 back_restore と
+    周ごとの費用 back_costs を渡す。行が無ければ出さない）"""
     record = got["eyes_back"] or {}
-    rows = [f"- {x}" for x in eyesback.lines(record.get("rows"), record.get("exit") or "", record.get("left"),
-                                             record.get("checkpoint"), got.get("back_restore"))]
+    rows = [f"- {x}" for x in eyesback.record_lines(record, got.get("back_restore"), got.get("back_costs"))]
     return [f"## {eyesback.HEAD}（{eyesback.count(record.get('rows'))} 回）", "", *rows, ""] if rows else []
 
 
@@ -674,9 +674,10 @@ def eye_rows(items) -> list:
 
 def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None, eyes: dict | None, seal_got: dict | None,
            spec_check: dict | None, parallel_after: dict | None, replan_answer, widened, record: dict, given: dict, rounds_lines: list,
-           unread: list, eyes_back: dict | None, back_restore: dict | None = None, missing=()) -> dict:
+           unread: list, eyes_back: dict | None, back_restore: dict | None = None, back_costs: dict | None = None, missing=()) -> dict:
     """block の返りと line の値から、文と理由の材料 got を組む（docs/design/line.md の 2 節の 4 の「読む物」）。missing は指す先が
-    無いか読めない控えの訳（src.gates.located。開き方に依らず開ける理由にする）。back_restore は封じる前の戻しの結末（戻す節が飛んだ run は None）"""
+    無いか読めない控えの訳（src.gates.located。開き方に依らず開ける理由にする）。back_restore は封じる前の戻しの結末（戻す節が飛んだ run は None）。
+    back_costs は返した周ごとの費用（eyesback.costs_now の形。頭の文と返した周の節が読む）"""
     missing = list(missing)
     tests_ = tests or {}
     eye = eyes or {}
@@ -722,7 +723,7 @@ def gather(*, fix_in: dict, fixed: dict, judged: dict | None, tests: dict | None
         "fenced": after_fenced, "after": after, "passes": passes,
         "r2_inputs": [x for x in eye.get("notes") or [] if isinstance(x, str)],
         "converge": rounds_lines, "parallel_after": parallel_after, "eyes_back": eyes_back,
-        "back_restore": back_restore,
+        "back_restore": back_restore, "back_costs": back_costs,
         **rows,
         "missing": list(dict.fromkeys(missing)),
         "unread": [*unread, *ledger_unread, *([after_unread] if after_unread else []), *([deleted_unread] if deleted_unread else [])],

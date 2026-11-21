@@ -413,6 +413,18 @@ class SectionsCase(unittest.TestCase):
         self.assertTrue(any("変えていなかった" in line for line in ran), ran)
         self.assertNotEqual(missing, ran)
 
+    def test_back_section_carries_each_rounds_cost_and_outcomes(self):
+        """報告の返した周の節は、collect が run の記録から読んだ周ごとの費用（values の back_costs）と記録まるごとを eyesback.record_lines に渡した行"""
+        eb = kit.load(BLOCK, "eyesback")
+        items = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
+        record = {"rows": [{"round": 1, "r1": "fix-needed", "r2": "pass", "items": items}], "exit": "返す物が無い", "left": [],
+                  "eyes": {"r1": {"status": "pass"}, "r2": {"status": "pass"}, "findings": []}}
+        costs = {"by_round": {1: 2.24}, "why": ""}
+        got = self.build({**passing(), "eyes_back": record, "back_costs": costs})
+        back = next(s for s in got if s["title"] == self.s.BACK)
+        self.assertEqual(back["lines"], eb.record_lines(record, None, costs))
+        self.assertTrue(any("この周の費用 $2.2400" in line for line in back["lines"]), back["lines"])
+
     def test_broken_loop_is_named_when_a_round_head_ran(self):
         """周の節が中の誤りで落ちると集め eyes-back が飛ぶ（eyes_back が null）。周の頭 back-1 が走っていれば、返した周の節に「返す輪が途中で
         落ちた（下の状態は返す前の物）」の 1 行を出す。周の頭も走らなかった run は今どおり節を出さない"""
