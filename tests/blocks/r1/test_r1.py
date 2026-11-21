@@ -106,7 +106,7 @@ class FlowCase(_RepoCase):
         self.save("r1-minimality", reply)
         done = self.finish()
         self.assertEqual(done, {"ok": True, "status": "ran", "reason": "", "verdict": {"status": "fix-needed", "reason": "写しが在る"},
-                                "questions": [], "findings": [{"where": "a.txt:2", "text": "b.py:9 に同じ 内容"}], "report": ["R1: fix-needed（写しが在る）", "  - 削るとした所: a.txt:2（b.py:9 に同じ 内容）",
+                                "questions": [], "findings": [{"where": "a.txt:2", "text": "b.py:9 に同じ 内容", "needs": "fix", "kind": "trim"}], "report": ["R1: fix-needed（写しが在る）", "  - 削るとした所: a.txt:2（b.py:9 に同じ 内容）",
                                                             "  - 残したコメントが運ぶ事実: a.txt:3: 既定の値を選んだ訳"]})
         self.assertEqual(json.loads((self.place / "finish.json").read_text(encoding="utf-8")), done)
 
@@ -277,13 +277,34 @@ class VerdictCase(_RepoCase):
         """fix-needed の時、finish は deletions を {where, text} の並びとして findings に載せ、改行を含む why を 1 行にする。pass の時は空"""
         deletions = [{"where": "b.py:9", "why": "a.txt:1 に同じ\n内容"}, {"where": "c.py:2", "why": "使い手が無い"}]
         done = self.ran({**PASS, "status": "fix-needed", "reason": "写しが在る", "deletions": deletions})
-        self.assertEqual(done["findings"], [{"where": "b.py:9", "text": "a.txt:1 に同じ 内容"}, {"where": "c.py:2", "text": "使い手が無い"}])
+        self.assertEqual(done["findings"], [{"where": "b.py:9", "text": "a.txt:1 に同じ 内容", "needs": "fix", "kind": "trim"},
+                                            {"where": "c.py:2", "text": "使い手が無い", "needs": "fix", "kind": "trim"}])
         self.assertEqual(self.ran({**PASS, "deletions": deletions})["findings"], [], "pass の時は返す項目を作らない")
 
     def test_fix_needed_without_deletions_names_the_reason(self):
         """deletions が空で increments だけの fix-needed では、名指しの無い項目を作らず判定の reason の 1 行を載せる"""
         done = self.ran({**PASS, "status": "fix-needed", "reason": "増分が正当化されていない\nコメントも", "increments": ["a.txt: 理由が無い"]})
-        self.assertEqual(done["findings"], [{"where": "", "text": "増分が正当化されていない コメントも"}])
+        self.assertEqual(done["findings"], [{"where": "", "text": "増分が正当化されていない コメントも", "needs": "fix", "kind": "trim"}])
+
+    def test_findings_carry_the_needs_and_kind_the_eye_chose(self):
+        """deletions の行ごとに目が書いた needs（fix・choose）と fix_kind（trim・unfinished）を findings の needs・kind に運ぶ。choose の行は
+        選べる道 options と推し recommend も運ぶ（1 行に畳む）。役の返答の型は deletions の行に needs・fix_kind を required で持ち、語の列挙は
+        独立の目のまとめの needs・kind と同じ"""
+        deletions = [{"where": "b.py:9", "why": "使い手が無い", "needs": "fix", "fix_kind": "unfinished"},
+                     {"where": "c.css:2", "why": "色を当てるか", "needs": "choose", "fix_kind": "trim", "options": ["当てる", "当てな\nい"],
+                      "recommend": "当てない"}]
+        done = self.ran({**PASS, "status": "fix-needed", "reason": "直す所が在る", "deletions": deletions})
+        self.assertEqual(done["findings"], [{"where": "b.py:9", "text": "使い手が無い", "needs": "fix", "kind": "unfinished"},
+                                            {"where": "c.css:2", "text": "色を当てるか", "needs": "choose", "kind": "trim",
+                                             "options": ["当てる", "当てな い"], "recommend": "当てない"}])
+        item = next(n for n in DOC["nodes"] if n["id"] == "r1-minimality")["output_format"]["properties"]["deletions"]["items"]
+        self.assertTrue({"needs", "fix_kind"} <= set(item["required"]))
+        eyes = yaml.safe_load((kit.BLOCKS / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
+        back = next(n for n in eyes["nodes"] if n["id"] == "verdict")["output_format"]["properties"]["findings"]["items"]["properties"]
+        self.assertEqual(item["properties"]["needs"]["enum"], back["needs"]["enum"])
+        self.assertEqual(item["properties"]["fix_kind"]["enum"], back["kind"]["enum"])
+        out = next(n for n in DOC["nodes"] if n["id"] == "finish")["output_format"]["properties"]["findings"]["items"]
+        self.assertTrue({"needs", "kind"} <= set(out["required"]))
 
     def test_fallback_has_every_field(self):
         """出口が落ちた形（fallback）も、入口が落ちた形も、finish の output_format の必須の欄を全部持つ"""

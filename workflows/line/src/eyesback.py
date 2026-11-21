@@ -73,6 +73,7 @@ RECORD = ("rows", "exit", "left", "fixed", "tests", "eyes", "fingerprint", "gree
 SEALED_FIXED = ("diff", "diffed", "changed", "units", "groups", "item_claims")
 FIX_ROUTE = "fix"
 UNFINISHED = "unfinished"   # 返す項目の種のうち作り残し（直す前の赤を求める側）。種の語の列挙の正本は独立の目の出力の形
+CHOOSE = "choose"   # 返す項目の needs のうち人が選ぶ物（修正の段へ返さない）。語の列挙の正本は独立の目の出力の形
 RESTORE_NO_TREE = "戻す先の木が記録に無い（返す周の頭が作業ツリーの木を取れなかった）ので、作業ツリーを返す前の姿に戻せなかった"
 RESTORE_ERROR = "作業ツリーを返す前の姿に戻す途中で落ちた（書き換えの控えを書けなかったか、戻しの git が失敗した）"
 RESTORE_DIFFERS = "作業ツリーを返す前の木に戻したが、返す前の指紋と合わない（返した段が commit したか、HEAD を動かした）"
@@ -94,7 +95,9 @@ def _d(value) -> dict:
 
 
 def _items(eyes) -> list:
-    return [i for i in _d(eyes).get("findings") or [] if isinstance(i, dict) and isinstance(i.get("text"), str) and i["text"]]
+    """目の返す項目のうち修正の段へ返す物。needs が choose の行（人が選ぶ物。目のまとめが最後の承認ノードの問いへ回す）は返さない"""
+    return [i for i in _d(eyes).get("findings") or [] if isinstance(i, dict) and isinstance(i.get("text"), str) and i["text"]
+            and i.get("needs") != CHOOSE]
 
 
 def item_text(item: dict) -> str:

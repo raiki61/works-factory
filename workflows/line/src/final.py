@@ -82,6 +82,7 @@ PARALLEL_UNDONE = ("not_run", "awaiting_human", "failed")
 R2_KEEPS_OUT = ("R2（修正の後に設計を見直す独立の目）が作り直し（redesign-needed）と言ったので、この run の差分は当てない"
                 "（持ち主の決め small-core。merge も bin/apply も拒む）。報告へ進めても止めても、差分は対象に当たらない")
 MEANS_HEAD = facts.MEANS_ASK_HEAD   # R2 の request_conflicts の問いの節（計画 means-answers の 6.3 の 3。R4 の問いと分ける）。報告の頭の種の名と同じ字（字の持ち主は facts の 1 か所）
+EYE_ASKS_HEAD = "独立の目（{r4}と、R1・R2 が人が選ぶとした指摘）が人に聞いている問い（記録のまま引く。{n} 件）"   # eyes の questions の節
 MEANS_ANSWERS = "この承認ノードの continue は頼みどおりの差分を当てる答え、stop は止める答えになる"
 MEANS_NEED = "頼みの解き方どおりの違いを独立の目が聞いている（{n} 件）"
 SPEC_APPLIES = ("  - 承認して報告へ進める（continue）と、差分は承認し直しを待たずに当たる（merge が run の置き場に置き、bin/apply が"
@@ -408,7 +409,7 @@ def question_lines(got: dict) -> list:
         lines.append("  - この承認ノードの答えはこの問いに答えない（continue でも仕様は承認し直さない）。問いは報告の冒頭と次の run の依頼の下書きへ渡る")
         lines.append(f"  - {R2_KEEPS_OUT}" if r2_redesign(got) else SPEC_APPLIES)
     if got["questions"]:
-        lines.append(f"- {gatemarks.named(gatemarks.R4_GATE_NODE)}が人に聞いている問い（記録のまま引く。{len(got['questions'])} 件）:")
+        lines.append(f"- {EYE_ASKS_HEAD.format(n=len(got['questions']), r4=gatemarks.named(gatemarks.R4_GATE_NODE))}:")
         for q in got["questions"]:
             lines += [f"  {x}" for x in gatemarks.quote(q)]
         lines.append("  - この承認ノードの答えはこの問いに答えない。問いは報告の冒頭と次の run の依頼の下書きへ渡る")

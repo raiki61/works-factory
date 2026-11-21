@@ -66,6 +66,8 @@ What you compare is structure: what is fixed and what is treated as derived, whe
 
 If there is no difference of the kinds 構造 and 作り残し, `status` is {st_pass}. When you write {st_fix}, write no 構造 row; write a structural difference that is not essential as a 表現 row. If you attach even one 構造 row, the machine makes `status` {st_redesign}. `reason` is copied as it is into the final report.
 
+{shared:eye-needs}
+
 <!-- if means -->
 ## The request's means (ways of solving that the request itself named, numbered by the machine)
 
@@ -79,5 +81,5 @@ The request named no means of solving, so `request_conflicts` is an empty array.
 
 {shared:plain-ask}
 
-Write `reason` and the `text` of each difference in {lang}. Keep keys, enum values (the `kind` values 構造, 表現 and 作り残し included), identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
+Write `reason` and the `text`, `options` and `recommend` of each row of `differences` in {lang}. Keep keys, enum values (the `kind` values 構造, 表現 and 作り残し, and the `needs` and `fix_kind` values included), identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
 Return only JSON that matches this node's output schema (JSON Schema).

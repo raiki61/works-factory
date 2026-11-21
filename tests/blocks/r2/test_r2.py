@@ -9,6 +9,8 @@ import pathlib
 import unittest
 from unittest import mock
 
+import yaml
+
 from tests.bin.gitkit import git
 from tests.blocks import kit
 
@@ -91,7 +93,8 @@ class CompareRoadCase(_RepoCase):
             {"kind": unfinished, "text": "入口が 2 つのまま\n残っている", "where": "app.py:12"}, {"kind": "構造", "text": "継ぎ目が違う"},
             {"kind": unfinished, "text": "上限の確かめが無い"}, {"kind": "表現", "text": "呼び名が違う"}]}
         self.assertEqual(steps.findings({"status": "fix-needed", "reason": "x"}, compare),
-                         [{"where": "app.py:12", "text": "入口が 2 つのまま 残っている"}, {"where": "", "text": "上限の確かめが無い"}])
+                         [{"where": "app.py:12", "text": "入口が 2 つのまま 残っている", "needs": "fix", "kind": "unfinished"},
+                          {"where": "", "text": "上限の確かめが無い", "needs": "fix", "kind": "unfinished"}])
         for status in ("pass", "redesign-needed", "unverifiable"):
             self.assertEqual(steps.findings({"status": status, "reason": "x"}, compare), [], status)
         self.assertEqual(steps.findings({"status": "fix-needed", "reason": "x"}, None), [])
@@ -99,6 +102,29 @@ class CompareRoadCase(_RepoCase):
         self.compare()
         self.save("r2-compare", PASS)
         self.assertEqual(self.finish()["findings"], [])
+
+    def test_findings_carry_the_needs_and_kind_the_eye_chose(self):
+        """作り残しの行ごとに目が書いた needs（fix・choose）と fix_kind（trim・unfinished）を findings の needs・kind に運ぶ（振る舞いを変えない
+        直しは R2 の行でも trim）。choose の行は選べる道 options と推し recommend も運ぶ。欄の無い行は needs を fix、kind を unfinished にする。
+        役の返答の型は違いの行に needs・fix_kind を持ち、語の列挙は独立の目のまとめの needs・kind と同じ"""
+        steps = kit.load("r2", "steps")
+        unfinished = steps.UNFINISHED_KIND
+        compare = {"status": "fix-needed", "reason": "x", "differences": [
+            {"kind": unfinished, "text": "WHY のコメントが無い", "where": "a.py:1", "needs": "fix", "fix_kind": "trim"},
+            {"kind": unfinished, "text": "optgroup の色", "where": "b.css:2", "needs": "choose", "fix_kind": "unfinished",
+             "options": ["当てる", "当てない"], "recommend": "当てない"}]}
+        self.assertEqual(steps.findings({"status": "fix-needed", "reason": "x"}, compare),
+                         [{"where": "a.py:1", "text": "WHY のコメントが無い", "needs": "fix", "kind": "trim"},
+                          {"where": "b.css:2", "text": "optgroup の色", "needs": "choose", "kind": "unfinished",
+                           "options": ["当てる", "当てない"], "recommend": "当てない"}])
+        doc = yaml.safe_load((kit.BLOCKS / "r2" / "works-factory-r2.yaml").read_text(encoding="utf-8"))
+        item = next(n for n in doc["nodes"] if n["id"] == "r2-compare")["output_format"]["properties"]["differences"]["items"]["properties"]
+        eyes = yaml.safe_load((kit.BLOCKS / "eyes" / "works-factory-eyes.yaml").read_text(encoding="utf-8"))
+        back = next(n for n in eyes["nodes"] if n["id"] == "verdict")["output_format"]["properties"]["findings"]["items"]["properties"]
+        self.assertEqual(item["needs"]["enum"], back["needs"]["enum"])
+        self.assertEqual(item["fix_kind"]["enum"], back["kind"]["enum"])
+        out = next(n for n in doc["nodes"] if n["id"] == "finish")["output_format"]["properties"]["findings"]["items"]
+        self.assertTrue({"needs", "kind"} <= set(out["required"]))
 
     def test_settle_table_covers_every_status_and_kind(self):
         """settle の表（上から順）を、返答の語と違いの種の組ごとに照らす。作り残しだけの返答は fix-needed で、reason の尾に行の where と
@@ -142,7 +168,8 @@ class CompareRoadCase(_RepoCase):
                 done = self.finish()
                 self.assertEqual((done["ok"], done["status"], done["reason"]), (True, "ran", ""))
                 self.assertEqual(done["verdict"], {"status": want, "reason": reason})
-                self.assertEqual(done["findings"], [{"where": "app.py:12", "text": "上限の確かめが無い"}] if want == "fix-needed" else [])
+                self.assertEqual(done["findings"], [{"where": "app.py:12", "text": "上限の確かめが無い", "needs": "fix", "kind": "unfinished"}]
+                                 if want == "fix-needed" else [])
 
     def _stats_repo(self, *extra: str):
         """stats を変え、tests/test_stats.py がそれを import する形（#384 の改名の場面）。tests/test_other.py は other だけを import する。

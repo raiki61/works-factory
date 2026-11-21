@@ -161,13 +161,14 @@ def save(out, name: str, reply: str) -> dict:
 
 # ---------------------------------------------------------------- 出口
 def findings(row: dict, minimality) -> list:
-    """修正の段へ返す項目（出口の欄 findings）。判定が fix-needed の時だけ、返答の deletions の行を {where, text} にする（text は
-    修正の段の notes に行ごとに入るので 1 行）。deletions が空の fix-needed は、名指しの無い項目を作らず判定の reason の 1 行を 1 つ載せる"""
+    """修正の段へ返す項目（出口の欄 findings）。判定が fix-needed の時だけ、返答の deletions の行を eyekit.back_row の行 {where, text, needs, kind, …}
+    にする（needs・kind は行ごとに役が書いた needs・fix_kind。書いていなければ fix・trim）。deletions が空の fix-needed は、名指しの無い項目を作らず
+    判定の reason の 1 行を needs fix・kind trim で 1 つ載せる"""
     if row["status"] != seal.FIX_NEEDED:
         return []
     deletions = minimality.get("deletions") if isinstance(minimality, dict) else None
-    rows = [{"where": str(d.get("where") or ""), "text": oneline.one_line(d.get("why") or "")} for d in deletions or [] if isinstance(d, dict)]
-    return rows or [{"where": "", "text": oneline.one_line(row["reason"])}]
+    rows = [eyekit.back_row(d.get("where"), d.get("why"), d, eyekit.TRIM) for d in deletions or [] if isinstance(d, dict)]
+    return rows or [eyekit.back_row("", row["reason"], None, eyekit.TRIM)]
 
 
 def by_points(doc: dict) -> dict:

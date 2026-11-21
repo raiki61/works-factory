@@ -240,10 +240,11 @@ def settle(doc: dict) -> dict:
 
 def findings(row: dict, compare) -> list:
     """修正の段へ返す項目（出口の欄 findings）。比べの道で判定が fix-needed の時だけ、返答の違いのうち種が作り残しの行を
-    {where（無ければ空の字）, text（修正の段の notes に行ごとに入るので 1 行）} にして順に並べる。ほかは空"""
+    eyekit.back_row の行 {where（無ければ空の字）, text, needs, kind, …} にして順に並べる（needs・kind は行ごとに役が書いた needs・fix_kind。
+    書いていなければ fix・unfinished）。ほかは空"""
     if row["status"] != seal.FIX_NEEDED:
         return []
-    return [{"where": str(d.get("where") or ""), "text": oneline.one_line(d.get("text") or "")} for d in _rows(compare, UNFINISHED_KIND)]
+    return [eyekit.back_row(d.get("where"), d.get("text"), d, eyekit.UNFINISHED) for d in _rows(compare, UNFINISHED_KIND)]
 
 
 def finish(out) -> dict:

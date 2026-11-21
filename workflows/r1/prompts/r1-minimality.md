@@ -66,11 +66,13 @@ Judgment:
 
 `status` is one of {st_pass}, {st_fix}, {st_redesign}, {st_unverifiable}. Use {st_pass} only when the judgment above found nothing (no `deletions`, no unjustifiable increment in `increments`, no unjustified prescription, no escape route). Write what you found in the matching field of `deletions`, `ledger_audit`, or `increments`, and the gist in `reason`. If everything you found closes with a zero prescription ("処方の最小性" in the canonical sources), use {st_fix}. Name each design point that does not close with a zero prescription (what the same heading calls design work rather than a fix) in `redesign_points`, one line each. The machine decides whether it is a redesign from whether `redesign_points` names anything: with a name it is {st_redesign}; without one it becomes {st_fix}, even if you write {st_redesign}. Use {st_unverifiable} only when an input the judgment needs (the cumulative diff, the question ledger, the canonical sources) cannot be read and you cannot judge without guessing, and write in `reason` what is missing (the word for "missing" in the role definition is {st_unverifiable} for this role). Write `redesign_points` as an array of strings: if you write the field but it is not an array or has no readable item, the machine makes the verdict {st_unverifiable}. `reason` is copied into the final report as it is.
 
+{shared:eye-needs}
+
 {shared:eye-frozen}
 
 <!-- if policy -->
 {shared:eye-policy}
 <!-- end policy -->
 
-Write `reason`, `redesign_points`, the `why` of `deletions`, `ledger_audit`, `increments`, and `candidates_note` in {lang}. Keep keys, enum values, identifiers, paths (the `where` of `deletions`), commands, and quoted text as they are.
+Write `reason`, `redesign_points`, the `why`, `options` and `recommend` of `deletions`, `ledger_audit`, `increments`, and `candidates_note` in {lang}. Keep keys, enum values (the `needs` and `fix_kind` values included), identifiers, paths (the `where` of `deletions`), commands, and quoted text as they are.
 Return only JSON that matches this node's output schema (JSON Schema).

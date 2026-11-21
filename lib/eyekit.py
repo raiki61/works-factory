@@ -15,6 +15,8 @@
 - status_values(eye): md に入れる判定の語 {st_pass, st_redesign, st_unverifiable}（R1・R2 は st_fix も）
 - read_reply(place, name)・verdict_row(eye, doc, why, settle)・headline(name, row): 役の返答の読みと、判定の行の語の確かめ（docs/design/r1.md の
   0.9。目ごとの決め直しは呼び手の block が settle で渡す）と、報告の頭の 1 行
+- NEEDS・FIX_KINDS・back_row(where, text, row, kind): R1・R2 が修正の段へ返す項目の 1 行（指摘ごとの needs〔fix・choose〕と kind〔trim・unfinished〕。
+  docs/design/judge-eyes.md の 2.4）
 """
 from __future__ import annotations
 
@@ -47,6 +49,10 @@ LANE = {"r1": "R1", "r2": "R2", "premise-check": "R2", "r3": "R3", "r4": "R4"}
 NO_MAP_TREE = " (the tree could not be read: {why})"   # 断片 concept-map-none の {map_tail}（木を読めなかった訳）
 MORE_MAPS = "- and {n} more"                          # 地図が MAX_MAPS を越えた分の行
 NO_REPO_REVIEW_MD = "(none at the root of the target repository)"   # 元 prep.py:122 の「対象のリポジトリの根に REVIEW.md は無い」
+# 返す項目の行ごとの語。needs は直す側で片づくか（fix）人が選ぶか（choose）、kind は振る舞いを変えない直し（trim）か作り残し（unfinished。直す前の
+# 赤を求める側）。列挙の正本は R1・R2 の役の返答の形と eyes のまとめの形で、試験が突き合わせる
+NEEDS_FIX, NEEDS_CHOOSE = NEEDS = ("fix", "choose")
+TRIM, UNFINISHED = FIX_KINDS = ("trim", "unfinished")
 
 
 # ---------------------------------------------------------------- 累積差分
@@ -236,3 +242,19 @@ def verdict_row(eye: str, doc, why: str = "", settle=None) -> tuple[dict, bool]:
 def headline(name: str, row: dict) -> str:
     """元 runreport._eye_word。報告の頭の 1 行 「<R の名>: <status>（<reason の 1 行>）」"""
     return f"{name}: {row['status']}（{oneline.one_line(row.get('reason') or '理由なし')}）"
+
+
+# ---------------------------------------------------------------- 修正の段へ返す項目
+def back_row(where, text, row, kind: str) -> dict:
+    """修正の段へ返す項目の 1 行 {where, text, needs, kind, options?, recommend?}（text は修正の段の notes に行ごとに入るので 1 行）。needs・kind は
+    役が行 row に書いた needs・fix_kind。語の外か無い時は needs を fix、kind を呼び手の目の既定 kind にする（返しと赤の義務を黙って外さない）。
+    choose の行は、役が書いた選べる道 options（字の配列。各 1 行）と推し recommend（1 行）を運ぶ（書いていなければ欄を持たない）"""
+    row = row if isinstance(row, dict) else {}
+    needs = row.get("needs") if row.get("needs") in NEEDS else NEEDS_FIX
+    got = {"where": str(where or ""), "text": oneline.one_line(text or ""), "needs": needs,
+           "kind": row.get("fix_kind") if row.get("fix_kind") in FIX_KINDS else kind}
+    if needs == NEEDS_CHOOSE:
+        options = [oneline.one_line(o) for o in row.get("options") or [] if isinstance(o, str) and o.strip()] if isinstance(row.get("options"), list) else []
+        recommend = oneline.one_line(row.get("recommend")) if isinstance(row.get("recommend"), str) else ""
+        got.update({**({"options": options} if options else {}), **({"recommend": recommend} if recommend else {})})
+    return got

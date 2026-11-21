@@ -583,6 +583,8 @@ eyes__r1__finish:
   findings:
   - where: app.py:3
     text: 同じ内容の写しが残っている
+    needs: fix
+    kind: trim
   ok: true
   status: ran
   reason: ''
@@ -640,6 +642,7 @@ eyes__r4__finish:
 eyes__verdict:
   findings:
   - eye: r1
+    needs: fix
     kind: trim
     where: app.py:3
     text: 同じ内容の写しが残っている
