@@ -69,8 +69,6 @@ def first_lit(toks):
     for t in toks:
         if t[0] == "lit":
             return t[1]
-        if t[0] == "opt":
-            continue
     return None
 
 
