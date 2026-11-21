@@ -13,7 +13,7 @@ description: Checks that the grounds a change cites for itself, such as "the sou
 - **Check against the version before the change**, not the current one — for example by searching the history of the base for the string that defines X.
 - **A circle is evidence, not a verdict.** When the diff cites as grounds something the diff itself adds, write the proof: the place in the diff that adds X, and the result of the command you ran.
 - **An agreement with an outside party** (another team, another system, an upstream source) that leaves no trace before the change is an unconfirmed premise, not a fact.
-- **Do not break the real working tree.** Make any copy in a fresh temporary directory outside it.
+- **Do not break the real working tree.** Do not change the working tree, the checked-out commit (HEAD), the branch, or the files version control ignores. Make any copy in a fresh temporary directory outside it.
 
 ## Steps
 

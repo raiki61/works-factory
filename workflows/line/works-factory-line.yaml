@@ -1580,12 +1580,19 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [test-gate-final]
-    with:
-      fix_in: "$fix-in.output"
-      fixed: "$fixed.output"
+    with:   # 読む欄だけを結ぶ（fixed の返りは単位の数だけ伸び、まるごとだと環境変数 1 本の上限を越えて起動が E2BIG で落ちる）
+      policy: "$fix-in.output.policy"
+      before_fix: "$fix-in.output.answer"
+      record: "$fix-in.output.record"
+      round: "$fix-in.output.round"
+      switches: "$fix-in.output.switches"
+      eyes_due: "$fixed.output.eyes_due"
+      no_fix: "$fixed.output.no_fix"
       start_answer: {from: "$answer-start.output.answer", if_skipped: null}
       replan_review: {from: "$replan-review.output", if_skipped: null}
-      judged: "$judged.output"
+      judgment: "$judged.output.judgment"
+      answer_ties: "$judged.output.answer_ties"
+      materials: "$judged.output.materials"
       ports: "$start.output.ports"
       request: "$request-in.output"
     output_format:

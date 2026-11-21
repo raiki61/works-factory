@@ -21,7 +21,7 @@ Why: when every review of a change comes after the change, the holes a change ma
 
 ## Steps
 
-Read "Reading a plan" for a fix plan, "Reading a design draft" for a design draft, and "Reading a policy statement" for a policy statement with no plan structure; "Later passes of the same plan", "Reviewing a replan", and "Looking across several items of one plan" apply when that case arises; the other subsections apply to all.
+Read "Reading a plan" for a fix plan, "Reading a design draft" for a design draft, and "Reading a policy statement" for a policy statement with no plan structure; "Later reviews of the same plan", "Reviewing a replan", and "Looking across several items of one plan" apply when that case arises; the other subsections apply to all.
 
 ### The one axis of judgment
 
@@ -95,7 +95,7 @@ An independent design is one made from the purpose alone, without seeing the pla
 
 A design draft is reviewed before anyone approves it. Besides the eight checks, look at:
 
-1. **Asking and deciding**: a question put to the person that the rules already decide, and a decision the draft makes alone that needs the person.
+1. **Asking and deciding**: a question put to the person that the rules already decide, and a decision the draft makes alone that needs the person. When a row of recorded policy decides the question, raise it as a policy hole and name that row.
 2. **Missing options and costs**: a question with no option that builds on what exists, or no option that does nothing; an option whose cost or gain is missing.
 3. **New parts where existing ones are enough**: read the existing parts it names, and those it should have named.
 4. **Content the rework drops**: something the rework drops without listing it as narrowed, or sends somewhere nothing receives it.
@@ -108,16 +108,16 @@ In a design draft, "the change" means building the design: a hole that forces th
 
 ### Reading a policy statement
 
-When what you review is a policy statement only, with no plan structure (no items, no files), apply the eight checks to the statement and to the working tree. There are no per-item checks, no comparison with an independent design, and no holes from earlier passes to settle.
+When what you review is a policy statement only, with no plan structure (no items, no files), apply the eight checks to the statement and to the working tree. There are no per-item checks, no comparison with an independent design, and no holes from earlier reviews to settle.
 
-### Later passes of the same plan
+### Later reviews of the same plan
 
 - First settle every earlier hole that needs an answer: gone, or raised again under the same name. Do not give the same hole another name.
 - Keep the same severity and the same reach. **Do not raise a suggestion to blocking.** If you move a central hole down to peripheral, say in the first sentence why it no longer meets the central definition.
-- Look only at what changed since the earlier pass and where it ripples; do not search the unchanged parts again for new holes.
-- Notes an earlier pass left about the files it read are claims to check, not evidence for your own finding.
+- Look only at what changed since the earlier review and where it ripples; do not search the unchanged parts again for new holes.
+- Notes an earlier review left about the files it read are claims to check, not evidence for your own finding.
 - For each new blocking hole, say where it came from: missed by the earlier review, introduced by the revision, a restatement of an earlier hole, or the flip side of closing an earlier hole (two things that cannot both hold). A flip side goes to a person with a recommendation of which side to put first.
-- **If even one central blocking hole from an earlier pass remains, the plan does not go on to the fix**: it stops for a person. Peripheral blocking holes and suggestions do not count for stopping.
+- **If even one central blocking hole from an earlier review remains, the plan does not go on to the fix**: it stops for a person. Peripheral blocking holes and suggestions do not count for stopping.
 - A blocking hole whose harm one test can guard may be moved down to peripheral, with that test given; its severity stays blocking.
 - When the back-and-forth stops, recommend continuing only when you can say every open blocking hole and every item still left open can be settled inside the fix; otherwise recommend stopping.
 
@@ -140,7 +140,7 @@ When you review one item and the other items of the plan (closed ones included) 
 
 ## How to report
 
-For each hole: which of the checks it falls under, where it is (a file, a function, a field), its severity (blocking or suggestion), its reach (which central harm, or peripheral), and the reason, starting with the concrete harm; add the smaller alternative, the form that closes it without adding an entrance, the form that does not narrow, or the one test that guards it, where the steps above ask for one. Then give any smaller alternative that closes everything together, and the items that go to a person, each with its source and one recommended answer. On a later pass, also say which earlier holes are gone and where each new blocking hole came from. With no hole, say what you checked; with too little input, say what could not be read.
+For each hole: which of the checks it falls under, where it is (a file, a function, a field), its severity (blocking or suggestion), its reach (which central harm, or peripheral), and the reason, starting with the concrete harm; add the smaller alternative, the form that closes it without adding an entrance, the form that does not narrow, or the one test that guards it, where the steps above ask for one. Then give any smaller alternative that closes everything together, and the items that go to a person, each with its source and one recommended answer. On a later review, also say which earlier holes are gone and where each new blocking hole came from. With no hole, say what you checked; with too little input, say what could not be read.
 
 ## Example
 
