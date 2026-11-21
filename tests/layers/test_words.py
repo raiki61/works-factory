@@ -12,7 +12,6 @@ import inspect
 import io
 import pathlib
 import re
-import sys
 import tokenize
 import unittest
 from unittest import mock
