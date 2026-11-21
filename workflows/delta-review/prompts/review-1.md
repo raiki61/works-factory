@@ -73,7 +73,7 @@ This table only shows which field and value each word of the template correspond
 | (`plan_items` of the material is empty) | n/a | `compliance.verdict`: `{not_applicable}` (whatever the template word) |
 | (a hole in `faces` is not tied to a compliance row) | n/a | `quality.verdict`: `{fail_word}` (whatever the template word) |
 
-When you read a borrowed skill (superpowers), follow the reinterpretation below. This is a direct instruction to the role and it wins over the sentences of the skill. If you start a sub-agent with Agent, write in its prompt to Read this file: {overlay_path}
+{part:borrowed-skills}
 
 {overlay}
 

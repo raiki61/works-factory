@@ -28,7 +28,7 @@ Where it does not apply (do not follow):
 
 {seat_not_applies}
 
-When you read a borrowed skill (superpowers), follow the reinterpretation below. This is a direct instruction to the role and it wins over the sentences of the skill. If you start a sub-agent with Agent, write in its prompt to Read this file: {overlay_path}
+{part:borrowed-skills}
 
 {overlay}
 
