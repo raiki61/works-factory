@@ -240,3 +240,14 @@ class SeedEdits:
         out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
                              env=hermetic.child_env()).stdout
         return out.strip().splitlines()
+
+
+class GroupsPlace:
+    """組を分けた後の置き場（self.place）の助け。unittest.TestCase と組んで継ぐ"""
+
+    def groups_file(self, groups, start_tree, par=True):
+        """組の表 groups.json を置き、組の子の結果の置き場 out_dir を返す"""
+        out_dir = self.place / "groups"
+        write(self.place / "groups.json", {"groups": groups, "count": len(groups), "par": par, "start_tree": start_tree,
+                                           "out_dir": str(out_dir)})
+        return out_dir
