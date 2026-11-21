@@ -200,13 +200,13 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         evs = own_events(key) if not t["kids"] else []
         md = it.get("md") if isinstance(it.get("md"), dict) else None
         about = what(key)
+        skip = next((s for s in skipped if tuple(s["tokens"]) == key), None)
         objs[K(key)] = {
             "name": t["name"], "kind": t["kind"], "kindWord": KIND.get(t["kind"], t["kind"]), "state": look(key),
             "what": first_sentence(about), "whatFull": about, "cost": round(cost(key), 4), "time": fmt_s(secs(key)),
             "runs": len(evs), "kids": [K(k) for k in t["kids"]], "parent": parent, "deps": deps, "wire": is_wire,
             "when": it.get("when") or "", "depsNames": it.get("deps") or [],
-            "skip": next((s.get("cause") for s in skipped if tuple(s["tokens"]) == key), None),
-            "skipAt": next((s.get("time") for s in skipped if tuple(s["tokens"]) == key), None),
+            "skip": (skip or {}).get("cause"), "skipAt": (skip or {}).get("time"),
             "md": md.get("text", "")[:12000] if md else "", "mdPath": md.get("file", "") if md else "",
             "script": it.get("script_file") or "", "doc": it.get("doc") or "",
             "events": [{"loop": e.get("loop"), "status": e["status"], "start": e.get("start"), "end": e.get("end"), "cost": e.get("cost"),
