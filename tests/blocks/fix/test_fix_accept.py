@@ -2043,7 +2043,6 @@ _l_ESC_UNIT = "stats.py median: 偶数の長さの中央値が決まらない"
 _l_ASKED_UNIT = "stats.py clamp: 下限と上限が逆の時の扱い"
 _l_BACK_UNIT = "stats.py mode: 同数の時の選び方"
 _l_ESC = {"key": "q-median", "kind": "stuck", "status": "escalate", "origin": _l_ESC_UNIT, "reason": "推し: 平均を返す"}
-_l_BACK = {**_l_FORK, "key": "q-mode", "origin": _l_BACK_UNIT}
 _l_ALL_UNITS = [_l_FORK_UNIT, _l_OTHER_UNIT, _l_ESC_UNIT, _l_ASKED_UNIT, _l_BACK_UNIT]
 # 元の盤面の値: 写しの規則の直す義務（開いた単位から、人に諮っている fork の出どころ _l_BACK_UNIT を除く）、答えていない問い
 # （fork と escalate の出どころ）、関所で人が答えた問いの出どころ
