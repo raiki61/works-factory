@@ -1480,7 +1480,7 @@ class NameOverlapCase(_LSrc):
     def test_same_type_name_in_other_language_is_not_outside_add_paths(self):
         model, iface = ("api/models.py", "class Notice(BaseModel):\n    title: str\n"), \
             ("web/src/notice.ts", "export interface Notice {\n  title: string\n}\n")
-        for (path, _), (other, text) in ((model, iface), (iface, model)):
+        for (path, _), (other, _) in ((model, iface), (iface, model)):
             with self.subTest(add=path):
                 it = _l_item(allowed_paths=["api/**", "web/**"], files=[_l_frow(path, _l_add("Notice"))])
                 ch = {model[0]: ("", model[1]), iface[0]: ("", iface[1])}
