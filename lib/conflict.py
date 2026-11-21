@@ -471,12 +471,8 @@ def replan_rows(rows, n: int, unit_keys) -> list:
     """申し出の行 rows のうち、裁定が REPLAN で案の項目 n を名指す物（裁定の PLAN_ITEMS が n を持つか、申し出の単位が項目の
     unit_keys に在る。単位は字で比べる）。案の直しの材料（plan の brief・plan-review の事前審査）が読む 1 つの選び"""
     keys = {str(k) for k in unit_keys or []}
-    out = []
-    for c in rows or []:
-        if isinstance(c, dict) and decision(c) == REPLAN and (
-                n in ruled_items(c) or str(c.get("unit_key")) in keys):
-            out.append(c)
-    return out
+    return [c for c in rows or [] if isinstance(c, dict) and decision(c) == REPLAN and (
+            n in ruled_items(c) or str(c.get("unit_key")) in keys)]
 
 
 def held_by_rulings(b) -> dict:
