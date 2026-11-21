@@ -443,7 +443,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return (v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)), False
 
 
-    pack_dir = pack
     for key, t in tree.items():
         o = objs[K(key)]
         it = t["item"]
@@ -451,7 +450,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             continue
         g = graphs[it["target"]]
         folder = Path(g["file"]).parent.name if g.get("file") else it["target"]
-        fixtures = sorted(p_.name for p_ in (pack_dir / folder / "fixtures").glob("*.yaml")) if pack_dir and (pack_dir / folder / "fixtures").is_dir() else []
+        fixtures = sorted(p_.name for p_ in (pack / folder / "fixtures").glob("*.yaml")) if pack and (pack / folder / "fixtures").is_dir() else []
         ai_md = []
         def ai_walk(items):
             for x in items:
