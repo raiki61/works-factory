@@ -28,7 +28,7 @@ import re
 import shutil
 
 import cite
-from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, FLIPS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, MEANS_AND_PRESCRIPTION_ROWS, OPEN, ORIGIN_FLIP,
+from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, MEANS_AND_PRESCRIPTION_ROWS, OPEN, ORIGIN_FLIP,
                       ORIGIN_INTRODUCED, ORIGIN_MISSED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH,
                       SETTLED, STUCK, UNSETTLED, block_faces, central, central_keys, flipped, sentence_diff, sentences, take_flips)
 
