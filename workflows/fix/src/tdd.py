@@ -483,7 +483,7 @@ def _paths(v, name) -> tuple:
     out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
     if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
-    bad = [x for x in out if x.startswith("/") or x == ".." or x.startswith("../")]
+    bad = [x for x in out if x.startswith(("/", "../")) or x == ".."]
     return out, ([f"{name} はリポジトリの根からの相対パス（{bad}）"] if bad else [])
 
 
