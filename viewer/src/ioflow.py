@@ -87,7 +87,7 @@ class Flow:
         if not got:
             return None, False
         if self.at:
-            got = [x for x in got if x[0] and x[0] <= self.at] or []
+            got = [x for x in got if x[0] and x[0] <= self.at]
             if not got:
                 return None, True
         return got[-1][1], True
@@ -253,4 +253,4 @@ class Flow:
         shown = expr
         for t, v in sorted(set((t, json.dumps(v, ensure_ascii=False)) for t, v in used), key=lambda x: -len(x[0])):
             shown = shown.replace(t, f"{t}〔{v}〕")
-        return shown, result, [(t, v) for t, v in used]
+        return shown, result, list(used)
