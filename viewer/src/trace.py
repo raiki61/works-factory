@@ -162,7 +162,7 @@ class _Tree:
         span["attributes"][name] = value
 
     def text(self, mark) -> str:
-        return self.texts.get(mark, "") if mark is not None else ""
+        return self.texts.get(mark, "")   # 字の番号は sha の頭なので None の鍵は無い
 
     def session(self, key: str, parent: dict, said: dict) -> int:
         """会話の往復と道具を parent の下に置き、下請けをその Agent の道具の下に置く（下請けの中の下請けも）。親に結べない下請けの数を返す"""
