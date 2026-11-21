@@ -4,10 +4,12 @@
 
 - TITLES: include の id → 報告の節の見出し
 - rows(received, merge) -> {r1..r4: 判定の行か null}: run が真の時の目の行
-- KINDS: 目の名 → 返す項目の種（r1 は trim・r2 は unfinished）
-- back_items(received, got_rows) -> 修正の段へ返す項目 [{eye, kind, where, text}]: 判定が fix-needed の R1・R2 の findings を目の名と種を付けて順に並べる
-- route_of(got_rows, premise, items) -> (route, route_why): 修正の段へ返すか（ROUTE_FIX）返さないか（ROUTE_STAY）を判定の語から決める。
-  判定の語の意味を知る場所は ok を決める build とここだけで、line は route と findings を読むだけ
+- KINDS: 目の名 → 目が行に種を書かなかった時の返す項目の種の既定（r1 は trim・r2 は unfinished）。種は指摘ごとに目が選ぶ
+- back_items(received, got_rows) -> 返す項目 [{eye, needs, kind, where, text, options?, recommend?}]: 判定が fix-needed の R1・R2 の findings を
+  目の名を付けて順に並べる。needs（fix は直す側で片づく・choose は人が選ぶ）と kind は目が行ごとに書いた物（無ければ fix と KINDS）
+- choose_questions(items) -> 最後の承認ノードの問いの行 [{text}]: needs が choose の行を、選べる道と推しを添えた問いにする（R4 の問いと同じ欄 questions に足す）
+- route_of(got_rows, premise, items) -> (route, route_why): 修正の段へ返すか（ROUTE_FIX）返さないか（ROUTE_STAY）を判定の語と、needs が fix の
+  行の数から決める（choose の行は返さない）。判定の語の意味を知る場所は ok を決める build とここだけで、line は route と findings を読むだけ
 - build(received, *, run, merge, skip_why) -> まとめの出力
 
 received は include の id（structure-after・r1〜r4）→ その block の返りの読む欄（script が ports.picked で選ぶ。返りが無ければ None）。
@@ -25,9 +27,13 @@ NO_OUTPUT = "出力が無い"
 NO_COHERENCE = "まとめた R3 の行（coherence）が無い"
 RAN_R4 = "まま R4 を回した"
 WAITED_BY_R4 = ("r1", "r2")   # R4 が待つ目（E8）。この目が落ちても R4 は回るので、落ちた訳に尾を足す
-KINDS = {"r1": "trim", "r2": "unfinished"}
+KINDS = {"r1": eyekit.TRIM, "r2": eyekit.UNFINISHED}
+NEEDS_FIX, NEEDS_CHOOSE = eyekit.NEEDS
 ROUTE_FIX, ROUTE_STAY = "fix", "stay"
 NOTHING_TO_RETURN = "返す物が無い"
+CHOSEN = "（人が選ぶ物 {n} 件は返さず、最後の承認ノードの問いへ回した）"
+NO_OPTIONS = "選べる道が書かれていない"
+NO_RECOMMEND = "推しが書かれていない"
 
 
 def _question(q):
@@ -66,19 +72,43 @@ def rows(received: dict, merge: bool) -> dict:
 
 
 def back_items(received: dict, got_rows: dict) -> list:
-    """判定が fix-needed の目（seal.FIX_EYES の R1・R2）の出口の findings を、目の名 eye を付けてその順に並べる（形の外の行は載せない）"""
+    """判定が fix-needed の目（seal.FIX_EYES の R1・R2）の出口の findings を、目の名 eye を付けてその順に並べる（形の外の行は載せない）。
+    needs・kind は目が行に書いた語（語の外か無い行は needs を fix、kind を目の既定 KINDS。返しと赤の義務を黙って外さない）。choose の行は
+    選べる道 options と推し recommend を、在れば運ぶ"""
     out = []
     for eye in seal.FIX_EYES:
         if (got_rows.get(eye) or {}).get("status") != seal.FIX_NEEDED:
             continue
         for item in (_got(received, eye) or {}).get("findings") or []:
             if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"]:
-                out.append({"eye": eye, "kind": KINDS[eye], "where": str(item.get("where") or ""), "text": item["text"]})
+                needs = item["needs"] if item.get("needs") in eyekit.NEEDS else NEEDS_FIX
+                row = {"eye": eye, "needs": needs, "kind": item["kind"] if item.get("kind") in eyekit.FIX_KINDS else KINDS[eye],
+                       "where": str(item.get("where") or ""), "text": item["text"]}
+                if needs == NEEDS_CHOOSE:
+                    row.update({key: item[key] for key in ("options", "recommend") if item.get(key)})
+                out.append(row)
+    return out
+
+
+def choose_questions(items: list) -> list:
+    """needs が choose の返す項目を、最後の承認ノードの問いの行 {text} にする（『R2: <where>: <text>（選べる道: 1) …／2) …。推し: …）』。
+    選べる道か推しが無い行も人に回し、無いことを言う）"""
+    out = []
+    for item in items:
+        if item.get("needs") != NEEDS_CHOOSE:
+            continue
+        options = [str(o) for o in item.get("options") or [] if str(o).strip()]
+        ways = "／".join(f"{n}) {o}" for n, o in enumerate(options, 1)) if options else ""
+        where = f"{item['where']}: " if item.get("where") else ""
+        out.append({"text": f"{item['eye'].upper()}: {where}{oneline.one_line(item['text'])}（"
+                            + (f"選べる道: {ways}" if ways else NO_OPTIONS) + "。"
+                            + (f"推し: {oneline.one_line(item['recommend'])}" if item.get("recommend") else NO_RECOMMEND) + "）"})
     return out
 
 
 def route_of(got_rows: dict, premise, items: list) -> tuple[str, str]:
-    """(route, route_why)。返すのは、どの目も redesign-needed でなく、前提の検算の道でなく、返す項目（back_items。fix-needed の目の findings）が 1 つ以上在る時。
+    """(route, route_why)。返すのは、どの目も redesign-needed でなく、前提の検算の道でなく、返す項目（back_items。fix-needed の目の findings）のうち
+    needs が fix の行が 1 つ以上在る時。needs が choose の行は返さない（最後の承認ノードの問いへ回る。choose_questions）。
     ほかは返さず、返さない訳（設計違いの目・前提の検算・確かめられない目・返す物が無い）を route_why に書く"""
     redesign = [eye for eye, row in got_rows.items() if row["status"] == seal.REDESIGN]
     unverifiable = [eye for eye, row in got_rows.items() if row["status"] == seal.UNVERIFIABLE]
@@ -86,9 +116,11 @@ def route_of(got_rows: dict, premise, items: list) -> tuple[str, str]:
         return ROUTE_STAY, "設計違いの目が在る（" + "・".join(eye.upper() for eye in redesign) + "）"
     if premise is not None:
         return ROUTE_STAY, "R2 が前提の検算の道"
-    if items:
-        return ROUTE_FIX, f"返す項目が {len(items)} 件ある"
-    why = NOTHING_TO_RETURN
+    fix = [i for i in items if i.get("needs", NEEDS_FIX) != NEEDS_CHOOSE]
+    chosen = CHOSEN.format(n=len(items) - len(fix)) if len(items) > len(fix) else ""
+    if fix:
+        return ROUTE_FIX, f"返す項目が {len(fix)} 件ある{chosen}"
+    why = NOTHING_TO_RETURN + chosen
     if unverifiable:
         why += "（確かめられない目: " + "・".join(eye.upper() for eye in unverifiable) + "）"
     return ROUTE_STAY, why
@@ -135,7 +167,7 @@ def build(received: dict, *, run: bool, merge: bool, skip_why: str) -> dict:
             sections.append({"title": title, "lines": [str(x) for x in got["report"]]})
     sections.append({"title": OWN_TITLE, "lines": own})
     return {"ok": ok, **got_rows,
-            "questions": [_question(q) for q in (r4 or {}).get("questions") or []] if run else [],
+            "questions": [*(_question(q) for q in (r4 or {}).get("questions") or []), *choose_questions(items)] if run else [],
             "means_questions": [_question(q) for q in (r2 or {}).get("questions") or []] if run else [],
             "passes": list((r4 or {}).get("passes") or []) if run else [],
             "premise_check": premise, "notes": [str(n) for n in (r2 or {}).get("notes") or []] if run else [],

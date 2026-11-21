@@ -891,6 +891,14 @@ class AskFinalCase(unittest.TestCase):
         self.assertIsNone(self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="when_needed")["pushed"])
         self.assertIsNone(self.ask(final_got(self.f), mode="when_needed", unattended=True)["pushed"])
 
+    def test_eye_questions_heading_names_the_choose_findings_too(self):
+        """独立の目の問い（eyes の questions）のセクションは R4 の問いだけでなく、R1・R2 が人が選ぶ（needs が choose）とした指摘も載るので、
+        見出しが R4 だけを名指さない"""
+        got = final_got(self.f, questions=["R4 の問い", "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"])
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        line = next(x for x in text.splitlines() if "人に聞いている問い（記録のまま引く。2 件" in x)
+        self.assertIn("R1・R2 が人が選ぶとした指摘", line)
+
     def test_means_questions_have_their_own_section(self):
         """6.3 の 3 の 1: R2 の行は R4 の問いの節に入れず別の節に並べ、continue / stop が答えになると書く。R2 が redesign-needed の
         run では尾を R2_KEEPS_OUT にする"""

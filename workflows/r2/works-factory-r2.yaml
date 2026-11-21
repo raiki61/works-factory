@@ -77,6 +77,13 @@ nodes:
               text: {type: string}
               # 作り残しの行の在りか（差分に在る物のパス）。ほかの種の行は書かなくてよい
               where: {type: string}
+              # 作り残しの行ごとに、直す側で片づくか（fix）人が選ぶか（choose）と、振る舞いを変えない直し（trim）か作り残し（unfinished）か。choose の行は
+              # 選べる道 options と推し recommend を書く。ほかの種の行は書かなくてよい（決めの字は prompts/r2-compare.md が入れる断片 eye-needs。
+              # 書かない作り残しの行は lib/eyekit.py の back_row が fix・unfinished に倒す）
+              needs: {type: string, enum: [fix, choose]}
+              fix_kind: {type: string, enum: [trim, unfinished]}
+              options: {type: array, items: {type: string, minLength: 1}}
+              recommend: {type: string, minLength: 1}
         request_conflicts:
           type: array
           items:
@@ -225,14 +232,18 @@ nodes:
           items: {type: string}
         findings:
           type: array
-          description: '修正の段へ返す項目。比べの道で判定が fix-needed の時だけ、違いのうち種が作り残しの行を where（無ければ空の字）と 1 行の text にして並べる。ほかは空'
+          description: '修正の段へ返す項目。比べの道で判定が fix-needed の時だけ、違いのうち種が作り残しの行を where（無ければ空の字）と 1 行の text にして、役が行ごとに書いた needs（fix・choose。無ければ fix）と kind（trim・unfinished。無ければ unfinished）を付けて並べる（choose の行は選べる道 options と推し recommend も）。ほかは空'
           items:
             type: object
             additionalProperties: false
-            required: [where, text]
+            required: [where, text, needs, kind]
             properties:
               where: {type: string}
               text: {type: string}
+              needs: {type: string, enum: [fix, choose]}
+              kind: {type: string, enum: [trim, unfinished]}
+              options: {type: array, items: {type: string}}
+              recommend: {type: string}
         report:
           type: array
           items: {type: string}
