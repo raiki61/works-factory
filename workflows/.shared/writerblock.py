@@ -1,7 +1,8 @@
 """書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/design/fix.md の 24.4）。
 
-各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と `from src import render`・
-`writerblock.prep(render)`（writer_save.py は `writerblock.save()`、writer_out.py は `writerblock.out()`）だけで、6 つの block で 1 字も違わない。型の名は渡さない:
+各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と、
+writer_prep.py は `from src import render`・`writerblock.prep(render)`、writer_save.py は `writerblock.save()`、writer_out.py は
+`writerblock.out()` だけで、6 つの block で 1 字も違わない。型の名は渡さない:
 呼んだ script の在る block のフォルダの名 `weapon-<w>`（ports.caller_block）から引く。型ごとに違う物は block の src/render.py の表だけ。
 
 - prep(table) -> {prompt}: 入力 order・slots を ports.json で読み、order.weapon が表の ORDER_WEAPON と違えば落ち（型の名と block の
