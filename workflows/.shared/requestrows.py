@@ -2,7 +2,7 @@
 
 依頼は、行の配列か、それを findings の欄に持つ工場の依頼のファイルの形（`.shared/schemas/request.schema.json`。行は閉じた形で、知らない欄を拒む）。形を照らす前に、
 lib/carry.py の parts で容器を読む: 知らない最上位の鍵・前の run の報告が運んだ所見の下書き（draft・source の欄の行）・pr と issue の
-番号の形・answers・prior_failures・constraints の形を、名指して拒む（今の worldblk._findings が carry.parts で拒んでいた物）。
+番号の形・answers・prior_failures・constraints の形を、名指して拒む（元の worldblk._findings が carry.parts で拒んでいた物）。
 下書きの行は、行の配列の形でも拒む（carry.parts は配列の形では見ない）。
 
 - parts(raw) -> dict: carry.parts の返り（findings・pr・issue・answers・prior_failures・constraints）。読めなければ ValueError
