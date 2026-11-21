@@ -7,8 +7,8 @@
 - run(db, run_id) -> 選んだ run と子の run の記録（結末 outcome・結果の語 result_word・ノードごとの出来事・道具の呼び出し・費用・出力・知らない行の数え。
   ページが読む run の入力 inputs・ノードの状態ごとの数 node_counts・置き場の根 output_root も）
 - pick(db, wanted) -> run の id（wanted が空なら一番新しい親の run。頭の字でもよい）
-- seconds(started, completed)・length(event)・when(text)・try_when(text) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
-  ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）。段の集計と会話の読みも使う
+- seconds(started, completed)・length(event)・when(text)・try_when(text)・stamp(at) -> 時刻の差の秒・出来事の長さ・時刻の読み（読めなければ
+  ValueError か None。字でない時刻も try_when は None。DB の秒までの時刻は UTC として読む）・時刻のログの形の字。段の集計と会話の読みも使う
 - plain(value) -> 字か None の値をそのまま返す。ほかの形は TypeError（読む側が欄の形が違う行に数える）。会話の読みも使う
 """
 import contextlib
@@ -335,7 +335,7 @@ def _end(status: str, end: str | None, live: bool = False) -> str | None:
     """DB の時刻をログの形にした物（終わった run の終わりの出来事の時刻は、出来事を閉じる時刻になる）。走り中の run（live が偽の時）と
     時刻の無い run と、読めない時刻は None"""
     at = try_when(end) if live or status not in LIVE else None
-    return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z" if at else None
+    return stamp(at) if at else None
 
 
 def _close(start: str, ends: list[str], restarts: list[str]) -> str:
@@ -763,6 +763,11 @@ def when(text: str) -> datetime:
     """時刻の読み。ログの時刻（末尾 Z）と DB の秒までの時刻（datetime('now') の UTC で、時差を持たない）を同じ UTC で読む"""
     got = datetime.fromisoformat(text.replace("Z", "+00:00"))
     return got if got.tzinfo else got.replace(tzinfo=timezone.utc)
+
+
+def stamp(at: datetime) -> str:
+    """時刻をログの形（ミリ秒まで、末尾 Z）の字にする"""
+    return at.strftime("%Y-%m-%dT%H:%M:%S.") + f"{at.microsecond // 1000:03d}Z"
 
 
 def try_when(text) -> datetime | None:

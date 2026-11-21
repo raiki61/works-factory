@@ -346,8 +346,7 @@ def _last(events: list):
 def _plus(start: str, seconds) -> str | None:
     if seconds is None:
         return None
-    end = runread.when(start) + timedelta(seconds=seconds)
-    return end.strftime("%Y-%m-%dT%H:%M:%S.") + f"{end.microsecond // 1000:03d}Z"
+    return runread.stamp(runread.when(start) + timedelta(seconds=seconds))
 
 
 def _hash(text: str, size: int) -> str:
