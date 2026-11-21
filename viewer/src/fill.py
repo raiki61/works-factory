@@ -123,8 +123,7 @@ def values(md_text, md_file, pack: Path, sent: str):
     st = {"pos": 0, "pending": None, "out": []}
     try:
         walk(tokens(text), ns, st, None)
-    except Miss as m:
-        values.last = str(m)
+    except Miss:
         return None
     if st["pending"] is not None:
         st["out"].append((st["pending"], st["pos"], len(ns.rstrip())))
