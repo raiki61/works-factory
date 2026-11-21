@@ -119,17 +119,17 @@ def ask_rows(asks: list, counts: dict) -> list:
     括弧の中に件数を添える（`題（種、n 件）`）。件数は、その種の行が全部その題ならその種の件数 counts（tallied に在る種は行の数でなくその件数）、
     そうでなければその題の行の数。題の無い物（古い記録・題を返さなかった役）は今の種の名に戻し、種ごとにまとめて `種`（2 件以上は `（n 件）`）。
     黙って行を落とさない"""
-    titles = [(ask_label(kind), oneline.one_line(title)) for kind, title in asks]
+    titles = [(ask_label(kind), oneline.one_line(said)) for kind, said in asks]
     rows, seen = [], set()
-    for label, title in titles:
-        if title:
-            if (label, title) in seen:
+    for label, said in titles:
+        if said:
+            if (label, said) in seen:
                 continue
-            seen.add((label, title))
+            seen.add((label, said))
             of_kind = [t for k, t in titles if k == label]
-            n = counts[label] if all(t == title for t in of_kind) else of_kind.count(title)
+            n = counts[label] if all(t == said for t in of_kind) else of_kind.count(said)
             shown = head.OneLine(f"{label}、{n} 件") if n > 1 else head.OneLine(label)
-            rows.append(head.render(head.Line.ASK_TITLED, head.TitledSlot(head.OneLine(title), shown)))
+            rows.append(head.render(head.Line.ASK_TITLED, head.TitledSlot(head.OneLine(said), shown)))
         elif label not in seen:
             seen.add(label)
             n = counts[label] - sum(1 for k, t in titles if k == label and t)
