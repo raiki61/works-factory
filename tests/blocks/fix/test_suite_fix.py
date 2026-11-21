@@ -269,10 +269,7 @@ class BeforeCasesCase(unittest.TestCase):
 
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（このクラスに書いた試験だけ）"""
-    suite = unittest.TestSuite(SuiteFixCase(name) for name in loader.getTestCaseNames(SuiteFixCase) if name in SuiteFixCase.__dict__)
-    suite.addTests(loader.loadTestsFromTestCase(BrokenBeforeCase))
-    suite.addTests(loader.loadTestsFromTestCase(BeforeCasesCase))
-    return suite
+    return tg.own_tests(loader, globals(), SuiteFixCase)
 
 
 if __name__ == "__main__":

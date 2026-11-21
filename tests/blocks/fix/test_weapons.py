@@ -1460,14 +1460,7 @@ class UnsatisfiedReachesTheGroupRowCase(unittest.TestCase):
 
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（AcceptWiringCase はこのクラスに書いた試験だけ）"""
-    suite = unittest.TestSuite()
-    for case in [v for v in globals().values() if isinstance(v, type) and issubclass(v, unittest.TestCase)
-                 and v.__module__ == __name__]:
-        names = loader.getTestCaseNames(case)
-        if case is AcceptWiringCase:
-            names = [n for n in names if n in case.__dict__]
-        suite.addTests(case(n) for n in names)
-    return suite
+    return tg.own_tests(loader, globals(), AcceptWiringCase)
 
 
 if __name__ == "__main__":

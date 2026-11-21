@@ -319,11 +319,7 @@ class PinConfigCase(unittest.TestCase):
 
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（このファイルに書いた試験だけ）"""
-    suite = unittest.TestSuite(NoSuiteGroupCase(name) for name in loader.getTestCaseNames(NoSuiteGroupCase)
-                               if name in NoSuiteGroupCase.__dict__)
-    for case in (AcceptStopCase, PinConfigCase):
-        suite.addTests(loader.loadTestsFromTestCase(case))
-    return suite
+    return tg.own_tests(loader, globals(), NoSuiteGroupCase)
 
 
 if __name__ == "__main__":

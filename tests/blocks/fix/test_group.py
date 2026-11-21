@@ -61,6 +61,19 @@ def _change(unit, files, **extra):
                         "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
 
 
+def own_tests(loader, namespace: dict, *borrowers) -> unittest.TestSuite:
+    """load_tests の中身: モジュール（namespace はその globals()）で書いた TestCase を全部回し、GroupChildScriptsCase を継いで
+    道具立てを借りた case（borrowers）はそのクラスに書いた試験だけを回す（借りた元の試験を回し直さない）"""
+    suite = unittest.TestSuite()
+    for case in [v for v in namespace.values() if isinstance(v, type) and issubclass(v, unittest.TestCase)
+                 and v.__module__ == namespace["__name__"]]:
+        names = loader.getTestCaseNames(case)
+        if case in borrowers:
+            names = [n for n in names if n in case.__dict__]
+        suite.addTests(case(n) for n in names)
+    return suite
+
+
 class GroupChildScriptsCase(unittest.TestCase):
     """形 group の子の run の scripts を一時の対象のリポジトリ（tests/e2e/target-seed/ の写し）と、親の place・子の place（どちらも
     一時の $ARTIFACTS_DIR。include の道の無い単独の run なので place は $ARTIFACTS_DIR そのもの）で子のプロセスで起こす"""
