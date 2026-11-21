@@ -81,5 +81,5 @@ The request named no means of solving, so `request_conflicts` is an empty array.
 
 {shared:plain-ask}
 
-Write `reason` and the `text`, `options` and `recommend` of each difference in {lang}. Keep keys, enum values (the `kind` values 構造, 表現 and 作り残し, and the `needs` and `fix_kind` values included), identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
+Write `reason` and the `text`, `options` and `recommend` of each row of `differences` in {lang}. Keep keys, enum values (the `kind` values 構造, 表現 and 作り残し, and the `needs` and `fix_kind` values included), identifiers, paths, commands, and error messages as they are (keys are matched across rounds, so do not translate them).
 Return only JSON that matches this node's output schema (JSON Schema).
