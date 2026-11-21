@@ -217,7 +217,7 @@ nodes:
         after_ok: {type: boolean}
         findings:
           type: array
-          description: '返す項目（判定が fix-needed の R1・R2 の出口の findings に目の名を付けて並べた物）。needs は指摘ごとに目が判じた、直す側で片づくか（fix。修正の段へ返す）人が選ぶか（choose。返さずに選べる道と推しを添えて questions に足し、最後の承認ノードの問いへ回す）。kind も指摘ごとに目が選ぶ種（trim〔振る舞いを変えない直し〕・unfinished〔作り残し〕）'
+          description: '返す項目（R1・R2 の出口の findings に目の名を付けて並べた物。needs が fix の行は判定が fix-needed の目の物だけ、choose の行は目の判定に依らず載せる）。needs は指摘ごとに目が判じた、直す側で片づくか（fix。修正の段へ返す）人が選ぶか（choose。返さずに選べる道と推しを添えて questions に足し、最後の承認ノードの問いへ回す）。kind も指摘ごとに目が選ぶ種（trim〔振る舞いを変えない直し〕・unfinished〔作り残し〕）'
           items:
             type: object
             additionalProperties: false

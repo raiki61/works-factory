@@ -126,6 +126,20 @@ class CompareRoadCase(_RepoCase):
         out = next(n for n in doc["nodes"] if n["id"] == "finish")["output_format"]["properties"]["findings"]["items"]
         self.assertTrue({"needs", "kind"} <= set(out["required"]))
 
+    def test_choose_rows_reach_findings_whatever_the_verdict(self):
+        """判定が fix-needed でない時（pass・redesign-needed・unverifiable）も、作り残しの行のうち needs が choose の行は findings に載る
+        （人が選ぶ指摘を最後の承認ノードの問いへ届ける）。needs が fix の行は fix-needed の時だけ載る"""
+        steps = kit.load("r2", "steps")
+        unfinished = steps.UNFINISHED_KIND
+        compare = {"differences": [
+            {"kind": "構造", "text": "継ぎ目が違う"},
+            {"kind": unfinished, "text": "入口が足りない", "where": "a.py:1", "needs": "fix", "fix_kind": "unfinished"},
+            {"kind": unfinished, "text": "optgroup の色", "where": "b.css:2", "needs": "choose", "fix_kind": "unfinished",
+             "options": ["当てる", "当てない"], "recommend": "当てない"}]}
+        want = [{"where": "b.css:2", "text": "optgroup の色", "needs": "choose", "kind": "unfinished", "options": ["当てる", "当てない"], "recommend": "当てない"}]
+        for status in ("pass", "redesign-needed", "unverifiable"):
+            self.assertEqual(steps.findings({"status": status, "reason": "x"}, compare), want, status)
+
     def test_settle_table_covers_every_status_and_kind(self):
         """settle の表（上から順）を、返答の語と違いの種の組ごとに照らす。作り残しだけの返答は fix-needed で、reason の尾に行の where と
         text が付く。構造の行が 1 つでも在れば、返答の語が pass でも redesign-needed（安全の側に倒す）。表は steps.settle を直に、出口の

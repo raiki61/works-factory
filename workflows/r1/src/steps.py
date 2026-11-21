@@ -161,13 +161,14 @@ def save(out, name: str, reply: str) -> dict:
 
 # ---------------------------------------------------------------- 出口
 def findings(row: dict, minimality) -> list:
-    """修正の段へ返す項目（出口の欄 findings）。判定が fix-needed の時だけ、返答の deletions の行を eyekit.back_row の行 {where, text, needs, kind, …}
-    にする（needs・kind は行ごとに役が書いた needs・fix_kind。書いていなければ fix・trim）。deletions が空の fix-needed は、名指しの無い項目を作らず
-    判定の reason の 1 行を needs fix・kind trim で 1 つ載せる"""
-    if row["status"] != seal.FIX_NEEDED:
-        return []
+    """返す項目（出口の欄 findings）。返答の deletions の行を eyekit.back_row の行 {where, text, needs, kind, …} にする（needs・kind は行ごとに
+    役が書いた needs・fix_kind。書いていなければ fix・trim）。判定が fix-needed の時は全部の行、ほかの判定の時は needs が choose の行だけ
+    （人が選ぶ指摘は判定に依らず最後の承認ノードの問いへ届ける）。deletions が空の fix-needed は、名指しの無い項目を作らず判定の reason の
+    1 行を needs fix・kind trim で 1 つ載せる"""
     deletions = minimality.get("deletions") if isinstance(minimality, dict) else None
     rows = [eyekit.back_row(d.get("where"), d.get("why"), d, eyekit.TRIM) for d in deletions or [] if isinstance(d, dict)]
+    if row["status"] != seal.FIX_NEEDED:
+        return [r for r in rows if r["needs"] == eyekit.NEEDS_CHOOSE]
     return rows or [eyekit.back_row("", row["reason"], None, eyekit.TRIM)]
 
 

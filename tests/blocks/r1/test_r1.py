@@ -306,6 +306,19 @@ class VerdictCase(_RepoCase):
         out = next(n for n in DOC["nodes"] if n["id"] == "finish")["output_format"]["properties"]["findings"]["items"]
         self.assertTrue({"needs", "kind"} <= set(out["required"]))
 
+    def test_choose_deletions_reach_findings_whatever_the_verdict(self):
+        """判定が fix-needed でない時（pass・redesign-needed）も、needs が choose の deletions の行は findings に載る（人が選ぶ指摘を
+        最後の承認ノードの問いへ届ける。消える道を作らない）。needs が fix の行は fix-needed の時だけ載る"""
+        pick = {"where": "c.css:2", "why": "色を当てるか", "needs": "choose", "fix_kind": "trim", "options": ["当てる", "当てない"], "recommend": "当てない"}
+        trim = {"where": "b.py:9", "why": "使い手が無い", "needs": "fix", "fix_kind": "trim"}
+        want = [{"where": "c.css:2", "text": "色を当てるか", "needs": "choose", "kind": "trim", "options": ["当てる", "当てない"], "recommend": "当てない"}]
+        for reply in ({**PASS, "deletions": [trim, pick]},
+                      {**PASS, "status": "redesign-needed", "reason": "組み直す", "redesign_points": ["入口"], "deletions": [trim, pick]}):
+            with self.subTest(status=reply["status"]):
+                done = self.ran(reply)
+                self.assertNotEqual(done["verdict"]["status"], "fix-needed")
+                self.assertEqual(done["findings"], want)
+
     def test_fallback_has_every_field(self):
         """出口が落ちた形（fallback）も、入口が落ちた形も、finish の output_format の必須の欄を全部持つ"""
         required = next(n for n in DOC["nodes"] if n["id"] == "finish")["output_format"]["required"]
