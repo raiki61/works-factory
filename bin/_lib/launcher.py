@@ -649,16 +649,14 @@ def run_home(user: Mapping[str, str], target: Path) -> Path:
     """Archon の DB と隔離した置き場の根。対象ごとに 1 つで起動をまたいで同じ（run・respond・resume が同じ DB を見る）"""
     chosen = user.get(HOME_ENV)
     if chosen:
-        refuse_relative(HOME_ENV, chosen)
-        refuse_sandbox_writable(HOME_ENV, chosen)
-        refuse_in_factory(HOME_ENV, chosen)
-        return Path(chosen)
-    home = factory_state(user) / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
-    what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
+        home, what = chosen, HOME_ENV   # 止まる訳には受けた字のまま出す
+    else:
+        home = factory_state(user) / "targets" / hashlib.sha256(str(target).encode()).hexdigest()[:8]
+        what = "XDG_STATE_HOME" if user.get("XDG_STATE_HOME") else "HOME"
     refuse_relative(what, home)
     refuse_sandbox_writable(what, home)
     refuse_in_factory(what, home)
-    return home
+    return Path(home)
 
 
 def refuse_relative(what: str, path) -> None:
