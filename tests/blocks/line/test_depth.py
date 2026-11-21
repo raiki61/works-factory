@@ -16,7 +16,7 @@ import unittest
 
 from tests.blocks import kit
 
-depth = kit.load("line", "tiers")
+depth = kit.load("line", "tiers")   # 元 latedepth.py の signals も src/tiers.py に写した
 import headdepth  # noqa: E402  （KEEP の lib。kit.load が lib/ を sys.path に足す）
 
 UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
