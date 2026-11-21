@@ -1,6 +1,6 @@
 ---
 name: write-test-runner
-description: Writes a small test runner script that runs the given test command unchanged and writes each outcome as JUnit XML, keeping the exit code and never synthesizing a report. Use when a project needs per-test results in JUnit XML and has no test runner script yet. Not for repairing an existing test runner that breaks tests.
+description: Writes a small test runner script that runs the given test command unchanged and writes each outcome as JUnit XML, keeping the exit code and never synthesizing a report. Use when a project needs per-test results in JUnit XML. Not for repairing an existing test runner that breaks tests.
 ---
 
 # Write a test runner that reports every outcome

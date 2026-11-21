@@ -24,7 +24,7 @@ Two checks are done independently of each other: (1) consistency across the repo
 - **Read only.** Do not change the working tree. Read a fixed version, not one that may move while you read; if you read the working tree, make sure nobody changes it meanwhile, so the line numbers you write are the real ones.
 - **Build the set from the diff, not from earlier findings.** List every place, one by one.
 - **One use of the mechanism in a file is not "no bypass".** Judge each place (especially user-facing string literals) on whether it goes through the mechanism, not on whether the file imports it.
-- **Do not raise a home you cannot point to.** What you cannot name stays a pass; say so.
+- **Do not raise a home you cannot point to.** What you cannot name is not raised as a finding; say so.
 
 ## Steps
 

@@ -20,7 +20,7 @@ description: Writes a fix that closes the root a diagnosis named rather than its
 
 ## Steps
 
-Read "How to fix" and "When to stop instead of fixing" for every fix; read "Following a pre-reviewed plan", "When the work is split across helpers", and "When a fix comes back with problems" only in those situations.
+Read "How to fix" and "When to stop instead of fixing" for every fix; read "Following a plan reviewed before the fix", "When the work is split across helpers", and "When a fix comes back with problems" only in those situations.
 
 ### How to fix
 
@@ -29,7 +29,7 @@ Read "How to fix" and "When to stop instead of fixing" for every fix; read "Foll
 3. **Close dead paths; do not annotate them.** An added entry point or setting that nothing calls or reaches is fixed by connecting the caller or removing what is unreachable, not by a note.
 4. **Remove what became unneeded, in the same change.** After editing, scan your own diff for parameters, variables, functions, exports, imports, and types that lost their last caller or reference because of what you removed or changed, and remove them. A parameter or option that every caller now fills with the same value is folded into the definition and removed. This does not reach the public API: that no caller remains in the repository does not show that none remains outside it. Do not fold a parameter when folding it would force a change to a test you may not change; leave it.
 5. **Rewrite every sentence that describes the old behavior.** When you change behavior, search notes, docstrings, test names, rejection messages, and documents for sentences that still describe the behavior before the change, and fix or remove them. Keep the searches you ran as evidence. Do not add a note where a test name, a message, or a name can say it; a note says only why.
-6. **Look before you add a mechanism.** For a fix that adds a mechanism or changes a shape, first search outside the target (the web and other outside services) for primary sources (standards, well-known open-source projects, official documentation) on how the world solves the same problem, and record the problem, the source you actually opened, and whether you adopt it, adapt it, find it does not apply, or found nothing (then say what you searched). If you build your own, say with sources why the world's solution does not exist or cannot be used.
+6. **Look before you add a mechanism.** For a fix that adds a mechanism or changes a shape, first search outside the target (the web and other outside services) for primary sources (standards, well-known open-source projects, official documentation) on how the world solves the same problem, and record the problem, the source you actually opened, and whether you adopt it, adapt it, find it does not apply, or found nothing (then say what you searched). A precedent the diagnosis already recorded for the same defect may be taken as it is; say that you took it. If you build your own, say with sources why the world's solution does not exist or cannot be used.
 7. **When several fixes touch the same file**, compare them per place they touch: does one make the other unneeded (then keep only one of the two: the smaller change); does the order of applying them change the result; is there a state that arises only when they are combined. Record what you checked and what arises.
 
 ### When to stop instead of fixing
@@ -39,9 +39,9 @@ Read "How to fix" and "When to stop instead of fixing" for every fix; read "Foll
 - **Disagreeing with how the diagnosis cut the problem is not a reason to re-cut it yourself.** Record the objection to how it grouped the defects, read the root, or decided what to do with each, so that a redone diagnosis reads it, and fix as the diagnosis says this time. Questions for a person do not go in that objection.
 - **Root or symptom, said out loud.** For each fix, say whether it closed the root the diagnosis named or a symptom; for a symptom, say why you stop there now.
 
-### Following a pre-reviewed plan
+### Following a plan reviewed before the fix
 
-Answer every hole and every smaller alternative the pre-review raised: taken in, and how; or left, and why (for a false positive, where in the real code it is wrong). A blocking hole you answer as left does not go away; expect the next review to raise it again as blocking. Saying "hand it to a person" inside an answer does not reach the person; put it where the person reads what they must decide.
+Answer every hole and every smaller alternative the review of the plan raised: taken in, and how; or left, and why (for a false positive, where in the real code it is wrong). A blocking hole you answer as left does not go away; expect the next review to raise it again as blocking. Saying "hand it to a person" inside an answer does not reach the person; put it where the person reads what they must decide.
 
 ### When the work is split across helpers
 
@@ -61,7 +61,7 @@ Answer every hole and every smaller alternative the pre-review raised: taken in,
 - The final diff holds no stand-in for the finished fix and no words of the fixing process, and something was actually changed.
 - Every sentence that described the old behavior is rewritten or removed, and what lost its last caller is removed.
 - Each fix is labelled root or symptom; each symptom says why you stop there.
-- When there was a pre-review, every hole and alternative it raised is answered.
+- When the plan was reviewed before the fix, every hole and alternative it raised is answered.
 - The working tree's diff was checked by you, not taken from a helper's report.
 
 ## How to report

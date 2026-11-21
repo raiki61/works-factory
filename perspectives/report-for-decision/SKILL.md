@@ -34,7 +34,7 @@ Read "The head", "The decisions section", and "The body after the head" when wri
 
 ### The decisions section
 
-Gather every decision in one place right after the summary. Do not scatter questions in later sections; held or escalated items of work that stopped without finishing go here too.
+Gather every decision in one place right after the summary. Do not scatter questions in later sections; items of work that stopped without finishing, whether set aside or sent up to a person, go here too.
 
 - Separate what is urgent from what can wait, and give the counts first.
 - **One point, one item.** When the same point arrives from several steps (a capability the version before the change had and now lacks, a conflict with a rule a person recorded, a departure from standard practice), make it one item and name the other steps inside it.
