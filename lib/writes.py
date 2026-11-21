@@ -70,7 +70,7 @@ def shape_problems(items) -> list:
 
 def _rel(p: str):
     n = posixpath.normpath(p.strip())
-    return None if n.startswith("/") or n == ".." or n.startswith("../") else n
+    return None if n == ".." or n.startswith(("/", "../")) else n
 
 
 def changed(repo, rev: str) -> list:
