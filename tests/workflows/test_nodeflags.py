@@ -17,6 +17,7 @@ import unittest
 import yaml
 
 from tests.archon import ROOT, WORKFLOWS
+from tests.bin.stepnames import walk
 
 DOCS = {p.parent.name: yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(WORKFLOWS.glob("*/works-factory-*.yaml"))}
 # tests/e2e の工程も本物の役に output_format を渡す（tests/e2e/test_loop_prev_real.py は WORKS_FACTORY_REAL_RUN=1 の時だけ回り、CI は回さない）
@@ -68,12 +69,6 @@ def unknown_keywords(schema, at: str) -> list:
 
 def output_formats(doc) -> dict:
     return {n["id"]: n["output_format"] for n in walk(doc["nodes"]) if "output_format" in n}
-
-
-def walk(nodes):
-    for n in nodes:
-        yield n
-        yield from walk((n.get("loop_group") or {}).get("nodes") or [])
 
 
 def guarded_nodes(doc) -> list:

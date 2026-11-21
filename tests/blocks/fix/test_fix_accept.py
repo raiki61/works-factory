@@ -116,22 +116,11 @@ _l_FIELDS = [{"unit_keys": [_l_MEAN], "route": "tdd", "route_why": "", "tests": 
            "refactor": {"declared": False, "why": ""}}]
 _l_MEAN_FIX = {"return sum(xs) / (len(xs) - 1)": "return sum(xs) / len(xs)"}
 _l_THREE_EDIT = ("self.assertEqual(mean([1, 2, 3]), 2)", "self.assertEqual(mean([1, 2, 3]), 2.0)")   # 既存のテストの期待の書き換え
-_l_HALVE = {"def clamp(x, lo, hi):": "def halve(x):\n    return x / 2\n\n\ndef clamp(x, lo, hi):"}   # 今の木で足す関数
 _l_TWO_ID = "test_two.py::TestTwo::test_halve"
 _l_TWO_FILE = ("import unittest\n\nfrom stats import halve\n\n\nclass TestTwo(unittest.TestCase):\n    def test_halve(self):\n"
             "        self.assertEqual(halve(4), 2)\n")   # base では読み込みで落ちる（halve が無い）新しいテストのファイル
-_l_NO_JUNIT = "import sys\nsys.exit(0)\n"   # JUnit を書かない実行器
 _l_REWRITE = {"id": _l_THREE_ID, "behavior": "3 つの値の平均の期待", "old": "期待は 2", "new": "期待を 2.0 に書き換える",
            "limit": "test_stats.py:8"}
-
-
-def _l_asked_row(paths=(), new_tests=(), decision="deny", granted_new_tests=(), **over):
-    """範囲の相談の確かめの行（conflict.ASKED_OP。受け付けが見つけたはみ出しを聞いた物。origin accept）"""
-    return {"id": 1, "at": "2026-10-10T00:00:00+09:00", "turn": 2, "pass": "first", "round": 1, "node": "plan-answer", "item": "1",
-            "unit_keys": [_l_MEAN], "paths": list(paths), "tests": [], "new_tests": list(new_tests), "why": "案の外のはみ出しを聞いた",
-            "status": "answered", "decision": decision, "granted_paths": [], "granted_tests": [],
-            "granted_new_tests": list(granted_new_tests), "spec": "", "reason": "範囲の中で直せる", "notes": [], "out_of_scope": [],
-            "overrode_out_of_scope": [], "session": None, "origin": "accept", **over}
 
 
 def _l_direct_fields(**over):
@@ -409,6 +398,55 @@ class TestLoopRedTree(FixGatesCase):
             self.assertEqual(self.problems(attempt=1), [])
             self.assertEqual(self.problems(attempt=2), [])
         self.assertEqual(calls.count(False), 2, "赤の木と base の木は 1 回ずつだけ走らせる")
+
+
+class TestNamedRowsTemplate(_LSrc):
+    def test_every_expanded_row_must_be_green(self):
+        """受け入れのテストを雛形の名で名指し、実行器が値ごとに展開した名で出した時、今の木で緑と見るのは展開した行の全部が通る時だけ。
+        1 つ目の行が通っても 2 つ目が赤なら行にする（名指しの最初の 1 行だけを見ると、雛形の読みが前は閉じていた確かめを開く）"""
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        now = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"},
+               {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure"}]
+        facts = {named: {"where": "base", "red": None, "base": None, "probs": []}}
+        rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], now, facts)
+        self.assertEqual([(r["id"], r["detail"]) for r in rows if r["detail"].startswith("今の木")],
+                         [(named, "今の木で failure（受け入れのテストが緑でない）")])
+        green = [{**c, "outcome": "passed"} for c in now]
+        rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], green, facts)
+        self.assertEqual([r for r in rows if r["detail"].startswith("今の木")], [])
+
+    def test_named_facts_reads_base_cache_rows_and_old_single_row(self):
+        """base の木の結末の控え（gates.named_facts の cache）は、名指しに当たる行の並び。雛形の名は展開した行の全部を控えから読み、
+        base の欄は一番悪い行、probs は全部の行で照らす。1 行だけを控えた前の形（dict）は 1 行の並びとして読む"""
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        dark = {"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"}
+        light = {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure", "fail_message": "m"}
+        with tempfile.TemporaryDirectory() as d:
+            cache, root = pathlib.Path(d) / "cache.json", pathlib.Path(d)
+            with mock.patch.object(fixgates, "_red_tree_probs", return_value=({}, [])), \
+                    mock.patch.object(fixgates, "_test_files", return_value=[]), \
+                    mock.patch.object(fixgates, "_base_keys", return_value={named: "k"}), \
+                    mock.patch.object(fixgates, "_base_run", side_effect=AssertionError("控えに在るので走らせない")):
+                for label, kept, worst, red in (("行の並び", [dark, light], light, False), ("前の 1 行の形", light, light, True)):
+                    with self.subTest(label):
+                        cache.write_text(json.dumps({"k": kept}), encoding="utf-8")
+                        out, why = fixgates.named_facts(root, "HEAD", "run", [named], root / "w", cache, None, "t")
+                        self.assertEqual((why, out[named]["base"]), ([], worst))
+                        self.assertEqual(out[named]["probs"] == [], red, out[named]["probs"])
+
+    def test_red_rerun_reads_every_expanded_row(self):
+        """赤の木の確かめ直し（common.red_rerun。元の結末 baseline が None の事後の関門の道）も、雛形の名の名指しは展開した行の全部を
+        名指しの行として red_check へ渡す。1 つ目の行が failure でも 2 つ目が通るなら赤と認めない（最初の 1 行だけを渡すと、2 つ目の
+        「もう通る」を見落とす）"""
+        named = "src/select.test.ts::%s で選択肢の面が不透明"
+        ran = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "failure", "fail_message": "m"},
+               {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "passed"}]
+        u = {"tests": [named], "test_files": [], "test_hashes": {}, "red_tree": "t"}
+        with mock.patch.object(common, "snapshot", return_value="s"), mock.patch.object(common, "restore"), \
+                mock.patch.object(common, "run_suite", return_value=(ran, 1, "")):
+            probs, why = common.red_rerun("tree", u, "exe", pathlib.Path("w"), 1)
+        self.assertEqual(why, [])
+        self.assertTrue(any("light で選択肢の面が不透明" in p for p in probs), probs)
 
 
 class RedGreenKeptCase(FixGatesCase):
@@ -2045,7 +2083,6 @@ _l_ESC_UNIT = "stats.py median: 偶数の長さの中央値が決まらない"
 _l_ASKED_UNIT = "stats.py clamp: 下限と上限が逆の時の扱い"
 _l_BACK_UNIT = "stats.py mode: 同数の時の選び方"
 _l_ESC = {"key": "q-median", "kind": "stuck", "status": "escalate", "origin": _l_ESC_UNIT, "reason": "推し: 平均を返す"}
-_l_BACK = {**_l_FORK, "key": "q-mode", "origin": _l_BACK_UNIT}
 _l_ALL_UNITS = [_l_FORK_UNIT, _l_OTHER_UNIT, _l_ESC_UNIT, _l_ASKED_UNIT, _l_BACK_UNIT]
 # 元の盤面の値: 写しの規則の直す義務（開いた単位から、人に諮っている fork の出どころ _l_BACK_UNIT を除く）、答えていない問い
 # （fork と escalate の出どころ）、関所で人が答えた問いの出どころ

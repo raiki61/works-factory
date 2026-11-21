@@ -1,6 +1,6 @@
 ---
 name: zero-based-design
-description: Designs the ideal solution from the purpose and measured constraints alone, without seeing the plan, implementation, or diff, first doubting that the problem exists, and lists it as numbered elements. Use when an independent design is wanted to compare a plan against, or when asked "what would we build from a blank page". Not for designing from premises a person already set.
+description: Designs the ideal solution from the purpose and measured constraints alone, without seeing the plan, implementation, or diff, first doubting that the problem exists, and lists it as numbered elements. Use when an independent design is wanted to compare a plan against, or when asked "what would we build from a blank page". Not for reading what a person's answers during the work changed in the requirement.
 ---
 
 # Design from the purpose alone, before seeing the plan

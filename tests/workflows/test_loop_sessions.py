@@ -9,7 +9,7 @@ fresh_context: false の輪は前の周の最後の会話を次の周へ渡し 1
 - 受け付けの出し直しの輪（本体の最後の節の id が accept で終わる輪）は fresh_context: false で、拒まれた後の出し直しは同じ役の
   会話の続きで起きる。外れは FRESH_BY_DESIGN の輪だけ
 - fresh_context: false の輪の役（context: fresh でない AI の節）より前の層は全部 1 つの節だけ（並んだ層が在ると、宣言に反して役は
-  毎回新しい会話で起きる）
+  毎回新しい会話で起きる）。縛るのは tests/layers/test_block_loop_sessions.py で、ここは判定の parallel_before_role を持つ
 - 周をまたぐ時の新しい会話は、輪の 1 周目がいつも新しい会話であること（上の契約の行）で決まり、この試験では縛らない
 - 拒まれた所だけを出し直す輪（RESUBMIT）は、頭の節の resubmit で 1 回目の役と出し直しの役（<役>-fix）を振り分ける。出し直しの役の
   指示は、出し直しの周にだけ走る出し直しの支度の節（<…>-fix-prep）が md から組み（docs/design/README.md の 7.1 の 1。指示の字は
@@ -131,14 +131,6 @@ class LoopSessionsTest(unittest.TestCase):
         for key in FRESH_BY_DESIGN:
             with self.subTest(loop=key):
                 self.assertIs(got.get(key), True, f"表 FRESH_BY_DESIGN の {key} が木に無いか、新しい会話の輪でない")
-
-    def test_continuing_loops_have_no_parallel_layer_before_the_role(self):
-        for block, n in loops():
-            if n["loop_group"].get("fresh_context") is not False:
-                continue
-            with self.subTest(block=block, loop=n["id"]):
-                self.assertEqual(parallel_before_role(n), [],
-                                 f"{block} の {n['id']}: 役の前に並んだ層が在り、会話を続ける宣言に反して役が新しい会話で起きる")
 
     def test_resubmit_loops_route_to_a_fix_role(self):
         """#571: 拒まれた周の次は、頭の節の resubmit が真なら 1 回目の役を飛ばし、出し直しの役が 1 回目の役の会話の続きで拒まれた所

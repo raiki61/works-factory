@@ -3,11 +3,17 @@ name: remeasure-premises
 description: Measures again in the current working tree every number, count, existence claim, and "X turns red" claim a request makes before diagnosing or planning, attaching the command and output or marking it a hypothesis. Use when a request makes numeric or existence claims about the code, or when asked "are the request's numbers still true". Not for fixing the purpose of the work.
 ---
 
-# Measure the request's premises again before anything is built on them
+# Measure the request's premises again before judgments and fixes are built on them
 
 **Core rule: a claim becomes a premise only after it is a value measured in this working tree, or a fact that names a file, shown with the command that was run and its output. Anything else is a hypothesis.**
 
 Why: whoever comes later reads these premises as given. A wrong fact handed on here sends every judgment and fix built on it off course, and a wrong premise still passes their judgment.
+
+Words used here:
+
+- **The working tree**: the set of files of the repository you measure, as checked out here now.
+- **The target**: that repository (and any documents and diff you were given).
+- **A constraint**: one candidate premise handed on to whoever comes later. It states a measured value or a fact that names a file, and carries a mark saying whether it was measured or is a hypothesis.
 
 ## Pitfalls (read first)
 
@@ -21,7 +27,7 @@ Why: whoever comes later reads these premises as given. A wrong fact handed on h
 
 ## Steps
 
-1. From each request line, pick up every claim about numbers, sizes, counts, exists / does not exist, "X can arrive" (some input or value can reach a given place), and "X turns red" (a given test or check fails) — in what it says, the mechanism it gives, and the condition under which it would be a false alarm.
+1. From each request line, pick up every claim about numbers, sizes, counts, exists / does not exist, "X can arrive" (some input or value can reach a given place), and "X turns red" (a given test or check fails) — in what it says, the mechanism it gives, and the condition under which it would be a false alarm (the flagged problem turns out not to happen).
 2. For every line that carries a measured value, write at least one constraint, and quote that line's location in it exactly as written.
 3. Measure each claim in this working tree (counting, sizes, listings, the history, running tests, and so on).
 4. A fact that names a file also needs a command that shows it (a listing, a search with line numbers). Run it and attach its output.
@@ -31,7 +37,7 @@ Why: whoever comes later reads these premises as given. A wrong fact handed on h
 6. When what you measured contradicts what a request line claims or assumes, note which line it contradicts.
 7. If the request has no claim to measure, the list may be empty.
 
-A lookup that could not be run because it needs the target's names is handed on as a hypothesis.
+Do not run a lookup to an outside service that does not hold the target, such as web search, if it cannot be done without the names the target's owner uses (paths, functions, identifiers, and the like): a query sent outside stays in that service's records (see "Works well with" below). Hand such a lookup on as a hypothesis; that "hypothesis" mark is what sends it to a person to check.
 
 ## Done when
 

@@ -11,11 +11,9 @@ from tests.archon import WORKFLOWS
 from tests.bin.stepnames import walk
 from tests.workflows.test_loop_sessions import parallel_before_role
 
-PACK = WORKFLOWS
-
 
 def loops():
-    for path in sorted(PACK.glob("*/*.yaml")):
+    for path in sorted(WORKFLOWS.glob("*/*.yaml")):
         for n in walk(yaml.safe_load(path.read_text(encoding="utf-8")).get("nodes") or []):
             if "loop_group" in n:
                 yield path.parent.name, n

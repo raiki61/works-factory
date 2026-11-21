@@ -1,7 +1,7 @@
 """block r3 を、script を子のプロセスで回して確かめる（docs/design/r3.md の 7 節）。
 
 始めの記録の無い使い捨ての run directory と git のリポジトリで、port の値だけを渡し、intake → coherence_prep → 台本の返答 → save →
-finish と回す。今の tests/workflows/test_eyes.py の ScriptCase と lib/tests/test_eyeverdict.py の R3 の場面を、port の値で作り直した
+finish と回す。元の tests/workflows/test_eyes.py の ScriptCase と lib/tests/test_eyeverdict.py の R3 の場面を、port の値で作り直した
 （各試験の docstring に元の試験の名を書く）。筋書きを Archon の workflow test で回すのは tests/layers/test_block_shape.py。
 keep-essence の 9（独立設計と R1〜R4）の R3 の守りは、役が読むだけ（tests/layers/test_readonly_nodes.py）と、入力が修正の会話を持たない
 こと（test_inputs_carry_no_fix_conversation）が縛る。

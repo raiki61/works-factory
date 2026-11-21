@@ -332,7 +332,7 @@ class RecordCase(unittest.TestCase):
                         trace.AI_SECONDS: row["ai_seconds"], trace.AI_STEPS: row["ai"], trace.STEPS: row["steps"],
                         trace.TURNS: row["turns"], trace.ROUNDS: row["rounds"], trace.COST: row["cost"],
                         **{trace.TOKENS + k: v for k, v in row["tokens"].items()}}
-                self.assertEqual({k: span["attributes"].get(k) for k in want}, {k: v for k, v in want.items()})
+                self.assertEqual({k: span["attributes"].get(k) for k in want}, want)
                 self.assertEqual((span["start"], span["end"]), (row["start"], row["end"]))
 
     def test_a_line_run_carries_its_outcome_and_stage_sums(self):

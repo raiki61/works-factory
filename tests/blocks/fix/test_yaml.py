@@ -10,6 +10,7 @@ import unittest
 
 import yaml
 
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -19,9 +20,6 @@ if str(ROOT / "lib") not in sys.path:
 
 import rolekit  # noqa: E402
 
-AI_NODES = ("consult-answer", "ruled-consult-answer", "tdd", "tdd-new", "ruler", "clash-fix", "clash-ruled")
-ADDED_AI_NODES = ("suite-fix", "route")   # 作り直しの後に足した役（壊れた起動スクリプトの書き直し。#836・docs/design/fix.md の 19。振り分けの役。
-#                                         今の TDD の役の振り分けの段を輪の外へ出した物。docs/design/fix.md の 22.1）
 WRITE_TOOLS = {"Edit", "Write", "Bash", "NotebookEdit", "Agent"}
 
 
@@ -31,14 +29,7 @@ def top(doc=DOC) -> dict:
 
 def every(doc=DOC) -> dict:
     """node を loop_group の中まで（入れ子の輪も。id → node）"""
-    out = {}
-
-    def walk(nodes):
-        for n in nodes:
-            out[n["id"]] = n
-            walk((n.get("loop_group") or {}).get("nodes") or [])
-    walk(doc["nodes"])
-    return out
+    return {n["id"]: n for n in walk(doc["nodes"])}
 
 
 def inner(loop) -> dict:
@@ -157,7 +148,7 @@ class WriterChainCase(unittest.TestCase):
                         self.assertNotIn("trigger_rule", m, "先頭は前が無いので書かない")
                     else:
                         self.assertEqual(m["trigger_rule"], "none_failed_min_one_success")
-                    self.assertEqual(m["when"], f"$%s.output.go == true && $%s.output.writer == '%s'" % (prep, prep, m["id"]))
+                    self.assertEqual(m["when"], "$%s.output.go == true && $%s.output.writer == '%s'" % (prep, prep, m["id"]))
                     self.assertEqual(m["include"], f"works-factory-weapon-{writers.block_of(w)}")
                     self.assertEqual(m["with"], {"order": f"${prep}.output.order", "slots": f"${prep}.output.slots"})
 

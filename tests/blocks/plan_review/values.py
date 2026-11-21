@@ -18,7 +18,6 @@ BLOCK = "plan-review"
 SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 UNIT_MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 UNIT_CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
-UNIT_EXTRA = "stats.py median: 中央値が無い"
 PURPOSE = "PURPOSE-MARK-7731 統計の関数が正しい値を返す（平均は定義どおりに割り、範囲の外の値は近い端に切り詰める）"
 FRAMING = "FRAMING-MARK-2208 分母と上限の 2 つの誤り"
 ONE_SHOT = "ONESHOT-MARK-5150 2 か所を直す"
@@ -41,7 +40,6 @@ RIPPLE = {"items": [{"item": 1, "unit_keys": [UNIT_MEAN], "names": [], "uncovere
 DESIGN_TEXT = "上限は入口 1 箇所で掛け、各所では掛け直さない。平均は定義どおりに割る"
 DESIGN_OK = {"question_stands": True, "reason": "問いは立っている", "design": DESIGN_TEXT,
              "elements": [{"id": "D1", "adds": ["上限の入口"], "removes": []}]}
-DESIGN_NOT = {"question_stands": False, "reason": "問いは立たない", "premise_invalid_reason": "stats.py:4 は既に正しい", "design": ""}
 WORLD_ROW = {"finding": 1, "where": "依頼", "class_id": "w-1", "problem": "空でない列の平均の求め方", "activity": "平均を求める",
              "practice": "要素の数で割る", "sources": [{"url": "https://docs.python.org/3/library/statistics.html", "quote": "mean"}],
              "applies": "数の列の平均", "not_applies": "", "basis": "web",

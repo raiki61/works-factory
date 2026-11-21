@@ -276,7 +276,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
 - `ports.py` の読み手は、値を 3 通りの形で受ける: その run の pointer、ファイルの絶対パスか作業ツリーからの相対パス、値そのもの（`json` と `text` の form）。読めない pointer や在らないファイルは、空にせず理由を名指して落とす（今の落とし穴 K15 と持ち主の決め `no-silent-loosen`）。
 - script は入力を `os.environ.get("INPUTS_<名>")` の字のままで読み、その値を `ports` に渡す。名を組んで読まない。Archon は uv の script の源のこの字の形を読み込みの時に照らし、結ばれていない入力を読む workflow を走る前に拒む（`A/packages/workflows/src/exec-input-validation.ts` の `scanEnvironmentReads`）。名を組むと、この照らしが効かなくなる。
 - graph の中では、作り手の block の出力の欄を受け手の `with:` で渡す（今と同じ）。include の `with:` は値を JSON の字で運ぶ（埋め P2）ので、受け手は `json` の form で読む。
-- 受け手が作り手の欄を 3 つ以上読む時は、欄ごとに入力を足さず、作り手の返りを丸ごと置いたファイルの pointer 1 つを `json` の入力 1 つで受け、読む欄は受け手の `src/` が名指す。作り手が欄を足すたびに読み手の数だけ入力が増える形（drift-audit の 4 節。サブグラフの入力の和が 85 から 142 に増えた）を止める。
+- 受け手の block が作り手の欄を 3 つ以上読む時は、欄ごとに port を足さず、作り手の返りを丸ごと置いたファイルの pointer 1 つを `json` の入力 1 つで受け、読む欄は受け手の `src/` が名指す。作り手が欄を足すたびに読み手の数だけ入力が増える形（drift-audit の 4 節。サブグラフの入力の和が 85 から 142 に増えた）を止める。当てるのは block の port（`inputs:`。include される graph の `inputs:` も入る）だけで、メイングラフと graph の中のノードどうしの結び（graph の script のノードが `with:` で欄を 1 本ずつ受ける形）には当てない（`workflows/AGENTS.md` の E5）。
 
 ### 4.3 run の記録を前提にしない
 

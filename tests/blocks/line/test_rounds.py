@@ -6,7 +6,6 @@ max_iterations の突き合わせ・上限で止めた行の capped・止まっ�
 持たずに同じ形で照らす）に合うかを見る。往復の記録の行の決まりそのものは test_converge_line.py。
 """
 import json
-import pathlib
 import unittest
 
 import yaml

@@ -303,14 +303,16 @@ SEMANTIC_CLASH = ("意味の食い違い: 前に戻した組と同じファイ�
 
 def same_red(test_id: str, before, after) -> bool:
     """名指し test_id が当てた後に「前から同じ形で赤」か（docs/design/fix.md の 18 節。#837）: 直す前の結末 before と当てた後の
-    結末 after の両方に名指しに当たる行（baseline_red.match_case）が在り、どちらの行も error（読み込み・準備で落ちた。TDD の赤の
-    failure でない）で、失敗の文（fail_message）が空でなく字のまま同じ時だけ真。failure は数えない: 名指しは直す前に failure で
+    結末 after の両方に名指しに当たる行（baseline_red.match_cases。雛形の名なら展開した行の全部）が在り、当てた後のどの行も同じ
+    classname と name の直す前の行と組で error（読み込み・準備で落ちた。TDD の赤の failure でない）で、失敗の文（fail_message）が
+    空でなく字のまま同じ時だけ真。failure は数えない: 名指しは直す前に failure で
     赤だったテストなので、後の組が直しを壊して元の赤に戻した物と見分けられない。形の崩れた直す前の行は見ない"""
     import baseline_red
     rows = [c for c in before or [] if isinstance(c, dict) and isinstance(c.get("classname"), str) and isinstance(c.get("name"), str)]
-    b, a = baseline_red.match_case(test_id, rows), baseline_red.match_case(test_id, after or [])
-    return (a is not None and b is not None and a["outcome"] == b.get("outcome") == "error"
-            and bool(a.get("fail_message")) and b.get("fail_message") == a.get("fail_message"))
+    before_rows = {(c["classname"], c["name"]): c for c in baseline_red.match_cases(test_id, rows)}
+    now = baseline_red.match_cases(test_id, after or [])
+    return bool(now) and all((b := before_rows.get((a["classname"], a["name"]))) is not None and a["outcome"] == b.get("outcome") == "error"
+                             and bool(a.get("fail_message")) and b.get("fail_message") == a.get("fail_message") for a in now)
 
 
 def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun", rev: str = "HEAD", shared=(),
@@ -347,11 +349,11 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
             return f"当てた後の木で名指しのテストを走らせられない（{'; '.join(why)}）"
         old = [t for t in named if same_red(t, cases, ran)]
         for t in old if old_red is not None else ():
-            c = baseline_red.match_case(t, ran)
+            c = baseline_red.worst_case(t, ran)
             why = oneline.one_line(c.get("fail_message") or "")[:200]
             old_red.append(f"{t}（{c['outcome']}{f': {why}' if why else ''}）")
         rest = [t for t in named if t not in old]
-        hit = [c for t in rest if (c := baseline_red.match_case(t, ran)) is not None]
+        hit = [c for t in rest for c in baseline_red.match_cases(t, ran)]   # 雛形の名は展開した行の全部
         probs = baseline_red.green_problems(rest, hit, 0)
         if probs:
             probs = ["当てた後の木で名指しのテストが緑でない: " + "；".join(probs)]

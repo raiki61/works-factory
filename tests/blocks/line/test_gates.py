@@ -891,6 +891,24 @@ class AskFinalCase(unittest.TestCase):
         self.assertIsNone(self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="when_needed")["pushed"])
         self.assertIsNone(self.ask(final_got(self.f), mode="when_needed", unattended=True)["pushed"])
 
+    def test_eye_questions_heading_names_the_choose_findings_too(self):
+        """独立の目の問い（eyes の questions）のセクションは R4 の問いだけでなく、R1・R2 が人が選ぶ（needs が choose）とした指摘も載るので、
+        見出しが R4 だけを名指さない"""
+        got = final_got(self.f, questions=["R4 の問い", "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"])
+        text = self.f.final_text(got, self.f.final_needs(got), RUN)
+        line = next(x for x in text.splitlines() if "人に聞いている問い（記録のまま引く。2 件" in x)
+        self.assertIn("R1・R2 が人が選ぶとした指摘", line)
+
+    def test_unattended_run_stops_on_choose_findings_even_with_a_recommend(self):
+        """持ち主の決め eye-choose-stops: 無人の run で、開ける理由が R1・R2 が人が選ぶ（needs が choose）とした指摘だけでも、gates.passage に
+        掛けず works:needs-human で止まる。行が欄 recommend に通す推しを持っていても推しで進まない（直しの範囲は持ち主が決める）。
+        開き方 protected_only は R4 の問いと同じく問いでは開かない（決めは今の作りのまま）"""
+        row = {"text": "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"}
+        for q in (row, {**row, "recommend": self.MEANS_REC}):
+            with self.subTest(recommend="recommend" in q):
+                out = self.ask(final_got(self.f, questions=[q]), mode="when_needed", unattended=True)
+                self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
+
     def test_means_questions_have_their_own_section(self):
         """6.3 の 3 の 1: R2 の行は R4 の問いの節に入れず別の節に並べ、continue / stop が答えになると書く。R2 が redesign-needed の
         run では尾を R2_KEEPS_OUT にする"""
@@ -1422,14 +1440,28 @@ class ScriptCase(unittest.TestCase):
                   "switches": {"merge": True}, "no_fix": False}
         for due, want in ((True, True), (False, False)):
             with self.subTest(due=due):
-                out = self.run.script("eyes_in", request=handed({}), fix_in=json.dumps(fix_in),
-                                      fixed=json.dumps({"eyes_due": due, "no_fix": False, "refixed": False}), start_answer="null",
-                                      replan_review="null", judged=json.dumps({"judgment": None, "answer_ties": None, "materials": None}),
-                                      record="null", ports=self.ports())
+                out = self.wired("eyes-in", "eyes_in", {
+                    "fix-in": fix_in, "fixed": {"eyes_due": due, "no_fix": False, "refixed": False},
+                    "judged": {"judgment": None, "answer_ties": None, "materials": None}, "start": {"ports": json.loads(self.ports())},
+                    "request-in": json.loads(handed({}))})
                 self.assertEqual(out["merge"], want)
                 self.assertEqual(out["policy"], "/p.md")
                 self.assertEqual(out["asked"], [{"kind": "regression", "text": NARROW}])
                 self.assertEqual(out["review"]["verdict"], "unread")
+
+    def test_eyes_in_starts_when_the_fixed_stage_returns_a_long_record(self):
+        """修正の段の合わせ fixed の返りは単位の数だけ伸びる（直しの単位が多い run で 148KB）。eyes-in の with: の配線どおりに回した
+        script は、読まない欄が環境変数 1 本の OS の上限（Linux は 128KB）を越えても起動し、読む欄から組む（まるごと結ぶと E2BIG で落ちた）"""
+        long = "直しの単位の訳と控えのパス" * 12000
+        fixed = {"eyes_due": True, "no_fix": False, "refixed": False, "stages": [{"stage": 1, "reason": long}], "stop_why": long}
+        fix_in = {"policy": "/p.md", "answer": {"decision": "continue", "asked": [NARROW]}, "record": None, "round": 1,
+                  "switches": {"merge": True}, "no_fix": False, "passes": [long]}
+        out = self.wired("eyes-in", "eyes_in", {
+            "fix-in": fix_in, "fixed": fixed, "judged": {"judgment": None, "answer_ties": None, "materials": None, "lines": [long]},
+            "start": {"ports": json.loads(self.ports())}, "request-in": json.loads(handed({}))})
+        self.assertEqual((out["merge"], out["policy"]), (True, "/p.md"), out)
+        self.assertEqual(out["asked"], [{"kind": "regression", "text": NARROW}])
+        self.assertEqual(out["review"]["verdict"], "unread")
 
     def test_ask_final_without_a_seal_does_not_seal(self):
         """封じの返りが無い（直す物が在る周）なら、差分を封じられなかったを開ける理由にし、置く段に hash を渡さない（閉じた側に倒れる）"""
@@ -1447,9 +1479,10 @@ class ScriptCase(unittest.TestCase):
         self.assertEqual((out["sealed_hash"], out["green_ok"], out["fingerprint"]), ("", True, tests["fingerprint"]))
         self.assertTrue((self.run.artifacts / "gates" / "final-gate.md").is_file())
 
-    def ask_final_wired(self, **outputs):
-        """ask_final の script を、line の YAML の ask-final の with: をそのまま node の返り outputs（node の id → 返り）で結んで回す
-        （with: の配線の取り違えも赤になる）。無い node は飛んだ物（if_skipped）。字の値はそのまま、ほかは JSON の字で渡す"""
+    def wired(self, node: str, script: str, outputs: dict):
+        """script を、line の YAML の node の with: をそのまま node の返り outputs（node の id → 返り）で結んで回す
+        （with: の配線の取り違えも赤になる）。無い node は飛んだ物（if_skipped）。字の値はそのまま、ほかは JSON の字で渡す。
+        Archon と同じに入力を 1 本ずつ環境変数で渡すので、1 本が OS の上限を越える結びは起動が E2BIG で落ちる"""
         from tests.blocks.line.test_wiring import TOP
 
         def resolve(value):
@@ -1465,6 +1498,14 @@ class ScriptCase(unittest.TestCase):
             for key in filter(None, path.split(".")):
                 got = (got or {}).get(key)
             return got
+        env = {}
+        for key, value in TOP[node]["with"].items():
+            got = resolve(value)
+            env[key] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
+        return self.run.script(script, **env)
+
+    def ask_final_wired(self, **outputs):
+        """ask_final の script を、ask-final の with: の配線どおりに回す（既定の返りは下の base、outputs で差し替える）"""
         base = {"fix-in": {"answer": None, "passes": [], "structure": None, "record": None, "judgment": None, "units": []},
                 "fixed": {"no_fix": False, "conflicts": [], "handoffs": [], "mismatched": [], "objection": "", "units": [], "groups": [],
                           "stages": [], "replan_items": [], "refixed": False, "skip_why": ""},
@@ -1473,12 +1514,7 @@ class ScriptCase(unittest.TestCase):
                                     "fingerprint": {"head": "h", "diff_hash": "d"}},
                 "start": {"record": None, "final_gate": "protected_only", "ports": json.loads(self.ports())},
                 "request-in": json.loads(handed({}))}
-        outputs = {**base, **outputs}
-        env = {}
-        for key, value in TOP["ask-final"]["with"].items():
-            got = resolve(value)
-            env[key] = got if isinstance(got, str) else json.dumps(got, ensure_ascii=False)
-        return self.run.script("ask_final", **env)
+        return self.wired("ask-final", "ask_final", {**base, **outputs})
 
     def test_ask_final_opens_on_unreadable_conflicts_from_the_fixed_stage(self):
         """keep-essence 8: 修正の段の合わせ fixed が運ぶ申し出の控え（conflicts の pointer）が読めない run は、ask-final の with: の配線

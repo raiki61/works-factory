@@ -25,6 +25,7 @@ import unittest
 
 import yaml
 
+from tests.bin.nodewalk import walk
 from tests.blocks import kit
 from tests.blocks.fix import support
 
@@ -558,14 +559,7 @@ class ConfigCase(unittest.TestCase):
 def _nodes() -> dict:
     """block の YAML の node を loop_group の中まで（id → node）"""
     doc = yaml.safe_load((BLOCK / "works-factory-fix.yaml").read_text(encoding="utf-8"))
-    out = {}
-
-    def walk(nodes):
-        for node in nodes:
-            out[node["id"]] = node
-            walk((node.get("loop_group") or {}).get("nodes") or [])
-    walk(doc["nodes"])
-    return out
+    return {node["id"]: node for node in walk(doc["nodes"])}
 
 
 class ConsultWiringCase(unittest.TestCase):

@@ -30,7 +30,7 @@ The design was made from the purpose, the measured constraints, what a person an
 
 ### Read the test measurements as evidence
 
-Before you write that something is missing from the change, check it against what was measured:
+Before you write that something is missing from the change, check it against what was measured. If the measurements satisfy it, do not count it as a difference:
 
 - Red to green (fails before, passes after): a test that prevents a regression exists.
 - Green to green (passes before and after): if the change does not alter behaviour, the existing tests kept confirming it. Look at their names before you write that you cannot tell whether an existing test covers a point.
