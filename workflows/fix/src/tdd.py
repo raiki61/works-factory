@@ -98,12 +98,12 @@ import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・�
 from src import board as fixboard  # noqa: E402  （lib。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as fixnames  # noqa: E402
 from src import rules as fixrules  # noqa: E402  （同じブロックの lib。指示書の組み立て）
-import impact  # noqa: E402  （.shared/core。変更に当たる試験の選び）
+import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （同じブロックの lib。承認済みの修正案の項目ごとの brief の凍結）
-import planmarks  # noqa: E402  （.shared/core。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （.shared/core。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
 import writelog  # noqa: E402
-import writes  # noqa: E402  （.shared/core。書き込みの出どころの突き合わせ）
+import writes  # noqa: E402  （lib/。書き込みの出どころの突き合わせ）
 import oneline  # noqa: E402
 from leftovers import git, git_names  # noqa: E402
 # 型を問わない部品（src/common.py。輪の中の名は変えない）
