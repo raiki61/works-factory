@@ -1140,7 +1140,7 @@ def main(argv=None):
         print(json.dumps(doc, ensure_ascii=False, indent=1))
         return 0
     m = json.loads(pathlib.Path(ns.map_json).read_text(encoding="utf-8"))
-    fast = [f for f in ns.fast.split(",") if f] if getattr(ns, "fast", "") else []
+    fast = [f for f in ns.fast.split(",") if f]
     print(json.dumps(select_tests(m, fast=fast, scope=ns.scope), ensure_ascii=False, indent=1))
     return 0
 
