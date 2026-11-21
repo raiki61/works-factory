@@ -33,7 +33,7 @@ REAL = "workflows/hygiene/works-factory-hygiene.yaml"   # 受け付けの輪を 
 
 def _accepts(nodes) -> set:
     return {n.get("id") for n in nodes or []
-            if ROUND_FIELDS <= set(((n.get("output_format") or {}).get("properties") or {}))}
+            if ROUND_FIELDS <= set((n.get("output_format") or {}).get("properties") or {})}
 
 
 def loops(root: pathlib.Path):
