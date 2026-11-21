@@ -2916,6 +2916,15 @@ class OutsideCase(Case):
         self.assertTrue(got["go"], got)
         return got["state_file"]
 
+    def logged_begin(self, runner):
+        """走らせた回ごとに [TDD_SUITE_ONLY の値, 名指しの引数] を self.log に 1 行足してから runner を回す実行器で輪を起こす"""
+        self.log = self.tmp / "runs.jsonl"
+        return self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
+                          "sys.argv[2:]]) + '\\n')\n" % str(self.log) + runner)
+
+    def runs(self):
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
     def base(self, state):
         """受け付けが読む元の結末 base.json（輪の状態を置いた置き場の直下）。輪の状態の実行器・置き場・元の結末の欄を同じ名と形で写す
         （basecase.take が組の頭で書く物と同じ読み手向けの欄）"""
@@ -2958,12 +2967,7 @@ class TestLoopRunsOnlyWhatItChecks(OutsideCase):
         self.write(OUTSIDE, OUTSIDE_TEST)   # stats に届くが、元の一式（TIER）の外
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "段の外の試験（stats に届く）")
-        self.log = self.tmp / "runs.jsonl"
-        self.state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
-                                "sys.argv[2:]]) + '\\n')\n" % str(self.log) + RUNNER)
-
-    def runs(self):
-        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+        self.state = self.logged_begin(RUNNER)
 
     def step(self, reply):
         return steps.loop_step(self.state, reply, self.repo)
@@ -3301,13 +3305,7 @@ class TestDirectOnly(OutsideCase):
         self.write(WRAP_FAR, WRAP_FAR_TEST)
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "stats に深さ 2 で届く試験")
-        self.log = self.tmp / "runs.jsonl"
-        self.state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
-                                "sys.argv[2:]]) + '\\n')\n" % str(self.log)
-                                + RUNNER.replace('TIER = ["test_stats.py"]', f'TIER = ["test_stats.py", "{WRAP_FAR}"]'))
-
-    def runs(self):
-        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+        self.state = self.logged_begin(RUNNER.replace('TIER = ["test_stats.py"]', f'TIER = ["test_stats.py", "{WRAP_FAR}"]'))
 
     def accepted_at(self) -> str:
         """受け付けが書き戻した accept.json の置き場を引く口（common.final_left など）に渡す輪の記録のパス（この試験は輪を回さないので、
