@@ -123,7 +123,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return it.get("desc") or ""
 
 
-    def first_sentence(s, n=46):
+    def first_sentence(s, n=80):
         s = (s or "").strip().split("\n")[0]
         s = s.split("。")[0]
         return s[:n] + ("…" if len(s) > n else "")
@@ -199,9 +199,10 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         is_wire = (not t["kids"] and t["kind"] == "script" and (key[-1] in wiring or str(key[-1]).endswith(("-out", "-in"))))
         evs = own_events(key) if not t["kids"] else []
         md = it.get("md") if isinstance(it.get("md"), dict) else None
+        about = what(key)
         objs[K(key)] = {
             "name": t["name"], "kind": t["kind"], "kindWord": KIND.get(t["kind"], t["kind"]), "state": look(key),
-            "what": first_sentence(what(key), 80), "whatFull": what(key), "cost": round(cost(key), 4), "time": fmt_s(secs(key)),
+            "what": first_sentence(about), "whatFull": about, "cost": round(cost(key), 4), "time": fmt_s(secs(key)),
             "runs": len(evs), "kids": [K(k) for k in t["kids"]], "parent": parent, "deps": deps, "wire": is_wire,
             "when": it.get("when") or "", "depsNames": it.get("deps") or [],
             "skip": next((s.get("cause") for s in skipped if tuple(s["tokens"]) == key), None),
