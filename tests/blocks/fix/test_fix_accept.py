@@ -119,7 +119,6 @@ _l_THREE_EDIT = ("self.assertEqual(mean([1, 2, 3]), 2)", "self.assertEqual(mean(
 _l_TWO_ID = "test_two.py::TestTwo::test_halve"
 _l_TWO_FILE = ("import unittest\n\nfrom stats import halve\n\n\nclass TestTwo(unittest.TestCase):\n    def test_halve(self):\n"
             "        self.assertEqual(halve(4), 2)\n")   # base では読み込みで落ちる（halve が無い）新しいテストのファイル
-_l_NO_JUNIT = "import sys\nsys.exit(0)\n"   # JUnit を書かない実行器
 _l_REWRITE = {"id": _l_THREE_ID, "behavior": "3 つの値の平均の期待", "old": "期待は 2", "new": "期待を 2.0 に書き換える",
            "limit": "test_stats.py:8"}
 
