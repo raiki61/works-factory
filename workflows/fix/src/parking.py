@@ -26,7 +26,7 @@ from typing import NamedTuple
 sys.dont_write_bytecode = True
 
 import impact  # noqa: E402  （lib。変更に当たる試験の選び）
-from src import common  # noqa: E402  （同じブロックの lib。輪の状態の読み口）
+from src import common  # noqa: E402  （同じ block の src。輪の状態の読み口）
 
 OUT_ONLY = ("写しの拒否の行が義務の外の単位にだけ結び、写しは受けないので、義務の残りの単位を全部止めた"
             "（受けた直しを黙って捨てない）")
