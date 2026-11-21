@@ -62,13 +62,6 @@ def _stop(word: str, extra: str = "") -> dict:
     return {"act": "stop", "word": word, "text": STOPS[word] + (f"（{extra}）" if extra else "")}
 
 
-def drafts_in(next_doc) -> list:
-    """次の依頼の下書きの中の、下書きの印の在る行（findings と answers。人が見直して印を消すまで依頼の入口が拒む行）"""
-    if not isinstance(next_doc, dict):
-        return []
-    return [r for key in (carry.FINDINGS, carry.ANSWERS) for r in (next_doc.get(key) or []) if carry.is_draft(r)]
-
-
 def _unread_kind(facts: dict) -> str:
     outcome = facts.get("outcome")
     return "結末の語が無い" if not outcome else f"結末の語 {outcome!r} が表に無い"
@@ -136,8 +129,10 @@ def next_request(prev_next_doc, first_doc) -> dict:
 
 
 def held_rows(next_doc) -> list:
-    """運ばなかった下書きの行（findings の目的の外の所見と answers の答えの下書き）"""
-    return drafts_in(next_doc)
+    """運ばなかった下書きの行（findings の目的の外の所見と answers の答えの下書き。人が見直して印を消すまで依頼の入口が拒む）"""
+    if not isinstance(next_doc, dict):
+        return []
+    return [r for key in (carry.FINDINGS, carry.ANSWERS) for r in (next_doc.get(key) or []) if carry.is_draft(r)]
 
 
 def keys_of(next_doc) -> list:
