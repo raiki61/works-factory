@@ -231,6 +231,14 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return t if len(t) <= n else t[:n] + f"…（残り {len(t) - n} 文字）"
 
 
+    def nearest(scope, node):
+        """scope から外へ向かって、node の名の兄弟が木に在る一番近い key（無ければ None）"""
+        for i in range(len(scope), -1, -1):
+            if tuple(scope[:i]) + (node,) in tree:
+                return tuple(scope[:i]) + (node,)
+        return None
+
+
     def code_reads(k, depth=0):
         """つなぎの script（code）が読んだ物を、block まで辿った一覧 [[名, key]]。*-out の script は、その block の返しを包む物なので、
         包んだ block に読み替える。辿れない物（run の入力など）は名だけ"""
@@ -242,11 +250,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 if node == "INPUTS":
                     got.append(["親の入力 " + str(r.get("field")), None])
                     continue
-                sk = None
-                for i in range(len(k) - 1, -1, -1):
-                    if tuple(k[:i]) + (node,) in tree:
-                        sk = tuple(k[:i]) + (node,)
-                        break
+                sk = nearest(k[:-1], node)
                 if not sk:
                     got.append([node, None])
                     continue
@@ -273,11 +277,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
             if node == "INPUTS":
                 out.append({"kind": "inputs", "field": field})
                 continue
-            k = None
-            for i in range(len(scope), -1, -1):
-                if tuple(scope[:i]) + (node,) in tree:
-                    k = tuple(scope[:i]) + (node,)
-                    break
+            k = nearest(scope, node)
             kind = tree[k]["kind"] if k else "?"
             ent = {"kind": "block" if kind == "block" else "code" if kind in ("script", "bash") else kind, "key": K(k) if k else None, "name": node, "field": field}
             if ent["kind"] == "code" and k:
