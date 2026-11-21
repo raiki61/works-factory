@@ -34,7 +34,7 @@ BROKEN_POINTS = (f"組み直す設計の点（redesign_points）の欄が配列�
 
 # ---------------------------------------------------------------- 入口
 def _blank(raw) -> bool:
-    return not ports.text(raw).strip() or ports.text(raw).strip() == "null"
+    return ports.text(raw).strip() in ("", "null")
 
 
 def _port(name: str, read):
