@@ -79,7 +79,7 @@ def scope(root):
     found += list(root.glob("lib/borrow/*.json"))
     found += list(root.glob(BORROWED_PROMPT))
     found += [p for p in root.glob("workflows/*/commands/**/*") if p.is_file()]
-    found += list(root.glob("workflows/.shared/prompts/role-*.md"))   # 役の定義 5 本（今の lib/agents/*.md の行き先。integration.md の 4.3-13）
+    found += list(root.glob("workflows/.shared/prompts/role-*.md"))   # 役の定義 5 本（元の lib/agents/*.md の行き先。integration.md の 4.3-13）
     for path in sorted(set(found)):
         yield path.relative_to(root).as_posix(), "md"
     for path in sorted(root.glob("workflows/*/*.yaml")):
