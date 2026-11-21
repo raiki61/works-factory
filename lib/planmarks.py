@@ -981,7 +981,7 @@ def split(reply: dict, repo: pathlib.Path, *, base_tests: dict | None = None) ->
         got["unit_keys"] = copy.deepcopy(it.get("unit_keys") or [])
         got["files"] = copy.deepcopy(it.get("files") or [])
         for row in got.get("rewrite_tests") or []:
-            lim = _limit(repo, _id_of(row)) if _id_of(row) else None
+            lim = _limit(repo, tid) if (tid := _id_of(row)) else None
             if lim:
                 row["limit"] = lim
         if base_tests is not None:
