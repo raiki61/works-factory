@@ -9,7 +9,6 @@ _bullets・fallback_report と lib/gatemarks.py の draft_line を、graph が�
 - fallback_report(place, why, run_id="", requests=()) -> パス: 思わぬ誤りの時の機械の報告（結末 record_invalid と訳の 1 行。題は run の id と
   依頼の字から描く）を UNWRITTEN_FILE に書く
 """
-import json
 import pathlib
 
 import carry     # lib/
