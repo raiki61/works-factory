@@ -157,7 +157,7 @@ class WriterChainCase(unittest.TestCase):
                         self.assertNotIn("trigger_rule", m, "先頭は前が無いので書かない")
                     else:
                         self.assertEqual(m["trigger_rule"], "none_failed_min_one_success")
-                    self.assertEqual(m["when"], f"$%s.output.go == true && $%s.output.writer == '%s'" % (prep, prep, m["id"]))
+                    self.assertEqual(m["when"], "$%s.output.go == true && $%s.output.writer == '%s'" % (prep, prep, m["id"]))
                     self.assertEqual(m["include"], f"works-factory-weapon-{writers.block_of(w)}")
                     self.assertEqual(m["with"], {"order": f"${prep}.output.order", "slots": f"${prep}.output.slots"})
 
