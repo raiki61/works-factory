@@ -407,9 +407,9 @@ class MainTest(unittest.TestCase):
             self.assertEqual(folder, os.path.realpath(folder))
             self.assertTrue(pathlib.Path(folder).is_relative_to(real_root.resolve()), folder)
             self.assertEqual(os.listdir(folder), [])
-            place = pathlib.Path(folder).parent
-            self.assertEqual(place.parent, real_root.resolve())
-            self.assertEqual((place / writelog.WHERE).read_text(encoding="utf-8"), os.path.realpath(self.tree["linked"]))
+            parent = pathlib.Path(folder).parent
+            self.assertEqual(parent.parent, real_root.resolve())
+            self.assertEqual((parent / writelog.WHERE).read_text(encoding="utf-8"), os.path.realpath(self.tree["linked"]))
             seen.append(folder)
         self.assertEqual(len(set(seen)), 2, "起動ごとに別のフォルダになっていない")
         with self.subTest("sandbox の無い起動"):
@@ -590,9 +590,9 @@ class RealClaudeTest(unittest.TestCase):
     def test_fenced_role_cannot_write_the_listed_places(self):
         home = self.tmp / "run-home"
         got = self.probe([launcher.write_fence(home, self.claude, self.tree["child"], self.cache, self.keep, [])])
-        for what, place in self.blocked.items():
+        for what, where in self.blocked.items():
             with self.subTest(what=what):
-                self.assertEqual(got[str(place)], "BLOCKED")
+                self.assertEqual(got[str(where)], "BLOCKED")
         self.assertEqual(got[str(self.outside)], "WROTE", "柵の外まで書けない（試験の道具が書き込みを試していない）")
 
     def test_fenced_role_writes_its_own_cache_but_not_the_run_cache(self):
