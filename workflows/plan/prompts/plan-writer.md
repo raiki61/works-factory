@@ -129,7 +129,7 @@ For each of these means, some item writes in its works field `structure` (the li
 <!-- end means -->
 
 <!-- if ripple_units -->
-## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names that the unit keys name. Read it before you write the plan)
+## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names in the keys of the "Units to fix in this round" above. Read it before you write the plan)
 
 {part:ripple-notes}
 
@@ -137,7 +137,7 @@ For each of these means, some item writes in its works field `structure` (the li
 <!-- end ripple_units -->
 
 <!-- if ripple_units_error -->
-## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names that the unit keys name. Read it before you write the plan)
+## Ripple list before the plan (looked up by the machine with git grep: the callers and tests of the names in the keys of the "Units to fix in this round" above. Read it before you write the plan)
 
 Could not build the ripple list ({ripple_units_error}). Look up the callers and the tests yourself.
 <!-- end ripple_units_error -->
