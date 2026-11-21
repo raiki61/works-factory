@@ -56,12 +56,6 @@ class _RepoCase(unittest.TestCase):
     def finish(self):
         return self.run.script("finish")
 
-    def write(self, name, text) -> pathlib.Path:
-        path = self.run.artifacts.parent / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        return path
-
     def intake_json(self) -> dict:
         return json.loads((self.place / "intake.json").read_text(encoding="utf-8"))
 

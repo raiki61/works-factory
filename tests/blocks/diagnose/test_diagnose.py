@@ -17,8 +17,6 @@ from tests.blocks.diagnose.support import CLAMP, MEAN, REQUEST, judge_ok
 from tests.blocks.diagnose.test_inputs import PORTS
 from tests.blocks.diagnose.test_rejudge import FIRST, OBJECTION, UNIT_A, reply as rejudge_reply
 
-OPEN_WORLD = {"finding": 1, "where": "stats.py", "class_id": "w-1", "problem": "p", "activity": "a", "practice": "x", "sources": [],
-              "applies": "a", "not_applies": "", "versus": {"proposed": "p", "verdict": "same", "challenge": ""}, "basis": "knowledge"}
 BLOCK = kit.BLOCKS / "diagnose"
 
 

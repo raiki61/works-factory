@@ -438,7 +438,17 @@ class AcceptFactsCase(unittest.TestCase):
         self.assertFalse(duties._reply_facts([{"closure": {"sites": [{"red_seen": False}]}}], None)["red_seen"])
 
 
-class NamedDutyCase(unittest.TestCase):
+class _PutCase(unittest.TestCase):
+    """self.place の下に json を書く put を持つ case の土台（3 つの case が同じ put を使う）"""
+
+    def put(self, rel, doc):
+        p = self.place / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(doc), encoding="utf-8")
+        return p
+
+
+class NamedDutyCase(_PutCase):
     """変える段の箱の義務 change_named_or_gone を受け付けの事実（duties.unit_facts の named・before・after・removes・gone）から引く
     （F2 の縛る試験の 1・2。実行器は本物の小さな実行器で、起点の木の結末は事後の関門と同じ口 gates.named_facts が引く）。
     起点の木では test_mean_of_three が failure（平均の分母の誤り）・test_clamp_within_range が通る。返した木の結末 cases は受け付けが走らせた
@@ -467,12 +477,6 @@ class NamedDutyCase(unittest.TestCase):
         kit.load("fix", "duties")
         from src import common, duties, gates, orders
         self.common, self.duties, self.gates, self.orders = common, duties, gates, orders
-
-    def put(self, rel, doc):
-        p = self.place / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(doc), encoding="utf-8")
-        return p
 
     def order(self, weapon, unit_extra=None, permits=(), units=None):
         keys = [u["key"] for u in units] if units else ["U"]
@@ -790,7 +794,7 @@ class OrderQueriesCase(unittest.TestCase):
         self.assertEqual(self.orders._queries(self.place, ["a"]), {"a": self.judged})
 
 
-class AcceptTableCase(unittest.TestCase):
+class AcceptTableCase(_PutCase):
     """4.4 の 4: 共通の受け付けが注文の索引の型で義務の表を引き、返しを通した時に returns/<k>.json を書き、その凍結を後で照らす"""
 
     def setUp(self):
@@ -805,12 +809,6 @@ class AcceptTableCase(unittest.TestCase):
         kit.load("fix", "duties")
         from src import board, common, duties, orders
         self.board, self.common, self.duties, self.orders = board, common, duties, orders
-
-    def put(self, rel, doc):
-        p = self.place / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(doc), encoding="utf-8")
-        return p
 
     def ordered(self, weapons: dict, docs: dict, since=""):
         self.put("orders.json", {"sequence": list(docs), "weapons": weapons, "stage": 1, "since": since or self.rev})
@@ -970,7 +968,7 @@ class AcceptTableCase(unittest.TestCase):
         self.assertEqual(self.orders.named_tests(self.place), ["t.py::a", "u.py::b"])
 
 
-class RuledOrderCase(unittest.TestCase):
+class RuledOrderCase(_PutCase):
     """4.4 の 5: 裁定の後の直しの注文（orders.write_ruled）・裁定の控えの段の番・段を越えた凍結の照らし（下書き 2.1・4.1 の 6）"""
 
     def setUp(self):
@@ -986,12 +984,6 @@ class RuledOrderCase(unittest.TestCase):
         from src import board, common, duties, orders, ruling
         self.board, self.common, self.duties, self.orders, self.ruling = board, common, duties, orders, ruling
         self.hash = common.hashes(self.repo, ["test_stats.py"])["test_stats.py"]
-
-    def put(self, rel, doc):
-        p = self.place / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(doc), encoding="utf-8")
-        return p
 
     def returned(self, k, weapon, keys, *, stage=1, frozen=True, **extra):
         return self.put(f"returns/{k}.json", {"stage": stage, "weapon": weapon, "group": "g1", "tree": self.rev,

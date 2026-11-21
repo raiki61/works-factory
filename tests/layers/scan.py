@@ -7,11 +7,8 @@ E4（名の住処の柵 NAME_HOMES）と E22（層の地図の既知の漏れの
 当てる物だったので外した（docs/design/README.md の 9.4・docs/design/integration.md の 4.5-9）。
 """
 import ast
-import collections
-import dataclasses
 import functools
 import json
-import posixpath
 import re
 import sys
 from collections.abc import Callable
@@ -20,7 +17,6 @@ from pathlib import Path
 import yaml
 
 from bin._lib import isolate
-from bin._lib.place import WORKFLOW_FOLDER
 from lib import answer
 
 

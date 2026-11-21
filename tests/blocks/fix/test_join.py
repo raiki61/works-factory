@@ -26,6 +26,7 @@ from unittest import mock
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
+from tests.blocks.fix.support import record, recorder_root, result, write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
@@ -45,44 +46,6 @@ import globs  # noqa: E402
 import leftovers  # noqa: E402
 import planmarks  # noqa: E402
 import planrange  # noqa: E402
-
-MARKS = ("mechanism_changed", "premise_drift", "gates_changed", "seams_changed", "security_surface_changed", "path_changed")
-
-
-def write(path, doc):
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    return path
-
-
-def result(gid, units, end_tree, start_tree, **extra):
-    """組の子の結果 result.json の形（board.group_result が書く欄）"""
-    doc = {"group_id": gid, "unit_ids": units, "end_tree": end_tree, "start_tree": start_tree,
-           "units": [{"unit_id": k, "status": "fixed", "reason": ""} for k in units],
-           "tdd": {"ran": False, "reason": "実行器が無い", "suite": "", "units": []}, "conflicts": [], "objection": "",
-           "changed": {k: False for k in MARKS}, "allowed_tests": [], "verified": []}
-    doc.update(extra)
-    return doc
-
-
-def recorder_root(tmp):
-    """記録の根を持つ隔離した設定の置き場（toolset.install が作る形）。(子の環境に足す物, 記録の根)"""
-    import writelog
-    cfg = pathlib.Path(tmp) / "claude-config"
-    root = writelog.root(cfg)
-    root.mkdir(parents=True)
-    return {"CLAUDE_CONFIG_DIR": str(cfg)}, root
-
-
-def record(log, path, tool="Edit"):
-    """記録のフックが書く形の 1 行を log に足す"""
-    import hashlib
-    log.parent.mkdir(parents=True, exist_ok=True)
-    real = os.path.realpath(str(path))
-    with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"tool_name": tool, "path": real,
-                            "file_sha": hashlib.sha256(pathlib.Path(real).read_bytes()).hexdigest()}) + "\n")
 
 
 class Whole(unittest.TestCase):

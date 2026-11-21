@@ -116,22 +116,11 @@ _l_FIELDS = [{"unit_keys": [_l_MEAN], "route": "tdd", "route_why": "", "tests": 
            "refactor": {"declared": False, "why": ""}}]
 _l_MEAN_FIX = {"return sum(xs) / (len(xs) - 1)": "return sum(xs) / len(xs)"}
 _l_THREE_EDIT = ("self.assertEqual(mean([1, 2, 3]), 2)", "self.assertEqual(mean([1, 2, 3]), 2.0)")   # 既存のテストの期待の書き換え
-_l_HALVE = {"def clamp(x, lo, hi):": "def halve(x):\n    return x / 2\n\n\ndef clamp(x, lo, hi):"}   # 今の木で足す関数
 _l_TWO_ID = "test_two.py::TestTwo::test_halve"
 _l_TWO_FILE = ("import unittest\n\nfrom stats import halve\n\n\nclass TestTwo(unittest.TestCase):\n    def test_halve(self):\n"
             "        self.assertEqual(halve(4), 2)\n")   # base では読み込みで落ちる（halve が無い）新しいテストのファイル
-_l_NO_JUNIT = "import sys\nsys.exit(0)\n"   # JUnit を書かない実行器
 _l_REWRITE = {"id": _l_THREE_ID, "behavior": "3 つの値の平均の期待", "old": "期待は 2", "new": "期待を 2.0 に書き換える",
            "limit": "test_stats.py:8"}
-
-
-def _l_asked_row(paths=(), new_tests=(), decision="deny", granted_new_tests=(), **over):
-    """範囲の相談の確かめの行（conflict.ASKED_OP。受け付けが見つけたはみ出しを聞いた物。origin accept）"""
-    return {"id": 1, "at": "2026-10-10T00:00:00+09:00", "turn": 2, "pass": "first", "round": 1, "node": "plan-answer", "item": "1",
-            "unit_keys": [_l_MEAN], "paths": list(paths), "tests": [], "new_tests": list(new_tests), "why": "案の外のはみ出しを聞いた",
-            "status": "answered", "decision": decision, "granted_paths": [], "granted_tests": [],
-            "granted_new_tests": list(granted_new_tests), "spec": "", "reason": "範囲の中で直せる", "notes": [], "out_of_scope": [],
-            "overrode_out_of_scope": [], "session": None, "origin": "accept", **over}
 
 
 def _l_direct_fields(**over):
@@ -2045,7 +2034,6 @@ _l_ESC_UNIT = "stats.py median: 偶数の長さの中央値が決まらない"
 _l_ASKED_UNIT = "stats.py clamp: 下限と上限が逆の時の扱い"
 _l_BACK_UNIT = "stats.py mode: 同数の時の選び方"
 _l_ESC = {"key": "q-median", "kind": "stuck", "status": "escalate", "origin": _l_ESC_UNIT, "reason": "推し: 平均を返す"}
-_l_BACK = {**_l_FORK, "key": "q-mode", "origin": _l_BACK_UNIT}
 _l_ALL_UNITS = [_l_FORK_UNIT, _l_OTHER_UNIT, _l_ESC_UNIT, _l_ASKED_UNIT, _l_BACK_UNIT]
 # 元の盤面の値: 写しの規則の直す義務（開いた単位から、人に諮っている fork の出どころ _l_BACK_UNIT を除く）、答えていない問い
 # （fork と escalate の出どころ）、関所で人が答えた問いの出どころ
