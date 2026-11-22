@@ -96,7 +96,7 @@ sys.dont_write_bytecode = True
 from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates・fixboard が tddloop の名で読む）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import board as fixboard  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
-from src import files as fixnames  # noqa: E402
+from src import files as files_mod  # noqa: E402
 from src import rules as rules_mod  # noqa: E402  （同じ block の src。指示書の組み立て）
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （lib/。承認済みの修正案の項目ごとの brief の凍結）
@@ -114,7 +114,7 @@ from src.common import (  # noqa: E402
     base_synth_of, red_check, restore, retry_max, rules, snapshot, touched)
 
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
-ROUTES = fixnames.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
+ROUTES = files_mod.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
 PLAN_NO_TDD = "承認済みの修正案に route が tdd の単位が無い（入力 routes: plan）——TDD の輪を回さず、ほかの型の注文で直す"
 PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: plan。行の route_why が無い）"
 PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"

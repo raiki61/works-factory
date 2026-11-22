@@ -21,12 +21,12 @@ import rolekit
 from fixboard import (  # noqa: F401  lib のまま呼ぶ名（docs/design/fix.md の 1.5.2）
     trace, trace_rows, TRACE_FILE, read_json, write_json, write_text, plan_view, allowed_test_rows, child_allowed_rows, scope_brief, ALLOWED_SOURCES, FIX_IN_DIFF_CORE, run_diff, DIFF_EMPTY, diff_file, UNIT_STATUSES, FIXED, GIVEN_UP, NOT_DONE, accept_out, round_number, snapshot, touched_since, undeclared_writes, UNDECLARED)
 
-from src import files as fixnames
+from src import files as files_mod
 from src.rulings import write as write_rulings
 from src.files import (  # noqa: F401
     GROUPS_FILE, ASSERT_FILE, RESULT_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, JUDGE_COPIES, RIPPLE_FILE, ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, NOTES_FILE, BASE_REV_FILE, FIX_REPLY_FILE, VALUES)
 
-ACCEPT_TRACE_FILE = fixnames.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
+ACCEPT_TRACE_FILE = files_mod.ACCEPT_TRACE_FILE   # 受け付けが選んだ試験を走らせた回の行の並び（[行, …]。tests_trace が足す。読むのは最後の関所と報告）
 
 
 def _rows(path: pathlib.Path) -> list:
@@ -73,7 +73,7 @@ def add_writer_report(place, weapon: str, lines) -> None:
     lines = [str(x) for x in lines or []]
     if not lines:
         return
-    path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
+    path = pathlib.Path(place) / files_mod.WRITER_REPORT_FILE
     rows = _rows(path)
     write_json(path, [*rows, *({"weapon": weapon, "line": x} for x in lines)])
 
@@ -81,7 +81,7 @@ def add_writer_report(place, weapon: str, lines) -> None:
 def writer_report_rows(place, results=()) -> list:
     """型の block の書き手の報告の行: 組の子の結果 results の writer_report の行（組の順。子の行は group_id を持つ）と、置き場 place の
     行（裁定の後の書き手と、組の子の run 自身の行）。置き場の並びが行の配列でなければ ValueError"""
-    path = pathlib.Path(place) / fixnames.WRITER_REPORT_FILE
+    path = pathlib.Path(place) / files_mod.WRITER_REPORT_FILE
     own = _rows(path)
     return [row for row in [*(x for r in results for x in (r or {}).get("writer_report") or []), *own] if isinstance(row, dict)]
 
@@ -466,7 +466,7 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
         if shared:
             wide, everything = common._reached(st, repo, seeds=shared, direct_only=False)
             wide = [] if everything else wide
-        base_file = write_json(work / fixnames.BASE_FILE, st)
+        base_file = write_json(work / files_mod.BASE_FILE, st)
         probs, _ = common.selected_problems(str(base_file), repo, rev, uncompared=uncompared, named=[*named, *wide],
                                             accept=work)
     if not probs and (test_cmd or "").strip():
@@ -1073,7 +1073,7 @@ def tests_moved(repo, tree: str, units, shared) -> str:
 ADOPTED = (VALUES, JUDGMENT_FILE, TIES_FILE, MATERIALS_FILE, PLAN_REPLY_FILE, PLAN_REVIEW_FILE, RIPPLE_FILE,
            ANSWERS_FILE, ONLY_ITEMS_FILE, BASELINE_FILE, BASE_REV_FILE, NOTES_FILE)
 FIX_UNITS_FILE = "fix-units.json"        # 修正の輪の単位ごとの結末 {unit_key: {status, reason}}（fix-accept が書く）
-ALLOWED_TESTS_FILE = fixnames.ALLOWED_TESTS_FILE   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）
+ALLOWED_TESTS_FILE = files_mod.ALLOWED_TESTS_FILE   # 許したテストの変更の訳 [{path, permit, source}]（collect が書き、欄 allowed_tests で返す。allowed_test_rows）
 GROUP_START_FILE = "group-start.json"   # 組の子の始めの記録 {group, from_tree, out_dir, start_tree}（group-start が組の置き場に書く）
 ADOPTED_FROM = "adopted_from"           # 親の置き場に写した TDD の輪の記録の、写し元の子の記録のパスの欄（adopt_tdd_states。記録の鍵）
 PRIOR_LOOP = "prior_pass"               # 2 回目の修正の段の置き場に写した 1 回目の段の輪の記録の印（adopt_prior_pass。記録の鍵。新しい）
@@ -1107,16 +1107,16 @@ def adopt_inputs(parent, place, repo=None) -> list:
     if (src / conflict.FILE).is_file() and not (dst / conflict.FILE).is_file():
         write_text(dst / conflict.FILE, (src / conflict.FILE).read_text(encoding="utf-8"))
         out.append(conflict.FILE)
-    if (src / fixnames.PRIOR_DIR).is_dir():
-        (dst / fixnames.PRIOR_DIR).mkdir(parents=True, exist_ok=True)
-        out.append(fixnames.PRIOR_DIR)
+    if (src / files_mod.PRIOR_DIR).is_dir():
+        (dst / files_mod.PRIOR_DIR).mkdir(parents=True, exist_ok=True)
+        out.append(files_mod.PRIOR_DIR)
     if repo is not None:
         from src import common
         prior = [str(p) for p in common.records(src) if read_json(p, {}).get(PRIOR_LOOP)]
         out += adopt_tdd_states(dst, [{"tdd_record": p} for p in prior], prior=True)
-        have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(dst))
+        have = _adopted(d / files_mod.ACCEPT_FILE for d in base_dirs(dst))
         for d in base_dirs(src):
-            if read_json(d / fixnames.ACCEPT_FILE, {}).get(PRIOR_LOOP) and str(d) not in have:
+            if read_json(d / files_mod.ACCEPT_FILE, {}).get(PRIOR_LOOP) and str(d) not in have:
                 got = _copy_base(dst, d, str(d), True)
                 out += [got] if got else []
         out += adopt_returns(dst, [str(src)], only_prior=True)
@@ -1149,7 +1149,7 @@ def adopt_prior_bases(place, prior) -> list:
     prior の accept.json（親の裁定の後の受け付けが書き戻した物）を accept.json だけの bases/<k>/ として（下書き 2.1。第 9 版の続き 4）。
     印 ADOPTED_FROM は写し元のフォルダのパス。もう写した物は写し直さない"""
     prior = pathlib.Path(prior)
-    have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(place))
+    have = _adopted(d / files_mod.ACCEPT_FILE for d in base_dirs(place))
     out = []
     for src, base in [*[(d, True) for d in base_dirs(prior)], (prior, False)]:
         if str(src) in have:
@@ -1277,7 +1277,7 @@ def _adopted(paths) -> set:
 
 def base_dirs(place) -> list:
     """置き場の bases/<k>/ を番号の順に（写した元の結末。accept.json だけの物も含む）"""
-    d = pathlib.Path(place) / fixnames.BASES_DIR
+    d = pathlib.Path(place) / files_mod.BASES_DIR
     got = [(int(p.name), p) for p in d.glob("*") if p.is_dir() and p.name.isdigit()] if d.is_dir() else []
     return [p for _, p in sorted(got)]
 
@@ -1287,18 +1287,18 @@ def _copy_base(place, src_dir: pathlib.Path, mark: str, prior: bool, base: bool 
     （accept.json が無ければ印だけの物を作る。base.json は印を持たない）。base.json は字のまま写し、repo を渡せば実行器 exe だけを
     親の作業ツリー repo で解き直す（adopt_tdd_states と同じ。並べた子の exe は子の作業ツリーの中を指す）。どちらも無ければ写さず ""。
     写した先のパス"""
-    b, a = src_dir / fixnames.BASE_FILE, src_dir / fixnames.ACCEPT_FILE
+    b, a = src_dir / files_mod.BASE_FILE, src_dir / files_mod.ACCEPT_FILE
     if not (base and b.is_file()) and not a.is_file():
         return ""
-    dst = _next_slot(pathlib.Path(place) / fixnames.BASES_DIR, "{k}")
+    dst = _next_slot(pathlib.Path(place) / files_mod.BASES_DIR, "{k}")
     doc = read_json(b, None) if base and b.is_file() and repo is not None else None
     if isinstance(doc, dict) and doc.get("suite"):
         from src import tdd as tddloop
-        write_json(dst / fixnames.BASE_FILE, {**doc, "exe": str(tddloop.exe_path(repo, doc["suite"]))})
+        write_json(dst / files_mod.BASE_FILE, {**doc, "exe": str(tddloop.exe_path(repo, doc["suite"]))})
     elif base and b.is_file():
-        write_text(dst / fixnames.BASE_FILE, b.read_text(encoding="utf-8"))
+        write_text(dst / files_mod.BASE_FILE, b.read_text(encoding="utf-8"))
     acc = read_json(a, {}) if a.is_file() else {}
-    write_json(dst / fixnames.ACCEPT_FILE, {**(acc if isinstance(acc, dict) else {}),
+    write_json(dst / files_mod.ACCEPT_FILE, {**(acc if isinstance(acc, dict) else {}),
                                          **_marks(mark, prior, isinstance(acc, dict) and acc.get(PRIOR_LOOP))})
     return str(dst)
 
@@ -1308,7 +1308,7 @@ def adopt_bases(place, results, *, repo=None, prior: bool = False) -> list:
     親の置き場 place の次の bases/<k>/ に写す（下書き 2.1 の「親へ写す口」。<k> と写し元の印は adopt_tdd_states と同じ。印 ADOPTED_FROM
     は写し元の base.json のパス。repo を渡せば実行器 exe を親の作業ツリーで解き直す）。もう写した子は写し直さない。写した bases/<k>/ の
     パスを返す"""
-    have = _adopted(d / fixnames.ACCEPT_FILE for d in base_dirs(place))
+    have = _adopted(d / files_mod.ACCEPT_FILE for d in base_dirs(place))
     out = []
     for r in results:
         src = str((r or {}).get("base") or "")
@@ -1325,11 +1325,11 @@ def adopt_returns(place, sources, *, prior: bool = False, only_prior: bool = Fal
     """置き場 sources（組の子か 1 回目の修正の段の置き場）の返しの控え returns/<k>.json を、place の次の returns/<k>.json に写す（印は
     adopt_bases と同じ鍵。ADOPTED_FROM は写し元のファイルのパス）。only_prior が真なら印 PRIOR_LOOP の物だけ（2 回目の段の組の子へ）。
     もう写した物は写し直さない。写した先のパスを返す"""
-    d = pathlib.Path(place) / fixnames.RETURNS_DIR
+    d = pathlib.Path(place) / files_mod.RETURNS_DIR
     have = _adopted(d.glob("*.json")) if d.is_dir() else set()
     out = []
     for s in sources:
-        sd = pathlib.Path(s) / fixnames.RETURNS_DIR if s else None
+        sd = pathlib.Path(s) / files_mod.RETURNS_DIR if s else None
         if sd is None or sd.resolve() == d.resolve() or not sd.is_dir():
             continue
         for p in sorted(sd.glob("*.json"), key=lambda q: (len(q.stem), q.stem)):
@@ -1359,18 +1359,18 @@ def red_units(place):
 def accept_base(place) -> str:
     """受け付けが選んで走らせる元の結末のファイル: 置き場の base.json（組の子）、無ければ親の受け付けの選び
     ruled_base の base.json。どちらも無ければ ""（実行器の無い run。受け付けは試験を走らせない）"""
-    own = pathlib.Path(place) / fixnames.BASE_FILE
+    own = pathlib.Path(place) / files_mod.BASE_FILE
     if own.is_file():
         return str(own)
     got = ruled_base(place)
-    return str(pathlib.Path(got) / fixnames.BASE_FILE) if got else ""
+    return str(pathlib.Path(got) / files_mod.BASE_FILE) if got else ""
 
 
 def ruled_base(place) -> str:
     """親の受け付けが読む元の結末の bases/<k>/（今の ruled_states の「組の順で最後の物」と同じ選び。1 回目の修正の段の物 PRIOR_LOOP と
     base.json の無い物は外す）。無ければ """""
-    got = [d for d in base_dirs(place) if (d / fixnames.BASE_FILE).is_file()
-           and not read_json(d / fixnames.ACCEPT_FILE, {}).get(PRIOR_LOOP)]
+    got = [d for d in base_dirs(place) if (d / files_mod.BASE_FILE).is_file()
+           and not read_json(d / files_mod.ACCEPT_FILE, {}).get(PRIOR_LOOP)]
     return str(got[-1]) if got else ""
 
 
@@ -1442,7 +1442,7 @@ def drop_unreturned(repo, gdir, skip=()) -> list:
 # ---------------------------------------------------------------- 修正役の受け付けと範囲の相談（fix-accept・fix-ruled-accept・
 # consult-check・fix-ruled-prep の scripts が呼ぶ）。元 works/blk-fix/scripts/accept.py の受け付けの手順と、元
 # works/blk-fix/lib/consult.py:522 の頼みの節を、盤面の代わりに置き場のパスと値の引数で受ける形に書き直した物
-RULED_REPLY_FILE = fixnames.RULED_REPLY_FILE   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
+RULED_REPLY_FILE = files_mod.RULED_REPLY_FILE   # 裁定の後の修正役の受け付けた返答（fix-ruled-accept が書き、assert-changed・collect が読む）
 RULED_HEAD_FILE = "fix-ruled-head.json"     # 裁定の後の修正の段の頭の木 {tree}（fix-ruled-prep が 1 回目に書く）
 FIX_HEAD_FILE = "fix-head.json"             # 組の修正の段の頭の木 {tree}（TDD の輪の後。fix-prep が 1 回目に書く）
 PARKED_PATCH = "fix-parked"                 # 最後の回に止めた単位の戻した直しの控え（置き場の fix-parked-<n>.patch。元 accept.py:168）
@@ -2304,7 +2304,7 @@ def loop_files(place) -> tuple:
     doc = read_json(pathlib.Path(place) / TDD_START_FILE)
     doc = doc if isinstance(doc, dict) else {}
     state = str(doc.get("state_file") or "")
-    got = [str(pathlib.Path(state).with_name(fixnames.RECORD_FILE)) if state else "", str(doc.get("summary_file") or "")]
+    got = [str(pathlib.Path(state).with_name(files_mod.RECORD_FILE)) if state else "", str(doc.get("summary_file") or "")]
     return tuple(p if p and pathlib.Path(p).is_file() else "" for p in got)
 
 

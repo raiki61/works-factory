@@ -30,7 +30,7 @@ import baseline_red  # noqa: E402  （lib。赤・緑の判定と実行器を走
 from baseline_red import run_suite  # noqa: E402  （lib。実行器を走らせる口の正本）
 import cite  # noqa: E402  （lib/。名指しの形・引いた文が現物に在るかの照らし。寄せた後の部分一致 quoted_in）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
-from src import files as fixnames  # noqa: E402
+from src import files as files_mod  # noqa: E402
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
 from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
@@ -42,7 +42,7 @@ from leftovers import Unreadable, git, git_names  # noqa: E402
 from leftovers import restore, restore_paths, touched  # noqa: E402,F401  （戻しの手続きの正本は leftovers。fix の呼び手が common の名で引く）
 
 
-PROMPT, RECORD = "next.md", fixnames.RECORD_FILE
+PROMPT, RECORD = "next.md", files_mod.RECORD_FILE
 
 
 MIN_WHY = 10
@@ -939,7 +939,7 @@ def selected_problems(base_file, repo, rev, uncompared=None, *, named=(), record
 
     def save():
         acc = accept_values(acc_dir)
-        jsonfile.write(acc_dir / fixnames.ACCEPT_FILE, {**acc, "final_left": st["final_left"], "final_far": st["final_far"],
+        jsonfile.write(acc_dir / files_mod.ACCEPT_FILE, {**acc, "final_left": st["final_left"], "final_far": st["final_far"],
                                                      "ci_left": st.get("ci_left", []),
                                                      "suite_made": sorted(set(acc.get("suite_made") or []) | set(st["suite_made"]))})
     final = (f"。最後のテストの段に任せた {len(sel['left'])} 件（変更に直には関わらず届くだけ。受け付けは回さない）: "
@@ -1060,7 +1060,7 @@ def _named_files(record) -> list:
 
 def accept_values(place) -> dict:
     """置き場の accept.json（受け付けが書き戻した final_left・final_far・ci_left・suite_made と、写した物の印。無い・読めなければ {}）"""
-    return load_json(pathlib.Path(place) / fixnames.ACCEPT_FILE, {})
+    return load_json(pathlib.Path(place) / files_mod.ACCEPT_FILE, {})
 
 
 def accept_dir(record_file) -> pathlib.Path | None:
@@ -1068,7 +1068,7 @@ def accept_dir(record_file) -> pathlib.Path | None:
     記録は tdd-<k>/ の中なのでその親。無い・読めなければ None）"""
     if not record_file or not pathlib.Path(record_file).is_file():
         return None
-    if pathlib.Path(record_file).name == fixnames.BASE_FILE:
+    if pathlib.Path(record_file).name == files_mod.BASE_FILE:
         return pathlib.Path(record_file).parent
     return pathlib.Path(record_file).parent.parent
 
