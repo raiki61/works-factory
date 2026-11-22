@@ -22,7 +22,6 @@
   （lib は libdocs.detect の行: name・search・lang・uses。files は単位のファイルの根からの相対）
 """
 import ast
-import inspect
 import json
 import os
 import pathlib
@@ -266,7 +265,7 @@ def _parse(path: pathlib.Path, real: pathlib.Path, memo: dict | None = None):
 def _doc(node, limit=DOC_MAX) -> str:
     d = ast.get_docstring(node, clean=True) if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
                                                                  ast.AsyncFunctionDef)) else None
-    d = inspect.cleandoc(d) if d else ""
+    d = d or ""   # clean=True が inspect.cleandoc を掛けた後の字
     return d if len(d) <= limit else d[:limit].rstrip() + " …"
 
 
