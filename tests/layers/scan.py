@@ -1325,6 +1325,25 @@ def _module_strings(tree) -> dict:
     return env
 
 
+def _imported_strings(root: Path, tree) -> dict:
+    """モジュールの頭の `from <パッケージ>.<モジュール> import <名>`（`as` 付きも）で別のファイルから借りた字の定数（と字の並び）。
+    借り先は root の下の `<パッケージ>/<モジュール>.py` の頭の定数だけ（借り先がさらに借りた名は読まない）。無いファイル・字でない名は env に入れず、
+    表の中でその名を使えば読めない赤になる"""
+    env = {}
+    for node in tree.body:
+        if not isinstance(node, ast.ImportFrom) or node.level or not node.module:
+            continue
+        source = root.joinpath(*node.module.split(".")).with_suffix(".py")
+        if not source.is_file():
+            continue
+        try:
+            theirs = _module_strings(ast.parse(source.read_text(encoding="utf-8")))
+        except (SyntaxError, UnicodeDecodeError, ValueError):
+            continue
+        env |= {alias.asname or alias.name: theirs[alias.name] for alias in node.names if alias.name in theirs}
+    return env
+
+
 def _literal(node, env: dict):
     """字の定数の名（と字の名の並びの名）を env で解いた ast.literal_eval"""
     if isinstance(node, ast.Name) and node.id in env:
@@ -1376,7 +1395,7 @@ def _shell_reads(pack: "_Pack") -> list[str]:
             continue
         where = f"{_rel(pack.root, py)}:{node.lineno}"
         try:
-            table = _literal(node.value, _module_strings(tree))
+            table = _literal(node.value, _imported_strings(pack.root, tree) | _module_strings(tree))
         except (ValueError, TypeError, SyntaxError):
             out.append(f"{where}: {SHELL_READS} が字の定数の表でない（部品 → (欄, form, 道の並び)）")
             continue

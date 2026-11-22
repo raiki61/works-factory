@@ -593,6 +593,27 @@ class ShapesTest(unittest.TestCase):
                 self.assertIn("bin/_lib/reads.py:2: RETURN_READS の ", got[0])
                 self.assertIn(want, got[0])
 
+    def test_shell_reads_keyed_by_a_name_imported_from_another_file_are_read(self):
+        """表 RETURN_READS の鍵が別のファイルの字の定数（from bin._lib.<名> import <定数>）でも、その字で照らす。返す節の宣言と合わない行は
+        赤のまま（同じファイルの定数と同じ）。読めない import（無いファイル・字でない定数）は表を読めない赤"""
+        files = {BLOCK: judge_returning("units: " + POINTER % "json(faces.schema.json): 読む物"),
+                 "workflows/judge/schemas/faces.schema.json": self.FACES_SHAPE,
+                 "bin/_lib/names.py": 'JUDGE = "works-factory-judge"\nWHAT = ["x"]\n'}
+
+        def reading(imports: str, form: str = "json(faces.schema.json)") -> list[str]:
+            module = imports + f'RETURN_READS = {{JUDGE: ("units", "{form}", ("faces[].key",))}}\n'
+            return self.problems({**files, "bin/_lib/reads.py": module})
+
+        self.assertEqual(reading("from bin._lib.names import JUDGE\n"), [])
+        got = reading("from bin._lib.names import JUDGE\n", "json(other.schema.json)")
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("の form json(other.schema.json) が返す節の宣言 json(faces.schema.json) と違う", got[0])
+        for imports in ("from bin._lib.gone import JUDGE\n", "from bin._lib.names import WHAT as JUDGE\n"):
+            with self.subTest(imports=imports):
+                got = reading(imports)
+                self.assertEqual(len(got), 1, got)
+                self.assertIn("RETURN_READS が字の定数の表でない", got[0])
+
     READ_SHAPE = ('{"type": "object", "required": ["units"], "properties": {"ready": {"type": "boolean"}, '
                   '"units": {"type": ["object", "null"], "required": ["key"], "properties": {"key": {"type": "string"}}}}}')
 
