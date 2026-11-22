@@ -66,12 +66,14 @@ class DecideCase(unittest.TestCase):
         self.assertEqual(converge.decide([{"blocks": ["a"]}, {"blocks": []}]), converge.CLEAN)
 
     def test_new_central_blocks_go_again_without_counting(self):
-        """中央の新しい block が出る往復は、開いた block の数が前より減らなくても増えても、往復の数に依らず AGAIN（数の比べで
+        """中央の新しい block が出る往復は、開いた block の数が前より減っても減らなくても増えても、往復の数に依らず AGAIN（数の比べで
         止めない）。札の無い face と faces の無い古い行は中央と読む"""
         for passes in (passed([face("a")], [face("b")]), passed([face("a"), face("b")], [face("c"), face("d"), face("e")]),
                        passed(*([face(f"k{n}")] for n in range(1, 8))),
                        passed([edge("a")], [face("b", reach="breaks_fix")]),
-                       [{"blocks": ["a"]}, {"blocks": ["b"]}]):
+                       [{"blocks": ["a"]}, {"blocks": ["b"]}],
+                       [{"blocks": ["a", "b", "c"]}, {"blocks": ["d", "e"]}, {"blocks": ["f"]}],
+                       [{"blocks": ["a", "b", "c"]}, {"blocks": ["d", "e"]}]):
             with self.subTest(passes=[p["blocks"] for p in passes]):
                 self.assertEqual(converge.decide(passes), converge.AGAIN)
         # 同じ中央の key が戻る往復は PERSISTED
@@ -101,12 +103,6 @@ class DecideCase(unittest.TestCase):
         self.assertEqual(converge.decide([{"blocks": ["a"]}, {"blocks": ["a", "b"]}]), converge.PERSISTED)
         self.assertEqual(converge.decide([{"blocks": ["a", "b"]}, {"blocks": ["c"]}, {"blocks": ["a"]}]),
                          converge.PERSISTED)   # 消えた穴がまた出た
-
-    def test_decreasing_blocks_go_on_regardless_of_pass_count(self):
-        """中央の block が 3 → 2 → 1 と出続ける列は、往復の数に依らず続く（AGAIN）"""
-        passes = [{"blocks": ["a", "b", "c"]}, {"blocks": ["d", "e"]}, {"blocks": ["f"]}]
-        self.assertEqual(converge.decide(passes), converge.AGAIN)
-        self.assertEqual(converge.decide(passes[:2]), converge.AGAIN)
 
     def test_block_faces_keep_order_and_drop_repeats(self):
         got = converge.block_faces({"faces": [face("a"), face("s", severity="suggest"), face("b"), face("a")]})
