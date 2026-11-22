@@ -194,7 +194,7 @@ D1・D2 の後の違い（node）: 書き手の node のうち `tdd-close`・`pi
 | `lanekit.py` | `lanes.py` | 全部 |
 | `planscope.py` | `scope.py` | 全部 |
 | `unitrows.py` | `unitrows.py` | 全部 |
-| `rulebook.py` | `rulebook.py` | 全部（使い手が fix だけなので lib から移した。憲法の 4） |
+| `rulebook.py` | （消した） | 使い手が `rules.py` の `PROMPT_DIRS` の決まりのフォルダの名 `writerules` だけだったので、名を `rules.py` に直に書いて消した |
 
 `src/` の新しいモジュール: `files.py`（place の名。1.4）・`runvals.py`（`values.json` の読み書き `write(place, ports)`・`read(place)`・`adopt(parent_place, place)`）・`intake.py`（port の読みと形ごとの必須）・`prompts.py`（AI の node の値と真偽を組む関数。2〜6 節の差し込み口の一覧と同じ名を返す。D1 から、書き手の分は `writer_slots`〔2.3〕で、型の block が組む指示の値は返さない）・`carry.py`（`carry.json` の書きと、`prior` から `prior/<k>/` に置く読み）・`finish.py`（出力の組み立て。今の `collect.py` の中身）・`report.py`（11 節）。
 

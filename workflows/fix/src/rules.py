@@ -14,7 +14,6 @@ import sys
 
 sys.dont_write_bytecode = True
 
-from src import rulebook  # noqa: E402  （決まりの正本のフォルダの名。変更の種類の見分けが読む）
 from src import board  # noqa: E402  （直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from leftovers import Unreadable, git_names  # noqa: E402
 from src import consult  # noqa: E402  （同じ block。範囲の相談の控え・置き場・答え）
@@ -30,7 +29,8 @@ HEAD_FILES = dict(zip(PASSES, (board.FIX_HEAD_FILE, board.RULED_HEAD_FILE), stri
 ANSWER_NODES = dict(zip(PASSES, ("consult-answer", "ruled-consult-answer"), strict=True))   # 段 → 範囲の相談に答える役の節
 KINDS = ("docs", "prompts", "config", "code")   # 変更の種類 → 節 evidence-<種類>
 # 種類の見分け（パスの形だけで決める。当たらない物は種類なし）
-PROMPT_DIRS = frozenset({"commands", "prompts", "agents", "skills", "rules", rulebook.CANON.parent.name})
+# writerules は元の works の書く役の決まりの正本のフォルダの名（元の rulebook.CANON の親）
+PROMPT_DIRS = frozenset({"commands", "prompts", "agents", "skills", "rules", "writerules"})
 PROMPT_NAMES = frozenset({"CLAUDE.md", "AGENTS.md", "SKILL.md", "GEMINI.md"})
 DOC_SUFFIXES = frozenset({".md", ".markdown", ".rst", ".txt", ".adoc"})
 CONFIG_SUFFIXES = frozenset({".yaml", ".yml", ".toml", ".json", ".ini", ".cfg", ".conf"})
