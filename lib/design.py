@@ -320,7 +320,7 @@ def _section_lines(text, *, num="", anchor="", slugs=None, md_lines=None) -> tup
         if not hits:
             hits = [h for h in heads if want and want in h["title"].lower()]
     if not hits:
-        raise ValueError("見出しが無い")
+        raise ValueError(f"{f'番号 {num} の' if num else f'アンカー {anchor!r} の'}見出しが文書に無い")
     if len(hits) > 1:
         raise ValueError(f"当たる見出しが {len(hits)} 個あって決められない（行 {', '.join(str(h['line']) for h in hits)}）")
     hit = hits[0]
