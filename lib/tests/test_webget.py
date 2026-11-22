@@ -10,8 +10,11 @@
 import pathlib
 import sys
 import tempfile
+import io
 import unittest
+import urllib.error
 import urllib.request
+from unittest import mock
 
 LIB = pathlib.Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -37,6 +40,7 @@ class StoreCase(unittest.TestCase):
         doc = {"schema": STORE_SCHEMA, "status": "ok", "body": "x", "at": T}
         self.assertEqual(self.store.put("a.json", doc), "")
         self.assertEqual(self.store.get("a.json", T + 99, ("ok",)), doc)
+        self.assertEqual(self.store.get("a.json", T, ("ok",)), doc, "取った時刻ちょうどは新しい")
         self.assertEqual(list(self.root.glob(".tmp-*")), [], "一時のファイルを残さない")
 
     def test_store_get_expired_is_none(self):
@@ -112,6 +116,43 @@ class FetchCase(unittest.TestCase):
         with self.assertRaises(webget.FetchError) as cm:
             webget.http_get("https:///x", {}, 10)
         self.assertNotIn("\n", str(cm.exception))
+
+    def test_safe_url_is_a_strict_bool(self):
+        self.assertIs(webget.safe_url("https://pypi.org/x"), True)
+        for bad in (None, 3, "https://[::1]/x", "https://a.b:pw@c.example/", "http://pypi.org/x", "https://[bad/x"):
+            with self.subTest(bad=bad):
+                self.assertIs(webget.safe_url(bad), False)
+
+    def test_http_get_returns_status_and_the_head_of_the_body(self):
+        class Opened:
+            status = 200
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+            def read(self, n):
+                return b"abcdef"[:n]
+        opener = mock.Mock()
+        opener.open.return_value = Opened()
+        with mock.patch.object(urllib.request, "build_opener", return_value=opener):
+            self.assertEqual(webget.http_get("https://pypi.org/x", {}, 3), (200, b"abc"))
+
+    def test_http_get_keeps_the_body_of_an_http_error_and_cuts_the_network_error(self):
+        err = urllib.error.HTTPError("https://pypi.org/x", 404, "nf", {}, io.BytesIO(b"gone-body"))
+        opener = mock.Mock()
+        opener.open.side_effect = err
+        with mock.patch.object(urllib.request, "build_opener", return_value=opener):
+            self.assertEqual(webget.http_get("https://pypi.org/x", {}, 4), (404, b"gone"))
+        empty = urllib.error.HTTPError("https://pypi.org/x", 500, "x", {}, io.BytesIO(b""))
+        opener.open.side_effect = empty
+        with mock.patch.object(urllib.request, "build_opener", return_value=opener):
+            self.assertEqual(webget.http_get("https://pypi.org/x", {}, 4), (500, b""))
+        opener.open.side_effect = urllib.error.URLError("x" * 500)
+        with mock.patch.object(urllib.request, "build_opener", return_value=opener):
+            with self.assertRaises(webget.FetchError) as cm:
+                webget.http_get("https://pypi.org/x", {}, 4)
+        self.assertEqual(len(str(cm.exception)), 200)
+        self.assertTrue(str(cm.exception).startswith("URLError: "))
 
 
 if __name__ == "__main__":
