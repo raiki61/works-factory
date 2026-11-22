@@ -146,6 +146,7 @@ class ReverseImportCase(RepoCase):
         self.write("tests/blocks/kit.py", "import sys\n\nsys.path.append('lib')\nimport conflict\n")
         self.write("tests/blocks/fix/test_ruling.py", "from tests.blocks import kit\n\nassert kit\n")
         m = self.map(["lib/conflict.py"])
+        self.assertEqual(m["reach"]["tests/blocks/fix/test_ruling.py"]["depth"], 2, "深さ 2 で届く前提（届かなくなったら空振りにしない）")
         self.assertFalse(impact.direct(m, "tests/blocks/fix/test_ruling.py"))
 
     def test_direct_selection_still_runs_all_when_unanalysable_is_near(self):

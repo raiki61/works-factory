@@ -5,7 +5,7 @@
 
 - applies(root, test_cmd) -> bool: 走らせ方が決まらない対象か
 - pick(repo, *, rev, seeds, cache_dir) -> {whole, reasons, files, left, far}: rev から今の作業ツリーまでに触ったファイル（未追跡を含む）と
-  seeds を起点に、直に関わる試験（impact.select_tests の direct_only。起点か深さ 1）を選ぶ。whole が真なら選べない（地図が引けない・
+  seeds を起点に、直に関わる試験（impact.select_tests の direct_only。起点か、起点から辺 1 本の道が在る物）を選ぶ。whole が真なら選べない（地図が引けない・
   分からない物が直に関わる所に在る）ので、呼び手は今までどおり一式を走らせる。files は回す試験のファイル（根からの相対。作業ツリーに
   在る物だけ）、left は届いただけで回さない試験、far は深さ 2 以上の分からない物（理由の形）。関わる試験が無いのは files が空
 - args(repo, picked) -> list: files を絶対パスにした並び（TDD の実行器の第 1 引数の後ろに足す。whole なら空）

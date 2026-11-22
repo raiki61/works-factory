@@ -13,11 +13,11 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
   読み取りの結果は中身の sha で <cache_dir>/scan.json に持ち、中身の変わった file だけ読み直す（stats.scanned）。
 - select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=(), defer_all=False) -> dict: 回すテストのモジュール
   （速い段 ∪ 選んだ物）。all_tests_required なら全部（all_modules を渡せばその一覧、無ければ modules は None）。
-  direct_only なら直に関わる試験（direct: 起点か深さ 1）と名指しの試験だけを選び、先の試験は left に残す。
+  direct_only なら直に関わる試験（direct: 起点か、起点から辺 1 本の道が在る物）と名指しの試験だけを選び、先の試験は left に残す。
   その時の全部は分からない物が直に関わる所に在る時だけで、深さ 2 以上の分からない物は far に理由の形で残す。
   defer_all（direct_only と一緒の時だけ）は、全部を回さず CI に寄せる呼び手の印: 全部の時も left と far を残す
   （全部の時の selected は狭めず、left と重なる）
-- direct(m, path) -> bool: 起点そのものか、起点から辺 1 本（深さ 1）で届いた file か
+- direct(m, path) -> bool: 起点そのものか、起点から辺 1 本の道が在る file か（辿りが選んだ道が深くても、reach の seed_edge が在れば真）
 - seeds_from_units(repo, units) -> list: 判定の単位の文（key・reason・class_query・prescriptions など全部の字）に
   現れる追跡中の file（パスそのものか、一意な basename）
 - py_imports(text) -> list | None: Python の file の import の一覧（地図の import の辺と同じ読み取り。libdocs が使う）
@@ -1070,7 +1070,7 @@ def direct(m, path) -> bool:
 def select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=(), defer_all=False):
     """回すテストのモジュール。run_all（分からない物が近くに在る）なら全部。direct_only なら直に関わる試験（direct）と
     名指しの試験（named。根からのパス）だけを選び、届いただけの先の試験は left に名前で残す（回さない。run_all の時は空）。
-    direct_only の run_all は、分からない物が直に関わる所（起点か深さ 1。地図の reach に無く置き場の分からない物も含める）に
+    direct_only の run_all は、分からない物が直に関わる所（起点か、起点から辺 1 本の道が在る所。地図の reach に無く置き場の分からない物も含める）に
     在る時だけで、深さ 2 以上の物は far に理由の形のまま残す（一式は線の最後のテストの段が回す。持ち主の決定 2026-10-06）。
     defer_all は『呼び手は run_all でも全部を回さず CI に寄せる』呼び手の印で、direct_only と一緒の時だけ効く:
     run_all の時も left を求め、far も空にしない（run_all の時の selected は狭めず、left と重なる）。既定の False は上のとおり"""
