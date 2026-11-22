@@ -119,7 +119,7 @@ class FetchCase(unittest.TestCase):
 
     def test_safe_url_is_a_strict_bool(self):
         self.assertIs(webget.safe_url("https://pypi.org/x"), True)
-        for bad in (None, 3, "https://[::1]/x", "https://a.b:pw@c.example/", "http://pypi.org/x", "https://[bad/x"):
+        for bad in (None, 3, "https://[::1]/x", "https://a.b:pw@c.example/", "http://pypi.org/x", "https://[bad/x", "https://10.1.2.3/x", "https://127.1/x"):
             with self.subTest(bad=bad):
                 self.assertIs(webget.safe_url(bad), False)
 
