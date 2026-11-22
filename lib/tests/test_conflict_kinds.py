@@ -12,8 +12,8 @@
 - fix_plan_item の行の案の直しの状態（waiting・amended・gave_up。依頼 226）: 裁定で waiting に置き、set_replan の 1 か所で
   amended か gave_up に移す。amended の単位は直す義務に戻り、gave_up の行は ask_human の行として字のまま並ぶ。欄の無い前の形の
   行は waiting と読む
-- （fix の試験へ移った）修正役の受け付け（fixboard.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
-  食い違いの申し出の拒否（check conflict）にし、積まない（FixAcceptSeamCase。元 works/blk-fix/scripts/accept.py:319-333）
+- （fix の試験 tests/blocks/fix/test_ruling.py へ移った）修正役の受け付け（fix の block の board.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
+  食い違いの申し出の拒否（check conflict）にし、積まない（元 works/blk-fix/scripts/accept.py:319-333）
 盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git は FixAcceptSeamCase の
 受け付けが段の頭の木と版を引く小さなリポジトリだけ）。
 """
