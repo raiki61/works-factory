@@ -193,7 +193,7 @@ def _allowed(path: pathlib.Path | None, rows: list, unread: list) -> None:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(doc, list) or not all(isinstance(row, dict) for row in doc):
-            raise ValueError("行の配列でない")
+            raise ValueError("JSON の中身が行（オブジェクト）の配列でない")
     except (OSError, ValueError) as error:
         unread.append(f"許したテストの変更の訳 {path} を読めない（{type(error).__name__}: {error}）")
         return
