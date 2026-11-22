@@ -580,7 +580,8 @@ def refuse_unknown_groups(flags: list[str]) -> None:
 
 
 RENAMED_INPUTS = {"design_only": "design_talk"}   # 名の替わった入力（古い名 → 新しい名。#827）
-RENAMED_FOR = (specreviews.LINE, "works-factory-chain")   # 名を替えたグラフ（ほかの block の同じ名の port は替えていない）
+CHAIN = "works-factory-chain"   # 周の鎖のグラフの名（apply が表 RETURN_READS の鍵に使う）
+RENAMED_FOR = (specreviews.LINE, CHAIN)   # 名を替えたグラフ（ほかの block の同じ名の port は替えていない）
 
 
 def refuse_renamed_inputs(workflow: str, flags: list[str]) -> None:

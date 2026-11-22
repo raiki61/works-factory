@@ -818,12 +818,8 @@ def _unanalysable(ix, mods, missing, near) -> list[dict]:
     return unanalysable
 
 
-def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
-    from_diff = list(changed) if diff else []
-    files, names, missing = _normalize_seeds(ix, list(seeds) + from_diff)
-    mods = _Modules(ix, missing)
-
-    # 逆向きの import の表: 先 → [(元, resolution, 行, 字)]
+def _importers(ix, mods):
+    """逆向きの import の表: 先 → [(元, resolution, 行, 字, 名)]"""
     importers = {}
     for p in sorted(mods.pys & set(ix.files)):
         facts = ix.rec(p).get("py") or {}
@@ -832,7 +828,11 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
             for tgt, how in mods.resolve(p, imp, declared):
                 if tgt != p:
                     importers.setdefault(tgt, []).append((p, how, imp[2], imp[3], imp[0] or "." * imp[1]))
+    return importers
 
+
+def _readers(ix, mods, importers):
+    """宣言した読み（`reads`）の表: file → {読む物: 候補か}。宣言した file を import する側にも伝わる（曖昧な import だけなら候補）"""
     readers = {}
     for p in sorted(mods.pys & set(ix.files)):
         declared_reads = (ix.rec(p).get("py") or {}).get("reads")
@@ -841,6 +841,16 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
             for q, how, *_ in importers.get(p, []):
                 got = readers.setdefault(q, {})
                 got.update((v, got.get(v, True) and how == "ambiguous") for v in declared_reads)
+    return readers
+
+
+def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
+    from_diff = list(changed) if diff else []
+    files, names, missing = _normalize_seeds(ix, list(seeds) + from_diff)
+    mods = _Modules(ix, missing)
+
+    importers = _importers(ix, mods)
+    readers = _readers(ix, mods, importers)
     words = ix.word_index()
     edges = {}   # (path, dep, kind, key) → edge
 
