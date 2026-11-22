@@ -135,13 +135,14 @@ nodes:
           prompt: "$general-structure-prep.output.prompt"
           systemPrompt: "$general-structure-prep.output.system"
           depends_on: [general-structure-prep]
-          model: '@wf-plan-structure'
-          allowed_tools: []
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: &eye_launch
+            model: '@wf-plan-structure'
+            allowed_tools: []
+            settingSources: [user]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            mutates_checkout: false
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             required: [rows]
@@ -187,13 +188,7 @@ nodes:
         - id: structure-eye
           prompt: "$structure-eye-prep.output.prompt"
           depends_on: [structure-eye-prep]
-          model: '@wf-plan-structure'
-          allowed_tools: []
-          settingSources: [user]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          mutates_checkout: false
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: *eye_launch
           output_format:
             type: object
             required: [rows]
