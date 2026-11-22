@@ -45,6 +45,43 @@ class JsonFileCase(unittest.TestCase):
         self.assertEqual(jsonfile.write(deep, {}, parents=True), deep)
         self.assertEqual(json.loads(deep.read_text(encoding="utf-8")), {})
 
+    def test_read_dict_and_dump(self):
+        """read_dict は JSON のオブジェクトだけ返し、オブジェクトでなければ ValueError。dump は書いた中身のバイトを返し、一時のファイルを残さない"""
+        path = self.dir / "d.json"
+        raw = jsonfile.dump(path, {"a": "字"})
+        self.assertEqual(raw, '{\n "a": "字"\n}\n'.encode("utf-8"))
+        self.assertEqual(path.read_bytes(), raw)
+        self.assertEqual(jsonfile.read_dict(path), {"a": "字"})
+        path.write_text("[1]", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            jsonfile.read_dict(path)
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["d.json"])
+
+    def test_dump_replaces_a_link_at_the_tmp_name_without_writing_through_it(self):
+        path = self.dir / "d.json"
+        target = self.dir / "target.txt"
+        target.write_text("keep", encoding="utf-8")
+        (self.dir / "d.json.tmp").symlink_to(target)
+        jsonfile.dump(path, {"a": 1})
+        self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+        self.assertEqual(jsonfile.read_dict(path), {"a": 1})
+
+    def test_rows_and_split_walk_the_path(self):
+        """rows は道を辿って行を（写さず）返し、EACH の段だけ入れ子の並びになる。split は欄を外した写しと外した欄を返し、元は変えない"""
+        doc = {"a": [{"x": 1, "y": 2}, {"y": 3}], "b": {"x": 9}}
+        self.assertEqual(jsonfile.rows(doc, ["a", jsonfile.EACH]), [{"x": 1, "y": 2}, {"y": 3}])
+        self.assertIs(jsonfile.rows(doc, ["a", jsonfile.EACH])[0], doc["a"][0])
+        self.assertEqual(jsonfile.rows(doc, ["b"]), {"x": 9})
+        self.assertEqual(jsonfile.rows(doc, ["a", jsonfile.EACH, "y"]), [2, 3])
+        self.assertEqual(jsonfile.rows(doc, ["b", jsonfile.EACH]), [])
+        self.assertIsNone(jsonfile.rows(doc, ["a", "z"]))
+        out, taken = jsonfile.split(doc, ["a", jsonfile.EACH], ["x"])
+        self.assertEqual(out, {"a": [{"y": 2}, {"y": 3}], "b": {"x": 9}})
+        self.assertEqual(taken, [{"x": 1}, {}])
+        self.assertEqual(doc["a"][0], {"x": 1, "y": 2}, "元の doc は変えない")
+        self.assertEqual(jsonfile.split(doc, ["b"], ["x"])[1], {"x": 9})
+        self.assertEqual(jsonfile.split(doc, ["a"], ["x"])[1], {}, "行が dict でなければ空")
+
 
 if __name__ == "__main__":
     unittest.main()

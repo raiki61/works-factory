@@ -38,6 +38,16 @@ class Record(unittest.TestCase):
                                                ("A", ["lib/tests/test_rows.py"])))
         self.assertEqual(got["unread"], ["訳"])
 
+    def test_malformed_rows_are_skipped_and_same_item_depends_are_not_after(self):
+        items = ITEMS + ["x", {"item": "3", "unit_keys": ["C"]},
+                         {"item": 4, "unit_keys": ["D", "E", 9], "approach": None,
+                          "depends_on": [{"unit": "D", "receives": ["x"]}, {"unit": "E", "receives": ["y"]}, {"unit": "Q", "receives": ["z"]}]}]
+        replies = [{"changes": [{"unit_key": 5, "files": ["a"]}, "x", {"unit_key": "A", "files": "notalist"}]}]
+        got = itemcommits.record(items, replies, ["x", {"unit_key": 7, "test_files": ["t"]}], "/repo")
+        self.assertEqual([r["item"] for r in got["items"]], [1, 2, 4])
+        self.assertEqual(got["items"][2], {"item": 4, "unit_keys": ["D", "E"], "approach": "", "after": []})
+        self.assertEqual(got["claims"], claims(("A", [])))
+
     def test_run_without_a_plan_has_no_items(self):
         self.assertIsNone(itemcommits.record(None, [], [], "/repo")["items"])
 
@@ -87,6 +97,11 @@ class Split(unittest.TestCase):
         record = self.record(("A", ["use.py"]), ("B", ["rows.py"]))
         record["items"][1]["after"] = [1]
         self.assertEqual(itemcommits.split(record, ["rows.py", "use.py"]), ([], "修正案の項目の依存が循環している"))
+
+    def test_exactly_shown_paths_have_no_rest_count(self):
+        _, why = itemcommits.split(self.record(), [f"p{i}" for i in range(itemcommits.SHOWN)])
+        self.assertIn("p4）", why)
+        self.assertNotIn("ほか", why)
 
     def test_many_unclaimed_paths_are_counted(self):
         _, why = itemcommits.split(self.record(), [f"p{i}" for i in range(7)])
