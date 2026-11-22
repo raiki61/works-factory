@@ -12,7 +12,7 @@
 - View・take_view・numstat_totals・worktree_tree・snapshot（対象差分の見方）
 - snap_tree・moved_since（作業ツリーの写しと照らし）
 - where_rows・location_problems・location_gap（所見の場所の照らし）
-- Due・entry_skip・normal_run・not_entry_due・fill_entry・fill_na・fill_not_run・fill_problems・intake（回すかの決めと、回さない時の埋め）
+- Due・entry_skip・normal_run・is_entry_run・not_entry_due・fill_entry・fill_na・fill_not_run・fill_problems・intake（回すかの決めと、回さない時の埋め）
 - na_mode（『条件に当たらない』の扱い）
 - check_record・material_from_findings（素材の欄の照らし）
 - accept（受け付け）
