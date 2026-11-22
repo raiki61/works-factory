@@ -111,7 +111,7 @@ def ignored_files(repo) -> list:
     return sorted(set(git_names(repo, "ls-files", "--others", "--ignored", "--exclude-standard", "--full-name", "--", ":/")))
 
 
-def untracked_dirs(repo) -> list:
+def _untracked_dirs(repo) -> list:
     """丸ごと未追跡のフォルダ（無視されるか否かを問わない。末尾が / の名前、名前の順）。git ls-files --others --directory
     （除外の規則を読まないので無視される物も出る）は、丸ごと未追跡のフォルダを 1 本に畳み、--no-empty-directory を付けない
     ので空のフォルダも出す（git-ls-files(1)）。フォルダは ignored_files に載らないので、前から在ったかはこれで控える"""
@@ -131,10 +131,10 @@ def _board_path(board, before: str = IGNORED_BEFORE_FILE) -> pathlib.Path:
 
 
 def record_ignored(board, repo, before_name: str = IGNORED_BEFORE_FILE) -> dict:
-    """修正役を起こす前の ignored_files と丸ごと無視されるフォルダと untracked_dirs と
+    """修正役を起こす前の ignored_files と丸ごと無視されるフォルダと _untracked_dirs と
     段の頭の木（snapshot。欄 head_tree）を置き場の fix-ignored-before.json（before_name）に控える。{"ok": True, "count", "file"} を
     返す（count は無視されるファイルの数）"""
-    before = {"ignored": ignored_files(repo), "ignored_dirs": _ignored_dirs(repo), "dirs": untracked_dirs(repo),
+    before = {"ignored": ignored_files(repo), "ignored_dirs": _ignored_dirs(repo), "dirs": _untracked_dirs(repo),
               "head_tree": snapshot(repo)}
     return {"ok": True, "count": len(before["ignored"]), "file": _write_json(_board_path(board, before_name), before)}
 

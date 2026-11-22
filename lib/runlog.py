@@ -158,16 +158,16 @@ def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
         if kind == EXEC_ROW and r.get(EXEC_LABEL) == UNTIL_ROW and not mine:
             loop, mark, _ = step.rpartition(ITERATION_MARK)
             if mark and loop:
-                untils.setdefault(loop, []).append((r.get(EXIT_CODE), report._time(r.get("ts"))))
+                untils.setdefault(loop, []).append((r.get(EXIT_CODE), report.parse_ts(r.get("ts"))))
         if kind == "node_start":
-            began.setdefault(step, report._time(r.get("ts")))
+            began.setdefault(step, report.parse_ts(r.get("ts")))
         if kind in (*COST_ROWS, "node_skipped") and not mine:
             last[step] = kind
         if kind == "node_error" and not mine:
             falls[step] = falls.get(step, 0) + 1
             errors[step] = str(r.get("error") or "")
         if kind in COST_ROWS:
-            ended[step] = report._time(r.get("ts"))
+            ended[step] = report.parse_ts(r.get("ts"))
             execution = _dict(r.get("execution"))
             if execution.get("accounting", OWN_SPEND) != OWN_SPEND:
                 continue

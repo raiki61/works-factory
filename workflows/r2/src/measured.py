@@ -112,7 +112,7 @@ def origin_section(repo, base: str, head: str, label: str, *, cumulative_empty: 
     try:
         base_sha, head_sha = fixboard.pr_revs(repo, base, head)
         pr_files = fixboard.pr_diff(repo, base_sha, head_sha, skip, "--name-only").splitlines()
-        commits = int(unittrees._out(repo, "rev-list", "--count", f"{base_sha}..{head_sha}"))
+        commits = int(unittrees.git_out(repo, "rev-list", "--count", f"{base_sha}..{head_sha}"))
         fix_files = eyekit.changed_files(fixboard.run_diff(repo, head_sha, skip))
     except (unittrees.UnitTreeError, leftovers.Unreadable, ValueError) as e:
         return f"- 累積差分の起点を測れない（{oneline.one_line(e)}）"

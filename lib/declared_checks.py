@@ -9,7 +9,8 @@
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
 - 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
-- 新しい関数: material_problems・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）
+- 新しい関数（元の版に無い）: material_problems・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）・
+  ran_reds・_junit_reports・_row・_no_runs・run_how・_found・gate_values
 """
 import contextlib
 import json
@@ -24,6 +25,7 @@ import time
 import baseline_red
 import checkscope
 import gatemarks
+import materialkit
 import oneline
 import tree_run
 
@@ -46,11 +48,13 @@ TAIL_LINES = 20      # 走らせた語の出力のうち、返答に写す末尾
 TAIL_BYTES = 2000    # その上限（バイト）。1 行が長い出力で返答が膨らまないように
 
 # 素材の欄の決まり（material_problems）。出どころは今の works の写しの graph（works/.shared/core/graphloops/graphs/review-loop.json）の
-# p0.local_checks・p4.ci の schema と、検証器の素材の表（works/.shared/core/scripts/review-record.py:140-151 の STATUS・351 の NUMERIC_FIELDS）
-STATUSES = ("found", "clean", "not_applicable", "awaiting_human", "not_run")
+# p0.local_checks・p4.ci の schema と、検証器の素材の表（works/.shared/core/scripts/review-record.py:140-151 の STATUS・351 の NUMERIC_FIELDS）。
+# 状態の語と要る欄は素材の状態の表 materialkit.STATUS の 1 か所から引く。carried_over は前の周の素材を持ち越す時の状態で、
+# 今の周に走らせて書く素材は使わない
+CARRIED = "carried_over"
+STATUSES = tuple(k for k in materialkit.STATUS if k != CARRIED)
 FIELDS = ("count", "detail", "checked", "reason")
-STATUS_FIELDS = {"found": ("count", "detail"), "clean": ("checked",), "not_applicable": ("reason",),
-                 "awaiting_human": ("reason",), "not_run": ("reason",)}
+STATUS_FIELDS = {k: materialkit.STATUS[k].fields for k in STATUSES}
 NUMERIC_FIELDS = ("count",)
 SYSTEMS = "systems"   # 任せ先の役が書く系統の名の分け {ran, unran}（green_cert.ran_steps と同じ形。冒頭の句が読む）
 NAMES_SCHEMA = {"type": "array", "items": {"type": "string"}}

@@ -168,7 +168,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 ### `plan-scope` 修正案の項目の範囲の照らし
 
 - 状態: 住処あり
-- 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・共有ボードで照らす `check_paths`）
+- 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・受け付けが照らす値 `scope`）
 - 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`・`files`（ファイル構成の行。行の型 `FILES_SCHEMA`）・`depends_on`（欄の型と読みは `lib/planmarks.py`）
 - 知ってよい所: 住処と、glob の当て方の下回り `lib/globs.py`（`glob_match`・`glob_problem`・`globs_meet`）と、項目の欄の読みを持つ `lib/planmarks.py`（`glob_match` を呼ぶ `gaps`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `workflows/fix/src/scope.py`・手直しの受け付け `workflows/delta-review/src/touchup.py`・波及の照らし `workflows/plan/src/ripple.py` の `_covered`・穴の名札の path の規則 `workflows/delta-review/src/holeties.py`（`inside`）・修正の組分け `workflows/fix/src/board.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
 - 今: 同じ当て方を手で書く所が残る（範囲の相談の `workflows/fix/src/consult.py`。`out_of_scope` に当たるパスを範囲から除く別の決まりで、`inside` に寄せると振る舞いが変わる。柵の表の既知の漏れ）。`lib/protect.py` は守りのファイルの型を同じ下回りで当てる別の考え
@@ -200,7 +200,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 ### `world` 世界の解（問題の類ごとの定石と、依頼の解き方との比べ）
 
 - 状態: 住処あり
-- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・先例の出どころの照らし `ref_problems`・依頼の解き方の足し欄 `MEANS` と `split_means`・`write_means`・`means_of`）
+- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・依頼の解き方の足し欄 `MEANS` と写しの読み `means_of`）
 - 約束: 行の欄と語は住処の定数 `FIELDS`・`VERDICTS`・`BASES`（試験 `lib/tests/test_worldmark.py` が縛る）。行の型は `lib/world-row.schema.json`
 - 知ってよい所: 住処と、世界の解の block `workflows/world/`（行と段の控えを書く出口 `workflows/world/scripts/finish.py` を含む）。読み手（`lib/planmarks.py`・`lib/gatemarks.py`・診断の `workflows/diagnose/src/judge.py`・計画の `workflows/plan/src/brief.py`・事前審査の `workflows/plan-review/src/material.py` ほか）は住処の口を引く
 - 今: 柵は行のファイルと控えの名の字。表の既知の漏れは、2026-11-05 の数え直しで載せた行の形の名指し（`lib/world-row.schema.json` と、世界の解を受ける block の YAML 3 本）の 4 ファイル 4 行

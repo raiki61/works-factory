@@ -1,4 +1,4 @@
-"""web の取得と run をまたぐ控え。層 L1（works の物を何も知らない。標準ライブラリだけ）。
+"""web の取得と run をまたぐ控え。層 L1（works の物を何も知らない。標準ライブラリと、同じ置き場の葉 jsonfile だけ）。
 
 機械（支度の script の節。Claude の sandbox の外）が網から文書を取る口と、取った物を run をまたいで使い回す控えを 1 か所に
 持つ。前はライブラリの文書の節（libdocs）の中に在ったのを、世界の解の段も同じ口を使うので寄せた。振る舞いは前の libdocs の物と同じ（転送の決まり・読む量・控えの形と使う長さの決め方）。
@@ -34,6 +34,9 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+
+import jsonfile
+
 
 class FetchError(Exception):
     """網に届かない・答えが読めない（文は 1 行）"""
@@ -102,10 +105,7 @@ class Store:
         self.ttl = ttl
 
     def _read(self, name: str):
-        try:
-            doc = json.loads((self.root / name).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
+        doc = jsonfile.read_or(self.root / name)
         return doc if isinstance(doc, dict) and doc.get("schema") == self.schema else None
 
     def _fresh(self, doc, now: float) -> bool:

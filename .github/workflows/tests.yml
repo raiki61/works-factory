@@ -9,8 +9,8 @@
 # 1 件も走らない分けは終了の値 5 で落ちる。試験の無い木を緑にしない。
 # Archon を要る試験（tests/archon.py）を見送らないように、止めた Archon の源（factory/pack.json の commit）を bin/_lib/place.py で取り、
 # WORKS_FACTORY_ARCHON_CACHE で渡す。源は commit を鍵に actions のキャッシュに置く。bun の版は源の package.json の engines.bun から読む。
-# 考えの住処の柵の試験（tests/layers/test_concept_fences.py の NotAboveMain）が origin/main との分かれ目の表と比べるので、checkout は
-# fetch-depth: 0 で全履歴を取る。分かれ目を引けなければ試験は見送らずに赤。
+# checkout は fetch-depth: 0 で全履歴を取る。取り始めた訳は考えの住処の柵の試験 NotAboveMain（origin/main との分かれ目の表と比べた）で、
+# その試験は #765 で消えた。浅い取得に戻してよいかは確かめていない。
 name: tests
 
 on:

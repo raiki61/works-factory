@@ -1,4 +1,4 @@
-"""世界の解の行の住処（.shared/core/worldmark.py。計画 docs/plans/2026-10-09-world-solution.md の W4・5.3 節・5.7 節）。
+"""世界の解の行の住処（lib/worldmark.py。元の works の計画 2026-10-09-world-solution の W4・5.3 節・5.7 節。工場の木には無い）。
 
 行のファイル（JSON Lines）の読み・指示書の頭の節・答えの要る行・関所の軸・関所の行と、約束
 （lib/world-row.schema.json。欄と語の定数はそこから引く）で行を照らすことを見る。一時の置き場のファイルだけ（網・git・子のプロセスなし）。
@@ -100,30 +100,6 @@ class Answers(unittest.TestCase):
         self.assertEqual(table.of({"allowed_paths": ["src/"]}), [])
         self.assertEqual(table.missing([{"allowed_paths": ["src/"]}]), ["w1", "w2"])
 
-    def test_world_source_must_name_a_staged_row(self):
-        """判定の返答の先例（precedents）の出どころ world:<類の id> は盤面の根の控えが指す行に在る id だけを通す。頭に字を添えても拾い、
-        world: の無い出どころは見ない。出どころを返答から抜くのも worldmark（呼び手は返答をそのまま渡す）"""
-        def refs(*sources):
-            return {"precedents": [{"source": s, "why": "先例"} for s in sources]}
-        self.assertTrue(hasattr(worldmark, "ref_problems"), "worldmark.ref_problems が無い")
-        with tempfile.TemporaryDirectory() as tmp:
-            board = pathlib.Path(tmp)
-            world = board / worldmark.WORLD_FILE
-            world.write_text(json.dumps(row(), ensure_ascii=False) + "\n", encoding="utf-8")
-            (board / worldmark.STATE_FILE).write_text(json.dumps({"status": "ok", "reason": "", "world_file": str(world)}), encoding="utf-8")
-            self.assertEqual(worldmark.ref_problems(refs("world:w1"), board), [])
-            for src in ("world:w-none", "世界の解 world:w-none"):
-                got = worldmark.ref_problems(refs(src), board)
-                self.assertEqual(len(got), 1, got)
-                self.assertIn("w-none", got[0])
-            self.assertEqual(worldmark.ref_problems(refs("https://example.org/tdd", "docs/guide.md の 3 節"), board), [])
-            self.assertEqual(len(worldmark.ref_problems(refs("world:w1", "world:w-none"), board)), 1)
-        with tempfile.TemporaryDirectory() as bare:
-            got = worldmark.ref_problems(refs("world:w1"), pathlib.Path(bare))
-            self.assertEqual(len(got), 1, got)
-            self.assertIn("w1", got[0])
-            self.assertEqual(worldmark.ref_problems(refs("https://example.org/tdd"), pathlib.Path(bare)), [])
-
     def test_row_without_applies_needs_no_answer(self):
         self.assertEqual(worldmark.unanswered([row(applies="")], []), [])
         self.assertEqual(worldmark.need([row(applies="")]).missing([]), [])
@@ -134,21 +110,13 @@ class Answers(unittest.TestCase):
         self.assertEqual(worldmark.unanswered(rows, items), ["w2"])
         self.assertEqual(worldmark.unanswered(rows, items + [{"structure": [{"world": "w2", "deviation": "訳"}]}]), [])
 
-    def test_copy_means_follows_the_source(self):
-        """控えは写し、元が無くなれば前の写しを消す（means の無い run の関所が古い写しで照らさない）"""
+    def test_means_of_reads_the_copy(self):
+        """事前審査の置き場の写し COPY_MEANS を読む。無い置き場は []"""
         with tempfile.TemporaryDirectory() as tmp:
-            src, dest = pathlib.Path(tmp, "judge"), pathlib.Path(tmp, "plan-review")
-            src.mkdir()
-            dest.mkdir()
-            worldmark.write_means(src, ["読むだけの役を足す"])
-            worldmark.copy_means(src / "purpose-means.json", dest)
-            self.assertEqual(worldmark.means_of(dest, worldmark.COPY_MEANS), ["読むだけの役を足す"])
-            self.assertFalse((dest / "purpose-means.json").exists(), "写しは判定の置き場の名でなく自分の名")
-            worldmark.copy_means(pathlib.Path(tmp, "none", "purpose-means.json"), dest)
+            dest = pathlib.Path(tmp)
             self.assertEqual(worldmark.means_of(dest, worldmark.COPY_MEANS), [])
-            worldmark.copy_means(src / "purpose-means.json", dest)
-            worldmark.copy_means(None, dest)
-            self.assertEqual(worldmark.means_of(dest, worldmark.COPY_MEANS), [], "欄が null の run も前の写しを消す")
+            (dest / worldmark.COPY_MEANS).write_text(json.dumps({"means": ["読むだけの役を足す", " "]}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(worldmark.means_of(dest, worldmark.COPY_MEANS), ["読むだけの役を足す"])
 
     def test_world_ok_follow(self):
         ok, why = worldmark.world_ok({"world": "w1", "follows": True}, row(), "", [], lambda text: "", ".")

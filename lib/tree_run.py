@@ -269,7 +269,7 @@ def _answers(send, target):
         return True
 
 
-def parse_etime(s):
+def _parse_etime(s):
     """ps の etime（[[dd-]hh:]mm:ss）を秒に。読めなければ None"""
     try:
         days, _, rest = s.strip().rpartition("-")
@@ -282,9 +282,9 @@ def parse_etime(s):
         return None
 
 
-def _ps_all():
+def ps_all():
     """全プロセスの表 ——({pid: _Proc}, None)。読めなければ (None, 理由)。開始時刻は ps を起こす**前**の時刻から etime を
-    引く（後から引くと ps の遅れが開始時刻に乗り、番号の再利用の見分けを誤る）。本線 role_run._ps_all の写し"""
+    引く（後から引くと ps の遅れが開始時刻に乗り、番号の再利用の見分けを誤る）。本線 role_run._ps_all の写し。bin/_lib/runstop.py も呼ぶ"""
     now = time.time()
     try:
         r = subprocess.run([PS, "-A", "-o", "pid=,ppid=,pgid=,uid=,etime=,stat="], stdin=subprocess.DEVNULL,
@@ -294,16 +294,13 @@ def _ps_all():
     rows = {}
     for line in r.stdout.splitlines():
         f = line.split()
-        secs = parse_etime(f[4]) if len(f) >= 6 else None
+        secs = _parse_etime(f[4]) if len(f) >= 6 else None
         if secs is None or not all(x.lstrip("-").isdigit() for x in f[:4]):
             continue
         rows[int(f[0])] = _Proc(int(f[0]), int(f[1]), int(f[2]), int(f[3]), now - secs, f[5])
     if r.returncode != 0 or not rows:
         return None, f"ps が全プロセスの表を返さない（exit {r.returncode}: {r.stderr.strip()[-200:]}）"
     return rows, None
-
-
-ps_all = _ps_all   # 外（bin/_lib/runstop.py）から呼ぶ名。元の名は本線の写しのまま残す
 
 
 def _tree_members(pgid, known=None, born=None):
@@ -314,7 +311,7 @@ def _tree_members(pgid, known=None, born=None):
     （グループもセッションも在る限り番号は再利用されない）ので、グループとセッションでは拾わない。
     呼んだ自分と自分の祖先は数えない。セッションの番号を読めない同じ利用者のプロセスが在れば、仲間かを決められないと
     理由を返す"""
-    rows, why = _ps_all()
+    rows, why = ps_all()
     if rows is None:
         return None, why
     uid, sessions, unreadable = os.getuid(), {}, []
@@ -451,13 +448,13 @@ def place_mark(mark) -> bool:
 
 def _prepare(cwd, popen_kw, setup=None):
     """cwd の作業ツリーで、対象の宣言の setup を作業ツリーごとに 1 度走らせる。作業ツリーの根とその作業ツリー自身の git dir は
-    unittrees._out（script 自身の os.environ から git の置き場の変数を外した、隔離のままの git）で引く。git の木でなければ何もしない。
+    unittrees.git_out（script 自身の os.environ から git の置き場の変数を外した、隔離のままの git）で引く。git の木でなければ何もしない。
     setup の argv だけが popen_kw の env（戻した利用者の HOME・XDG と印）で、根を cwd に _launch で起こされ、標準入力は空・出力は
     誤りの文のために控える。全部が 0 で終われば、git dir の SETUP_DONE に argv の並びの sha を書く（同じ sha なら次から走らせない）。
     落ちた・起こせない・宣言の setup の形が誤り（declared.read_setup。宣言を parse しない呼び手の分）なら、SETUP_DONE を書かずに
     SETUP_FAILED を頭にした OSError。setup が None でなければ宣言は読まず、渡された argv の並びを走らせる（[] は何も走らせない。run の docstring）"""
     try:
-        root, git_dir = unittrees._out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
+        root, git_dir = unittrees.git_out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
     except unittrees.UnitTreeError:
         return
     if setup is None:

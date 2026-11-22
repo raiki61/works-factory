@@ -221,7 +221,7 @@ def _copy_world(d: pathlib.Path, world) -> list:
 
 
 def _copy_means(d: pathlib.Path, means: list) -> None:
-    """依頼が示した解き方の写し（worldmark.copy_means の写しの名と形 {means: [...]}。空なら前の写しを消す）"""
+    """依頼が示した解き方の写し（写しの名 worldmark.COPY_MEANS・形 {means: [...]}。空なら前の写しを消す）"""
     got = [m for m in means if isinstance(m, str) and m.strip()]
     if got:
         jsonfile.write(d / worldmark.COPY_MEANS, {"means": got})

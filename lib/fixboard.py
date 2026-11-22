@@ -221,18 +221,18 @@ HANDOFF_HEAD = "直しの途中で AI が自分で決めずに人に回した物
 
 def run_diff(repo, base: str = "HEAD", skip=()) -> str:
     """版 base から作業ツリーの今の姿（未追跡の新しいファイルも・無視される物を除く。leftovers.snapshot）への累積差分
-    （unittrees._DIFF の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError、
+    （unittrees.DIFF_ARGS の形）。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError、
     作業ツリーの姿を取れなければ（読めないファイルなど）leftovers.Unreadable"""
     import leftovers
     import unittrees
-    out = unittrees._git(repo, *unittrees._DIFF, base, leftovers.snapshot(repo), "--", *unittrees.pathspec_without(skip))
+    out = unittrees.run_git(repo, *unittrees.DIFF_ARGS, base, leftovers.snapshot(repo), "--", *unittrees.pathspec_without(skip))
     return out.stdout.decode("utf-8", "surrogateescape")
 
 
 def pr_revs(repo, base: str, head: str) -> tuple[str, str]:
     """審査する変更の両端（起点 base・修正前の HEAD head）の commit の名。引けなければ unittrees.UnitTreeError"""
     import unittrees
-    base_sha, head_sha = (unittrees._out(repo, "rev-parse", "--verify", f"{rev}^{{commit}}") for rev in (base, head))
+    base_sha, head_sha = (unittrees.git_out(repo, "rev-parse", "--verify", f"{rev}^{{commit}}") for rev in (base, head))
     return base_sha, head_sha
 
 
@@ -240,7 +240,7 @@ def pr_diff(repo, base_sha: str, head_sha: str, skip=(), *opts: str) -> str:
     """審査する変更の差分（起点 base_sha → 修正前の HEAD head_sha。この run の直しの差分 run_diff と分ける側）を git diff の
     形 opts で。除くパスの頭 skip の下は載せない。git が落ちれば unittrees.UnitTreeError"""
     import unittrees
-    return unittrees._out(repo, "-c", "core.quotePath=false", *unittrees._DIFF, *opts, base_sha, head_sha, "--",
+    return unittrees.git_out(repo, "-c", "core.quotePath=false", *unittrees.DIFF_ARGS, *opts, base_sha, head_sha, "--",
                           *unittrees.pathspec_without(skip))
 
 

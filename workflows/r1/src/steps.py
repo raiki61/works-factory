@@ -11,6 +11,7 @@ import prompt
 
 import eyekit        # lib/。独立の目の族の共通の部品
 import gatemarks     # lib/。判定の語の平易な言い方（status_named）
+import materialkit   # lib/。観点の正本の置き場（review_md_paths）
 import jsonfile      # lib/
 import oneline       # lib/
 import seal          # lib/。判定の語
@@ -118,7 +119,7 @@ def _intake(out) -> dict:
 def comments_prompt(out, repo) -> dict:
     """1 段目の役（コメントの削除候補）の指示（docs/design/r1.md の 2.3）"""
     doc = _intake(out)
-    values = {**eyekit.diff_values(doc["diff"]), "review_md": eyekit.review_md(repo, REVIEW_MD)[0], "lang": prompt.lang(doc["lang"])}
+    values = {**eyekit.diff_values(doc["diff"]), "review_md": materialkit.review_md_paths(repo, REVIEW_MD)[0], "lang": prompt.lang(doc["lang"])}
     return prompt.emit(files.COMMENTS, values, {"spawns": False}, prompt.round_of(files.COMMENTS))
 
 
@@ -138,7 +139,7 @@ def minimality_prompt(out, repo) -> dict:
         "judgment_file": doc["judgment"],
         "fixes": material.fixes_text(doc["fixes"]),
         "scalars": scalars.scalars_text(doc["scalars"]),
-        "review_md": eyekit.review_md(repo, REVIEW_MD)[0],
+        "review_md": materialkit.review_md_paths(repo, REVIEW_MD)[0],
         "checks_file": doc["checks"],
         "checks_why": doc["checks_why"],
         "policy_body": eyekit.policy_body(doc["policy"] or None),

@@ -179,7 +179,7 @@ def with_rerun(base, run: dict):
         return base
     import baseline_red
     got = set(baseline_red.outcomes(cases))
-    old = [c for c in (base or {}).get("cases") or [] if baseline_red._key(c) not in got]
+    old = [c for c in (base or {}).get("cases") or [] if baseline_red.case_key(c) not in got]
     exit_ = (base or {}).get("exit")
     return {**(base or {"suite": "", "test_cmd": "", "rev": rerun.get("rev") or "", "material": None}),
             "cases": [*old, *cases], "exit": exit_ if exit_ is not None else (rerun.get("exit") if rerun.get("exit") is not None else 0),

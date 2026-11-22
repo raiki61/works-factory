@@ -5,7 +5,7 @@
 - run_suite を種（tests/e2e/target-seed/）の写しで走らせ、JUnit を書かない時と XML が壊れた時の problems の文。ファイル名だけの実行器を写しの根から起こす
 - parse_junit・red_problems・green_problems の事実の文（元は輪の中からだけ呼ばれていた筋を、関数を直に呼んで写す）
 - write_baseline → read_baseline が同じ dict に戻る（extra の欄も）。必須の欄の欠けと型の違い・OUTCOMES に無い outcome は ValueError
-- outcomes が同じ鍵の最初の 1 つを取る。_must_pass が元で failure の物を問わず、元に無い物を問う
+- outcomes が同じ鍵の最初の 1 つを取る。must_pass が元で failure の物を問わず、元に無い物を問う
 """
 import json
 import os
@@ -353,7 +353,7 @@ class JudgeCase(unittest.TestCase):
 
     def test_a_reserved_row_already_in_the_baseline_is_not_a_problem(self):
         """直す前の結末にも落ちた予約の行が在った回（base_synth）: 今の結末の同じ予約の行は赤・緑の確認の問題にしない（直す前から結末を
-        書かない部品の在る対象で、どの単位も通らない形にしない。_must_pass と同じ決め）。元に無く今だけ在る回は今どおり拒む"""
+        書かない部品の在る対象で、どの単位も通らない形にしない。must_pass と同じ決め）。元に無く今だけ在る回は今どおり拒む"""
         named = ["test_a.py::TestA::test_x"]
         reserved = {"classname": baseline_red.SYNTH_CLASSNAME, "name": baseline_red.SYNTH_NAME, "outcome": "error"}
         base = {"test_a.TestA::test_x": "passed"}
@@ -385,12 +385,12 @@ class JudgeCase(unittest.TestCase):
 class MustPassCase(unittest.TestCase):
     def test_baseline_failure_is_not_asked(self):
         base = baseline_red.outcomes([row("t", "failure")])
-        self.assertFalse(baseline_red._must_pass(row("t", "failure"), base))
+        self.assertFalse(baseline_red.must_pass(row("t", "failure"), base))
 
     def test_case_absent_from_baseline_is_asked(self):
         base = baseline_red.outcomes([row("t", "failure")])
-        self.assertTrue(baseline_red._must_pass(row("new", "failure"), base))
-        self.assertTrue(baseline_red._must_pass(row("t", "failure"), None))
+        self.assertTrue(baseline_red.must_pass(row("new", "failure"), base))
+        self.assertTrue(baseline_red.must_pass(row("t", "failure"), None))
 
     def test_outcomes_takes_first_of_same_key(self):
         self.assertEqual(baseline_red.outcomes([row("t", "failure"), row("t", "passed"), row("u", "passed")]),

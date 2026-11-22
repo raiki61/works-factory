@@ -20,7 +20,7 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 - NO_STANDARD: decided_by の頭の印。定石も依頼の本文も見つからず ①②③ のどれにも当たらない行は、印の後に探した所を書き、
   聞かずに推しで進む（出どころが無いことが中身なので軸 obvious の出どころの照らしと軸 world を揃える。報告には探した所を 1 行で残す）
 
-問いの台帳（record.questions）のうち人に聞く状態（検証器の ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
+問いの台帳（record.questions）のうち人に聞く状態（ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
 2026-09-29。run 119 の人の答え）。人に聞くと名乗る問いが人の口に繋がらないまま、出どころの免除だけが効いて
 いたため。この行は決め手の濾しに掛けない。関所の continue はその問いへの答えで、一言が問いに触れなければ修正役は問いの理由の推しで
 直す。一言で「保留: <key>」と名指した問いは答えに数えない。無人の run（line の無人の方針）では問いの行を項目に載せない——関所を
@@ -43,7 +43,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   答えた行の印
 - asks(b)・answered(b, q)・pending(b)・withheld_by(b)・withheld(b): 関所に載せる問い・関所で答えたか・まだ答えていない
   問い・それで直す義務から外す単位と外した問い（conflict.fix_duty が理由に使う）・その単位だけ（義務の数えと held_lines が読む）
-- hold_keys(note, keys): 一言の「保留:」から台帳の key を最長一致で拾う（answered が読む）
+- _hold_keys(note, keys): 一言の「保留:」から台帳の key を最長一致で拾う（answered が読む）
 - unread_holds(note, keys)・unread_hold_lines(b): key を拾えなかった「保留」の文と、拾えた文で並べた項の頭が台帳の key に
   当たらなかった並び（並べ書きの打ち間違い。key の後ろの言葉は並べない）と、報告の冒頭・最後の関所の文に並べる
   「読めなかった保留」の行（直す義務は変えない）
@@ -51,7 +51,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - held_lines(b)・answered_lines(b)・returned_lines(b)・unreturned_lines(b): 最後の関所の文と報告に並べる、関所で答えていない
   聞いたままの問いと戻せなかった単位（保留の件数）・関所で答えた問い（件数に数えない）・修正役に渡す義務に戻った単位・答えたが
   今の周の units に無いので戻せなかった単位
-- request_answers(b)・request_answer(b, q)・answer_note(a)・unmatched_answer_lines(b): 依頼の answers（値の見え方 Ledger の値。依頼者の
+- request_answers(b)・_request_answer(b, q)・_answer_note(a)・unmatched_answer_lines(b): 依頼の answers（値の見え方 Ledger の値。依頼者の
   答え）・q の key か出どころ origin と question が字のまま等しく（か、判定が answer_ties で q の key に結び）、q だけに当たる答え
   （answered と _gate_answered が読む。関所の continue と同じく答えた扱い。出どころで複数の問いに当たる答えはどれにも答えない）・
   答えの名乗りの文・答えた行に載らない答えの行（台帳のどの問いにも当たらない・複数の問いに当たった・決着済みの問いに当たった・
@@ -61,7 +61,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
   answer_ties（種 answers。答えを問い・単位に、前の周の作り直しの行を直す単位に結ぶ。受け付けが外して確かめ、通れば種 answers の
   控えに置く）の手順の口と、判定が単位にしなかった作り直しの報告の行
   ANSWERED_HEAD は答えた行の見出し、ANSWER_HOW は保留の行の下に出す答え方の 1 行
-- unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・material_lines(b): 今の周に測れていない素材
+- unmeasured(b)・origin_of(b, q)・material_answer(b, name)・measured_materials(b)・_material_lines(b): 今の周に測れていない素材
   （not_run・awaiting_human）・答えを結ぶ時の問いの出どころ（台帳の origin。origin を持てない field の問いは、key の頭の測れていない
   素材の名）・素材の名で答えた依頼の答え（問いが立っていなくても当たる）・命令と出力つきで答えた素材（報告が検証器の阻害から外す。
   HAND_CHECKED と名乗る）・答えた行に足す素材の行（利用者の声 10-09 の C2）
@@ -79,7 +79,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 - item_draft(text, node, *, recommend): 承認ノードの項目の文の答えの下書き（recommend は項目の行の欄。recommend_of が値を返せばその推しが答え。
   返さなければ text は空で、文の世界の解・狭めない案の尾を note に置く。文の末尾の字は推しとして読まない）
 - answer_key(b, q): 依頼の answers でその問いに答える時の question（保留の行の尾 ANSWER_KEY_HEAD が使う）
-- spec_words(unchecked) -> SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
+- spec_words(unchecked) -> _SpecWords(said, source, head, note): 承認し直すかの問いを「変わった」か「照らせなかった」かで言う語の選び
   （最後の承認ノードの 1 行目の句・次の依頼の下書きの source の頭・最後の承認ノードと報告の人が決めることの節の頭）
 グラフの中で決めてよいか（持ち主 2026-10-09 の決め 1。計画 2026-10-09-clean-whole の Task 2.6）: 関所の行を聞かずに通すのは、4 つの軸が
 全部揃う時だけ（人がいる run も無人の run も同じ決まり。揃わない行は今どおり人に回し、無人なら止めて答えの下書きを残す）。
@@ -100,7 +100,7 @@ conflict.owed_units_but_asked が withheld で行う。写しの _owed_units は
 （means_departs・means_drifts の recommend）で、機械は推しを作らない。文の組み立て means_depart_text・means_drift_text・means_rows・
 means_drift_rows と鍵の読み戻し means_key は事前審査の block と line が使う。
 判定の処方からの外れ: 修正案の欄 structure の {prescription: <単位の key>, deviation} も、いつも修正前の関所の項目（種類 PRESCRIPTION_KIND。人に
-聞く訳 PRESCRIPTION_WHY）になる。文は prescription_depart_text、行は prescription_depart_rows（推しは事前審査の prescription_departs の行だけ）。
+聞く訳 PRESCRIPTION_WHY）になる。文は _prescription_depart_text、行は prescription_depart_rows（推しは事前審査の prescription_departs の行だけ）。
 外れの行の項目の文の口は、種類を問わない depart_item の 1 つ（既定の訳は種類ごとの表 DEPART_WHY。推しは文に書かず、行の欄 recommend が運ぶ）。案の直しの承認ノードが前に通した同じ外れを聞き直さないための鍵は、判定の処方の行は文そのもの。
 構造の目が人に上げた行（structmark の route が人に上げる行）は、修正前の関所の項目になる（種類 DESIGN_KIND。推し＝chosen、捨てた案と
 代償＝rejected。DESIGN_HEAD で始まる 1 行。人が continue で答えた同じ文の行は聞き直さない）。
@@ -193,7 +193,7 @@ NARROW_HEAD = re.compile(r"修正案 \d+ が狭める能力: ")
 FACE_HEAD = re.compile(r"事前審査の穴 \[([^\]]+)\] [^\n]*?: ")
 ASK_HEAD = "問いの台帳の問い"          # 関所の項目の頭。答えの突き合わせもこの頭と key で引く
 ASK_KINDS = ("fork", "escalate")       # 関所の項目の kinds（fork の問いと、status が escalate の問い）
-HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: <key>」（文の終わりまで。key を並べてよい。key は hold_keys が台帳から拾う）
+HOLD = re.compile(r"保留\s*[:：]\s*([^。；;\n]+)")   # 一言の「保留: <key>」（文の終わりまで。key を並べてよい。key は _hold_keys が台帳から拾う）
 HOLD_END = re.compile(r"[。；;\n]")   # HOLD が読む文の終わり（unread_holds が一言を文に切る）
 KEY_CHAR = re.compile(converge.KEY_CHAR)   # 台帳の key の一致の前後にこれが続けば、もっと長い key の断片
 HOLD_ITEM = re.compile(r"(?:^|[・、,，])\s*([A-Za-z0-9_-]*[A-Za-z0-9][A-Za-z0-9_-]*)")   # 「保留:」に並べた項の頭の key らしい並び
@@ -304,18 +304,18 @@ SPEC_UNCHECKED_NOTE = (f"機械は承認し直さない。{SPEC_UNCHECKED}ので
                        "承認し直すなら次の run で仕様の段（spec=on）を回して承認する。採らないなら行を消す")   # 照らせなかった時の次の依頼の下書きの注
 
 
-class SpecWords(NamedTuple):
+class _SpecWords(NamedTuple):
     said: str     # 最後の承認ノードの開ける理由の句
     source: str   # 次の依頼の下書きの source の頭
     head: str     # 最後の承認ノードと報告の人が決めることの節の頭
     note: str     # 次の依頼の下書きの注
 
 
-def spec_words(unchecked: bool) -> SpecWords:
+def spec_words(unchecked: bool) -> _SpecWords:
     """承認し直すかの問いの語。照らせなかった（unchecked）時は「変わった」でなく「照らせなかった」と言う"""
     if unchecked:
-        return SpecWords(SPEC_UNCHECKED, SPEC_UNCHECKED, SPEC_UNCHECKED_HEAD, SPEC_UNCHECKED_NOTE)
-    return SpecWords(KIND_WORDS[SPEC_CHANGED_KIND], SPEC_CHANGED_LABEL, SPEC_CHANGED_HEAD, SPEC_CHANGED_NOTE)
+        return _SpecWords(SPEC_UNCHECKED, SPEC_UNCHECKED, SPEC_UNCHECKED_HEAD, SPEC_UNCHECKED_NOTE)
+    return _SpecWords(KIND_WORDS[SPEC_CHANGED_KIND], SPEC_CHANGED_LABEL, SPEC_CHANGED_HEAD, SPEC_CHANGED_NOTE)
 
 
 def row_texts(rows) -> list:
@@ -532,7 +532,7 @@ def _path(board, name: str) -> pathlib.Path:
     return pathlib.Path(getattr(board, "dir", board)) / name
 
 
-def no_standard(decided_by) -> str:
+def _no_standard(decided_by) -> str:
     """decided_by が「定石が見つからなかった」形（頭に NO_STANDARD）なら探した所の文（印だけなら ""）、ほかの形なら None"""
     text = str(decided_by or "").strip()
     return text.removeprefix(NO_STANDARD).strip() if text.startswith(NO_STANDARD) else None
@@ -541,7 +541,7 @@ def no_standard(decided_by) -> str:
 def decided(mark: dict) -> bool:
     """決め手の出どころ（か、定石が見つからなかった時の探した所）が在り、undecided_because が空で、柵の印が無い"""
     by = str(mark.get("decided_by") or "").strip()
-    return (bool(by) and no_standard(by) != "" and not str(mark.get("undecided_because") or "").strip()
+    return (bool(by) and _no_standard(by) != "" and not str(mark.get("undecided_because") or "").strip()
             and not mark.get("fences"))
 
 
@@ -642,7 +642,7 @@ def means_drift_rows(drifts, said: dict) -> list:
             for d in drifts or [] if isinstance(d, dict) and isinstance(d.get(MEANS_KIND), str)]
 
 
-def prescription_depart_text(item: int, key: str, rx: dict, deviation) -> str:
+def _prescription_depart_text(item: int, key: str, rx: dict, deviation) -> str:
     """計画の判定の処方からの外れの行の文。rx は {単位の key: [処方の文]}（planmarks.judged_prescriptions）。単位が無ければ読めていないと名乗る"""
     said = [s for s in (rx.get(key) if isinstance(rx, dict) else None) or [] if isinstance(s, str) and s.strip()]
     if said:
@@ -665,7 +665,7 @@ def prescription_depart_rows(fields, rx: dict, departs=()) -> list:
         mark = {"decided_by": _squeeze(d["deviation"])}
         if rec.get((d["item"], key)) is not None:
             mark[RECOMMEND] = rec[(d["item"], key)]
-        out.append({"source": PRESCRIPTION_KIND, "item": d["item"], "text": prescription_depart_text(d["item"], key, rx, d["deviation"]),
+        out.append({"source": PRESCRIPTION_KIND, "item": d["item"], "text": _prescription_depart_text(d["item"], key, rx, d["deviation"]),
                     "mark": mark, "why": [PRESCRIPTION_WHY]})
     return out
 
@@ -708,7 +708,7 @@ def axis_why(facts: AxisFacts, mark: dict, units) -> dict:
     仕様駆動の道が材料を集めて呼ぶ"""
     out = {axis: [] for axis in AXES}
     decided_by = str(mark.get("decided_by") or "").strip()
-    searched = no_standard(decided_by)   # 定石が見つからなかった行は、引ける出どころが無いことが中身で、探した所が世界の解を当たった結果
+    searched = _no_standard(decided_by)   # 定石が見つからなかった行は、引ける出どころが無いことが中身で、探した所が世界の解を当たった結果
     if not decided_by or searched == "" or str(mark.get("undecided_because") or "").strip():
         out["obvious"].append(NOT_DECIDED)
     elif (problem := facts.cite_ok(decided_by)) and not (searched and problem == cite.NO_SOURCE):
@@ -777,11 +777,8 @@ def narrow_asks(plan, marks, facts: AxisFacts) -> list:
 
 
 def _asking(b) -> list:
-    qs = [q for q in (b.record.get("questions") or []) if isinstance(q, dict)]
-    if not qs:
-        return []
-    states = b.rules.validator_module(b).ASKING
-    return [q for q in qs if q.get("status") in states]
+    """問いの台帳のうち人に聞く状態（ASKING）の問い"""
+    return [q for q in (b.record.get("questions") or []) if isinstance(q, dict) and q.get("status") in ASKING]
 
 
 def asks_human(q) -> bool:
@@ -1041,7 +1038,7 @@ def measured_materials(b) -> set:
     return {n for n in unmeasured(b) if (a := material_answer(b, n)) is not None and _measured(a)}
 
 
-def material_lines(b) -> list:
+def _material_lines(b) -> list:
     """答えた行（answered_lines）に足す、依頼の答えが当たった測れていない素材の行（1 素材 1 行）。命令と出力が無い答えは、測りの
     代わりにしないと言う"""
     out = []
@@ -1051,17 +1048,17 @@ def material_lines(b) -> list:
             continue
         how = (f"{HAND_CHECKED}。検証器の阻害に数えない" if _measured(a)
                else "command と output が無いので測りの代わりにせず、測れていないまま残りに数える")
-        out.append(f"素材 {n}（{st}）: {how}——{answer_note(a)}")
+        out.append(f"素材 {n}（{st}）: {how}——{_answer_note(a)}")
     return out
 
 
-def request_answer(b, q):
+def _request_answer(b, q):
     """依頼の答えのうち q だけに当たる（answer_binds が q 1 つ）最初の物（無ければ None）。複数の問いに当たる答えはどれにも答えない
     （1 つの答えを別の問いの答えとして修正役に渡さない。runreport.ledger_state の unmatched が名指す）"""
     return next((a for a in request_answers(b) if (h := answer_binds(b, a)) and len(h) == 1 and h[0] is q), None)
 
 
-def answer_note(a: dict) -> str:
+def _answer_note(a: dict) -> str:
     """依頼の答えの名乗り: 依頼者の答え: <text>（手元で測った物は命令と出力を添える。空白は 1 つに詰め、切らない）"""
     text = f"依頼者の答え: {_squeeze(a.get('text'))}"
     if a.get("command"):
@@ -1128,8 +1125,8 @@ def unmatched_answer_lines(b) -> list:
     単位に結んだ物は修正役へ渡り（returned_lines）、結ばれないと訳つきで名乗った物（none）は訳つきで並べる"""
     out, answer_rows = [], answer_ties(b)
     for a in request_answers(b):
-        hits, note, tie = answer_binds(b, a, answer_rows=answer_rows), answer_note(a), _tie_of(answer_rows, a)
-        if not hits and a.get("question") in unmeasured(b):   # 問いの無い測れていない素材に当たった（material_lines が並べる）
+        hits, note, tie = answer_binds(b, a, answer_rows=answer_rows), _answer_note(a), _tie_of(answer_rows, a)
+        if not hits and a.get("question") in unmeasured(b):   # 問いの無い測れていない素材に当たった（_material_lines が並べる）
             continue
         if not hits and _tied_unit(b, a, answer_rows):   # 単位に結んだ（returned_lines が修正役へ渡す）
             continue
@@ -1156,20 +1153,20 @@ def _tied_unit(b, a, answer_rows) -> str:
 
 
 def answered(b, q) -> bool:
-    """依頼の answers がこの問いに当たる（request_answer）か、修正前の関所の continue がこの問いの行を聞いていて、一言が
+    """依頼の answers がこの問いに当たる（_request_answer）か、修正前の関所の continue がこの問いの行を聞いていて、一言が
     「保留: <key>」と名指していないか、無人の run が判定の推しを答えに採る（run_push。fork・held だけ）"""
-    return request_answer(b, q) is not None or _gate_continued(b, q) or bool(run_push(b, q))
+    return _request_answer(b, q) is not None or _gate_continued(b, q) or bool(run_push(b, q))
 
 
 def _gate_continued(b, q) -> bool:
     key = str(q.get("key") or "")
-    return any(key not in hold_keys(str(h.get("note") or ""), _ledger_keys(b))
+    return any(key not in _hold_keys(str(h.get("note") or ""), _ledger_keys(b))
                for h in _gate_continues(b) if _asked_in(h, q))
 
 
 def _pushed_only(b, q) -> str:
     """依頼の答えも関所の continue も無く、無人の run が採った推しだけで答えた問いのその推し（ほかは空。人の答えを推しで上書きしない）"""
-    if request_answer(b, q) is not None or _gate_continued(b, q):
+    if _request_answer(b, q) is not None or _gate_continued(b, q):
         return ""
     return run_push(b, q)
 
@@ -1217,14 +1214,14 @@ def _ledger_keys(b) -> set:
     return {str(q.get("key")) for q in b.record.get("questions") or [] if isinstance(q, dict) and q.get("key")}
 
 
-def hold_keys(note, keys) -> set:
+def _hold_keys(note, keys) -> set:
     """一言の「保留:」の後（文の終わりまで）から、台帳の key を最長一致で拾う。区切りの字を推測して割らないので、key の後に
     言葉が続いても key が区切りの字を含んでも読める。前後が KEY_CHAR で続く一致は台帳に無いもっと長い key の断片なので拾わない"""
     return _hold_scan(note, keys)[0]
 
 
 def _hold_scan(note, keys) -> tuple:
-    """hold_keys の拾った key と、並べた項の頭（「保留:」の直後か HOLD_ITEM の並べの字の後）でどの key にも当たらなかった
+    """_hold_keys の拾った key と、並べた項の頭（「保留:」の直後か HOLD_ITEM の並べの字の後）でどの key にも当たらなかった
     KEY_CHAR の並び（unread_holds が見せる）。key の後ろに続く言葉は項の頭でないので見せない"""
     found, rest = set(), []
     for m in HOLD.findall(note):
@@ -1300,7 +1297,7 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
     人に聞く状態の語は ASKING、測れていない素材の状態は UNMEASURED。始めの記録は読まず、値は呼び手（line）が渡す（integration.md 4.3-追加-6）"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
-    validator = types.SimpleNamespace(ASKING=ASKING, STATUS=status)
+    validator = types.SimpleNamespace(STATUS=status)
     record = {"questions": [q for q in doc.get("questions") or [] if isinstance(q, dict)],
               "units": [u for u in doc.get("units") or [] if isinstance(u, dict)],
               "materials": materials if isinstance(materials, dict) else {},
@@ -1337,10 +1334,10 @@ def returned_lines(b) -> list:
     for q, keep, _ in _answered_skips(b):
         if not keep:
             continue
-        a = request_answer(b, q)
+        a = _request_answer(b, q)
         push = _pushed_only(b, q) if a is None else ""
         if a is not None:
-            who, how = "依頼", f"——答え: {answer_note(a)}"
+            who, how = "依頼", f"——答え: {_answer_note(a)}"
         elif push:
             who, how = "無人の run が採った推し", f"——推し: {push}"
         else:
@@ -1353,7 +1350,7 @@ def returned_lines(b) -> list:
     for a in request_answers(b):
         unit = _tied_unit(b, a, answer_rows) if not answer_binds(b, a, answer_rows=answer_rows) else ""
         if unit:
-            out.append(f"依頼で答えた単位 {unit}（判定が依頼の答えをこの単位に結んだ）——答え: {answer_note(a)}")
+            out.append(f"依頼で答えた単位 {unit}（判定が依頼の答えをこの単位に結んだ）——答え: {_answer_note(a)}")
     return out
 
 
@@ -1361,19 +1358,19 @@ GATE_CONTINUED = "・承認ノードで continue を受けた"   # 答えた台�
 PUSH_TAKEN = "・" + answer.PUSHED_NOTE   # 同じく、無人の run が判定の推しを答えに採った物
 
 
-def unreturned_line(key, unit) -> str:
+def _unreturned_line(key, unit) -> str:
     """関所で答えたが、今の周の判定の units に無いので直す義務に戻せなかった単位の 1 行（runreport も同じ行を組む）"""
     return f"承認ノードで答えたが直す単位に入れられなかった: {key}・{unit}（理由: 今の周の判定に無い）"
 
 
 def unreturned_lines(b) -> list:
     """関所で答えたが、今の周の判定の units に無いので直す義務に戻せなかった単位（1 件 1 行）"""
-    return [unreturned_line(q.get("key"), k) for q, _, gone in _answered_skips(b) for k in gone]
+    return [_unreturned_line(q.get("key"), k) for q, _, gone in _answered_skips(b) for k in gone]
 
 
 def _gate_answered(b, q) -> bool:
     """保留の行と答えた行の分け目: 依頼の answers が当たるか、関所に載せる問いで答えた（answered と同じ答えを読む）"""
-    return request_answer(b, q) is not None or (q in asks(b) and answered(b, q))
+    return _request_answer(b, q) is not None or (q in asks(b) and answered(b, q))
 
 
 def _ledger_line(q, mark: str = "", skip: list | None = None) -> str:
@@ -1394,12 +1391,12 @@ def held_lines(b) -> list:
 def answered_lines(b) -> list:
     """held_lines と同じ所に別の見出し（ANSWERED_HEAD）で並べ、保留の件数に数えない行: 関所で continue を受けたか、依頼の
     answers が答えた台帳の問い（印は答えの出どころを名乗る。answered_ledger_lines）と、依頼の答えが当たった測れていない素材の行"""
-    return answered_ledger_lines(b) + material_lines(b)
+    return answered_ledger_lines(b) + _material_lines(b)
 
 
 def answered_ledger_lines(b) -> list:
     """answered_lines のうち、関所で continue を受けたか依頼の answers か無人の run が採った推しが答えた台帳の問いの行（1 問 1 行）"""
-    return [_ledger_line(q, "・" + answer_note(a) if (a := request_answer(b, q)) is not None
+    return [_ledger_line(q, "・" + _answer_note(a) if (a := _request_answer(b, q)) is not None
                          else PUSH_TAKEN if _pushed_only(b, q) else GATE_CONTINUED)
             for q in _asking(b) if _gate_answered(b, q)]
 
@@ -1415,7 +1412,7 @@ def _pass_line(p) -> str:
         who = "人が通した" if p.get("by") == PASSED_BY_HUMAN else "無人の run で推しを採って通した"
         return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {passed.get('round')}・"
                 f"{PLAIN.get(str(passed.get('node')), passed.get('node'))}）狭まりと同じ: {p['item']}")
-    if searched := no_standard(p.get("decided_by")):
+    if searched := _no_standard(p.get("decided_by")):
         return f"{named(p['node'])}（周 {p['round']}）で定石が見つからず、聞かずに推しで進めた: {p['item']}（探した所: {searched}）"
     return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"
 
