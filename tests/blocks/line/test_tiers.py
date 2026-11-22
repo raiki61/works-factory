@@ -14,8 +14,6 @@ BLOCK = "line"
 tiers = kit.load(BLOCK, "tiers")
 import headdepth  # noqa: E402  （KEEP の lib）
 
-descend = kit.load(BLOCK, "descend")
-
 
 UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）
 
