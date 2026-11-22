@@ -148,6 +148,16 @@ def _unreadable(mode: str, why: list, unread: list, name: str, error, *, holds: 
         unread.append(f"{name}: {error}")
 
 
+def _clear_round(folder: pathlib.Path) -> None:
+    """周のフォルダに前の走りが残した名のファイル（項目の指示・指した箇所の本文・この周の控え）だけを消す（在れば。ほかは消さない）"""
+    for brief in files.read_round(folder).get("items") or []:
+        (folder / files.ITEM_BRIEF.format(no=brief)).unlink(missing_ok=True)
+    for n in range(1, len((files.read_json(folder / files.INTAKE) or {}).get("pointed") or []) + 1):
+        (folder / files.POINTED_TEXT.format(n=n)).unlink(missing_ok=True)
+    for name in files.OWN_FILES:
+        (folder / name).unlink(missing_ok=True)
+
+
 def intake(place, repo, k: int, raw: dict) -> dict:
     """全部の port を読み、周を開く（docs/design/plan.md の 4 節）。raw は port の名 → INPUTS_<名> の字。返り {go, mode, round, reason}。
     周のフォルダ r<k>/（k は files.next_round が決めた周の番号。prior が読めない時は在る周の一番大きい番号 + 1 で、前の周のフォルダを開き直さない）
@@ -163,12 +173,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     mode = "replan" if ruling else "plan"
     folder = files.round_dir(place, k)
     folder.mkdir(parents=True, exist_ok=True)
-    for brief in files.read_round(folder).get("items") or []:
-        (folder / files.ITEM_BRIEF.format(no=brief)).unlink(missing_ok=True)
-    for n in range(1, len((files.read_json(folder / files.INTAKE) or {}).get("pointed") or []) + 1):
-        (folder / files.POINTED_TEXT.format(n=n)).unlink(missing_ok=True)
-    for name in files.OWN_FILES:
-        (folder / name).unlink(missing_ok=True)
+    _clear_round(folder)
     files.write_json(place / files.CURRENT_ROUND, {"round": k})
     prior = None
     if not why:
