@@ -450,7 +450,7 @@ def premise_material(view, repo) -> dict:
     withheld = ([{"kind": "human_item", "what": m, "why": "answer の無い行（機械が積んだ。人の答えでない）"} for m in machine]
                 + named_withheld + map_withheld)
     return {"answers": _premise_body(human, "承認ノードの答え"),
-            "named": _premise_body(named, "名指しの本文"),
+            "named": _premise_body(named, "依頼が名指した部分"),
             "map": _premise_body(mapped, "地図"),
             "ledger": {"given": given, "withheld": withheld, "seen": seen}}
 
