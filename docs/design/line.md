@@ -140,7 +140,7 @@ line は一番上の graph なので、place は run directory の根（README 4
 - `request_file`: 同じ絶対パスか `""`（`file` の form の port 用）。読み手: independent-design・fix・merge（apply）・eyes の graph（r2〜r4）。
 - `pr_text`: PR の番号・題・本文を並べた文（今の `judge_accept.pr_file_text` の字。line の `deal.py` へ写す）。PR の無い run は `""`。読み手: purpose・spec。
 - `carried`: `carried.json` の pointer（形 `shared:constraints.schema.json`。運ぶ行が無ければ空の配列を置いて指す。拒んだ run は null）。読み手: premises。`carried_measured`（flag）: その中に `measured_how` が `carry.CARRIED_HOW_HEAD` で始まる行が在るか。読み手: `raise`（5.3）。
-- `base`: 入口の差分の根（`startrec.diff_base`）。読み手: judge の graph（素材の 11 本・parallel-pr）・independent-design・eyes の graph（r1〜r4）。
+- `base`: 入口の差分の根（`startrec.diff_base`）。読み手: judge の graph（素材の 10 本・parallel-pr）・independent-design・eyes の graph（r1〜r4）。
 - `base_rev`: 修正前の HEAD（`startrec.head_rev`）。読み手: test-gate・merge・independent-design の `head`・lens・delta-review・`parallel-pr-after`・eyes の graph（structure after の `base`）。
 - `request_origin`: 依頼の行の出どころの名（判定から入る run は下の `entry` と同じ字、ほかは「人の依頼（<依頼のファイル>）」。今の `judge_accept.request_batches` の字）。読み手: diagnose の `request_origin`。
 - `base_label`（`startrec.diff_base_label`）・`review_rev`（`startrec.read_rev`）: 読み手: r2 の `base_label`・plan と plan-review の `review_rev`。
@@ -586,7 +586,7 @@ keep-essence の 12 の仕組みのうち、line が担う物（6・8・10・11�
 - fix の設計書の 16 節の 4（line の上げ直しが修正役の異議を信号に足すか）の答えは「足す」（5.3）。
 - plan の設計書の 1.6 の「事前審査の port `prior` と同じファイルにできるか」の答えは「2 本に分ける」（3 節）。
 - delta-review の設計書の 1.6 の「累積の差分の読み手」の答えは 4.3 の `diff`。
-- diagnose の設計書の 1.6 は判定の道の `materials` を「11 本の material を並べた JSON の配列」、並行 PR の札を `pr_material` で別に受ける。judge-eyes.md の 1.3 はその形で渡す。
+- diagnose の設計書の 1.6 は判定の道の `materials` を「10 本の material を並べた JSON の配列」、並行 PR の札を `pr_material` で別に受ける。judge-eyes.md の 1.3 はその形で渡す。
 - 単位の深さを line が決めるのに、plan の出力 `owed` と欄 `plan` を読む（5.2）。plan の設計書の 1.6 の「line の単位ごとの深さ（`plan` の欄と `owed`）」と合う。
 
 ほか:

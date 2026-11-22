@@ -104,7 +104,7 @@ script の node はどれも `runtime: uv`。`run` のほかは `mutates_checkou
 - `workflows/test-gate/src/suite.py`: 実行器の控えの読み書き（`suite-state.json` を作る・読む）と、出力の `suite`・`suite_note` の組み方。
 - `workflows/test-gate/src/prompts.py`: md に渡す値の組み立て（4.3 の差し込み口の一覧）。
 - `workflows/test-gate/src/report.py`: 報告の行（10 節）。
-- `workflows/test-gate/fixtures/` の 5 本（12 節。今は 5 本で、写した時は 7 本。12 節の 2026-11-10 の削り）。
+- `workflows/test-gate/fixtures/` の 5 本（12 節。写した時は 7 本。12 節の頭の 2026-10-20 の外し〔`base-resubmit`〕と 2026-11-10 の削り〔`base-suite-kept`〕で 5 本）。
 - `tests/blocks/test_gate/__init__.py`・`test_test_gate.py`（12 節。`test_prompt_compare.py` は 1 つ目の commit だけの物で消した）。
 - 共通の指示の断片（土台に無い物。この block が最初に要るので、この block の PR が足す）: `workflows/.shared/prompts/resubmit.md`（3 節。拒まれた後に同じ会話の続きで拒まれた欄だけを返させる役の全部が使う）。
 

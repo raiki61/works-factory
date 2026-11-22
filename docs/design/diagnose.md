@@ -137,7 +137,7 @@ script の名は `lib/` のモジュールの名と重ねない（README の 7.1
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定の道: judge のまとめ（`workflows/judge/`）が `include: works-factory-diagnose` を置く（id `diagnose`）。`depends_on` は目的の固定・前提の実測・世界の解・頭の深さ・仕様（write）・並行 PR・素材の観点 11 本（今の `diagnose-prep` の `depends_on`、`:1773-1774`）、`trigger_rule: all_done`。`when:` は前提の実測と目的の固定が `ok`（premises.md・purpose.md の 1.6）。`with:`:
+- 判定の道: judge のまとめ（`workflows/judge/`）が `include: works-factory-diagnose` を置く（id `diagnose`）。`depends_on` は目的の固定・前提の実測・世界の解・頭の深さ・仕様（write）・並行 PR・素材の観点 10 本（今の `diagnose-prep` の `depends_on`、`:1773-1774`）、`trigger_rule: all_done`。`when:` は前提の実測と目的の固定が `ok`（premises.md・purpose.md の 1.6）。`with:`:
   - `request: $<依頼の pointer>`・`request_origin: <line が始めの記録から組んだ出どころの名。判定から入る run は入口の印の origin、ほかは「人の依頼（<依頼のファイル>）」。今の request_batches の字>`・`base: <始めの記録の diff_base>`
   - `purpose: $purpose.output.purpose`・`constraints: $premises.output.constraints`・`world_rows: $world.output.rows`・`row_asks: $head-depth.output.rows`・`depth_why: $head-depth.output.why`
   - `materials: <10 本の $<観点>.output.material を並べた JSON の配列>`（materials.md の 1.6）・`pr_material: $parallel-pr.output.material`（parallel-pr.md の 1.2 は `material` を札のオブジェクトで返す。11 節の 3）・`reply_sources: $diagnose-in.output.reply_sources`（judge の `src/feed.py` の `REPLY_SOURCES`）

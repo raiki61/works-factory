@@ -183,12 +183,12 @@ intake は place の中のファイルを消さない（自分で決めた。10 
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`workflows/judge/`）が 11 本を `include:` で並べる。`depends_on` は目的の固定（purpose）と世界の解（world）の後（今の `material-route` の `depends_on: [purpose-loop, world-finish]` と同じ順）。11 本は互いに依らず、並んで走る。
+- 判定のまとめ（`workflows/judge/`）が 10 本（gate-efficacy を除く。持ち主の決め `gate-efficacy-outside-judge`）を `include:` で並べる。`depends_on` は目的の固定（purpose）と世界の解（world）の後（今の `material-route` の `depends_on: [purpose-loop, world-finish]` と同じ順）。10 本は互いに依らず、並んで走る。
 - `with:` は、`base` ← line が始めの記録から引いた差分の根（今の始めの記録の `diff_base`）、`entry` ← line が始めの記録から引いた出どころの文（今の `due_view` の `record.process.request_entry.origin`。判定から入る run でなければ空）、`lang` ← 始めの記録の `lang`、観点ごとの入力 ← 各設計書が名指す作り手の出力。
 - `when:` は、機能を切る run（始めの記録の `features_cut`）で観点を外す時だけ置く。回す条件（今の `CONDS`）は graph に置かない。block が自分で決め、回さない時も素材の状態を返す（10 節）。
-- 読み手: diagnose の port `materials`（11 本の `material` の pointer と、並行 PR の block〔parallel-pr〕の素材の pointer を、判定のまとめが 1 つの json の配列にして渡す）。diagnose は `materialkit.assemble`（2.10）で 15 欄にそろえる。素材 `parallel_pr` は並行 PR の block が同じ `material.json` の形（`materials` に `{"parallel_pr": …}`）で返す物で、族の 11 本は書かない（今の `judge/material-pr-check.json` と同じ住み分け。parallel-pr の設計書がその形を守る）。`local_checks` は試験の関門の直す前の結末から、`base_determination` は docs の `base`・`commits` から、`fix_closure` は P1 時点の決まった値で埋める。prior-decisions の `material` は、記録された方針の決着済みの論点の出どころでもある（読み手と配線は [prior-decisions.md](prior-decisions.md) の 1.6）。
+- 読み手: diagnose の port `materials`（10 本の `material` の pointer と、並行 PR の block〔parallel-pr〕の素材の pointer を、判定のまとめが 1 つの json の配列にして渡す）。diagnose は `materialkit.assemble`（2.10）で 15 欄にそろえる。素材 `parallel_pr` は並行 PR の block が同じ `material.json` の形（`materials` に `{"parallel_pr": …}`）で返す物で、族の 11 本は書かない（今の `judge/material-pr-check.json` と同じ住み分け。parallel-pr の設計書がその形を守る）。`local_checks` は試験の関門の直す前の結末から、`base_determination` は docs の `base`・`commits` から、`fix_closure` は P1 時点の決まった値で埋める。prior-decisions の `material` は、記録された方針の決着済みの論点の出どころでもある（読み手と配線は [prior-decisions.md](prior-decisions.md) の 1.6）。
 - 諦めた観点（`status: gave_up`）が 1 本でもあれば、判定の前で line を止める（今の `diagnose_prep` が `materials_given_up` で止めの語 `material`〔lib の `judge_accept.py:305`〕を置いて `go` 偽にした形。`:2862-2866`）。止めるのは diagnose の設計書が決める（読み手の決め。この族は `status` を返すだけ）。
-- 報告: 判定のまとめは 11 本の `report` の欄を節「素材」にまとめて line に返してよい。載せるかは line と report の配線の決め（今の報告には素材の節が無く、測れていない素材だけが残りの行に出る）。
+- 報告: 判定のまとめは 10 本の `report` の欄を節「素材」にまとめて line に返してよい。載せるかは line と report の配線の決め（今の報告には素材の節が無く、測れていない素材だけが残りの行に出る）。
 
 ## 2 共通の部品 `lib/materialkit.py`
 
