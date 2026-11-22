@@ -49,7 +49,6 @@ REQUIRED_FOR = re.compile(r"\A<!-- required-for-(?:tools|fields): [A-Za-z_.]+(?:
 NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
 EATEN = re.compile(r"\{([a-z0-9_]+)" + CLOSE)   # 口の閉じを、直後の字の } の書き方 }} が呑んだ形（{name}} → {name と字の }）
-LANG_DEFAULT = "lang-default"   # 共通の断片の名（lang が空の時の既定の英語の文）
 SYSTEM = ".system"
 RUNNER_WRITER = "runner-writer"   # 共通の断片の名（実行器の契約と書き方。test-gate の書き手と fix の書き直し役が取り込む）
 
@@ -59,7 +58,7 @@ class PromptError(ValueError):
 
 
 def lang(raw) -> str:
-    return ports.text(raw).strip() or _read(ports.SHARED / "prompts" / f"{LANG_DEFAULT}.md", "断片").strip()
+    return ports.text(raw).strip() or _read(ports.SHARED / "prompts" / "lang-default.md", "断片").strip()
 
 
 def _read(path: Path, what: str) -> str:

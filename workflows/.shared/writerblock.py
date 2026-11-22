@@ -89,8 +89,8 @@ def subagent_items(place, sub: dict) -> str:
     実装役の指示 g1-impl の {weapon_rule} には、この block の prompts/parts/head.md（型の決まりの頭の段落）を空の値で組んだ字を渡す
     （表の SPAWNS が真の型だけがここへ来る。head.md に {名} が在れば prompt.render_part が値の欠けで落ちる。黙って空の字にしない）"""
     place = pathlib.Path(place)
-    shown = {"scene": "g1-scene", "impl_report": "g1-impl-report", "report": "g1-report", "head_sha": "g1-head-sha"}
-    texts = {key: prompt.render_shared(name, {}).strip() for key, name in shown.items()}
+    texts = {"scene": prompt.render_shared("g1-scene", {}).strip(), "impl_report": prompt.render_shared("g1-impl-report", {}).strip(),
+             "report": prompt.render_shared("g1-report", {}).strip(), "head_sha": prompt.render_shared("g1-head-sha", {}).strip()}
     rest = lambda key: prompt.render_shared("g1-rest", {"keys": key}).strip()   # noqa: E731
     if sub["seat_brief_rows"]:
         (place / subagents.SEAT_BRIEFS).write_text(prompt.render_shared("seat-briefs", {"brief_rows": sub["seat_brief_rows"]}), encoding="utf-8")
