@@ -480,6 +480,7 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None, re
             after_row, after = done[n + 1], [i for i in done[n + 1].get("items") or [] if isinstance(i, dict)]
             origin = done[n + 1].get("round")
         seen, picked = {_key(i) for i in after}, {}
+        chose_lined = set()
         for k, i in chosen:
             if k == origin and origin is not False:
                 picked.setdefault(_key(i), []).append(_same(i))
@@ -491,6 +492,9 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None, re
             elif _key(item) in seen:
                 word = OUTCOMES["again"] if not final else OUTCOMES["cap"] if exit_ == CAP_WHY else OUTCOMES["left"]
             elif _key(item) in picked:
+                if _key(item) in chose_lined:
+                    continue   # 同じ鍵の項目をもう 1 つ返していても、問いの指摘は 1 つなので『人が選ぶ』の行は 1 行
+                chose_lined.add(_key(item))
                 word = OUTCOMES["choose"]
                 said.add((r.get("round"), picked[_key(item)][0]))   # 行 1 つが言うのは指摘 1 つ（同じファイルの字の違う指摘は足す行で言う）
             elif final and _unchanged(exit_):
