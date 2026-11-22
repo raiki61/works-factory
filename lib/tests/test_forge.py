@@ -145,6 +145,13 @@ class RemoteReposCase(unittest.TestCase):
         self.assertEqual([(g["owner"], g["name"]) for g in got], [("parent", "r"), ("fork", "r")], "ローカルのパスの remote は候補に数えない")
         self.assertTrue(all(g["kind"] == forge.GITHUB for g in got))
 
+    def test_a_remote_with_gh_resolved_comes_before_first(self):
+        _git(self.repo, "remote", "add", "origin", "git@github.com:fork/r.git")
+        _git(self.repo, "remote", "add", "upstream", "git@github.com:parent/r.git")
+        _git(self.repo, "config", "remote.origin.gh-resolved", "base")
+        got = [(g["owner"], g["name"]) for g in forge.remote_repos(self.repo, "upstream")]
+        self.assertEqual(got, [("fork", "r"), ("parent", "r")])
+
     def test_gh_resolved_names_the_repo_unless_it_is_base_or_malformed(self):
         _git(self.repo, "remote", "add", "origin", "git@github.com:fork/r.git")
         _git(self.repo, "remote", "add", "upstream", "git@github.com:parent/r.git")

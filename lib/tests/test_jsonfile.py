@@ -57,6 +57,15 @@ class JsonFileCase(unittest.TestCase):
             jsonfile.read_dict(path)
         self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["d.json"])
 
+    def test_dump_replaces_a_link_at_the_tmp_name_without_writing_through_it(self):
+        path = self.dir / "d.json"
+        target = self.dir / "target.txt"
+        target.write_text("keep", encoding="utf-8")
+        (self.dir / "d.json.tmp").symlink_to(target)
+        jsonfile.dump(path, {"a": 1})
+        self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+        self.assertEqual(jsonfile.read_dict(path), {"a": 1})
+
     def test_rows_and_split_walk_the_path(self):
         """rows は道を辿って行を（写さず）返し、EACH の段だけ入れ子の並びになる。split は欄を外した写しと外した欄を返し、元は変えない"""
         doc = {"a": [{"x": 1, "y": 2}, {"y": 3}], "b": {"x": 9}}

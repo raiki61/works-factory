@@ -139,6 +139,7 @@ class Branches(unittest.TestCase):
         name, base, reason = runbranch.pr_branches(self.tree, str(self.remote.parent / "no-such"))
         self.assertEqual((name, base), ("", ""))
         self.assertIn("既定の枝を読めない", reason)
+        git(self.main, "checkout", "-q", "--detach")  # git 2.44 以降は、ほかの worktree が使う枝への checkout -B を拒む
         git(self.tree, "checkout", "-q", "-B", "trunk")
         name, base, reason = runbranch.pr_branches(self.tree, str(self.remote))
         self.assertEqual((name, base), ("", ""))
