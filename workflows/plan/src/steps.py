@@ -163,6 +163,26 @@ def _clear_round(folder: pathlib.Path) -> None:
         (folder / name).unlink(missing_ok=True)
 
 
+def _read_judgment(raw_judgment, mode: str, folder: pathlib.Path, why: list[str], unread: list[str]) -> tuple[dict | None, str]:
+    """port judgment を (値, 控えのパスの字) に。値そのものなら folder に JUDGMENT_COPY として写す。空は plan の周だけ why に積み、
+    読めない時は _unreadable が why か unread に積む。読めなければ値は None（値は読めたがパスが決まらなければ値だけ在る）、パスは空"""
+    judgment_text = ports.text(raw_judgment)
+    judgment_doc = None
+    if judgment_text.strip():
+        try:
+            judgment_doc = ports.json(judgment_text, "shared:judgment.schema.json")
+            try:
+                path = ports.file(judgment_text, "json(shared:judgment.schema.json)")
+            except ValueError:   # 値そのもの
+                path = files.write_json(folder / files.JUDGMENT_COPY, judgment_doc)
+            return judgment_doc, str(path)
+        except ValueError as e:
+            _unreadable(mode, why, unread, "judgment", e)
+    elif mode == "plan":
+        why.append("judgment が読めない（空）")
+    return judgment_doc, ""
+
+
 def intake(place, repo, k: int, raw: dict) -> dict:
     """全部の port を読み、周を開く（docs/design/plan.md の 4 節）。raw は port の名 → INPUTS_<名> の字。返り {go, mode, round, reason}。
     周のフォルダ r<k>/（k は files.next_round が決めた周の番号。prior が読めない時は在る周の一番大きい番号 + 1 で、前の周のフォルダを開き直さない）
@@ -187,22 +207,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
         except (ValueError, KeyError, OSError) as e:
             why.append(f"prior が読めない（{e}）")
     ctx = {"round": k, "mode": mode, "ruling": ruling, "prior": prior}
-    # 判定
-    judgment_text = ports.text(raw["judgment"])
-    judgment_doc = None
-    ctx["judgment"] = ""
-    if judgment_text.strip():
-        try:
-            judgment_doc = ports.json(judgment_text, "shared:judgment.schema.json")
-            try:
-                path = ports.file(judgment_text, "json(shared:judgment.schema.json)")
-            except ValueError:   # 値そのもの
-                path = files.write_json(folder / files.JUDGMENT_COPY, judgment_doc)
-            ctx["judgment"] = str(path)
-        except ValueError as e:
-            _unreadable(mode, why, unread, "judgment", e)
-    elif mode == "plan":
-        why.append("judgment が読めない（空）")
+    judgment_doc, ctx["judgment"] = _read_judgment(raw["judgment"], mode, folder, why, unread)
     ctx["answer_ties"] = _path_text(_optional("answer_ties", unread, lambda: ports.file(raw["answer_ties"],
                                                                                     "json(shared:answer-ties.schema.json)")))
     ctx["materials"] = _path_text(_optional("materials", unread, lambda: ports.file(raw["materials"], "json(shared:materials-state.schema.json)")))
