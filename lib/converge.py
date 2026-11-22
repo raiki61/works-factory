@@ -321,19 +321,22 @@ def take_flips(row: dict, passes: list[dict], claimed, new) -> None:
     row["origins_claimed"] = [c for c in row["origins_claimed"] if not (c.get("key") in got and c.get("origin") == ORIGIN_FLIP)]
 
 
-class PlanItem(TypedDict, total=False):
-    """控えの plan の行（plan_rows が作り、控えの json にそのまま書く dict。形の正本は plan-converge.schema.json の plan）。
-    型は読み手への注記で、実行時の値は dict のまま（鍵は id・unit_keys・hash が常に在り、row・PLAN_MARKS の鍵は在れば）"""
+class _PlanItemAlways(TypedDict):
     id: str
     unit_keys: list[str]
     hash: str
     row: dict[str, Any]
+
+
+class PlanItem(_PlanItemAlways, total=False):
+    """控えの plan の行（plan_rows が作り、控えの json にそのまま書く dict。形の正本は plan-converge.schema.json の plan）。
+    型は読み手への注記で、実行時の値は dict のまま。常に在る鍵（id・unit_keys・hash・row）は上の型に、在れば置く鍵（PLAN_MARKS の鍵）は
+    ここに置く（`from __future__ import annotations` の下では typing.Required が効かないので、必須は継ぎ元の型で分ける）。
+    照らしの鍵の組は `__required_keys__` から取る（lib/tests/test_plan_item_shape.py）"""
     marks: list[Any]
 
 
-class ItemState(TypedDict, total=False):
-    """往復の行の items の行（_item_states が作る dict。形の正本は plan-converge.schema.json の passes の items）。
-    n・id・unit_keys・hash・state・blocks・reopened は常に在り、row は plan の行に在れば、hits・refs・file_notes は在れば"""
+class _ItemStateAlways(TypedDict):
     n: int
     id: str
     unit_keys: list[str]
@@ -341,8 +344,13 @@ class ItemState(TypedDict, total=False):
     state: str
     blocks: list[str]
     reopened: bool
+
+
+class ItemState(_ItemStateAlways, total=False):
+    """往復の行の items の行（_item_states が作る dict。形の正本は plan-converge.schema.json の passes の items）。
+    n・id・unit_keys・hash・state・blocks・reopened は常に在る（上の型）。row は plan の行に在れば、hits・refs・file_notes は在れば"""
     row: dict[str, Any]
-    hits: Any
+    hits: list[dict[str, Any]]
     refs: list[str]
     file_notes: list[Any]
 

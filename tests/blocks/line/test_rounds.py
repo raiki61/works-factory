@@ -17,6 +17,7 @@ rounds = kit.load(BLOCK, "rounds")
 files = kit.load(BLOCK, "files")
 import converge  # noqa: E402
 import judgmark  # noqa: E402
+from tests.bin.itemshape import dropped_row, missing_required, undeclared  # noqa: E402
 from tests.blocks.line.test_tiers import handed  # noqa: E402
 
 U1, U2 = "u1", "u2"
@@ -192,6 +193,20 @@ class OwedCase(unittest.TestCase):
         got = self.run.script("owed", judgment="null", answer_ties="null", materials="null", world="null", decisions="null",
                               answer="null", ports="{壊れた")
         self.assertEqual((got["owed"], got["stop_reason"]), (False, "works:line-script"))
+
+
+class ItemStateShapeCase(unittest.TestCase):
+    """line の写しの _item_states（lib の converge._item_states の写し）も、lib と同じ照らし（converge.ItemState の必須の鍵を置くか・
+    型に無い鍵を置かないか）にかける。鍵の名をずらすと赤になる"""
+
+    def test_copy_sets_the_required_keys_like_lib(self):
+        plan = converge.plan_rows([{"unit_keys": ["a", "b"], "approach": "x"}], marks=[[{"world": "w"}]])
+        for build in (converge._item_states, rounds._item_states):
+            with self.subTest(build=build.__module__):
+                state = build(plan, [], {}, [], set())[0]
+                self.assertEqual(missing_required(converge.ItemState, state), set())
+                self.assertEqual(undeclared(converge.ItemState, state), set())
+                self.assertEqual(dropped_row(plan, [state]), [])
 
 
 if __name__ == "__main__":
