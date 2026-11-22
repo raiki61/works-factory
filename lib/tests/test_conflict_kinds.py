@@ -31,6 +31,7 @@ if str(LIB) not in sys.path:
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
+from tests.bin import gitkit  # noqa: E402
 
 KEY = "stats.py clamp: 上限を超えた値に lo を返す"
 ITEM = {"unit_key": KEY, "between": ["stats.py:3", "test_stats.py:2"],
@@ -338,7 +339,7 @@ class TestReplanState(unittest.TestCase):
     def test_fix_place_is_chosen_in_one_place(self):
         """#368: 直しの在りかを種類と控えの欄から選ぶのは conflict.fix_place だけ。読み手は fix_place・place_words を引き、欄を直に見ない"""
         direct = re.compile(r"\bconflict\.(REVERTED_FIELD|FIX_IN_DIFF|UNFIXED_LEFT|FIX_REVERTED)\b|QUERY_HITS_FIXED\s*\}")
-        found = [f"{p.relative_to(LIB)}:{i}" for p in sorted(LIB.rglob("*.py"))
+        found = [f"{p.relative_to(LIB)}:{i}" for p in gitkit.known_under(LIB.parent, "lib", ".py")
                  if p.relative_to(LIB).parts[0] != "tests" and p.name != "conflict.py"
                  for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line.split("#")[0])]
         self.assertEqual(found, [])

@@ -12,6 +12,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 import answer  # noqa: E402
+from tests.bin import gitkit  # noqa: E402
 
 SHELL = "/opt/works factory/bin/works-factory"
 TARGET = "/home/me/my repo"
@@ -108,7 +109,7 @@ def word_lists(source: str, name: str, words: set) -> list[str]:
 
 
 def lib_word_lists(words: set) -> list[str]:
-    return [hit for f in sorted(LIB.rglob("*.py")) if "tests" not in f.relative_to(LIB).parts
+    return [hit for f in gitkit.known_under(LIB.parent, "lib", ".py") if "tests" not in f.relative_to(LIB).parts
             for hit in word_lists(f.read_text(encoding="utf-8"), str(f.relative_to(LIB)), words)]
 
 
