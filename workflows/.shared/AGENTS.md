@@ -40,6 +40,7 @@ block の script と `src/` が Archon と出入りする口と、2 つ以上の
   - `policy`: 人の方針（中の口 `{policy_body}`）。方針を受ける役の全部が、段落の中で差し込む。
   - `resubmit`: 拒まれた後に、同じ会話の続きで拒まれた欄だけを返させる役の指示（中の口 `{rejection}`・`{candidate}`）。
   - `handoff`: 引き継ぎのメモの頼みと前の周のメモのセクション（中の口 `{handoff_rounds}`。段落 `handoff_rounds` の真偽が要る。報告の書き手と、plan の書き手が使う）。
+  - `recommend-shape`: 人に回す行の推しの形の 1 句（`{answer: continue | stop, note: …, why: …}`。中の口 `{recommend_answers}`〔`lib/gatemarks.py` の `RECOMMEND_ANSWERS` を ` | ` でつないだ字〕・`{recommend_min}`〔`RECOMMEND_MIN`〕）。plan-review と r2 の md が文の中に差し込む。
   - `reply-types`: 返答の各欄を、この node の出力の形（JSON Schema）が宣言する JSON の型で返させ、JSON を字に包ませない 1 段落。どの欄がどの型かは書かず、中の口も段落の印も持たない。r3-coherence・r4-scope・plan-writer・報告の block の `write` の md と、断片 `material-status` が差し込む。
   - `recorded-policy`: 記録された方針（人か持ち主が決めた出どころの決まりと名指しの行。中の口 `{recorded_rows}`。段落 `recorded_none` の真偽が要る）。修正案の役が差し込む。目の外の block も使う（値は `lib/eyekit.py` の `recorded_rows_text` が組む）。
   - `prior-failures`: 前の run で最後まで通らなかった物の行（中の口 `{prior_notes}`・`{prior_redesign}`。段落 `prior_notes`・`prior_redesign` の真偽が要る）。

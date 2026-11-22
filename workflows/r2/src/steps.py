@@ -10,7 +10,7 @@ import ports
 import prompt
 
 import eyekit        # lib/。独立の目の族の共通の部品
-import gatemarks     # lib/。推しの形（recommend_shape）
+import gatemarks     # lib/。推しの形（共通の断片 recommend-shape）の答えの語と字の下限
 import jsonfile      # lib/
 import oneline       # lib/
 import seal          # lib/。判定の語
@@ -151,7 +151,8 @@ def compare_prompt(out, repo) -> dict:
               "purpose": doc["purpose"], "design_text": str(doc["design"].get("design") or ""),
               "st_pass": st["st_pass"], "st_fix": st["st_fix"], "st_redesign": st["st_redesign"],
               "head_unread": head_unread, "head_premise": head_premise, "head_no_question": head_no_question, "lang": prompt.lang(doc["lang"]),
-              "means_rows": "\n".join(f"- {k}: {oneline.one_line(t)}" for k, t in said.items()), "recommend_shape": gatemarks.recommend_shape()}
+              "means_rows": "\n".join(f"- {k}: {oneline.one_line(t)}" for k, t in said.items()), "recommend_answers": " | ".join(gatemarks.RECOMMEND_ANSWERS),
+              "recommend_min": gatemarks.RECOMMEND_MIN}
     when = {"answers": bool(got["answers"]), "named": bool(got["named"]), "request_unread": not doc["request_read"],
             "late": bool(post["late"]), "means": bool(said)}
     jsonfile.write(out / files.PREMISES, {"node": "r2.compare", **post["ledger"]})
