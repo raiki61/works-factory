@@ -17,7 +17,7 @@ block と graph の YAML・AI のノードへの指示の md・script・`src/`�
 
 ## 変更の種類ごとに閉じる所（`docs/design/README.md` の 1.2）
 
-- 指示の文だけを変える（I）: その node の `prompts/<node-id>.md` 1 本。同じ block の 2 つ以上の node が使う文は `prompts/parts/<name>.md`、2 つ以上の block が使う文は `.shared/prompts/<name>.md`（`.shared/AGENTS.md` の名の一覧も試験も直さない）。返す形・`src/`・試験・設計書は、依頼が返す形や検査を変えると言う時だけ触る。
+- 指示の文だけを変える（I）: その node の `prompts/<node-id>.md` 1 本。同じ block の 2 つ以上の node が使う文は `prompts/parts/<name>.md`、2 つ以上の block が使う文は `.shared/prompts/<name>.md`（`.shared/AGENTS.md` の名の一覧に 1 行足す。試験は直さない）。返す形・`src/`・試験・設計書は、依頼が返す形や検査を変えると言う時だけ触る。
 - 受け付けに確かめを足す（A）: その block の `src/` の受け付け・`prompts/<node-id>.md` の 1 段落・`tests/blocks/<block>/`・設計書の受け付けの所（受け付けの決まりが変わる）。`fixtures/` は触らない（筋書きは完了・`reached`・指示の字だけを見るので、拒否を足しても通る）。
 - 不具合を直す（B）: その block の `src/`（と `scripts/`）と `tests/blocks/<block>/`。設計書と、共通の口（`.shared/` の `requestrows.py`・`ports.py`）・形・断片は、原因がそこに見えても直さない（出力の形は設計書に決めてあり、直すのはそれに合わせる block のコード）。
 - 入力を足す（P）: 受け手の block の `inputs:`・`schemas/`・それを読む script と `src/`・`prompts/`・`tests/blocks/<block>/`。既定値つきの任意の入力なら、今の呼び手（graph）と根の README の例はそのまま回るので触らない。graph の `with:` は、その graph から値を渡すと依頼が言う時だけ足す。設計書の port の所は直す（port が変わる）。
