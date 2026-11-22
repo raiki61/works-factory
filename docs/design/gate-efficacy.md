@@ -86,10 +86,10 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
-- 判定のまとめ（`workflows/judge/`）: `include: works-factory-gate-efficacy`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`gates: <line が始めの記録から引いた gates。無ければ空>`・`entry: <line が始めの記録から引いた出どころの文>`・`lang: <始めの記録の lang>`。
-- 読み手:
-  - diagnose の `materials`（11 本の `material` の配列の 1 つ）。`materialkit.assemble` が `materials.gate_efficacy` を 15 欄の 1 つにする。
-  - diagnose の判定の材料の「ゲートの実効性確認」の行（今の `record.process.gate_arms` と `out.p1.gate_efficacy`）。diagnose は `materialkit.read` で読んだ `material.json` の `reply.arms`（腕の行の配列）と `reply`（返答の全部）を、今と同じ形で受ける。`reply` の形は今の `judge/material-gate-efficacy.json` の `reply` と同じなので、読み方は変わらない（読む口の作り替えは diagnose の設計書が決める）。
+- 判定のまとめ（`workflows/judge/`）: gate-efficacy を include しない。持ち主の決め `gate-efficacy-outside-judge`（2026-10-19）で judge から外した（judge-eyes.md の 3 節）。この block は単独で回る形のまま残る。judge の graph は入力 `gates` も持たない。
+- 読み手: 無い。judge から外したので、diagnose も `material.json` を読まない（diagnose の `workflows/diagnose/src/files.py` の `MATERIALS` は `gate_efficacy` を外した 14 欄）。下は judge が include していた時の記録で、今は当たらない。
+  - （外す前）diagnose の `materials`（11 本の `material` の配列の 1 つ）。`materialkit.assemble` が `materials.gate_efficacy` を 15 欄の 1 つにする。
+  - （外す前）diagnose の判定の材料の「ゲートの実効性確認」の行（今の `record.process.gate_arms` と `out.p1.gate_efficacy`）。diagnose は `materialkit.read` で読んだ `material.json` の `reply.arms`（腕の行の配列）と `reply`（返答の全部）を、今と同じ形で受ける。`reply` の形は今の `judge/material-gate-efficacy.json` の `reply` と同じなので、読み方は変わらない（読む口の作り替えは diagnose の設計書が決める）。
   - ほかに `arms` を読む物は無い（`lib/`・`workflows/`・`bin/` を `gate_arms`・`"arms"`・`gate-efficacy` の字で探した。2026-10-19）。
 
 ## 2 node の設計シート: gate-efficacy（ゲートの検算の役）

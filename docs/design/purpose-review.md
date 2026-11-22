@@ -128,7 +128,7 @@ materials.md の 3.1 の並び。素材の欄を持たないので 3 と 8・9 �
 7. `## What to do`（決まった文）: 今の graphloops の指示の段（`material-purpose-review.md:35-52`）を英語にした物。差し込み口 `{verdict_ok}`・`{verdict_narrows}` ← `src/viewpoint.py` の定数。
 8・9. （飛ばす。返答に `material` の欄が無い）
 10. `## Where to point`、観点の前置き（根拠の行は `where` を持たない。決まった文）、`{shared:material-where}`。
-11. 言語の 1 文と `{lang}` ← port `lang`（空なら `materialkit.LANG_DEFAULT`）。
+11. 言語の 1 文と `{lang}` ← port `lang`（空なら共通の断片 `lang-default.md` の既定の文。`prompt.lang` が読む）。
 12. 結びの 1 文。
 
 `materialkit.prompt_inputs` は materials.md の 2.11 のまま `na_never` などの 4 つの真偽を足すので、（実装では要らなくなった: 7 節）この block の `role_prep.py` がその 4 つの鍵を `when` から外してから `prompt.render` に渡す形を最初は考えた（この md は `{shared:material-na}` を持たないので、外さないと `prompt.render` が「`when` の名が md に無い」で落ちる。`NA` が `never` なので `values` に `na_why` は入らない。hygiene と同じ扱い。自分で決めた。7 節）。
