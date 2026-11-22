@@ -448,13 +448,13 @@ def place_mark(mark) -> bool:
 
 def _prepare(cwd, popen_kw, setup=None):
     """cwd の作業ツリーで、対象の宣言の setup を作業ツリーごとに 1 度走らせる。作業ツリーの根とその作業ツリー自身の git dir は
-    unittrees._out（script 自身の os.environ から git の置き場の変数を外した、隔離のままの git）で引く。git の木でなければ何もしない。
+    unittrees.git_out（script 自身の os.environ から git の置き場の変数を外した、隔離のままの git）で引く。git の木でなければ何もしない。
     setup の argv だけが popen_kw の env（戻した利用者の HOME・XDG と印）で、根を cwd に _launch で起こされ、標準入力は空・出力は
     誤りの文のために控える。全部が 0 で終われば、git dir の SETUP_DONE に argv の並びの sha を書く（同じ sha なら次から走らせない）。
     落ちた・起こせない・宣言の setup の形が誤り（declared.read_setup。宣言を parse しない呼び手の分）なら、SETUP_DONE を書かずに
     SETUP_FAILED を頭にした OSError。setup が None でなければ宣言は読まず、渡された argv の並びを走らせる（[] は何も走らせない。run の docstring）"""
     try:
-        root, git_dir = unittrees._out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
+        root, git_dir = unittrees.git_out(cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir").splitlines()
     except unittrees.UnitTreeError:
         return
     if setup is None:

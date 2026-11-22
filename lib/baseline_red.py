@@ -67,10 +67,10 @@ def synth_reds(cases) -> list:
 
 def _synth_problems(cases, base_synth=False) -> list:
     """落ちた予約の行が在れば、比べられない赤の問題の 1 行（赤と緑の確認が同じ文を返す）。なければ空。元の結末にも落ちた予約の行が
-    在った回（base_synth）も空: 直す前から結末を書かない部品の在る対象で、どの単位の赤・緑の確認も必ず落ちる形にしない（_must_pass と
+    在った回（base_synth）も空: 直す前から結末を書かない部品の在る対象で、どの単位の赤・緑の確認も必ず落ちる形にしない（must_pass と
     同じ決め）。この赤は輪では問わず、最後の試験の段が自分の取った直す前の結末で読む（green_cert.classify の base_blind。原因の無い赤）"""
     reds = [] if base_synth else synth_reds(cases)
-    return [f"名指しの外の {_key(reds[0])} は{SYNTH_CAUSE}——1 件ごとの結末が無く比べられない赤（壊した赤とは読まない）"] if reds else []
+    return [f"名指しの外の {case_key(reds[0])} は{SYNTH_CAUSE}——1 件ごとの結末が無く比べられない赤（壊した赤とは読まない）"] if reds else []
 
 
 def synthesized(cases) -> bool:
@@ -191,32 +191,32 @@ def _shown(test_id, c):
     return test_id if c["name"].split(NEST)[-1] == _id_parts(test_id)[1] else f"{test_id}（展開した名 {c['name']}）"
 
 
-def _key(c):
+def case_key(c):
     """元の結末の鍵 `classname::name`（元 works/.shared/core/graphloops/rules/review-loop-tdd.py:92-93）"""
     return f"{c['classname']}::{c['name']}"
 
 
-def _must_pass(c, baseline):
+def must_pass(c, baseline):
     """名指しの外で通っていなければならないテストか——元の結末で通っていた物と、元に無かった物（この周に足した名指しの外）。
     元から落ちていた・飛ばされていた物は問わない（周の頭で赤い一式でも、TDD の確認が必ず落ちる形にしない）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:96-99）"""
-    return baseline is None or baseline.get(_key(c), "passed") == "passed"
+    return baseline is None or baseline.get(case_key(c), "passed") == "passed"
 
 
 def _broken_others(cases, baseline, hit, scope=None):
-    """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（_must_pass）——赤と緑の確認が同じ 1 本を読む。
+    """名指しの外（hit に無い）で落ちた、通っていなければならないテスト（must_pass）——赤と緑の確認が同じ 1 本を読む。
     予約の行は 1 件ごとの結末でないので数えない（比べられない赤として _synth_problems が別に言う）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:102-104）"""
-    return [c for c in cases if id(c) not in hit and not _is_synth(c) and c["outcome"] in FAILED and _must_pass(c, baseline)
-            and (scope is None or _key(c) in scope)]
+    return [c for c in cases if id(c) not in hit and not _is_synth(c) and c["outcome"] in FAILED and must_pass(c, baseline)
+            and (scope is None or case_key(c) in scope)]
 
 
 def red_problems(named, cases, exit_code, baseline=None, base_synth=False):
-    """赤の確認: 名指しのテストが全部 failure で落ち、名指しの外で通っていなければならない物（_must_pass）は通る。
-    一式は 0 以外で終わる（名指しが落ちたのに 0 を返す実行器は結末を映していない）。baseline＝元の結末（_key → outcome）
+    """赤の確認: 名指しのテストが全部 failure で落ち、名指しの外で通っていなければならない物（must_pass）は通る。
+    一式は 0 以外で終わる（名指しが落ちたのに 0 を返す実行器は結末を映していない）。baseline＝元の結末（case_key → outcome）
     落ちた予約の行は「ほかを壊した」に数えず、比べられない赤の問題 1 行にする（_synth_problems。足した物）。base_synth は元の結末に
     落ちた予約の行が在ったか（呼び手が元の結末の行から synth_reds で引く。outcomes は予約の鍵を落とすので baseline からは引けない）で、
-    真なら問題にしない（元から在る赤は _must_pass と同じく問わない）
+    真なら問題にしない（元から在る赤は must_pass と同じく問わない）
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:107-129）"""
     probs, hit = [], set()
     if not named:
@@ -236,13 +236,13 @@ def red_problems(named, cases, exit_code, baseline=None, base_synth=False):
                 probs.append(f"{_shown(t, c)}: もう通る——直す前に赤でないテストは修正の証拠にならない")
             elif c["outcome"] == "skipped":
                 probs.append(f"{_shown(t, c)}: 飛ばされた——赤でも緑でもない")
-    probs += [f"名指しの外の {_key(c)} が {c['outcome']}——テストだけを書く段がほかを壊した（元は通っていた・この周に足した物は緑のまま）"
+    probs += [f"名指しの外の {case_key(c)} が {c['outcome']}——テストだけを書く段がほかを壊した（元は通っていた・この周に足した物は緑のまま）"
               for c in _broken_others(cases, baseline, hit)]
     return probs + _synth_problems(cases, base_synth)
 
 
 def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narrow=False, also=(), base_synth=False):
-    """緑の確認: 名指しのテストが全部通り、名指しの外で通っていなければならない物（_must_pass）も通る。一式が 0 で終わる
+    """緑の確認: 名指しのテストが全部通り、名指しの外で通っていなければならない物（must_pass）も通る。一式が 0 で終わる
     （JUnit に載らない失敗——件数の柵など——も拾う）。元の一式が 0 で終わっていなかったなら終了コードは問わない
     narrow が真（元の結末が変更に関わる試験だけで、今の回は全部の試験を走らせた。持ち主の決め related-tests-only）なら、比べるのは元の結末に
     載った試験と名指しと also（前の単位が赤から緑にした試験の id）だけ: 元の結末に無い試験の赤は問わず、一式の終了コードも、その範囲の結果が
@@ -252,8 +252,8 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
     （元 works/.shared/core/graphloops/rules/review-loop-tdd.py:132-147）"""
     scope = None
     if narrow and baseline is not None:
-        scope = {_key(c) for c in cases if _key(c) in baseline or any(match_cases(t, [c]) for t in (*named, *also))}
-    clean = scope is not None and not any(c["outcome"] in FAILED for c in cases if _key(c) in scope)
+        scope = {case_key(c) for c in cases if case_key(c) in baseline or any(match_cases(t, [c]) for t in (*named, *also))}
+    clean = scope is not None and not any(c["outcome"] in FAILED for c in cases if case_key(c) in scope)
     probs = [] if exit_code == 0 or baseline_exit != 0 or clean else [
         f"テスト一式が exit {exit_code} で終わった——JUnit の結末が全部通っていても、一式としては緑でない"]
     hit = set()
@@ -263,7 +263,7 @@ def green_problems(named, cases, exit_code, baseline=None, baseline_exit=0, narr
         if not rows:
             probs.append(f"{t}: 一式の結末に居ない——名指しのテストが緑でない")
         probs += [f"{_shown(t, c)}: {c['outcome']}——名指しのテストが緑でない" for c in rows if c["outcome"] != "passed"]
-    probs += [f"{_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
+    probs += [f"{case_key(c)} が {c['outcome']}——ほかのテストが緑でない（元は通っていた・この周に足した物）"
               for c in _broken_others(cases, baseline, hit, scope)]
     return probs + _synth_problems(cases, base_synth)
 
@@ -332,7 +332,7 @@ def run_suite(exe: str, repo, work: pathlib.Path, n, args=(), only=False, reuse=
         return None, rc, [f"JUnit XML が読めない（{e}。ログ {log}）"]
     finally:
         junit.unlink(missing_ok=True)
-    return _unique([{**c, **fails.get(_key(c), NO_FAILURE)} for c in cases]), rc, []
+    return _unique([{**c, **fails.get(case_key(c), NO_FAILURE)} for c in cases]), rc, []
 
 
 # 元 works/blk-fix/lib/tddloop.py:336
@@ -340,7 +340,7 @@ NO_FAILURE = {"fail_message": "", "fail_text": ""}
 
 
 def _failure_attrs(text: str) -> dict:
-    """JUnit XML の testcase の鍵（_key）→ {fail_message, fail_text}（結末の語の子——error の子が在ればそれ、無ければ failure の子——の
+    """JUnit XML の testcase の鍵（case_key）→ {fail_message, fail_text}（結末の語の子——error の子が在ればそれ、無ければ failure の子——の
     message の属性と本文。同じ鍵は最初の行。どちらの子も無い行は載せない）。写しの parse_junit は属性を返さないので、同じ XML を
     ElementTree で読み直す（失敗の文を読む所はここ 1 か所）（元 works/blk-fix/lib/tddloop.py:339-349。error の子を読むのは #837 で
     足した: 読み込めない試験の失敗の文を、直す前と当てた後で比べる）"""
@@ -349,7 +349,7 @@ def _failure_attrs(text: str) -> dict:
         f = tc.find("error")
         f = tc.find("failure") if f is None else f
         if f is not None:
-            out.setdefault(_key({"classname": tc.get("classname") or "", "name": tc.get("name") or ""}),
+            out.setdefault(case_key({"classname": tc.get("classname") or "", "name": tc.get("name") or ""}),
                            {"fail_message": f.get("message") or "", "fail_text": f.text or ""})
     return out
 
@@ -357,7 +357,7 @@ def _failure_attrs(text: str) -> dict:
 def _unique(cases) -> list:
     """同じ鍵の行を最初の 1 つにまとめる（名指しの写しを red_problems が名指しの外と数えない）（元 works/blk-fix/lib/tddloop.py:449-452）"""
     seen = set()
-    return [c for c in cases if not (_key(c) in seen or seen.add(_key(c)))]
+    return [c for c in cases if not (case_key(c) in seen or seen.add(case_key(c)))]
 
 
 @contextlib.contextmanager
@@ -394,11 +394,11 @@ def temp_tree(repo, rev: str):
 
 # ---------------------------------------------------------------- 元の結末のファイル
 def outcomes(cases) -> dict:
-    """結末の並び → {_key: outcome}（同じ鍵は最初の 1 つ。予約の行は 1 件ごとの事実でないので入れない）。red_problems・green_problems・
-    _must_pass の baseline の形（新しい関数）"""
+    """結末の並び → {case_key: outcome}（同じ鍵は最初の 1 つ。予約の行は 1 件ごとの事実でないので入れない）。red_problems・green_problems・
+    must_pass の baseline の形（新しい関数）"""
     out = {}
     for c in reported(cases):
-        out.setdefault(_key(c), c["outcome"])
+        out.setdefault(case_key(c), c["outcome"])
     return out
 
 
@@ -406,8 +406,8 @@ def test_outcomes(baseline_cases, cases) -> list:
     """テストごとの元の結末と今の結末 [{key, base, final, fail_message}]（元の結末の順、今にだけ居るテストはその後ろに今の順。片側に
     居なければその側は ""。fail_message は今が赤なら今の物、でなければ元の物。予約の行は試験 1 件ごとの事実でないので入れない。
     新しい関数）"""
-    base = {_key(c): c for c in _unique(reported(baseline_cases))}
-    now = {_key(c): c for c in _unique(reported(cases))}
+    base = {case_key(c): c for c in _unique(reported(baseline_cases))}
+    now = {case_key(c): c for c in _unique(reported(cases))}
     rows = []
     for key in [*base, *(k for k in now if k not in base)]:
         b, f = base.get(key), now.get(key)

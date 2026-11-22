@@ -108,7 +108,7 @@ def base_rerun(root: Path, place: Path, doc: dict, ci: dict, ran, extra, narrow:
             known = set(baseline_red.outcomes(baseline_red.read_baseline(Path(doc["baseline"]))["cases"]))
         except ValueError:
             known = set()
-    fresh = [c for c in ci["cases"] if c["outcome"] in baseline_red.FAILED and baseline_red._key(c) not in known]
+    fresh = [c for c in ci["cases"] if c["outcome"] in baseline_red.FAILED and baseline_red.case_key(c) not in known]
     if not fresh or not doc["base"] or not (ran or ci["junit_steps"]):
         return None
     out = {"rev": doc["base"], "cases": None, "exit": None, "problems": [], "logs": []}
