@@ -229,7 +229,7 @@ def unused_shared_parts(pack: pathlib.Path) -> list[str]:
     - 使われる断片の中の {shared:<名>}（使われない断片が別の断片を生かす鎖にならない。使われる断片から辿れる物だけ）
     外す物の表は持たない"""
     shared = pack / SHARED
-    used = {m.group(2) for f in folders(pack) for p in files_under(f, suffix=".md")
+    used = {m.group(2) for f in folders(pack) for p in files_under(f, "prompts", suffix=".md")
             for m in FRAGMENT.finditer(p.read_text(encoding="utf-8")) if m.group(1) == "shared"}
     used |= {name for f in [*folders(pack), shared] for p in files_under(f, suffix=".py") for name in shared_names_in_code(p.read_text(encoding="utf-8"))}
     stack = sorted(used)
@@ -953,6 +953,10 @@ class SeedCase(unittest.TestCase):
             with self.subTest(code=code):
                 self.assertEqual(self.broken(check_prompt_files, {**orphan, "demo/src/x.py": code}) == [], clean)
         self.assertEqual(self.broken(check_prompt_files, {**orphan, "demo/prompts/parts/rules.md": "{shared:orphan}\n"}), [])
+        for path in ("demo/AGENTS.md", "demo/README.md", "demo/fixtures/note.md"):   # prompts/ の外の md の例の字は数えない
+            with self.subTest(path=path):
+                got = self.broken(check_prompt_files, {**orphan, path: "{shared:orphan}\n"})
+                self.assertTrue(any("{shared:orphan} で差し込まれず" in line for line in got), got)
         got = self.broken(check_prompt_files, {**orphan, ".shared/AGENTS.md": "{shared:orphan}\n", ".shared/prompts/other.md": "{shared:orphan}\n"})
         self.assertTrue(any("orphan.md" in line for line in got) and any("other.md" in line for line in got), got)
         chain = {**orphan, ".shared/prompts/outer.md": "{shared:orphan}\n"}
