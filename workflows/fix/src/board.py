@@ -106,7 +106,8 @@ def _named_in(row, ids) -> set:
 
 def _prior_gave_up(place) -> dict:
     """前の段の輪の記録（common.records のうち印 PRIOR_LOOP の物）で、機械が諦めた単位ごとの諦めた段の集まり {key: {red・green}}
-    （記録の単位の gave_up。tdd._give_up が段 test を red、段 fix を green と書く）。読めない記録は数えない（止める側）"""
+    （記録の単位の gave_up。tdd._give_up が段 test を red、段 fix を green と書く）。JSON として読めない記録が在れば ValueError（read_json）で、
+    returned_units がそれを受けてどの単位も戻さない（止める側）"""
     from src import common
     out: dict = {}
     for p in common.records(place):
