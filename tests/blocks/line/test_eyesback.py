@@ -738,11 +738,32 @@ class ReportCase(_Case):
         self.assertEqual(self.e.asked(rows, last_eyes), [])
         out = self.e.record_lines(record)
         self.assertFalse(any(self.e.OUTCOMES["choose"] in line for line in out), out)
-        twice = {**x, "eye": "r2"}
-        rows = [self.e.row(1, eyes(items=[self.A]), [self.A])]
-        record = self._record(rows, {**self.PASSED, "findings": [x, twice], "questions": []})
+
+    def test_two_returned_items_of_one_file_make_one_choose_line_for_one_question(self):
+        """同じ周に同じ目・同じファイルの項目を 2 つ返し、次の目がそのファイルの choose を 1 つ挙げた時、問いは 1 件なので『人が選ぶ』の行も 1 行
+        （指摘 1 つにつき、人が選ぶと書く項目の行は 1 行）"""
+        a2 = {"eye": "r1", "where": "src/a.py:90", "text": "別の写しが残っている"}
+        x = {"eye": "r1", "where": "src/a.py:40", "text": "写しを残すか選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        rows = [self.e.row(1, eyes(items=[self.A, a2]), [self.A, a2])]
+        record = self._record(rows, {**self.PASSED, "r1": {"status": "fix-needed"}, "findings": [x], "route": "stay", "questions": []},
+                              exit=self.e.EXITS["settled"])
+        self.assertEqual(len(self.e.asked(rows, record["eyes"])), 1)
+        chose = [line for line in self.e.record_lines(record) if self.e.OUTCOMES["choose"] in line]
+        self.assertEqual(len(chose), 1, chose)
+        # 2 つ目の項目（a.py:90）の結末の行も消えない（人が選ぶとは言わず確かめていない物）
+        second = [line for line in self.e.record_lines(record) if "1 周目に返した" in line and "a.py:90" in line]
+        self.assertEqual(len(second), 1, second)
+        self.assertNotIn(self.e.OUTCOMES["choose"], second[0])
+        self.assertIn(self.e.OUTCOMES["same_ask"], second[0])
+
+    def test_one_pick_from_two_rounds_eyes_is_one_question_and_one_line(self):
+        """同じ X（同じ目・同じ字）を 2 つの周の目が choose にした時、問いは 1 件・『人が選ぶ』の行は 1 行"""
+        x = {"eye": "r1", "where": "src/a.py:40", "text": "写しを残すか選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A]), self.e.row(2, eyes(items=[self.B, x]), [self.B])]
+        record = self._record(rows, {**self.PASSED, "findings": [x], "questions": []})
+        self.assertEqual(len(self.e.asked(rows, record["eyes"])), 1)
         chose = [line for line in self.e.record_lines(record) if self.e.OUTCOMES["choose"] in line and "選ぶ" in line]
-        self.assertEqual(len(chose), len(self.e.asked(rows, record["eyes"])), chose)
+        self.assertEqual(len(chose), 1, chose)
 
     def test_lines_and_questions_agree_when_the_record_has_no_fixed(self):
         """記録の fixed が null（状態が欠けた記録）の時、current は渡された最初の目の questions をそのまま使う。行の『人が選ぶ』は全部その最初の目が
