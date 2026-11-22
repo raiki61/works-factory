@@ -41,7 +41,7 @@ def shown(value) -> str:
 
 
 def _starts(values: dict) -> tuple[dict, dict]:
-    """方針の文書と依頼のファイルの値と段落（今の fixrules.start_lines）"""
+    """方針の文書と依頼のファイルの値と段落（元の fixrules.start_lines）"""
     policy = str(values.get("policy_path") or "").strip()
     request = str(values.get("request_file") or "").strip()
     return ({"policy_path": shown(policy), "request_file": shown(request)},
@@ -243,7 +243,7 @@ def consult_render(place, pass_: str, *, plan_file: str, ripple_file: str):
 # ---------------------------------------------------------------- TDD の役（tdd・tdd-new）
 def tdd_values(place, repo, view: dict, values: dict) -> tuple[dict, dict, dict]:
     """TDD の役の指示の (値, 段落, 周の控え)。view は src/tdd.prep の返り（go が真の物）。values は run の値（判定・修正案・方針・依頼・
-    notes の写しのパスと base_rev）。今の tddloop.prep の組み立ての順のまま"""
+    notes の写しのパスと base_rev）。元の tddloop.prep の組み立ての順のまま"""
     from src import common, tdd
     place = pathlib.Path(place)
     st, briefs = view["state"], view["briefs"]

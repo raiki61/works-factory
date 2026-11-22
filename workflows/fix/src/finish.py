@@ -21,7 +21,7 @@ DRIFT_NOTE = "premise_drift_note"
 JOIN_MISSING = "join が結果を残さなかった（落ちたか走らなかった）"
 
 
-# ---------------------------------------------------------------- 今の fixbeside の fix の物
+# ---------------------------------------------------------------- 元の fixbeside の fix の物
 def claimed_of(reply) -> list:
     """修正役が changes に載せた単位の key（申告。閉じたかは閉鎖の表が決める）"""
     return [str(c["unit_key"]) for c in (reply.get("changes") if isinstance(reply, dict) else None) or []
@@ -43,7 +43,7 @@ def closure_rows(place) -> list | None:
 
 
 def write_closure(place, results, ruled_reply=None) -> None:
-    """place に CLOSURE_FILE を書く（今の fixbeside.write の閉鎖の表の部分）。results は戻せた組の子の結果（欄 closure・claimed。
+    """place に CLOSURE_FILE を書く（元の fixbeside.write の閉鎖の表の部分）。results は戻せた組の子の結果（欄 closure・claimed。
     closure が None の子は表を読めなかった）、ruled_reply は裁定の後の修正役の返答。組めなければ {"error": 訳}"""
     import oneline
     from src import board
@@ -69,7 +69,7 @@ def write_closure(place, results, ruled_reply=None) -> None:
 def _accepted_tests(trace: list) -> list:
     """1 つの修正の段の受け付けの選んだ試験の行（TESTS_OP）のうち、組と受け付けの段（pass）ごとの最後の回の物"""
     import impact
-    TESTS_OP = impact.ACCEPT_TRACE_OP   # noqa: N806  今の fixbeside.TESTS_OP
+    TESTS_OP = impact.ACCEPT_TRACE_OP   # noqa: N806  元の fixbeside.TESTS_OP
     last: dict = {}
     for row in trace:
         if row.get("op") == TESTS_OP:
@@ -119,7 +119,7 @@ def _scope(place) -> pathlib.Path | None:
 
 
 def _tdd_refused(place) -> dict:
-    """TDD の輪の記録の calls から修正役が拒まれた単位と、在るのに読めない記録の訳（今の fixbeside.tdd_refused）"""
+    """TDD の輪の記録の calls から修正役が拒まれた単位と、在るのに読めない記録の訳（元の fixbeside.tdd_refused）"""
     import oneline
     from src import common, tdd
     refused, unread = [], []
