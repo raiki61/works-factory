@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """受け付けに拒まれた後の出し直しの役（review-fix・review-tree-fix。1 回目の役の会話の続き）の指示を組む（docs/design/plan-review.md の
 8 節の review_prep の出し直しの道）。却下の控えの最後の理由と、合わせた答えの控えのパスを共通の断片 resubmit に入れる。役を起こす前の

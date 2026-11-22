@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """方針の文の審査の役の指示を prompts/review-text.md から組む（docs/design/plan-review.md の 8 節の text_prep。前の回までの却下は
 place の控えから全部）。役を起こす前の作業ツリーの姿も置く。組めなければ crash.json に訳を書いてから落ちる"""

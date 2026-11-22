@@ -41,9 +41,11 @@ if str(ROOT / "lib") not in sys.path:
 import tree_run  # noqa: E402
 
 HEADER = ["# /// script", '# requires-python = ">=3.12"', "# dependencies = []", "# ///"]
-# 外し（lib/AGENTS.md の E3）: 仕様駆動の道の表（YAML）を読む script は PyYAML を宣言する。pack の中は block の入口の 1 本だけで、
+# 外し（lib/AGENTS.md の E3）: YAML を読む script は PyYAML を宣言する。pack の中は仕様駆動の block の入口の 1 本と、plan-review の script 全部
+# （src/files.py の node_schema が自分の YAML の output_format を safe_load で読むので、src を import する script は全部 PyYAML を要る）。
 # 起動の殻の側の 1 本（YAML_READER_BIN）と根の pyproject.toml と同じ版の字を持つ（docs/design/spec-driven.md の 6.7）
-YAML_READERS = ("spec-driven/scripts/intake.py",)
+YAML_READERS = ("spec-driven/scripts/intake.py",
+                *sorted(p.relative_to(WORKFLOWS).as_posix() for p in (WORKFLOWS / "plan-review" / "scripts").glob("*.py")))
 YAML_READER_BIN = ROOT / "bin" / "_lib" / "spec-inputs.py"
 PIN = re.compile(r'"(PyYAML==[^"]+)"')
 

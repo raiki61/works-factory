@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """事前審査の入口: port を読み、形（plan・replan・text・theme）を決め、place のこの block のファイルを名で消して材料を写し、intake.json を
 書く。返り {due, form, tree, k, reason}。読めない port は due: false と訳（intake-error.json）。落ちない"""

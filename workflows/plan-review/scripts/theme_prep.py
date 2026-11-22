@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """設計の案の審査の役の指示を組む（docs/design/plan-review.md の 19 節の theme_prep）。前の周の受け付けが拒み、合わせた答えの控えが
 在れば返り {prompt: "", resubmit: true} だけを返し（出し直しの役の指示は theme-fix-prep が組む）、無ければ 1 回目の役（review-theme）の

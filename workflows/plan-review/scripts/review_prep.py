@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """事前審査の役の指示を組む（docs/design/plan-review.md の 8 節の review_prep）。前の周の受け付けが拒み、合わせた答えの控えが在れば
 返り {prompt: "", resubmit: true} だけを返し（出し直しの役の指示は review-fix-prep が組む）、無ければ材料のファイルを書いて 1 回目の役（review・review-tree）の指示を組む。

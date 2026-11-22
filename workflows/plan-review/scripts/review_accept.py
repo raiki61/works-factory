@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """事前審査の返答を受け付ける（docs/design/plan-review.md の 9.1）。4 つの組の返答（review・review-fix・review-tree・review-tree-fix。
 起きなかった node は null）のうち起きた組を src/take.py の take に渡す。通れば review.json（と形 plan なら pass.json）を書く。

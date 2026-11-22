@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """読んだ証拠: この include の審査の役が、機械が渡したパス（材料のファイルと方針の写し）を読んだかを、隔離した設定のフックの記録
 から集め、place に reads-<役>.json と索引を書く（src/proof.py）。受け付けの条件にしない。落ちない: 中の誤りは ok: false と訳で返し、

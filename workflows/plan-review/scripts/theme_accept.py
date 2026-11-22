@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """設計の案の審査の返答を受け付ける（docs/design/plan-review.md の 19 節）。1 回目の役（review-theme）と出し直しの役
 （review-theme-fix。起きなかった node は null）の返答を src/themeform.py の take に渡す。通れば review.json を書く。拒否の回数では

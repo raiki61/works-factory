@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """方針の文の審査の返答を受け付ける（docs/design/plan-review.md の 9.4）: 作業ツリーが役の前と同じ・穴の行ごとの照らし・返答の全体。
 通れば review.json を書く。rolekit.GIVE_UP_AFTER 回目の却下で done・give_up（落ちない）"""

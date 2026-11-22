@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = []
+# dependencies = ["PyYAML==6.0.3"]
 # ///
 """事前審査の出口: 受けた審査の返答と往復の記録に足す行の材料の pointer、block の穴の key、人に回しうる行と外れと案の直しの事実、
 報告の行を返す。どの段が落ちても落ちない"""
