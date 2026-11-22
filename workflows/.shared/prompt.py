@@ -124,7 +124,8 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
         raise PromptError(f"{'断片' if part or shared else 'node'} の id の形でない: {node_id!r}")
     when = dict(when or {})
     if not all(isinstance(v, bool) for v in when.values()):
-        raise PromptError("when の値は真偽だけ")
+        bad = ", ".join(f"{k}={v!r}" for k, v in when.items() if not isinstance(v, bool))
+        raise PromptError(f"when の値は真偽だけ（真偽でない物: {bad}）。段落の出し入れは呼び手が表から引いた bool で渡す")
     if shared:
         files = {"prompt": ports.SHARED / "prompts" / f"{node_id}.md"}
     else:
