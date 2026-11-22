@@ -2,7 +2,6 @@
 修正の段の始めの木からの変更が外した hunk の行に触れた返答は、hunk を名指して拒む。触れなければ、この確かめでは拒まない"""
 import hashlib
 import json
-import pathlib
 import unittest
 
 from tests.bin import hermetic
@@ -10,7 +9,7 @@ from tests.bin.gitkit import git
 from tests.blocks import kit
 from tests.blocks.fix import support
 
-RUNNER = pathlib.Path(__file__).resolve().parents[3] / "workflows" / "fix" / "fixtures" / "tdd-runner.py"
+RUNNER = kit.ROOT / "workflows" / "fix" / "fixtures" / "tdd-runner.py"
 
 KEY = "stats.py:2 mean"
 JUDGMENT = json.dumps({"units": [{"key": KEY, "label": "block", "reason": "空の並びで 0 除算する"}], "questions": []})

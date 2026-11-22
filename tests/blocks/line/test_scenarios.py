@@ -107,6 +107,20 @@ def bound(trace: dict, value):
     return json.loads(trace[_traced(trace, node)]["output"]).get(field)
 
 
+def assert_no_write(case, never_apply, never_seal):
+    """筋書き never_apply のどれも差分を当てる段を走らせず、result の apply が null。never_seal のものは封じもしない"""
+    traces = line_traces(never_apply)
+    for name in never_apply:
+        with case.subTest(scenario=name):
+            trace = traces[name]
+            for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
+                case.assertFalse(ran(trace, node), node)
+            case.assertIsNone(out(trace, "result")["apply"])
+            if name in never_seal:
+                case.assertFalse(ran(trace, "merge-seal__merge"))
+                case.assertIsNone(out(trace, "result")["sealed"])
+
+
 class LineReturnsTest(unittest.TestCase):
     """line の返り（result）の欄 apply・sealed・r2_status・final_answer・spec_questions（bin/apply と段 1 が読む）を、筋書きの道で照らす"""
 
@@ -360,16 +374,7 @@ class NoApplyTest(unittest.TestCase):
     NEVER_SEAL = ("block-failed", "no-fix", "spec-direction", "start-refused")
 
     def test_no_write_after_a_stop(self):
-        traces = line_traces(self.NEVER_APPLY)
-        for name in self.NEVER_APPLY:
-            with self.subTest(scenario=name):
-                trace = traces[name]
-                for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
-                    self.assertFalse(ran(trace, node), node)
-                self.assertIsNone(out(trace, "result")["apply"])
-                if name in self.NEVER_SEAL:
-                    self.assertFalse(ran(trace, "merge-seal__merge"))
-                    self.assertIsNone(out(trace, "result")["sealed"])
+        assert_no_write(self, self.NEVER_APPLY, self.NEVER_SEAL)
 
 
 ROUND_NODE = re.compile(r"back-\d+(?:-.+)?|eyes-back")

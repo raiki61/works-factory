@@ -57,10 +57,6 @@ def go(run, *replies, fn=None, typed=True, **inputs):
     return out, turns.prompts
 
 
-def never(case):
-    return lambda n, prompt: case.fail("役を起こした")
-
-
 def reasons(run, k=1):
     return rolekit.rejected(run.round_dir(k), ROLE)
 
@@ -535,7 +531,7 @@ class ReplanCase(unittest.TestCase):
 
     def test_ruling_outside_the_plan_skips_the_role(self):
         run = self.run_
-        out = run.include(ruling='["5"]', conflicts=self.conflicts, prior=prior_of(self.first), writer=never(self))
+        out = run.include(ruling='["5"]', conflicts=self.conflicts, prior=prior_of(self.first), writer=base.never(self))
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertEqual((out["ok"], out["status"]), (False, "held"))
         self.assertIn("ruling の項目 '5' が承認済みの修正案（1 項目）の番号でない", run.json(out["ripple"])["error"])
@@ -544,7 +540,7 @@ class ReplanCase(unittest.TestCase):
 class ReplanWithoutPlanCase(unittest.TestCase):
     def test_replan_without_an_accepted_plan_skips_the_role(self):
         run = PlanRun(self)
-        out = run.include(ruling='["1"]', writer=never(self))
+        out = run.include(ruling='["1"]', writer=base.never(self))
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertEqual((out["ok"], out["status"], out["mode"]), (False, "held", "replan"))
         self.assertIn("直す元の承認済みの修正案が無い", run.json(out["ripple"])["error"])
@@ -573,7 +569,7 @@ class OwedAnswersCase(unittest.TestCase):
         """P010: 依頼の答えで直す義務に戻った出どころが開いていない（defer）なら行き止まり。役を起こさず、理由 PLAN_STUCK に no と key"""
         judge = {"units": [unit(MEAN), unit(CLAMP, "suggest", "defer")], "questions": [{**self.FORK, "origin": CLAMP}]}
         run = PlanRun(self, judge=judge, answers=[{"question": "q-mean", "text": "a を選ぶ"}])
-        out = run.include(writer=never(self))
+        out = run.include(writer=base.never(self))
         self.assertEqual((out["ok"], out["status"]), (False, "held"))
         error = run.json(out["ripple"])["error"]
         self.assertIn(steps.PLAN_STUCK, error)
@@ -590,7 +586,7 @@ class OwedAnswersCase(unittest.TestCase):
         for takes_push, question in (("true", self.FORK), ("false", pushed)):
             with self.subTest(takes_push=takes_push, question=question):
                 run = PlanRun(self, judge={"units": [unit(MEAN)], "questions": [question]}, takes_push=takes_push)
-                out = run.include(writer=never(self))
+                out = run.include(writer=base.never(self))
                 self.assertEqual(run.status["plan-loop"], "skipped")
                 self.assertEqual((out["ok"], out["status"]), (False, "nothing_owed"))
                 self.assertIn(steps.NOTHING_OWED, run.json(out["ripple"])["error"])

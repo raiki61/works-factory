@@ -26,7 +26,7 @@ from unittest import mock
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-from tests.blocks.fix.support import record, recorder_root, result, write
+from tests.blocks.fix.support import GroupsPlace, record, recorder_root, result, write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
@@ -48,7 +48,7 @@ import planmarks  # noqa: E402
 import planrange  # noqa: E402
 
 
-class Whole(unittest.TestCase):
+class Whole(GroupsPlace, unittest.TestCase):
     """全体の形の place（使い捨ての run directory の根）と target-seed の写しのリポジトリ"""
 
     def setUp(self):
@@ -95,12 +95,6 @@ class Whole(unittest.TestCase):
         tree = self.snapshot()
         self.restore()
         return tree
-
-    def groups_file(self, groups, start_tree, par=True):
-        out_dir = self.place / "groups"
-        write(self.place / "groups.json", {"groups": groups, "count": len(groups), "par": par,
-                                           "start_tree": start_tree, "out_dir": str(out_dir)})
-        return out_dir
 
     def rerun_seed(self, files_, *, test_cmd="", suite_text=None):
         """走らせ直しの種: files を commit し、実行器（suite_text。既定は tests/blocks/fix/support.py の SUITE）を values.json に置き、

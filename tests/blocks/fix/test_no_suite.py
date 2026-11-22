@@ -117,7 +117,7 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         self.assertTrue(self.run_script("fix_prep")["go"])
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)") + "# NOXML\n", encoding="utf-8")
-        out = self.accept({"changes": [tg._change(tg.MEAN, ["stats.py"])]})
+        out = self.accept({"changes": [support.change(tg.MEAN, ["stats.py"])]})
         self.assertEqual((out["ok"], out["done"]), (False, True), out)
         self.assertIn("実行器が結末を返さない", out["reason"])
         self.assertFalse(self.run_script("fix_prep")["go"], "止めた後に修正役を起こし直さない")
@@ -135,7 +135,7 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         self.run_script("join", art=self.parent)
         stats = self.repo / "stats.py"
         stats.write_text(stats.read_text(encoding="utf-8").replace("(len(xs) - 1)", "len(xs)") + "# NOXML\n", encoding="utf-8")
-        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json({"changes": [tg._change(tg.MEAN, ["stats.py"])]}),
+        out = self.run_script("fix_ruled_accept", art=self.parent, reply_variant=support.reply_json({"changes": [support.change(tg.MEAN, ["stats.py"])]}),
                               consulted="false", iteration="1")
         self.assertEqual((out["ok"], out["done"]), (False, True), out)
         self.assertIn("実行器が結末を返さない", out["reason"])
@@ -163,7 +163,7 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", tg.NEW_TEST + "\n\nif __name__"), encoding="utf-8")
         named = [{"unit_key": tg.MEAN, "test": "test_stats.py::TestStats::test_mean_of_two"}]
         cover = {"how": {"patterns": ["(len(xs) - 1)"], "fixed": True, "paths": ["stats.py"], "count": "lines"}, "counts": "defects"}
-        change = tg._change(tg.MEAN, ["stats.py", "test_stats.py"], coverage=cover)
+        change = support.change(tg.MEAN, ["stats.py", "test_stats.py"], coverage=cover)
         out = self.accept({"changes": [change], "evidence": {"named": named}})
         self.assertEqual((out["ok"], out["done"]), (False, True), out)
         self.assertIn(duties.NO_BEFORE, out["reason"])
@@ -193,7 +193,7 @@ class NoSuiteGroupCase(tg.GroupChildScriptsCase):
         test_file.write_text(test_file.read_text(encoding="utf-8").replace("\n\nif __name__", tg.NEW_TEST + "\n\nif __name__"), encoding="utf-8")
         named = [{"unit_key": tg.MEAN, "test": "test_stats.py::TestStats::test_mean_of_two"}]
         out = self.run_script("fix_ruled_accept", art=self.parent, consulted="false", iteration="1",
-                              reply_variant=support.reply_json({"changes": [tg._change(tg.MEAN, ["stats.py", "test_stats.py"])],
+                              reply_variant=support.reply_json({"changes": [support.change(tg.MEAN, ["stats.py", "test_stats.py"])],
                                                                 "evidence": {"named": named}}))
         self.assertNotIn(duties.NO_BEFORE, out["reason"])
         self.assertNotIn("名指しの試験が起点の木で赤（failure）", out["reason"])
@@ -319,11 +319,7 @@ class PinConfigCase(unittest.TestCase):
 
 def load_tests(loader, tests, pattern):
     """借りた tg.GroupChildScriptsCase の試験を回し直さない（このファイルに書いた試験だけ）"""
-    suite = unittest.TestSuite(NoSuiteGroupCase(name) for name in loader.getTestCaseNames(NoSuiteGroupCase)
-                               if name in NoSuiteGroupCase.__dict__)
-    for case in (AcceptStopCase, PinConfigCase):
-        suite.addTests(loader.loadTestsFromTestCase(case))
-    return suite
+    return tg.own_tests(loader, globals(), NoSuiteGroupCase)
 
 
 if __name__ == "__main__":

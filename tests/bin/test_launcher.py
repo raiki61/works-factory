@@ -121,6 +121,10 @@ class LauncherTest(unittest.TestCase):
         """殻が Archon に --config で渡した run の層"""
         return json.loads(pathlib.Path(argv[argv.index("--config") + 1]).read_text(encoding="utf-8"))
 
+    def run_env(self, *args, **env) -> dict:
+        """新しい run（works-factory-line）を args と利用者の shell の env で起こし、殻が渡した run の層の env:"""
+        return self.layer(self.reached(self.launch("workflow", "run", "works-factory-line", *args, **env))["argv"])["env"]
+
     def factory_layer(self, home=None) -> dict:
         """利用者の --config の無い新しい run に殻が渡す層"""
         head = ["env", f"WORKS_FACTORY_HOME={home or self.default_home(self.target)}", str(self.repo / "bin" / "works-factory"),
@@ -334,9 +338,6 @@ class LauncherTest(unittest.TestCase):
         session, sub = TTL_DEFAULTS
         real = shutil.which("bun")
 
-        def env_of(*args, **env) -> dict:
-            return self.layer(self.reached(self.launch("workflow", "run", "works-factory-line", *args, **env))["argv"])["env"]
-
         def ttls(env) -> dict:
             return {k: env[k] for k in TTL_DEFAULTS if k in env}
 
@@ -345,22 +346,22 @@ class LauncherTest(unittest.TestCase):
             (self.target / ".archon" / "config.yaml").write_text(text, encoding="utf-8")
 
         with self.subTest("選びが無ければ、どちらの組も 5 分"):
-            self.assertEqual(ttls(env_of()), TTL_DEFAULTS)
+            self.assertEqual(ttls(self.run_env()), TTL_DEFAULTS)
         with self.subTest("利用者の shell の寿命の名は効かず、5 分を載せる"):
-            self.assertEqual(ttls(env_of(**{session: "1h"})), TTL_DEFAULTS)
+            self.assertEqual(ttls(self.run_env(**{session: "1h"})), TTL_DEFAULTS)
         with self.subTest("続ける命令（--resume）は層を足さない"):
             self.assertNotIn("--config", self.reached(self.launch("workflow", "run", "works-factory-line", "--resume"))["argv"])
         with self.subTest("--adopt は repo の選びを殻が見られないので、どちらの組も載せない"):
-            self.assertEqual(ttls(env_of("--adopt", "run-1")), {})
+            self.assertEqual(ttls(self.run_env("--adopt", "run-1")), {})
         if real is None:
             self.skipTest("bun が無い（利用者の --config と対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
         self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
         with self.subTest("利用者の --config の env: の役の会話の組の寿命は、その組だけ工場の既定を外して運ぶ"):
             (self.target / "named.yaml").write_text(f"env:\n  {session}: 1h\n", encoding="utf-8")
-            self.assertEqual(ttls(env_of("--config", "named.yaml")), {session: "1h", sub: "5m"})
+            self.assertEqual(ttls(self.run_env("--config", "named.yaml")), {session: "1h", sub: "5m"})
         with self.subTest("対象の .archon/config.yaml の env: の両方の組に効く名は、工場の 5 分で潰さない"):
             repo_config("env:\n  ENABLE_PROMPT_CACHING_1H: '1'\n")
-            self.assertEqual(ttls(env_of()), {})
+            self.assertEqual(ttls(self.run_env()), {})
         with self.subTest("対象の .archon/config.yaml が読めなければ名を足さず、その訳を 1 行で言う"):
             repo_config("env: [unclosed\n")
             done = self.launch("workflow", "run", "works-factory-line")
@@ -377,29 +378,26 @@ class LauncherTest(unittest.TestCase):
         name = "CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES"
         real = shutil.which("bun")
 
-        def env_of(*args, **env) -> dict:
-            return self.layer(self.reached(self.launch("workflow", "run", "works-factory-line", *args, **env))["argv"])["env"]
-
         with self.subTest("選びが無ければ 1 を載せる"):
-            self.assertEqual(env_of()[name], "1")
+            self.assertEqual(self.run_env()[name], "1")
         with self.subTest("利用者の shell の名は効かず、1 を載せる"):
-            self.assertEqual(env_of(**{name: "0"})[name], "1")
+            self.assertEqual(self.run_env(**{name: "0"})[name], "1")
         with self.subTest("--adopt は載せない"):
-            self.assertNotIn(name, env_of("--adopt", "run-1"))
+            self.assertNotIn(name, self.run_env("--adopt", "run-1"))
         if real is None:
             self.skipTest("bun が無い（利用者の --config と対象の .archon/config.yaml は Archon と同じ Bun.YAML.parse で読む）")
         self.bun.write_text(read_with_real_bun(real), encoding="utf-8")
         text = f"env:\n  {name}: '0'\n"
         with self.subTest("利用者の --config の env: の選びはそのまま運ぶ"):
             (self.target / "chosen.yaml").write_text(text, encoding="utf-8")
-            self.assertEqual(env_of("--config", "chosen.yaml")[name], "0")
+            self.assertEqual(self.run_env("--config", "chosen.yaml")[name], "0")
         with self.subTest("利用者の --config の env: に名が無ければ 1"):
             (self.target / "mine.yaml").write_text("env:\n  MINE: '1'\n", encoding="utf-8")
-            self.assertEqual(env_of("--config", "mine.yaml")[name], "1")
+            self.assertEqual(self.run_env("--config", "mine.yaml")[name], "1")
         with self.subTest("対象の .archon/config.yaml の env: の選びは潰さない"):
             (self.target / ".archon").mkdir(exist_ok=True)
             (self.target / ".archon" / "config.yaml").write_text(text, encoding="utf-8")
-            self.assertNotIn(name, env_of())
+            self.assertNotIn(name, self.run_env())
 
     def test_unknown_group_in_model_is_refused_with_the_known_groups(self):
         err = self.stopped(self.launch("workflow", "run", "works-factory-line", "--model", "@wf-judge-cor=haiku"))

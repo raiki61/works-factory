@@ -1095,7 +1095,7 @@ class MeansTakeCase(PlaceCase):
         self.round, self.ctx = self.opened(means=self.MEANS)
         steps.snap_tree(self.round / files.TREE, self.repo)
 
-    def take(self, reply, *, base_rev=None):
+    def take(self, reply):
         return take.take_plan(self.round, self.ctx, judgment=steps.read_judgment(self.ctx), reply=reply, repo=self.repo,
                               tables=take.tables_of(self.ctx), base_rev=self.base)
 

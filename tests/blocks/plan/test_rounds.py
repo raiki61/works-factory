@@ -56,10 +56,6 @@ def seq(*replies):
     return reply
 
 
-def never(case):
-    return lambda n, prompt: case.fail("役を起こした")
-
-
 def writer_prompts(run) -> list:
     return [p for nid, p in run.prompts if nid == "plan-writer"]
 
@@ -172,7 +168,7 @@ class CollectCase(unittest.TestCase):
         for name, bad in cases.items():
             with self.subTest(name):
                 run = PlanRun(self)
-                out = run.include(writer=never(self), **bad)
+                out = run.include(writer=base.never(self), **bad)
                 self.assert_contract(run, out)
                 self.assertEqual(out["status"], "held")
         with self.subTest("形の違う units"):
@@ -409,7 +405,7 @@ class CollectCase(unittest.TestCase):
 
     def test_nothing_owed_skips_the_role(self):
         run = PlanRun(self, judge={"units": [unit(NIT, "nit", None)], "questions": []})
-        out = run.include(writer=never(self))
+        out = run.include(writer=base.never(self))
         self.assertEqual(out["status"], "nothing_owed")
         self.assertIsNone(out["fix_plan"])
         self.assertEqual(run.status["plan-loop"], "skipped")
@@ -423,7 +419,7 @@ class CollectCase(unittest.TestCase):
     def test_stuck_unit_skips_the_role(self):
         """同じ key の単位が開いた行と開いていない行で来た判定は行き止まり（必ず入れるのに案に入れられない）。義務 0 件ではない"""
         run = PlanRun(self, judge={"units": [unit(MEAN), unit(MEAN, "nit", None)], "questions": []})
-        out = run.include(writer=never(self))
+        out = run.include(writer=base.never(self))
         self.assertEqual(run.status["plan-loop"], "skipped")
         self.assertIs(out["ok"], False)
         self.assertEqual(out["status"], "held")
@@ -435,14 +431,14 @@ class CollectCase(unittest.TestCase):
         for name in ("judgment", "world_rows", "prior"):
             with self.subTest(name):
                 run = PlanRun(self)
-                out = run.include(**{name: missing()}, writer=never(self))
+                out = run.include(**{name: missing()}, writer=base.never(self))
                 self.assertEqual(run.status["plan-loop"], "skipped")
                 self.assertEqual((out["ok"], out["status"]), (False, "held"))
                 error = run.json(out["ripple"])["error"]
                 self.assertIn(f"{name} が読めない", error)
                 self.assertIn("nowhere/x.json", error)
         run = PlanRun(self)
-        out = run.include(prior="{壊れた", writer=never(self))
+        out = run.include(prior="{壊れた", writer=base.never(self))
         self.assertEqual(out["status"], "held")
         self.assertIn("prior が読めない", run.json(out["ripple"])["error"])
 
@@ -515,7 +511,7 @@ class SurvivesCase(unittest.TestCase):
         judge = judgment()
         judge["questions"] = [{"key": "q", "kind": "fork", "status": "held", "origin": CLAMP, "depends": 3}]
         run = PlanRun(self, judge=judge)
-        out = run.include(writer=never(self))
+        out = run.include(writer=base.never(self))
         self.assertEqual(out["status"], "held", out)
         self.assertIn("$.questions[0].depends", out["reason"])
 
@@ -618,12 +614,12 @@ class StatusCase(unittest.TestCase):
 
     def test_nothing_owed(self):
         run = PlanRun(self, judge={"units": [unit(NIT, "nit", None)], "questions": []})
-        out = run.include(writer=never(self))
+        out = run.include(writer=base.never(self))
         self.assertEqual((out["ok"], out["status"], out["reason"]), (False, "nothing_owed", steps.NOTHING_OWED))
 
     def test_held(self):
         run = PlanRun(self)
-        out = run.include(judgment=missing(), writer=never(self))
+        out = run.include(judgment=missing(), writer=base.never(self))
         self.assertEqual((out["ok"], out["status"]), (False, "held"))
         self.assertIn("judgment が読めない", out["reason"])
 
@@ -651,7 +647,7 @@ class StatusCase(unittest.TestCase):
             return script(name, bound, check=check)
 
         run.script = only_intake_breaks
-        out = run.include(writer=never(self))
+        out = run.include(writer=base.never(self))
         self.assertEqual((out["ok"], out["status"]), (False, "failed"), out)
         self.assertIn("周を開くノードの中で誤りが起きた: ModuleNotFoundError", out["reason"])
         self.assertFalse((run.art / "r1" / files.FINISH_ERROR).exists(), "出口は落ちていない")

@@ -40,7 +40,9 @@ def rounds(**over) -> dict:
             "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "", **over}
 
 
-class AskBeforeFixCase(unittest.TestCase):
+class _BeforeFixCase(unittest.TestCase):
+    """修正前の承認ノードの開き方（gates.before_fix）を既定の rounds() で聞く助け"""
+
     def setUp(self):
         self.g = kit.load(BLOCK, "gates")
         self.gm = __import__("gatemarks")
@@ -49,6 +51,8 @@ class AskBeforeFixCase(unittest.TestCase):
         return self.g.before_fix(rounds() if got is None else got, unattended_run=kw.pop("unattended", False),
                                  design=kw.pop("design", False), **kw)
 
+
+class AskBeforeFixCase(_BeforeFixCase):
     def test_no_plan_goes_nowhere(self):
         for got in (None, rounds(ok=False), rounds(status="nothing_owed", ok=False)):
             with self.subTest(got=got):
@@ -334,7 +338,7 @@ class AskBeforeFixCase(unittest.TestCase):
         self.assertEqual((out["go"], out["pushed"]), (False, None))
 
 
-class PointedAskCase(unittest.TestCase):
+class PointedAskCase(_BeforeFixCase):
     """版に無い名指しの文書（持ち主の決め pointed-ask。受付 9d05bd の問い 4 の B）: 人の居る run は修正前の承認ノードで問う。ほかの版にだけ
     在る文書は従ってよいかを聞いて開き、どの版にも無い文書は推し「気にせず進む」つきで並べるだけ（それだけでは開かない）。無人の run は
     項目にせず、報告の行だけ（ゲートの抜け方は今のまま）"""
@@ -342,14 +346,6 @@ class PointedAskCase(unittest.TestCase):
     CANON = {"path": "docs/canon.md", "found": True, "at": "canon"}
     GONE = {"path": "tests/new_case.py", "found": False, "at": ""}
     RULE = {"path": "docs/deploy.adoc", "by": "AGENTS.md", "found": True, "at": "remotes/origin/canon"}
-
-    def setUp(self):
-        self.g = kit.load(BLOCK, "gates")
-        self.gm = __import__("gatemarks")
-
-    def ask(self, got=None, **kw):
-        return self.g.before_fix(rounds() if got is None else got, unattended_run=kw.pop("unattended", False),
-                                 design=kw.pop("design", False), **kw)
 
     def test_a_document_only_on_another_branch_opens_the_gate(self):
         out = self.ask(rounds(pointed=[self.CANON]), pointed=[self.RULE])
@@ -568,7 +564,7 @@ class ReviewVerdictCase(unittest.TestCase):
         self.assertEqual(got["verdict"], "blocked")
 
 
-def final_got(final, **over) -> dict:
+def final_got(**over) -> dict:
     """最後の承認ノードの材料（src.final.gather の返りの形）。既定は全部通った run"""
     got = {"tests_ok": True, "green": True, "red_cause": "", "ran_steps": None,
            "tests": {"by": "test_cmd", "suites": "test_cmd・1 本", "log": "log.txt", "baseline": "直す前: 緑", "reason": "", "unread": ""},
@@ -595,9 +591,9 @@ class AskFinalCase(unittest.TestCase):
         return self.f.ask(got, mode=mode, unattended=unattended, run_id=RUN)
 
     def test_always_is_the_default(self):
-        out = self.ask(final_got(self.f))
+        out = self.ask(final_got())
         self.assertEqual((out["open"], out["reasons"]), (True, []))
-        self.assertFalse(self.ask(final_got(self.f), mode="when_needed")["open"])
+        self.assertFalse(self.ask(final_got(), mode="when_needed")["open"])
 
     def test_protected_hits_and_conflicts_open_in_every_mode(self):
         """keep-essence 10・8: 守りのパスの当たりと人に回した申し出は開き方に依らず開く"""
@@ -606,13 +602,13 @@ class AskFinalCase(unittest.TestCase):
                      {"conflicts_unread": ["x"]}, {"beside_unread": ["y"]}):
             for mode in ("when_needed", "protected_only"):
                 with self.subTest(over=over, mode=mode):
-                    self.assertTrue(self.ask(final_got(self.f, **over), mode=mode)["open"])
+                    self.assertTrue(self.ask(final_got(**over), mode=mode)["open"])
 
     def test_tests_fixed_along_the_way_are_their_own_must_reason_and_section(self):
         """#836: 関わる試験で直す前から壊れていた物を修正役が直した行（許しの出どころ broken）は「ついでに直した試験」として、
         書き換えを許したテストと分けて開ける理由（must）と節に出す"""
         along = {"path": "tests/test_a.py", "permit": "broken-before-1", "source": "broken"}
-        got = final_got(self.f, allowed_tests=[along])
+        got = final_got(allowed_tests=[along])
         why = self.f.needs(got)
         self.assertIn((f"{self.f.ALONG_HEAD}が在る（1 件。人の確かめが要る）", True), why)
         self.assertFalse(any(self.f.ALLOWED_TESTS_HEAD in w for w, _ in why), why)
@@ -631,7 +627,7 @@ class AskFinalCase(unittest.TestCase):
         返した段が通っていない確かめの 1 行と、抜けた訳を並べる。0 回なら頭の文にも節にも出ない"""
         self.assertTrue((kit.BLOCKS / BLOCK / "src" / "eyesback.py").exists(), "周の頭の決めの src/eyesback.py が無い")
         eb = kit.load(BLOCK, "eyesback")
-        got = final_got(self.f, eyes_back={"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": []})
+        got = final_got(eyes_back={"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": []})
         text = self.ask(got)["text"]
         self.assertIn("独立の目から修正の段へ 2 回返した（上限 3 回。", text.splitlines()[0])
         self.assertIn(f"## {eb.HEAD}（2 回）", text)
@@ -642,7 +638,7 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn(eb.NOT_REVIEWED, text)
         self.assertIn("輪を抜けた訳: 返す物が無い（どの目も通った）", text)
         self.assertLess(text.index(f"## {eb.HEAD}"), text.index("最後の承認ノード（最後のテストと独立の目の後・報告の前）"))
-        none = self.ask(final_got(self.f, eyes_back={"rows": [], "exit": "返す物が無い", "left": []}))["text"]
+        none = self.ask(final_got(eyes_back={"rows": [], "exit": "返す物が無い", "left": []}))["text"]
         self.assertNotIn("回返した", none)
         self.assertNotIn(eb.HEAD, none)
 
@@ -653,7 +649,7 @@ class AskFinalCase(unittest.TestCase):
         costs = {"by_round": {1: 1.25, 2: 0.5}, "why": ""}
         record = {"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": [],
                   "eyes": {"r1": {"status": "pass"}, "r2": {"status": "pass"}, "findings": []}}
-        text = self.ask(final_got(self.f, eyes_back=record, back_costs=costs))["text"]
+        text = self.ask(final_got(eyes_back=record, back_costs=costs))["text"]
         self.assertIn(eb.head_text(self.BACK_ROWS, costs), text.splitlines()[0])
         self.assertIn(f"上限 {eb.LIMIT} 回。費用: 1 周目 $1.2500・2 周目 $0.5000", text.splitlines()[0])
         for line in eb.record_lines(record, None, costs):
@@ -669,7 +665,7 @@ class AskFinalCase(unittest.TestCase):
                   "r4": {"status": "pass", "reason": ""}, "premise_check": None}
         for record in (None, {"rows": [], "exit": eb.EXITS["fell"], "left": []}):
             with self.subTest(record=record):
-                got = final_got(self.f, eyes=fixing, eyes_back=record)
+                got = final_got(eyes=fixing, eyes_back=record)
                 self.assertIn((self.f.BACK_FELL, True), self.f.needs(got))
                 for mode in ("when_needed", "protected_only"):
                     self.assertTrue(self.ask(got, mode=mode)["open"], mode)
@@ -679,7 +675,7 @@ class AskFinalCase(unittest.TestCase):
                 self.assertIn(self.f.BACK_FELL, text)
                 self.assertIn("R1: 直しが要る", text, "最初の目の行は出る")
                 self.assertNotIn(eb.HEAD, text, "返した周が無いので節は出ない")
-        zero = final_got(self.f, eyes=fixing, eyes_back={"rows": [], "exit": "返す物が無い", "left": []})
+        zero = final_got(eyes=fixing, eyes_back={"rows": [], "exit": "返す物が無い", "left": []})
         self.assertFalse(any(self.f.BACK_FELL in phrase for phrase in self.f.final_needs(zero)))
         self.assertNotIn(eb.HEAD, self.ask(zero)["text"])
 
@@ -690,7 +686,7 @@ class AskFinalCase(unittest.TestCase):
         eb = kit.load(BLOCK, "eyesback")
         left = [{"eye": "r1", "where": "src/a.py:12", "text": "写しがまだ残っている"}, {"eye": "r2", "where": "", "text": "入口が足りない"}]
         record = {"rows": [{**self.BACK_ROWS[0], "round": k} for k in (1, 2, 3)], "exit": eb.CAP_WHY, "left": left}
-        got = final_got(self.f, eyes_back=record)
+        got = final_got(eyes_back=record)
         phrase = eb.cap_text(left)
         self.assertIn((phrase, True), self.f.needs(got))
         self.assertIn(f"{eb.LIMIT} 周返した", phrase)
@@ -714,14 +710,14 @@ class AskFinalCase(unittest.TestCase):
         left = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
         record = {"rows": self.BACK_ROWS[:1], "exit": f"{eb.EXITS['stop']}（修正の段の合わせが進めなかった）", "left": left,
                   "checkpoint": {"round": 1, "tree": "t1"}}
-        plain = final_got(self.f)
+        plain = final_got()
         self.assertEqual(self.f.returned_section(plain), [])
-        kept = final_got(self.f, eyes_back=record, back_restore={"restored": True, "kept": "k.patch", "reason": ""})
+        kept = final_got(eyes_back=record, back_restore={"restored": True, "kept": "k.patch", "reason": ""})
         text = self.f.final_text(kept, self.f.final_needs(kept), RUN)
         self.assertIn("1 周目に返す前の状態", text)
         self.assertIn("k.patch", text)
         self.assertFalse(any("返す前の状態へ戻せなかった" in why for why, _ in self.f.needs(kept)), "戻せた時は開ける理由にしない")
-        failed = final_got(self.f, eyes_back=record, back_restore={"restored": False, "kept": "k.patch", "reason": eb.RESTORE_DIFFERS})
+        failed = final_got(eyes_back=record, back_restore={"restored": False, "kept": "k.patch", "reason": eb.RESTORE_DIFFERS})
         why = self.f.needs(failed)
         self.assertTrue(any("返す前の状態へ戻せなかった" in phrase and must for phrase, must in why), why)
         for mode in ("when_needed", "protected_only"):
@@ -735,7 +731,7 @@ class AskFinalCase(unittest.TestCase):
         eb = kit.load(BLOCK, "eyesback")
         left = [{"eye": "r1", "where": "src/a.py:12", "text": "写しが残っている"}]
         record = {"rows": self.BACK_ROWS[:1], "exit": eb.EXITS["fell"], "left": left, "checkpoint": {"round": 1, "tree": "t1"}}
-        got = final_got(self.f, eyes_back=record, back_restore={"restored": True, "kept": "k.patch", "reason": ""})
+        got = final_got(eyes_back=record, back_restore={"restored": True, "kept": "k.patch", "reason": ""})
         self.assertTrue(any(self.f.BACK_FELL in phrase and must for phrase, must in self.f.needs(got)), self.f.needs(got))
         for mode in ("when_needed", "protected_only"):
             self.assertTrue(self.ask(got, mode=mode)["open"], mode)
@@ -750,7 +746,7 @@ class AskFinalCase(unittest.TestCase):
         gone = {"group_id": "g1", "weapon": "remove", "units": ["u1"], "tests": ["tests/test_a.py::test_old"],
                 "only_removed": ["tests/test_a.py"], "stage": "修正の段"}
         allowed = [{"path": "tests/test_a.py", "permit": "p1", "source": "案"}]
-        got = final_got(self.f, removed_tests=[gone], allowed_tests=allowed)
+        got = final_got(removed_tests=[gone], allowed_tests=allowed)
         why = self.f.needs(got)
         self.assertIn((f"{self.f.REMOVED_TESTS_HEAD}が在る（1 件。人の確かめが要る）", True), why)
         self.assertFalse(any(self.f.ALLOWED_TESTS_HEAD in w for w, _ in why), why)
@@ -759,7 +755,7 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn(f"## {self.f.REMOVED_TESTS_HEAD}（1 件。", text)
         self.assertIn("- tests/test_a.py::test_old（修正の段・組 g1・型 remove・単位 u1）", text)
         self.assertNotIn(f"## {self.f.ALLOWED_TESTS_HEAD}", text)
-        both = final_got(self.f, removed_tests=[{**gone, "only_removed": []}], allowed_tests=allowed)
+        both = final_got(removed_tests=[{**gone, "only_removed": []}], allowed_tests=allowed)
         self.assertIn((f"{self.f.ALLOWED_TESTS_HEAD}（1 件。人の確かめが要る）", True), self.f.needs(both))
 
     def test_unchecked_note_is_written_once_whichever_sections_show(self):
@@ -771,7 +767,7 @@ class AskFinalCase(unittest.TestCase):
                 "only_removed": ["tests/test_a.py"], "stage": "修正の段"}
         for rows, removed in (([allowed], []), ([along], []), ([], [gone]), ([allowed, along], [gone]), ([along], [gone])):
             with self.subTest(rows=rows, removed=removed):
-                got = final_got(self.f, allowed_tests=rows, removed_tests=removed, allowed_untouched=None)
+                got = final_got(allowed_tests=rows, removed_tests=removed, allowed_untouched=None)
                 self.assertEqual(self.f.final_text(got, [], RUN).count(self.f.ALLOWED_UNCHECKED), 1)
                 self.assertEqual(self.f.final_text({**got, "allowed_untouched": 0}, [], RUN).count(self.f.ALLOWED_UNCHECKED), 0)
 
@@ -780,13 +776,13 @@ class AskFinalCase(unittest.TestCase):
         code を触った時だけ開き方で開く理由（must でない）"""
         row = {"group_id": "g1", "weapon": "static", "units": ["u1"], "why": "README の言い回しだけで試験で示す物が無い",
                "files": [{"path": "README.md", "kind": "docs"}], "stage": "修正の段"}
-        docs = final_got(self.f, untested=[row])
+        docs = final_got(untested=[row])
         self.assertEqual(self.f.final_needs(docs), [])
         text = self.f.final_text(docs, [], RUN)
         self.assertIn(f"## {self.f.UNTESTED_HEAD}（1 件。", text)
         self.assertIn("試験を求めない訳: README の言い回しだけで試験で示す物が無い", text)
         self.assertIn("  - README.md（docs）", text)
-        code = final_got(self.f, untested=[{**row, "files": [{"path": "src/a.py", "kind": "code"}]}])
+        code = final_got(untested=[{**row, "files": [{"path": "src/a.py", "kind": "code"}]}])
         self.assertIn((f"{self.f.UNTESTED_HEAD}が{self.f.CODE_UNTESTED}（1 件）", False), self.f.needs(code))
         self.assertIn(f"  - src/a.py（code。{self.f.CODE_UNTESTED}）", self.f.final_text(code, [], RUN))
         self.assertTrue(self.ask(code, mode="when_needed")["open"])
@@ -794,11 +790,11 @@ class AskFinalCase(unittest.TestCase):
 
     def test_unsatisfied_dependencies_are_named_in_a_section_that_never_opens(self):
         """F3: 守れなかった依存（fixed の groups の行の unsatisfied）は節に対を名で並べる。止めにせず、開ける理由に数えない。無ければ節が出ない"""
-        self.assertNotIn(self.f.UNSATISFIED_HEAD, self.f.final_text(final_got(self.f), [], RUN))
+        self.assertNotIn(self.f.UNSATISFIED_HEAD, self.f.final_text(final_got(), [], RUN))
         rows = self.f.unsatisfied_rows([{"group_id": "g1", "unsatisfied": [{"before": "u1", "after": "u2"}]},
                                         {"group_id": "g2"}, "壊れた行"])
         self.assertEqual(len(rows), 1)
-        got = final_got(self.f, unsatisfied=rows)
+        got = final_got(unsatisfied=rows)
         text = self.f.final_text(got, [], RUN)
         self.assertIn(f"## {self.f.UNSATISFIED_HEAD}（1 件", text)
         self.assertIn("組 g1: 単位 u1 → u2", text)
@@ -810,7 +806,7 @@ class AskFinalCase(unittest.TestCase):
     def test_means_questions_open_in_every_mode(self):
         """計画 means-answers の 6.3 の 4・6.5 の 5: R2 の頼みどおりの違いの問いは開き方に依らず開く理由（must）。protected_only で
         守りのパスに当たらなくても開く"""
-        got = final_got(self.f, means_questions=[self.MEANS_Q])
+        got = final_got(means_questions=[self.MEANS_Q])
         for mode in ("when_needed", "protected_only", "always"):
             with self.subTest(mode=mode):
                 self.assertTrue(self.ask(got, mode=mode)["open"])
@@ -829,34 +825,34 @@ class AskFinalCase(unittest.TestCase):
         開かずに推しで進み、採った推しを pushed に返す（answer-final が gates/gate-final.json に残す）。字の問いの末尾の尾では進まない"""
         for mode in ("when_needed", "protected_only"):
             with self.subTest(mode=mode):
-                out = self.ask(final_got(self.f, means_questions=self.means_rows("continue", "continue")), mode=mode, unattended=True)
+                out = self.ask(final_got(means_questions=self.means_rows("continue", "continue")), mode=mode, unattended=True)
                 self.assertEqual((out["open"], out["go"], out["stop_reason"], out["text"]), (False, True, "", ""))
                 self.assertEqual(out["pushed"]["decision"], "continue")
                 self.assertEqual([r["answer"] for r in out["pushed"]["pushed"]], ["continue", "continue"])
                 self.assertEqual(out["reasons"], ["頼みの解き方どおりの違いを独立の目が聞いている（2 件）"])
-                tailed = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode=mode, unattended=True)
+                tailed = self.ask(final_got(means_questions=[self.MEANS_Q]), mode=mode, unattended=True)
                 self.assertEqual((tailed["go"], tailed["pushed"]), (False, None), "文の末尾の尾は推しの欄ではない")
 
     def test_means_question_rows_with_a_continue_recommend_field_pass_an_unattended_run(self):
         """問いの行が欄 recommend に通す推しを持てば、文に尾が無くても無人の run の最後の承認ノードは推しで進み、pushed の各行がその欄の answer と
         尾の無い本文を持つ。止める推しの行が混じれば止まる"""
         rows = self.means_rows("continue", "continue")
-        out = self.ask(final_got(self.f, means_questions=rows), mode="when_needed", unattended=True)
+        out = self.ask(final_got(means_questions=rows), mode="when_needed", unattended=True)
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, True, ""))
         self.assertEqual([(r["item"], r["answer"], r["note"]) for r in out["pushed"]["pushed"]],
                          [(row["text"], "continue", "そのまま通す") for row in rows])
         self.assertTrue(all(self.f.gatemarks.PUSH not in r["item"] for r in out["pushed"]["pushed"]))
-        halted = self.ask(final_got(self.f, means_questions=self.means_rows("continue", "stop")), mode="when_needed", unattended=True)
+        halted = self.ask(final_got(means_questions=self.means_rows("continue", "stop")), mode="when_needed", unattended=True)
         self.assertEqual((halted["go"], halted["stop_reason"], halted["pushed"]), (False, "works:needs-human", None))
 
     def test_final_head_push_is_not_cut_from_the_middle_of_a_means_question_text(self):
         """最後の承認ノードの冒頭の推しの行は、問いの行の欄 recommend からだけ組む。欄を持たない問いの文の途中に「推し: …」が在っても、その切れ端は出ない"""
         gm = self.f.gatemarks
         middle = self.MEANS_BODY + "（人に聞く訳: x。" + gm._push({gm.RECOMMEND: self.MEANS_REC}).lstrip("／") + "。ほかにも案が在る）"
-        head = self.f.final_head(final_got(self.f, means_questions=[{"text": middle}]), [])
+        head = self.f.final_head(final_got(means_questions=[{"text": middle}]), [])
         self.assertEqual([x for x in head if x.startswith(gm.PUSH)], [gm.PUSH + gm.NO_PUSH])
         rows = self.means_rows("continue")
-        shown = self.f.final_head(final_got(self.f, means_questions=[{"text": middle}, *rows]), [])
+        shown = self.f.final_head(final_got(means_questions=[{"text": middle}, *rows]), [])
         [line] = [x for x in shown if x.startswith(gm.PUSH)]
         self.assertIn("そのまま通す", line)
         self.assertNotIn("ほかにも案が在る", line)
@@ -867,7 +863,7 @@ class AskFinalCase(unittest.TestCase):
         halt = self.MEANS_Q.replace("通す（continue）", "止める（stop）")
         for rows in ([bare], [self.MEANS_Q, bare], [self.MEANS_Q, halt]):
             with self.subTest(rows=rows):
-                out = self.ask(final_got(self.f, means_questions=rows), mode="when_needed", unattended=True)
+                out = self.ask(final_got(means_questions=rows), mode="when_needed", unattended=True)
                 self.assertEqual((out["open"], out["go"], out["stop_reason"], out["pushed"]), (False, False, "works:needs-human", None))
 
     def test_unattended_means_pushes_do_not_pass_other_reasons(self):
@@ -875,12 +871,12 @@ class AskFinalCase(unittest.TestCase):
         推しが在っても今どおり止まる（開き方 protected_only で開かない理由も、推しで進む時は止める側に数える）"""
         for over in ({"protected_hits": ["lib/protected.json"], "protected_count": 1}, {"tests_ok": False, "green": False},
                      {"questions": ["R4 の問い"]}, {"sealed": False},
-                     {"eyes": {**final_got(self.f)["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}}):
+                     {"eyes": {**final_got()["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}}):
             for mode in ("when_needed", "protected_only"):
                 with self.subTest(over=over, mode=mode):
-                    out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q], **over), mode=mode, unattended=True)
+                    out = self.ask(final_got(means_questions=[self.MEANS_Q], **over), mode=mode, unattended=True)
                     self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
-        out = self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="always", unattended=True)
+        out = self.ask(final_got(means_questions=[self.MEANS_Q]), mode="always", unattended=True)
         self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
 
     def test_row_shaped_eye_questions_still_open_the_final_gate(self):
@@ -895,21 +891,21 @@ class AskFinalCase(unittest.TestCase):
         self.assertEqual(got["questions"], ["R4 の問い", "字の問い"])
         self.assertEqual(got["means_questions"], [{"text": self.MEANS_BODY, "recommend": self.MEANS_REC}, {"text": "字の問い 2"}],
                          "R2 の問いは本文の行になり、欄 recommend を落とさない")
-        shaped = final_got(self.f, questions=got["questions"], means_questions=got["means_questions"])
+        shaped = final_got(questions=got["questions"], means_questions=got["means_questions"])
         for mode in ("when_needed", "protected_only"):
             with self.subTest(mode=mode):
                 self.assertTrue(self.ask(shaped, mode=mode)["open"], "頼みどおりの違いの問いは開き方に依らず開く")
-        self.assertFalse(self.ask(final_got(self.f), mode="when_needed")["open"], "問いが無ければ開かない（比べの足場）")
+        self.assertFalse(self.ask(final_got(), mode="when_needed")["open"], "問いが無ければ開かない（比べの足場）")
 
     def test_attended_and_closed_returns_carry_no_push(self):
         """人の居る run と開かない run の返りの pushed は null（answer-final は人の答えか前の決めだけを書く）"""
-        self.assertIsNone(self.ask(final_got(self.f, means_questions=[self.MEANS_Q]), mode="when_needed")["pushed"])
-        self.assertIsNone(self.ask(final_got(self.f), mode="when_needed", unattended=True)["pushed"])
+        self.assertIsNone(self.ask(final_got(means_questions=[self.MEANS_Q]), mode="when_needed")["pushed"])
+        self.assertIsNone(self.ask(final_got(), mode="when_needed", unattended=True)["pushed"])
 
     def test_eye_questions_heading_names_the_choose_findings_too(self):
         """独立の目の問い（eyes の questions）のセクションは R4 の問いだけでなく、R1・R2 が人が選ぶ（needs が choose）とした指摘も載るので、
         見出しが R4 だけを名指さない"""
-        got = final_got(self.f, questions=["R4 の問い", "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"])
+        got = final_got(questions=["R4 の問い", "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"])
         text = self.f.final_text(got, self.f.final_needs(got), RUN)
         line = next(x for x in text.splitlines() if "人に聞いている問い（記録のまま引く。2 件" in x)
         self.assertIn("R1・R2 が人が選ぶとした指摘", line)
@@ -921,13 +917,13 @@ class AskFinalCase(unittest.TestCase):
         row = {"text": "R2: c.css:9: 色を当てるか（選べる道: 1) 当てる／2) 当てない。推し: 当てない）"}
         for q in (row, {**row, "recommend": self.MEANS_REC}):
             with self.subTest(recommend="recommend" in q):
-                out = self.ask(final_got(self.f, questions=[q]), mode="when_needed", unattended=True)
+                out = self.ask(final_got(questions=[q]), mode="when_needed", unattended=True)
                 self.assertEqual((out["go"], out["stop_reason"], out["pushed"]), (False, "works:needs-human", None))
 
     def test_means_questions_have_their_own_section(self):
         """6.3 の 3 の 1: R2 の行は R4 の問いの節に入れず別の節に並べ、continue / stop が答えになると書く。R2 が redesign-needed の
         run では尾を R2_KEEPS_OUT にする"""
-        got = final_got(self.f, means_questions=[self.MEANS_Q], questions=["R4 の問い"])
+        got = final_got(means_questions=[self.MEANS_Q], questions=["R4 の問い"])
         text = self.f.final_text(got, self.f.final_needs(got), RUN)
         r4 = text.index("人に聞いている問い（記録のまま引く。1 件）")
         head = text.index(f"- {self.f.MEANS_HEAD}（R2。1 件）:")
@@ -936,8 +932,8 @@ class AskFinalCase(unittest.TestCase):
         tail = text[head:].split("\n")
         self.assertIn(f"  - {self.f.MEANS_ANSWERS}", tail[:6])
         self.assertIn("この承認ノードの continue は頼みどおりの差分を当てる答え", self.f.MEANS_ANSWERS)
-        eyes = {**final_got(self.f)["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}
-        red = self.f.final_text(final_got(self.f, means_questions=[self.MEANS_Q], eyes=eyes), [], RUN)
+        eyes = {**final_got()["eyes"], "r2": {"status": "redesign-needed", "reason": "別"}}
+        red = self.f.final_text(final_got(means_questions=[self.MEANS_Q], eyes=eyes), [], RUN)
         part = red[red.index(f"- {self.f.MEANS_HEAD}"):].split("\n")[:6]
         self.assertIn(f"  - {self.f.R2_KEEPS_OUT}", part)
         self.assertNotIn(f"  - {self.f.MEANS_ANSWERS}", part)
@@ -946,8 +942,8 @@ class AskFinalCase(unittest.TestCase):
         """持ち主の決め small-core の 2026-11-04 の足し（案 1-B）: R2 が作り直しと言った run の最後の承認ノードは、進めても止めても差分を
         当てないことを冒頭の決めてほしいことと答え方の前に機械の字で書き、continue で当たる・PR を作ると読める行を出さない"""
         redesign = {"status": "redesign-needed", "reason": "別の設計"}
-        eyes = {**final_got(self.f)["eyes"], "r2": redesign}
-        got = final_got(self.f, eyes=eyes, deliver_pr=True, spec_changed=["受け入れ条件のテストが変わった"])
+        eyes = {**final_got()["eyes"], "r2": redesign}
+        got = final_got(eyes=eyes, deliver_pr=True, spec_changed=["受け入れ条件のテストが変わった"])
         text = self.f.final_text(got, self.f.final_needs(got), RUN)
         head, answers = text.split("\n")[:3], text.split("答え方（")[1]
         self.assertIn(self.f.R2_KEEPS_OUT, head[1])
@@ -959,13 +955,13 @@ class AskFinalCase(unittest.TestCase):
         self.assertIn("continue", answers)
         for status in ("pass", "fix-needed", "unverifiable"):
             with self.subTest(status=status):
-                other = final_got(self.f, eyes={**eyes, "r2": {"status": status, "reason": ""}})
+                other = final_got(eyes={**eyes, "r2": {"status": status, "reason": ""}})
                 self.assertNotIn(self.f.R2_KEEPS_OUT, self.f.final_text(other, self.f.final_needs(other), RUN))
-        self.assertNotIn(self.f.R2_KEEPS_OUT, self.f.final_text(final_got(self.f, eyes={**eyes, "r2": None}), [], RUN))
+        self.assertNotIn(self.f.R2_KEEPS_OUT, self.f.final_text(final_got(eyes={**eyes, "r2": None}), [], RUN))
 
     def test_protected_only_ignores_other_reasons(self):
-        self.assertFalse(self.ask(final_got(self.f, tests_ok=False), mode="protected_only")["open"])
-        self.assertTrue(self.ask(final_got(self.f, tests_ok=False), mode="when_needed")["open"])
+        self.assertFalse(self.ask(final_got(tests_ok=False), mode="protected_only")["open"])
+        self.assertTrue(self.ask(final_got(tests_ok=False), mode="when_needed")["open"])
 
     def test_parallel_after_found_and_failure_are_reasons_but_not_must(self):
         """8.1: 修正の後の並行 PR の確かめ直しが重なりを見つけた・確かめ直せなかった時は開き方で開く理由（must でない）"""
@@ -973,19 +969,19 @@ class AskFinalCase(unittest.TestCase):
         failed = {"ok": False, "status": "failed", "material": {}, "reason": "gh が落ちた", "stop_reason": "", "report": []}
         for after, word in ((found, "重なる（2 件）"), (failed, "確かめ直しができなかった（gh が落ちた）")):
             with self.subTest(word=word):
-                got = final_got(self.f, parallel_after=after)
+                got = final_got(parallel_after=after)
                 why = self.f.final_needs(got)
                 self.assertTrue(any(word in w for w in why), why)
                 self.assertFalse(any(m for _, m in self.f.needs(got)))
                 self.assertTrue(self.ask(got, mode="when_needed")["open"])
                 self.assertFalse(self.ask(got, mode="protected_only")["open"])
-        clean = final_got(self.f, parallel_after={**found, "status": "clean"})
+        clean = final_got(parallel_after={**found, "status": "clean"})
         self.assertEqual(self.f.final_needs(clean), [])
 
     def test_unread_notes_are_a_must_open_reason(self):
         """読めなかった控え（直した後の実測・封じた差分・問いの台帳など）は理由の一覧に載り、開き方に依らず開く。
         無人の run では理由つきで止まる（理由が空のまま「開けない」で進まない）"""
-        got = final_got(self.f, unread=["直した後の実測の控えを読めない（柵の増えを数えていない）"])
+        got = final_got(unread=["直した後の実測の控えを読めない（柵の増えを数えていない）"])
         self.assertTrue(any("読めなかった" in w for w in self.f.final_needs(got)), self.f.final_needs(got))
         self.assertTrue(self.ask(got, mode="when_needed")["open"])
         out = self.ask(got, mode="when_needed", unattended=True)
@@ -993,38 +989,38 @@ class AskFinalCase(unittest.TestCase):
         self.assertTrue(out["reasons"])
 
     def test_unattended_stops_instead_of_opening(self):
-        out = self.ask(final_got(self.f, tests_ok=False), mode="when_needed", unattended=True)
+        out = self.ask(final_got(tests_ok=False), mode="when_needed", unattended=True)
         self.assertEqual((out["open"], out["go"], out["stop_reason"]), (False, False, __import__("stopby").NEEDS_HUMAN))
 
     def test_escalated_premise_check_opens_the_final_gate(self):
-        eyes = {**final_got(self.f)["eyes"], "premise_check": {"verdict": "escalate", "reason": "r", "facts": []}}
-        self.assertIn("前提の検算が人に上げた", self.f.final_needs(final_got(self.f, eyes=eyes)))
+        eyes = {**final_got()["eyes"], "premise_check": {"verdict": "escalate", "reason": "r", "facts": []}}
+        self.assertIn("前提の検算が人に上げた", self.f.final_needs(final_got(eyes=eyes)))
 
     def test_unsealed_is_a_reason(self):
-        why = self.f.final_needs(final_got(self.f, sealed=False, seal_reason=self.f.SEAL_FELL))
+        why = self.f.final_needs(final_got(sealed=False, seal_reason=self.f.SEAL_FELL))
         self.assertTrue(any("差分を封じられなかった" in w for w in why))
 
     def test_objection_left_after_the_rejudge_is_a_reason(self):
-        self.assertIn("止めずに残った異議が在る", self.f.final_needs(final_got(self.f, objection="判定が違う")))
+        self.assertIn("止めずに残った異議が在る", self.f.final_needs(final_got(objection="判定が違う")))
         self.assertNotIn("止めずに残った異議が在る",
-                         self.f.final_needs(final_got(self.f, objection="判定が違う", rejudge_verdict=self.f.ADOPTED)))
+                         self.f.final_needs(final_got(objection="判定が違う", rejudge_verdict=self.f.ADOPTED)))
 
     def test_held_questions_are_not_reasons(self):
         """L-G36: 判定の役が保留にしたままの問いは冒頭と本文に見せるが、開ける理由に数えない"""
-        got = final_got(self.f, held=["問い q-a（保留）"])
+        got = final_got(held=["問い q-a（保留）"])
         self.assertEqual(self.f.final_needs(got), [])
         self.assertIn("保留にしたままの問い", self.f.final_text(got, [], RUN))
 
     def test_final_text_names_left_tests_and_closure(self):
         """keep-essence 6・11: 回さなかった試験を名で並べ、単位ごとの閉鎖の数え直しが届く"""
-        got = final_got(self.f, tests_left=["修正の受け付けが手元で回さなかった試験（1 件）:", "  - tests/test_a.py::t"],
+        got = final_got(tests_left=["修正の受け付けが手元で回さなかった試験（1 件）:", "  - tests/test_a.py::t"],
                         closure=["u1: 閉じた"])
         text = self.f.final_text(got, [], RUN)
         self.assertIn("  - tests/test_a.py::t", text)
         self.assertIn("- u1: 閉じた", text)
 
     def test_parallel_section_comes_before_the_eyes(self):
-        got = final_got(self.f, parallel_after={"ok": True, "status": "found", "material": {"count": 1}, "reason": "", "report": ["x"]})
+        got = final_got(parallel_after={"ok": True, "status": "found", "material": {"count": 1}, "reason": "", "report": ["x"]})
         text = self.f.final_text(got, self.f.final_needs(got), RUN)
         self.assertLess(text.index(self.f.PARALLEL_HEAD), text.index("独立の目の判定"))
 

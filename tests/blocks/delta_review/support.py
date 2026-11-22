@@ -74,7 +74,7 @@ class Case(unittest.TestCase):
     def exists(self, name):
         return (self.run.artifacts / name).exists()
 
-    def review(self, n, reply, **env):
+    def review(self, n, reply):
         return self.run.script("review_accept", n=str(n), reply=json.dumps(reply, ensure_ascii=False), seal=json.dumps(self.seal))
 
     def refix(self, n, reply):

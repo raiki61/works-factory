@@ -625,9 +625,9 @@ class RealTreeCase(unittest.TestCase):
                 self.assertEqual(here_document_in(text), want)
         offenders = []
         for path in sorted(BLOCKS.rglob("*.md")):
-            if "prompts" in path.relative_to(BLOCKS).parts and path != SANDBOX_SHELL:
-                if here_document_in(path.read_text(encoding="utf-8")):
-                    offenders.append(str(path.relative_to(BLOCKS)))
+            if ("prompts" in path.relative_to(BLOCKS).parts and path != SANDBOX_SHELL
+                    and here_document_in(path.read_text(encoding="utf-8"))):
+                offenders.append(str(path.relative_to(BLOCKS)))
         self.assertEqual(offenders, [], "指示の md が here-document・here-string を書き方に挙げている")
 
     def test_uv_script_heads(self):

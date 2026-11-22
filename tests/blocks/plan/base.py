@@ -105,6 +105,11 @@ def writer_ok(n, prompt):
     return {"plan": [item(1, 2)]}
 
 
+def never(case):
+    """起こされたら case を落とす役（役を起こさずに済むはずの回に渡す）"""
+    return lambda n, prompt: case.fail("役を起こした")
+
+
 def writer_of(*replies):
     """回ごとに replies[n-1] を返す役（足りなければ最後の物）"""
     return lambda n, prompt: copy.deepcopy(replies[min(n, len(replies)) - 1])
