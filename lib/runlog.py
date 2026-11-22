@@ -181,7 +181,8 @@ def facts(rows, *, exclude_prefix: str = "", optional=()) -> dict:
             else:
                 add_tokens(spent.setdefault(step, {}), got)
             binding = _dict(execution.get("binding"))
-            model = _dict(_dict(binding.get("model")).get("resolved")).get("value") or _dict(binding.get("model")).get("requested")
+            wanted = _dict(binding.get("model"))
+            model = _dict(wanted.get("resolved")).get("value") or wanted.get("requested")
             if isinstance(model, str) and model and model not in models.setdefault(step, []):
                 models[step].append(model)
             effort = binding.get("effort")

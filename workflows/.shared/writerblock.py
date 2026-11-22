@@ -87,7 +87,7 @@ def subagent_items(place, sub: dict) -> str:
     """slots の subagents（下請けを起こす単位 sub["owed"] が空でない）から、項目ごとの下請けのファイルを place に書き、修正役の指示の
     {g1_items} の字（項目ごとの 1 行を改行で並べた物）を返す。借りた写しの固定が合わなければ ValueError（呼び手が先に seat.pinned を呼ぶ）。
     実装役の指示 g1-impl の {weapon_rule} には、この block の prompts/parts/head.md（型の決まりの頭の段落）を空の値で組んだ字を渡す
-    （表の SPAWNS が真の型だけがここへ来る。head.md に {名} が在れば prompt.render が値の欠けで落ちる。黙って空の字にしない）"""
+    （表の SPAWNS が真の型だけがここへ来る。head.md に {名} が在れば prompt.render_part が値の欠けで落ちる。黙って空の字にしない）"""
     place = pathlib.Path(place)
     shown = {"scene": "g1-scene", "impl_report": "g1-impl-report", "report": "g1-report", "head_sha": "g1-head-sha"}
     texts = {key: prompt.render_shared(name, {}).strip() for key, name in shown.items()}

@@ -49,7 +49,7 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 - unanalysable [{path, reason, line?, text?, in_neighbourhood}]・all_tests_required・all_tests_reasons
 - counts・not_seen・limits・heuristics・stats（stats だけはその回の値）
 
-使い手: blk-fix（受け付け・TDD の輪・止める単位の結び。map と select_tests で回す試験を選ぶ）、libdocs・design・report、境の節。
+使い手: fix の block（受け付け・TDD の輪・止める単位の結び。map と select_tests で回す試験を選ぶ）、libdocs・design・report、境の節。
 """
 import argparse
 import ast
@@ -66,9 +66,9 @@ import typing
 import changemap
 
 SCHEMA = "works-impact/1"
-ACCEPT_TRACE_OP = "fix_tests_selected"   # 修正の受け付けが選んだ試験を走らせた盤面の trace の行（書くのは blk-fix、読むのは最後の関所）
-ACCEPT_GATES_SKIPPED_OP = "fix_gates_skipped"   # 修正の受け付けの事後の関門の束が赤緑を確かめずに受けた回の盤面の trace の行（書くのは blk-fix、読むのは報告）
-ACCEPT_OVERFLOW_OP = "fix_overflow_settled"   # 修正の受け付けが範囲の外のはみ出しを相談で認めた・機械が戻した回の盤面の trace の行（書くのは blk-fix の受け付け。読み手はまだ無い）
+ACCEPT_TRACE_OP = "fix_tests_selected"   # 修正の受け付けが選んだ試験を走らせた盤面の trace の行（書くのは fix の block、読むのは最後の関所）
+ACCEPT_GATES_SKIPPED_OP = "fix_gates_skipped"   # 修正の受け付けの事後の関門の束が赤緑を確かめずに受けた回の盤面の trace の行（書くのは fix の block、読むのは報告）
+ACCEPT_OVERFLOW_OP = "fix_overflow_settled"   # 修正の受け付けが範囲の外のはみ出しを相談で認めた・機械が戻した回の盤面の trace の行（書くのは fix の block の受け付け。読み手はまだ無い）
 
 
 class OverflowRow(typing.NamedTuple):
@@ -289,8 +289,7 @@ def _words(text):
         if "." in w:
             parts = [p for p in w.split(".") if p]
             out.update(p for p in parts if len(p) >= 3)
-            for i in range(2, len(parts)):
-                out.add(".".join(parts[:i]))
+            out.update(".".join(parts[:i]) for i in range(2, len(parts)))
     return out
 
 
@@ -371,9 +370,8 @@ def _py_facts(text):
     defs = sorted({n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))})
     reads = []
     for n in tree.body:
-        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == READS_DECL for t in n.targets):
-            reads += _consts(n.value, assigns)
-        elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == READS_DECL:
+        if (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == READS_DECL for t in n.targets)
+                or isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == READS_DECL):
             reads += _consts(n.value, assigns)
     imports.sort(key=lambda x: (x[2], x[0]))
     dyn.sort(key=lambda x: x[0])
@@ -1142,7 +1140,7 @@ def main(argv=None):
         print(json.dumps(doc, ensure_ascii=False, indent=1))
         return 0
     m = json.loads(pathlib.Path(ns.map_json).read_text(encoding="utf-8"))
-    fast = [f for f in ns.fast.split(",") if f] if getattr(ns, "fast", "") else []
+    fast = [f for f in ns.fast.split(",") if f]
     print(json.dumps(select_tests(m, fast=fast, scope=ns.scope), ensure_ascii=False, indent=1))
     return 0
 

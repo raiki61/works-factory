@@ -1,4 +1,4 @@
-"""事前審査の壁打ち（依頼 231）の決まりと往復の控え（core の converge）。偽の盤面（SimpleNamespace に round・dir・work・trace）で
+"""事前審査の壁打ち（依頼 231）の決まりと往復の控え（lib/converge.py）。偽の盤面（SimpleNamespace に round・dir・work・trace）で
 関数を直に呼ぶ（FAST。盤面・git・子のプロセスなし）"""
 import json
 import pathlib

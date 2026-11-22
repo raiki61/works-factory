@@ -56,7 +56,7 @@ def join(texts) -> str:
             continue
         if out:
             last = out.rsplit("\n", 1)[-1]
-            out += "\n" if t.startswith("- ") and (last.startswith("- ") or last.startswith("  ")) else "\n\n"
+            out += "\n" if t.startswith("- ") and last.startswith(("- ", "  ")) else "\n\n"
         out += t
     return out
 

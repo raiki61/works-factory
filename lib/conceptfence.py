@@ -363,11 +363,11 @@ def changed(repo, base_rev: str, *, skip_prefix: str) -> list[str]:
 
 
 def _old(repo, rev: str, path: str) -> str:
-    p = subprocess.run(["git", "-C", str(repo), "show", f"{rev}:{path}"], capture_output=True, stdin=subprocess.DEVNULL)
-    if p.returncode != 0:
+    raw = _show(repo, rev, path)
+    if raw is None:
         return ""   # 前の版に無いファイル
     try:
-        text = p.stdout.decode("utf-8")
+        text = raw.decode("utf-8")
     except UnicodeDecodeError:
         return ""
     return "" if "\0" in text else text

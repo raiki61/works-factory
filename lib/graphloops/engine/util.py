@@ -43,10 +43,6 @@ def write_json(path, obj):
     os.replace(tmp, path)
 
 
-def dump(obj):
-    return json.dumps(obj, ensure_ascii=False, indent=1)
-
-
 GIT_CWD = None  # 対象リポジトリ。init が記録した inputs.cwd を engine が 1 度だけ入れる（下の _repo_args を見よ）
 
 

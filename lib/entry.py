@@ -100,8 +100,9 @@ def features_cut(off, on=(), adds=()) -> list:
 def cut_of(doc: dict) -> set:
     """start の控え doc の実効で off の機能（欄 FEATURES_CUT_KEY。欄の無い前の版の控えは、前の版の既定が全部 on なので
     features_off の語だけ）"""
-    key = FEATURES_CUT_KEY if isinstance(doc, dict) and FEATURES_CUT_KEY in doc else FEATURES_KEY
-    return set((doc or {}).get(key) or []) if isinstance(doc, dict) else set()
+    if not isinstance(doc, dict):
+        return set()
+    return set(doc.get(FEATURES_CUT_KEY if FEATURES_CUT_KEY in doc else FEATURES_KEY) or [])
 
 
 def features_on_of(doc: dict) -> list:

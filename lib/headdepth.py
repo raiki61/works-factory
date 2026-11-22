@@ -10,7 +10,7 @@ run 全体の深さ（軽量・標準・重厚）の語と並び HEADS はここ
 - NONE・CAUSE・SHAPE・SCOPE・UNKNOWNS: 依頼の行ごとの未知の種類の語と、種類 → 段の表。known(kind): 表の種類か。
   tier_of(items): 行の並びの一番重い種類の段（引けなければ標準）
 - RECORD: 判定の置き場の控えの名（字をここに直に書く。前は judgebeside.DEPTH_FILE）
-- record(depth, why, *, items, facts_doc, groups): 控えの形。groups は役の群の選びを launchgroups.choices で照らした行（既定のまま・
+- record(depth_word, why, *, items, facts_doc, groups): 控えの形。groups は役の群の選びを launchgroups.choices で照らした行（既定のまま・
   拒んだ時は空）。この run では効かず記録だけ
 - write(jdir, doc)・read(jdir): 判定の置き場の控え RECORD の読み書き。read_file(path): 控えのファイルの読み（判定の外の読み手は
   判定の出力の欄 depth_record のパスで読む）。どちらの読みも無い・読めない時に標準の控え
@@ -66,7 +66,7 @@ def read_file(path) -> dict:
     try:
         doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return record(STANDARD, NO_RECORD)
+        doc = None
     if not isinstance(doc, dict) or doc.get("depth") not in HEADS:
         return record(STANDARD, NO_RECORD)
     return doc

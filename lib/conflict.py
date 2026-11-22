@@ -55,8 +55,8 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   文で ValueError（止めるのは呼び手）
 - ruled_test_doc(b): テストの変更の許し（承認済みの修正案の rewrite_tests と裁定 fix_test_scope の範囲。test_permits）が名指した
   テストのファイルを、守りのファイルの一覧（protect）の形にした物（最後の関所に出す）
-- ruled_limits(b, decisions=): 直す裁定の範囲 limits を (申し出の行, 範囲) で並べる唯一の読み口（test_permits と blk-fix の
-  planscope が読む）
+- ruled_limits(b, decisions=): 直す裁定の範囲 limits を (申し出の行, 範囲) で並べる唯一の読み口（test_permits と fix の
+  scope が読む）
 - edit_permits(b, pass_, round_=): 修正の段の事後の関門が既存のテストの本体の変更を許す名指しの id と範囲（test_permits から引く。修正役の指示書も貼る）
 - edit_rulings(b, pass_): edit_permits に裁定 fix_test_scope の範囲が入るか（段 ruled か 2 回目の修正の段）
 - ruled_test_limits(b, rulings=, source=, skip_ids=, base=)・parse_limit(lim): テストの変更の許し（承認済みの修正案の rewrite_tests と裁定
@@ -117,7 +117,7 @@ ASK = "ask_human"
 ASK_WHY = "ask_why"                     # 裁定役の ask_human の欄 {changes, line}: 人の答えで何が変わるか（ASK_CHANGES）と 1 行の訳
 ASK_CHANGES = {"direction": "直しの向き", "scope": "直しの範囲"}   # 人に回してよい訳（人の答えで変わる物）と、関所の行の言い方
 NAME_ONLY = "name_only"                 # 名の重なりだけ（字が同じ名）。訳に書けば受け付けが拒み、裁定役が自分で決める
-ACCEPT_PARKED_OP = "fix_bound_parked"   # 修正の受け付け（blk-fix）が最後の回に止めた単位の trace の行の語。書くのは accept、読むのは報告と最後の関所
+ACCEPT_PARKED_OP = "fix_bound_parked"   # 修正の受け付け（fix の block）が最後の回に止めた単位の trace の行の語。書くのは accept、読むのは報告と最後の関所
 REPLAN = "fix_plan_item"                # 案の項目そのものが誤りと裁く（同じ run の中で案を直して事前審査に掛けてから直す）
 REJUDGE = "rejudge"                     # 判定の単位の切り方が誤りと裁く（組どうしの合わせの申し出 JOIN_SOURCE にだけ。裁定の文が修正役の異議になり再審へ）
 DECISIONS = ("fix_test_scope", "fix_code_as", ASK, REPLACE, REPLAN, REJUDGE)
@@ -132,7 +132,7 @@ MAX_LINES = 20
 # テストが直すと落ちる・受け入れのテストが案どおりに書いても赤にならない・範囲の外を触らないと緑にならない・判定の問いが直した後の
 # 正しい形にも当たる（which_is_right query と対）・材料から決められず人か依頼の答えが要る（which_is_right unknown と対）
 DIV_KINDS = tuple(k for k in ROW["properties"][KIND_FIELD]["enum"] if k is not None)
-BRIEF_VS_JUDGMENT, UNNAMED_TEST_BROKE, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RED_AT_BASE = DIV_KINDS
+BRIEF_VS_JUDGMENT, _, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RED_AT_BASE = DIV_KINDS
 # which_is_right の語。UNKNOWN はどれが正しいか決められない（needs_context の対）、QUERY は判定者の class_query が直した後の正しい形にも当たる
 WHICH = tuple(ROW["properties"][WHICH_FIELD]["enum"])
 _, TEST, _, UNKNOWN, QUERY = WHICH
@@ -469,14 +469,10 @@ def ruled_items(row) -> list:
 
 def replan_rows(rows, n: int, unit_keys) -> list:
     """申し出の行 rows のうち、裁定が REPLAN で案の項目 n を名指す物（裁定の PLAN_ITEMS が n を持つか、申し出の単位が項目の
-    unit_keys に在る。単位は字で比べる）。案の直しの材料（planfile の brief・boardview の事前審査）が読む 1 つの選び"""
+    unit_keys に在る。単位は字で比べる）。案の直しの材料（plan の brief・plan-review の事前審査）が読む 1 つの選び"""
     keys = {str(k) for k in unit_keys or []}
-    out = []
-    for c in rows or []:
-        if isinstance(c, dict) and decision(c) == REPLAN and (
-                n in ruled_items(c) or str(c.get("unit_key")) in keys):
-            out.append(c)
-    return out
+    return [c for c in rows or [] if isinstance(c, dict) and decision(c) == REPLAN and (
+            n in ruled_items(c) or str(c.get("unit_key")) in keys)]
 
 
 def held_by_rulings(b) -> dict:
@@ -693,12 +689,17 @@ def fields_broken(b, e: Exception, *, by: str = stopby.FIX, stop=None) -> Except
     return ValueError(why)
 
 
-def _plan_rewrites(b, round_: int = 1) -> list[dict]:
-    """planmarks.rewrites。控えが凍結の印と食い違えば（FieldsBroken）fields_broken の道（ValueError（止めるのは呼び手））"""
+def _marks_read(read, b, round_: int):
+    """read(fixboard.marks_view(b, round_))。控えが凍結の印と食い違えば（FieldsBroken）fields_broken の道（ValueError）"""
     try:
-        return planmarks.rewrites(fixboard.marks_view(b, round_))
+        return read(fixboard.marks_view(b, round_))
     except planmarks.FieldsBroken as e:
         raise fields_broken(b, e) from None
+
+
+def _plan_rewrites(b, round_: int = 1) -> list[dict]:
+    """planmarks.rewrites。控えが凍結の印と食い違えば（FieldsBroken）fields_broken の道（ValueError（止めるのは呼び手））"""
+    return _marks_read(planmarks.rewrites, b, round_)
 
 
 def plan_rewrite_ids(b, round_: int = 1) -> list:
@@ -711,19 +712,13 @@ def plan_rewrite_ids(b, round_: int = 1) -> list:
 
 def _plan_removes(b, round_: int = 1) -> list[dict]:
     """planmarks.removes_permits。_plan_rewrites と同じく、控えが食い違えば ValueError（止めるのは呼び手）"""
-    try:
-        return planmarks.removes_permits(fixboard.marks_view(b, round_))
-    except planmarks.FieldsBroken as e:
-        raise fields_broken(b, e) from None
+    return _marks_read(planmarks.removes_permits, b, round_)
 
 
 def frozen_fields(b, round_: int = 1) -> list | None:
     """今の周の凍結した修正案の欄の並び（planmarks.frozen。控えが無ければ None）。控えが凍結の印と食い違えば、_plan_rewrites と
     同じく ValueError（止めるのは呼び手）（fields_broken の道。TDD の輪の約束を黙って空にしない）"""
-    try:
-        return planmarks.frozen(fixboard.marks_view(b, round_))
-    except planmarks.FieldsBroken as e:
-        raise fields_broken(b, e) from None
+    return _marks_read(planmarks.frozen, b, round_)
 
 
 def plan_asks(b, op: str = ASKED_OP, *, carried: bool = False) -> list[dict]:
@@ -747,7 +742,7 @@ def plan_asks(b, op: str = ASKED_OP, *, carried: bool = False) -> list[dict]:
 
 
 def agreed(b, *, carried: bool = True) -> list[dict]:
-    """範囲の相談の合意（plan_asks のうち答えが allow の行）。範囲（blk-fix の planscope）とテストの許し（test_permits）の唯一の
+    """範囲の相談の合意（plan_asks のうち答えが allow の行）。範囲（fix の scope）とテストの許し（test_permits）の唯一の
     読み口。既定は写した行（group_id つき）も含む。carried=False はこの置き場の役が自分で聞いた合意だけ（fixboard.overflow_trace）"""
     return [r for r in plan_asks(b, carried=carried) if r.get("status") == "answered" and r.get("decision") == "allow"]
 
@@ -798,8 +793,8 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由, source: 許しの出どころの語（fixboard.ALLOWED_SOURCES。
     fixboard.allowed_test_rows の行の source）}。修正案の行は名指しのテストの id（test）も持つ
     （id で許す事後の関門が読む）。案の直しの行だけは limit を持たず units（単位の key の並び）を持つ（テストの関数の幅は TDD の輪の
-    状態が知る。tddloop.test_spans）。source（パス → 中身か None）を渡すと、修正案の行の範囲をその木でテストの id から
-    引き直し、引けない行は捨てる（凍結の検査が読む輪の後の木。tddloop.frozen_source）。skip_ids（修正案の行の id そのまま）に
+    状態が知る。fix の common.test_spans）。source（パス → 中身か None）を渡すと、修正案の行の範囲をその木でテストの id から
+    引き直し、引けない行は捨てる（凍結の検査が読む輪の後の木。fix の common.frozen_source）。skip_ids（修正案の行の id そのまま）に
     在る修正案の行は外す（TDD の輪が赤→緑を確かめた書き換え。fix の common.verified_rewrites）。裁定の行はそのまま。
     範囲の相談の合意（agreed_rows を渡せばその行——盤面にまだ写していない合意を足して見る事前の確かめ）は修正案の行の後にいつも入れる。
     合意の範囲の行は修正前の版の行で、source を渡す読み手には base（パス → 修正前の版の中身）も渡して、その木の行へ移す（_in_tree。
@@ -841,14 +836,14 @@ def permitted_units(b) -> set:
 
 def ruled_limits(b, *, decisions=FIX_DECISIONS) -> list[tuple[dict, str]]:
     """直す裁定（ruled_fix）のうち decision が decisions に在る行の範囲 limits の並び [(申し出の行, 範囲の文字列)]（ruled_fix の
-    順・limits の順）。裁定の範囲の唯一の読み口（テストの変更の許し test_permits は fix_test_scope だけ、blk-fix の案の項目の
-    照らし planscope は直す裁定の全部を読む）"""
+    順・limits の順）。裁定の範囲の唯一の読み口（テストの変更の許し test_permits は fix_test_scope だけ、fix の block の案の項目の
+    照らし fix の scope は直す裁定の全部を読む）"""
     return [(r, lim) for r in ruled_fix(b) if r["ruling"]["decision"] in decisions for lim in r["ruling"].get("limits") or []]
 
 
 def ruled_paths(b) -> list[str]:
     """直す裁定（ruled_limits）の limits のパス（parse_limit。重ねない・並びの順）。裁定が run の全部の項目に足す範囲で（範囲の相談の
-    合意 agreed は項目ごとに足す別の口）、blk-fix の planscope と差分の審査・手直しの材料（fixboard.scope_brief）が読む 1 つの口"""
+    合意 agreed は項目ごとに足す別の口）、fix の scope と差分の審査・手直しの材料（fixboard.scope_brief）が読む 1 つの口"""
     out = []
     for _, lim in ruled_limits(b):
         got = parse_limit(lim)
@@ -874,17 +869,14 @@ def edit_rulings(b, pass_: str) -> bool:
 def broken_tests(b) -> list:
     """置き場 b の BROKEN_TESTS_FILE の行 [{path, ids}]（関わる試験で直す前から壊れていた物のファイルと落ちていた試験の鍵。fix の TDD の
     輪の頭が書く）。無い・読めない・形の違う行は捨てる"""
-    try:
-        doc = json.loads((pathlib.Path(b) / BROKEN_TESTS_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    doc = jsonfile.read_or(pathlib.Path(b) / BROKEN_TESTS_FILE)
     rows = doc.get("tests") if isinstance(doc, dict) else None
     return [{"path": r["path"], "ids": [str(i) for i in r.get("ids") or []]} for r in rows or []
             if isinstance(r, dict) and isinstance(r.get("path"), str) and r["path"].strip()]
 
 
 def edit_permits(b, pass_: str, *, round_: int = 1) -> dict:
-    """修正の段の受け付けの事後の関門（fixgates の test_edits）が、既存のテストの関数の本体の変更・消しを許す物
+    """修正の段の受け付けの事後の関門（fix の gates）が、既存のテストの関数の本体の変更・消しを許す物
     {tests: 名指しの id（承認済みの修正案の rewrite_tests と、消す名を名指すテスト。test_permits の行の test）,
      limits: 範囲の文字列（範囲の相談の合意と、裁定 fix_test_scope の範囲と、直す前から壊れていた関わる試験のファイル。test を持たない行の limit）,
      broken: limits のうち直す前から壊れていた関わる試験のファイル（指示書が別の行に出す）}。

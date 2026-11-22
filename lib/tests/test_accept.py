@@ -1,7 +1,7 @@
-"""受け付けの口（.shared/core/accept.py）の検査。
+"""受け付けの口（lib/accept.py）の検査。
 
-良い返答の見本が通り、悪い見本（拒む理由が 1 つだけになるように作った物）が ok: False で拒まれるかを、
-dev/target-seed/ を一時ディレクトリの git に写した使い捨ての対象リポジトリで見る。見本は tests/replies/ に在る。
+作業ツリーの控え（snapshot_tree）・触ったファイル（touched_files）・木の状態と移り（tree_state・tree_change・tree_moved）と、
+受け付けの git が期限を付けずに待つことを、tests/e2e/target-seed/ を一時ディレクトリの git に写した使い捨ての対象リポジトリで見る。
 """
 import os
 import pathlib

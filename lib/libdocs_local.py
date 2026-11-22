@@ -57,7 +57,7 @@ def roots(repo) -> list:
         line = dotgit.read_text(encoding="utf-8").strip()
         if not line.startswith("gitdir:"):
             return out
-        gd = pathlib.Path(line[len("gitdir:"):].strip())
+        gd = pathlib.Path(line.removeprefix("gitdir:").strip())
         gd = gd if gd.is_absolute() else repo / gd
         common = gd
         if (gd / "commondir").is_file():
@@ -193,7 +193,7 @@ def js_uses(text: str) -> dict:
             alias[m.group(1)] = js_package(m.group(3))
     for rx in (JS_DEFAULT, JS_REQUIRE):
         for m in rx.finditer(text):
-            if m.group(1) in ("type",):
+            if m.group(1) == "type":
                 continue
             pkg = js_package(m.group(2))
             alias[m.group(1)] = pkg
@@ -390,7 +390,7 @@ def _read_python(roots_, lib, files) -> dict | None:
             if init is None:
                 continue
             dist = _py_dist(sp, real, lib)
-            version, summary, dist_name = dist if dist else (None, "", "")
+            version, summary, dist_name = dist or (None, "", "")
             frags, missing, memo = [], [], {}
             for use in list(dict.fromkeys(lib.get("uses") or []))[:MAX_USES]:
                 parts = use.split(".")

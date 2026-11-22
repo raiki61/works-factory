@@ -33,23 +33,23 @@ HELD（保留。後の往復でも保留）・ほかは OPEN（端の block が�
 （相乗りの審査の道）。抜け方は全部の項目が閉じれば CLEAN、ほかは decide の決まりを開いた項目の block で読む（docstring が正本）。
 note_plan の無い控え（行に items が無い）は今までどおり全体で 1 つ。
 
-- block_faces(review)・decide(passes)・proceeds(outcome): block の face と、続けるか止めるかの語（CLEAN・SETTLED・AGAIN・PERSISTED・
-  UNSETTLED）と、その語で直しへ進むか
+- block_faces(review)・decide(passes): block の face と、続けるか止めるかの語（CLEAN・SETTLED・AGAIN・PERSISTED・
+  UNSETTLED）
 - REACH・CENTRAL・PERIPHERAL・REACH_SCHEMA・central(face)・central_keys(passes, keys): 穴の中央・端の札の欄と値と型（役の型の
   faces の reach はこの写し）、札の読み（札の無い face と faces の無い古い行は中央と読む）
 - sentences(row)・sentence_diff(old, new): 項目の行を (場所, 文) の組に分ける口と、前後の行の組の差（消した・足した・残った）。
-  後の回の審査の材料の差分（planblk）と、新しい block の出自の文の照らし（_origins）が同じ組を引く
+  後の回の審査の材料の差分（plan-review の material）と、新しい block の出自の文の照らし（_origins）が同じ組を引く
 - read(b)・pass_no(b)・note_answers(b, answers)・record_pass(b, review, ...)・stash_rejects(b, rows)・held(doc):
   控えの読み書き
 - held・filled_units・splice・answer_gaps・revise_section は盤面でなく控え（read の形の dict）を取る（盤面を持つ呼び手は
   read(b) を渡す）。add_pass（record_pass の往復の行を足す半分）・plan_rows（note_plan の行）と共に、盤面を持たない呼び手
-  （planfile。周ごとのファイルから控えを組み直す）も使う
+  （line の rounds。周ごとのファイルから控えを組み直す）も使う
 - note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
   返答に無ければ機械が差し込む項目の単位・直しの役が返した変えた項目の行に前の往復の行を差し込んで案の全体を組む口
   （閉じた項目を変えた行は拒み、前と同じ行は捨てる。返答が案の全部なら閉じた項目だけを差し込む）
 - planned_units(plan): 今の案に在る単位の key の集合を組む唯一の口（控えの plan の行からも修正案の役の出力の plan の行からも。
   carried_notes・受け付けの plan_review_output・修正前の関所の照らしが同じ集合を引く）。その下の plan_keys(plan) は案の順・
-  重複のまま字の key を並べる読み口（planfile の受け付けの照らしも引く）。item_units(plan, n) はその上で項目 n の単位の集合
+  重複のまま字の key を並べる読み口（plan の steps の受け付けの照らしも引く）。item_units(plan, n) はその上で項目 n の単位の集合
   （番号の外は空）を組む唯一の口
 - owed_faces(doc, p): 往復の行 p の、次の往復で答えと照らしが要る穴（block と、開いた項目に付いた suggest）。項目の在る控えでは
   今の開いた項目の分だけ。この絞りの住処はここ 1 つ（止め時は decide）
@@ -73,8 +73,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
 - prev_row(b, n)・answered_hits(b, n)・answered_file_notes(b, n)・carried_notes(b): 前の往復のその項目の案の行・当たりの答え・
   下請けが読んだファイルの覚えと、suggest の穴（往復の行の notes。項目を開き直さず、受け付けが後の往復の返答に今の案の単位だけで引き継ぎ、修正の段へ運ぶ。答えと照らしが要る suggest は
   owed_faces が引く開いた項目の物だけで、閉じた・保留の項目の物と審査が消えたと言った物は参考として渡る）
-- stuck_reason(b)・lines(b): 関所の理由・報告の行（往復ごとの行は前の往復の block を審査が suggest に下げた key も名指し、disputed と
-  答えた穴の key と根拠を 1 行ずつ後ろに足す）。修正案の役と事前審査の役に返す節の文（前の revise_section・review_section と頼みの文）は
+- 修正案の役と事前審査の役に返す節の文（前の revise_section・review_section と頼みの文）は
   plan・plan-review の md（integration.md 4.3-追加-1）
 
 返答から欄を外す道は jsonfile.split。外した欄は足し欄の控えでなく、この往復の控えに置く。
@@ -143,7 +142,6 @@ LINE_DISPUTED = "    退けた答え {key}: {how}"
 LINE_ITEMS = "    項目: 閉じた {closed}・開いた {open}・保留 {held}・相乗りの審査の block {synergy}"
 WORDS = {CLEAN: "block が消えた", SETTLED: "中央の穴が無くなった（端の block を申し送った）", PERSISTED: "同じ block が続いた",
          UNSETTLED: "開いた block が残ったまま止めた", AGAIN: "途中"}
-NONE = "無い"
 
 ANSWER_SCHEMA = {"type": "array", "items": {
     "type": "object", "additionalProperties": False, "required": ["key", "handled", "how"],
@@ -198,7 +196,7 @@ ORIGIN_SCHEMA = {"type": "array", "items": {
                    "of": {"type": "string"}, QUOTE: {"type": "string"}}}}
 # 壁打ちが止まる往復の推し（事前審査の返答の一番上の欄。形は gatemarks.MARK_SCHEMA[RECOMMEND] の {answer, note, why}。値を往復の行の
 # 欄 push に置くだけで、形の持ち主は gatemarks）。無人の run が、止まった案を推しで修正へ進める口（gatemarks.stuck_push。
-# 越えてよいかの決めは gatepolicy.stuck_pushable）
+# 越えてよいかの決めは line の rounds.stuck_pushable）
 STUCK_PUSH = "stuck_recommend"
 HELD_MARK = "held"
 KEY_CHAR = "[A-Za-z0-9_-]"   # key の 1 字（gatemarks の台帳の key の照らしも読む）
@@ -318,7 +316,7 @@ def take_flips(row: dict, passes: list[dict], claimed, new) -> None:
     if not got:
         return
     row[FLIPS] = got
-    row["origins"].update({k: ORIGIN_FLIP for k in got})
+    row["origins"].update(dict.fromkeys(got, ORIGIN_FLIP))
     row["origins_claimed"] = [c for c in row["origins_claimed"] if not (c.get("key") in got and c.get("origin") == ORIGIN_FLIP)]
 
 
@@ -330,10 +328,6 @@ def item_id(unit_keys) -> str:
 def item_hash(row: dict) -> str:
     """項目の行（名前に戻した物）の sha256"""
     return hashlib.sha256(json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-
-
-def _label(it: dict) -> str:
-    return f"項目 {it['n']}（{'、'.join(str(k) for k in it.get('unit_keys') or [])}）"
 
 
 def _attributed(units: list, items: list) -> list[int]:
@@ -427,10 +421,7 @@ def _fresh(b) -> dict:
 
 def read(b) -> dict:
     """今の周の控え。無い・読めない・形が違う・周が違うなら往復の無い控え"""
-    try:
-        doc = json.loads(b.work(RECORD).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return _fresh(b)
+    doc = jsonfile.read_or(b.work(RECORD))
     if (not isinstance(doc, dict) or doc.get("round") != b.round or not isinstance(doc.get("passes"), list)
             or not all(isinstance(p, dict) for p in doc["passes"]) or not isinstance(doc.get("open", {}), dict)):
         return _fresh(b)
@@ -485,7 +476,7 @@ def plan_rows(rows: list, *, marks: list | None = None) -> list[dict]:
 
 def plan_keys(plan) -> list:
     """今の案に在る単位の key を案の順に、重複も残して字のまま（控えの plan の行・修正案の役の出力の plan の行のどちらからも）。
-    list でない plan・行で無い物・unit_keys が list でない行は読まない。planned_units と planfile の照らしの下の読み口"""
+    list でない plan・行で無い物・unit_keys が list でない行は読まない。planned_units と plan の steps の照らしの下の読み口"""
     return [k for r in plan if isinstance(r, dict) and isinstance(r.get("unit_keys"), list)
             for k in r["unit_keys"]] if isinstance(plan, list) else []
 
@@ -574,7 +565,7 @@ def sentences(row) -> list[tuple[str, str]]:
 
 def sentence_diff(old, new) -> tuple[list, list, list]:
     """前の行 old と今の行 new の (場所, 文) の組（sentences）の差: (消した組, 足した組, 残った組)。並びは前の行（消した）と今の行
-    （足した・残った）の出た順。後の回の審査の材料の差分（planblk._diff_part）と新しい block の出自の照らし（_origins）が同じ比べを
+    （足した・残った）の出た順。後の回の審査の材料の差分（plan-review の material._diff_part）と新しい block の出自の照らし（_origins）が同じ比べを
     引く"""
     before, after = sentences(old), sentences(new)
     was, now = set(before), set(after)
@@ -861,7 +852,7 @@ def _pass_faces(p: dict) -> list[dict]:
 
 
 def resolvable_keys(doc: dict, n: int | None = None) -> set[str]:
-    """審査役が resolved に書いてよい key の集合の唯一の持ち主（resolved_gaps と planblk の item_answer_gaps が stray_resolved を通して
+    """審査役が resolved に書いてよい key の集合の唯一の持ち主（resolved_gaps と plan-review の tree.item_answer_gaps が stray_resolved を通して
     引く）。doc のどの往復かの穴（_pass_faces）の key の全部で、resolved 済みで持ち越された suggest も含む。n（1 始まり）を渡すと
     item_blocks と同じ _item_scope で、項目 n の単位と重なる穴と、どの項目とも重ならない穴に絞る（n が項目の番号の外なら空）。
     resolved 済みの suggest の言い直しを許す訳: owed_faces はどの往復の resolved に入った suggest も開き直さないので、言い直しは
@@ -885,7 +876,7 @@ def stray_resolved(doc: dict, resolved, n: int | None = None) -> list[str]:
 
 def owed_faces(doc: dict, p: dict) -> list[dict]:
     """控え doc の往復の行 p について、次の往復で答えと照らしが要る穴の行 [{key, severity, kind, where, why, unit_keys}]
-    （答えの要る穴の正本。answer_gaps・resolved_gaps・revise_section・review_section・item_blocks と planblk の下請けのファイルが
+    （答えの要る穴の正本。answer_gaps・resolved_gaps・revise_section・review_section・item_blocks と plan-review の下請けのファイルが
     これを引き、block の字と項目の state を自分では持たない）。中身は p の穴（_pass_faces）のうち、block の全部と、doc のどの往復の
     resolved にも入っていない suggest（審査が消えたと言った suggest は持ち越しの写しが後の往復の faces に残っても、答えも照らしも
     開き直さない）。どちらも今の開いた項目で絞る: face の unit_keys が
@@ -1014,8 +1005,4 @@ def tree_split(reply: dict) -> tuple[dict, dict]:
     out, got = jsonfile.split(reply, (), TREE_KEYS)
     return out, {name: got.get(name) for name in TREE_KEYS}
 
-
-# ---------------------------------------------------------------- 文
-def _keys(keys) -> str:
-    return "、".join(keys) if keys else NONE
 

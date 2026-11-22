@@ -83,10 +83,8 @@ def index_name(owner: str, replan: bool = False) -> str:
 
 def index_why(path) -> str:
     """索引 path の訳（INDEX_WHY）。読めない・訳が無ければ """""
-    try:
-        why = json.loads(pathlib.Path(path).read_text(encoding="utf-8")).get(INDEX_WHY)
-    except (OSError, ValueError, AttributeError):
-        return ""
+    doc = jsonfile.read_or(path)
+    why = doc.get(INDEX_WHY) if isinstance(doc, dict) else None
     return why if isinstance(why, str) else ""
 
 

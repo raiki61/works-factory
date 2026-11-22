@@ -10,7 +10,7 @@
 - version(start)・frozen_copy(start): 始めの記録の固めた版（無い・壊れていれば None）と、ブロックが読む写しの置き場（欄 policy の
   無い・壊れた記録は今どおり policy_md）
 - PASTE_CAP: 貼る本文の上限（バイト）。役に貼る本文の上限 listcut.FILE_CAP と同じ値を引く
-- brief(board): {"paste": 貼る本文, "path": 写しの置き場}。方針の文書が無ければ両方空。上限を超えたら先頭を切り、
+- brief(start): {"paste": 貼る本文, "path": 写しの置き場}。方針の文書が無ければ両方空。上限を超えたら先頭を切り、
   続きの置き場を末尾に書く（切った後の全体が上限の内）
 人の方針の節の文（前置き・資料の囲み・方針の決まりの段落。前の section と HEAD・PREFACE・RULE、engine の MATERIAL_NOTE）は共通の断片
 workflows/.shared/prompts/policy.md、記録された方針の節の文（前の recorded_section・recorded_text と RECORDED_HEAD・RECORDED_RULE）は

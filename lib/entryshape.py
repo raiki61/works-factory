@@ -220,8 +220,8 @@ def write_pr_file(board_dir: pathlib.Path, inp: dict) -> str:
 
 # 元 works/.shared/core/board.py 554-581 行（盤面を開かない関数が盤面のファイルに住んでいた）
 def diff_of(repo, base_rev: str) -> dict:
-    """差分の根 base_rev から作業ツリーの今の姿までの測り {empty, files, stat}（入口の入力の形の diff。entry.build_input と
-    entry.check_inputs の拒みが読む）。作業ツリーの姿は写しの RL の _worktree_tree（未追跡の新規ファイルも含め、.gitignore の
+    """差分の根 base_rev から作業ツリーの今の姿までの測り {empty, files, stat}（入口の入力の形の diff。build と
+    refuse_empty の拒みが measure で読む）。作業ツリーの姿は写しの RL の _worktree_tree（未追跡の新規ファイルも含め、.gitignore の
     対象は除く）を util.GIT_CWD=repo で呼んだ木で、版を固める p1.worktree_before と同じ測り方（start の測りと空差分の柵の
     測りが食い違わない）。木が base_rev の木と同じなら空。違えば git diff --numstat で数え、stat は --shortstat の 1 行。
     GIT_CWD は呼ぶ前の値に戻す。木が引けない・base_rev が commit に引けなければ Reject"""
