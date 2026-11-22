@@ -220,22 +220,23 @@ nodes:
     depends_on: [prior-decisions-run, purpose-review-run, local-review-run, consistency-bypass-run, hygiene-run, external-standards-run, procedure-trace-run, test-double-fidelity-run, main-path-observation-run, provenance-run, parallel-pr, head-depth-run, world, spec-in, premises-run, purpose-run]
     trigger_rule: all_done
     with:
-      prior_decisions_out: {from: "$prior-decisions-run.output", if_skipped: null}
-      purpose_review_out: {from: "$purpose-review-run.output", if_skipped: null}
-      local_review_out: {from: "$local-review-run.output", if_skipped: null}
-      consistency_bypass_out: {from: "$consistency-bypass-run.output", if_skipped: null}
-      hygiene_out: {from: "$hygiene-run.output", if_skipped: null}
-      external_standards_out: {from: "$external-standards-run.output", if_skipped: null}
-      procedure_trace_out: {from: "$procedure-trace-run.output", if_skipped: null}
-      test_double_fidelity_out: {from: "$test-double-fidelity-run.output", if_skipped: null}
-      main_path_observation_out: {from: "$main-path-observation-run.output", if_skipped: null}
-      provenance_out: {from: "$provenance-run.output", if_skipped: null}
-      parallel_pr_out: {from: "$parallel-pr.output", if_skipped: null}
-      world_out: {from: "$world.output", if_skipped: null}
-      head_depth_out: {from: "$head-depth-run.output", if_skipped: null}
-      spec_in: {from: "$spec-in.output", if_skipped: null}
-      premises_out: {from: "$premises-run.output", if_skipped: null}
-      purpose_out: {from: "$purpose-run.output", if_skipped: null}
+      <<: &judge_outs
+        prior_decisions_out: {from: "$prior-decisions-run.output", if_skipped: null}
+        purpose_review_out: {from: "$purpose-review-run.output", if_skipped: null}
+        local_review_out: {from: "$local-review-run.output", if_skipped: null}
+        consistency_bypass_out: {from: "$consistency-bypass-run.output", if_skipped: null}
+        hygiene_out: {from: "$hygiene-run.output", if_skipped: null}
+        external_standards_out: {from: "$external-standards-run.output", if_skipped: null}
+        procedure_trace_out: {from: "$procedure-trace-run.output", if_skipped: null}
+        test_double_fidelity_out: {from: "$test-double-fidelity-run.output", if_skipped: null}
+        main_path_observation_out: {from: "$main-path-observation-run.output", if_skipped: null}
+        provenance_out: {from: "$provenance-run.output", if_skipped: null}
+        parallel_pr_out: {from: "$parallel-pr.output", if_skipped: null}
+        world_out: {from: "$world.output", if_skipped: null}
+        head_depth_out: {from: "$head-depth-run.output", if_skipped: null}
+        spec_in: {from: "$spec-in.output", if_skipped: null}
+        premises_out: {from: "$premises-run.output", if_skipped: null}
+        purpose_out: {from: "$purpose-run.output", if_skipped: null}
     output_format:
       type: object
       additionalProperties: false
@@ -313,23 +314,8 @@ nodes:
     depends_on: [head-depth-run, spec, spec-in, parallel-pr, premises-run, purpose-run, world, prior-decisions-run, purpose-review-run, local-review-run, consistency-bypass-run, hygiene-run, external-standards-run, procedure-trace-run, test-double-fidelity-run, main-path-observation-run, provenance-run, diagnose-in, diagnose-run, verify]
     trigger_rule: all_done
     with:
-      head_depth_out: {from: "$head-depth-run.output", if_skipped: null}
+      <<: *judge_outs
       spec_out: {from: "$spec.output", if_skipped: null}
-      spec_in: {from: "$spec-in.output", if_skipped: null}
-      parallel_pr_out: {from: "$parallel-pr.output", if_skipped: null}
-      premises_out: {from: "$premises-run.output", if_skipped: null}
-      purpose_out: {from: "$purpose-run.output", if_skipped: null}
-      world_out: {from: "$world.output", if_skipped: null}
-      prior_decisions_out: {from: "$prior-decisions-run.output", if_skipped: null}
-      purpose_review_out: {from: "$purpose-review-run.output", if_skipped: null}
-      local_review_out: {from: "$local-review-run.output", if_skipped: null}
-      consistency_bypass_out: {from: "$consistency-bypass-run.output", if_skipped: null}
-      hygiene_out: {from: "$hygiene-run.output", if_skipped: null}
-      external_standards_out: {from: "$external-standards-run.output", if_skipped: null}
-      procedure_trace_out: {from: "$procedure-trace-run.output", if_skipped: null}
-      test_double_fidelity_out: {from: "$test-double-fidelity-run.output", if_skipped: null}
-      main_path_observation_out: {from: "$main-path-observation-run.output", if_skipped: null}
-      provenance_out: {from: "$provenance-run.output", if_skipped: null}
       diagnose_in: {from: "$diagnose-in.output", if_skipped: null}
       diagnose_out: {from: "$diagnose-run.output", if_skipped: null}
       verify_out: {from: "$verify.output", if_skipped: null}
