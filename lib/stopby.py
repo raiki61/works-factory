@@ -2,7 +2,7 @@
 Python 3.9 で動く。
 
 機械（線・ブロック・core）が盤面の state.stop.by に書く語は、頭 HEAD（works:）に名を付けた 1 語。報告の結末の口
-（report.stop_outcome）はこの頭の語を「線が止めた」（stopped_by_line）と読む（is_line）。同じ語は、答えを待つ
+（report の block の src/outcome.py）はこの頭の語を「線が止めた」（stopped_by_line）と読む（is_line）。同じ語は、答えを待つ
 process.human_items の行の node（conflict・replan・守りのファイル）・裁定の by（機械が人に回した裁定）にも使う。どれも「機械がした」の印で、名の空間は 1 つ（2 つの持ち主が同じ名を別の意味で使わない）。
 
 - HEAD: 機械の語の頭。is_line(by): 機械が止めた語か（頭で見る）
