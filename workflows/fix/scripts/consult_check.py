@@ -41,7 +41,7 @@ def main() -> dict:
     node = rules.answer_node(pass_)
     reply, _ = written(pass_)   # 起きた型の書き手の返答
     if reply is None:
-        raise ValueError("どの型の書き手の返答も無い")
+        raise ValueError(f"段 {pass_} の型の書き手の block がどれも返答を渡していない（INPUTS_REPLY_<型> が全部空。どの型の block も飛ばされたか、振り分けの段を見る）")
     place = ports.place()
     try:
         items = board.place_items(place) or []

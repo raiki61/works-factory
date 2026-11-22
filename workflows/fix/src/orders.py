@@ -164,7 +164,7 @@ def returns_of(place) -> list:
     for p in sorted(d.glob("*.json")) if d.is_dir() else []:
         doc = jsonfile.read_or(p)
         if not isinstance(doc, dict):
-            raise ValueError(f"返しの控え {p} が読めない")
+            raise ValueError(f"返しの控え {p} が読めない（JSON として読めないか、オブジェクトでない。壊れた控えを直すか消して、組の run をやり直す）")
         out.append(doc)
     return out
 
@@ -280,6 +280,24 @@ def compute(place, repo) -> dict:
 ORDER_SEQUENCE = ("pin", "tidy", "static", "tdd", "variant", "remove")
 
 
+def _by_weapon(keys, weapons: dict) -> dict:
+    """単位の key を型ごとに束ねる {型: [key]}（keys の順のまま）"""
+    by: dict = {}
+    for k in keys:
+        by.setdefault(weapons[k], []).append(k)
+    return by
+
+
+def _open_orders(place: pathlib.Path, by: dict) -> tuple:
+    """注文のフォルダ orders/ を用意し、単位の無い型の注文を消して (フォルダ, 注文を書く型の並び) を返す"""
+    d = place / files.ORDERS_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    for w in ORDER_SEQUENCE:
+        if w not in by:
+            (d / f"{w}.json").unlink(missing_ok=True)
+    return d, [w for w in ORDER_SEQUENCE if w in by]
+
+
 def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, has_base: bool, agreed=None, counted=None) -> list:
     """型ごとの注文 orders/<w>.json と索引 orders.json を書く（単位の無い型の注文は消す）。型の並びを返す。counted は tdd の注文の
     型ごとの欄 tdd（振り分けが使った周の数・呼びの控え・渡した証拠の種類。無ければ欄を書かない）"""
@@ -287,16 +305,9 @@ def _write_orders(place, keys, owed, weapons: dict, *, stage: int, since: str, h
     group = intake.load(place).get("group") or {}
     whys, removes = route.plan_whys(place, keys), route.plan_removes(place, keys)
     rows = _unit_rows(place, keys)
-    by: dict = {}
-    for k in owed:
-        by.setdefault(weapons[k], []).append(k)
-    d = place / files.ORDERS_DIR
-    d.mkdir(parents=True, exist_ok=True)
-    sequence = [w for w in ORDER_SEQUENCE if w in by]
-    for w in ORDER_SEQUENCE:
-        if w not in by:
-            (d / f"{w}.json").unlink(missing_ok=True)
-            continue
+    by = _by_weapon(owed, weapons)
+    d, sequence = _open_orders(place, by)
+    for w in sequence:
         jsonfile.write(d / f"{w}.json", _order(place, w, by[w], rows, group_id=str(group.get("group_id") or ""), stage=stage,
                                                since=since, base_file=str(basecase.path(place)) if has_base else "",
                                                whys=whys, removes=removes, why_untested=w == "static",
@@ -372,7 +383,7 @@ def returned_weapons(place) -> dict:
     for p in sorted(d.glob("*.json"), key=lambda q: (len(q.stem), q.stem)) if d.is_dir() else []:
         doc = jsonfile.read_or(p)
         if not isinstance(doc, dict):
-            raise ValueError(f"返しの控え {p} が読めない")
+            raise ValueError(f"返しの控え {p} が読めない（JSON として読めないか、オブジェクトでない。壊れた控えを直すか消して、組の run をやり直す）")
         for u in doc.get("units") or []:
             if isinstance(u, dict) and isinstance(u.get("key"), str):
                 out[u["key"]] = str(doc.get("weapon") or "")
@@ -394,16 +405,9 @@ def write_ruled(place, owed: list, *, since: str) -> list:
     stage = stage_of(place, RULED_PASS)
     got = board.ruled_base(place)
     base_file = str(pathlib.Path(got) / files.BASE_FILE) if got else ""
-    by: dict = {}
-    for k in keys:
-        by.setdefault(weapons[k], []).append(k)
-    d = place / files.ORDERS_DIR
-    d.mkdir(parents=True, exist_ok=True)
-    sequence = [w for w in ORDER_SEQUENCE if w in by]
-    for w in ORDER_SEQUENCE:
-        if w not in by:
-            (d / f"{w}.json").unlink(missing_ok=True)
-            continue
+    by = _by_weapon(keys, weapons)
+    d, sequence = _open_orders(place, by)
+    for w in sequence:
         jsonfile.write(d / f"{w}.json", _order(place, w, by[w], rows, group_id=RULED_PASS, stage=stage, since=since, base_file=base_file,
                                                whys=whys, removes=removes, why_untested=w == "static", rulings=True,
                                                checked=checked))
@@ -491,7 +495,7 @@ def order_docs(place) -> dict:
     for p in sorted(d.glob("*.json")) if d.is_dir() else []:
         doc = jsonfile.read_or(p)
         if not isinstance(doc, dict):
-            raise ValueError(f"注文 {p} が読めない")
+            raise ValueError(f"注文 {p} が読めない（JSON として読めないか、オブジェクトでない。壊れた注文を直すか消して、注文を作る段からやり直す）")
         out[p.stem] = doc
     return out
 

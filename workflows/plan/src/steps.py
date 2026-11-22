@@ -148,6 +148,21 @@ def _unreadable(mode: str, why: list, unread: list, name: str, error, *, holds: 
         unread.append(f"{name}: {error}")
 
 
+def _path_text(got) -> str:
+    """読めた入力のパスを字にする（無ければ空）"""
+    return str(got) if got else ""
+
+
+def _clear_round(folder: pathlib.Path) -> None:
+    """周のフォルダに前の走りが残した名のファイル（項目の指示・指した箇所の本文・この周の控え）だけを消す（在れば。ほかは消さない）"""
+    for brief in files.read_round(folder).get("items") or []:
+        (folder / files.ITEM_BRIEF.format(no=brief)).unlink(missing_ok=True)
+    for n in range(1, len((files.read_json(folder / files.INTAKE) or {}).get("pointed") or []) + 1):
+        (folder / files.POINTED_TEXT.format(n=n)).unlink(missing_ok=True)
+    for name in files.OWN_FILES:
+        (folder / name).unlink(missing_ok=True)
+
+
 def intake(place, repo, k: int, raw: dict) -> dict:
     """全部の port を読み、周を開く（docs/design/plan.md の 4 節）。raw は port の名 → INPUTS_<名> の字。返り {go, mode, round, reason}。
     周のフォルダ r<k>/（k は files.next_round が決めた周の番号。prior が読めない時は在る周の一番大きい番号 + 1 で、前の周のフォルダを開き直さない）
@@ -163,12 +178,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     mode = "replan" if ruling else "plan"
     folder = files.round_dir(place, k)
     folder.mkdir(parents=True, exist_ok=True)
-    for brief in files.read_round(folder).get("items") or []:
-        (folder / files.ITEM_BRIEF.format(no=brief)).unlink(missing_ok=True)
-    for n in range(1, len((files.read_json(folder / files.INTAKE) or {}).get("pointed") or []) + 1):
-        (folder / files.POINTED_TEXT.format(n=n)).unlink(missing_ok=True)
-    for name in files.OWN_FILES:
-        (folder / name).unlink(missing_ok=True)
+    _clear_round(folder)
     files.write_json(place / files.CURRENT_ROUND, {"round": k})
     prior = None
     if not why:
@@ -193,21 +203,20 @@ def intake(place, repo, k: int, raw: dict) -> dict:
             _unreadable(mode, why, unread, "judgment", e)
     elif mode == "plan":
         why.append("judgment が読めない（空）")
-    path_of = lambda got: str(got) if got else ""   # noqa: E731
-    ctx["answer_ties"] = path_of(_optional("answer_ties", unread, lambda: ports.file(raw["answer_ties"],
+    ctx["answer_ties"] = _path_text(_optional("answer_ties", unread, lambda: ports.file(raw["answer_ties"],
                                                                                     "json(shared:answer-ties.schema.json)")))
-    ctx["materials"] = path_of(_optional("materials", unread, lambda: ports.file(raw["materials"], "json(shared:materials-state.schema.json)")))
-    ctx["verify"] = path_of(_optional("verify", unread, lambda: ports.file(raw["verify"], "json(shared:verify.schema.json)")))
-    ctx["excluded"] = path_of(_optional("excluded", unread, lambda: ports.file(raw["excluded"], "json(shared:excluded.schema.json)")))
-    ctx["depth_record"] = path_of(_optional("depth_record", unread, lambda: ports.file(raw["depth_record"],
+    ctx["materials"] = _path_text(_optional("materials", unread, lambda: ports.file(raw["materials"], "json(shared:materials-state.schema.json)")))
+    ctx["verify"] = _path_text(_optional("verify", unread, lambda: ports.file(raw["verify"], "json(shared:verify.schema.json)")))
+    ctx["excluded"] = _path_text(_optional("excluded", unread, lambda: ports.file(raw["excluded"], "json(shared:excluded.schema.json)")))
+    ctx["depth_record"] = _path_text(_optional("depth_record", unread, lambda: ports.file(raw["depth_record"],
                                                                                       "json(shared:depth-record.schema.json)")))
-    ctx["decisions"] = path_of(_optional("decisions", unread, lambda: ports.file(raw["decisions"], "json(shared:material.schema.json)")))
-    ctx["structure"] = path_of(_optional("structure", unread, lambda: ports.file(raw["structure"],
+    ctx["decisions"] = _path_text(_optional("decisions", unread, lambda: ports.file(raw["decisions"], "json(shared:material.schema.json)")))
+    ctx["structure"] = _path_text(_optional("structure", unread, lambda: ports.file(raw["structure"],
                                                                                 "json(shared:structure-state.schema.json)")))
-    ctx["spec"] = path_of(_optional("spec", unread, lambda: ports.file(raw["spec"], "json(shared:spec.schema.json)")))
-    ctx["spec_doc"] = path_of(_optional("spec_doc", unread, lambda: ports.file(raw.get("spec_doc"), "file")))
-    ctx["policy"] = path_of(_optional("policy", unread, lambda: ports.file(raw["policy"], "file")))
-    ctx["conflicts"] = path_of(_optional("conflicts", unread, lambda: ports.file(raw["conflicts"], "json(lib:conflicts.schema.json)")))
+    ctx["spec"] = _path_text(_optional("spec", unread, lambda: ports.file(raw["spec"], "json(shared:spec.schema.json)")))
+    ctx["spec_doc"] = _path_text(_optional("spec_doc", unread, lambda: ports.file(raw.get("spec_doc"), "file")))
+    ctx["policy"] = _path_text(_optional("policy", unread, lambda: ports.file(raw["policy"], "file")))
+    ctx["conflicts"] = _path_text(_optional("conflicts", unread, lambda: ports.file(raw["conflicts"], "json(lib:conflicts.schema.json)")))
     ctx["world_rows"] = ""
     try:
         path = ports.file(raw["world_rows"], "jsonl(lib:world-row.schema.json)")

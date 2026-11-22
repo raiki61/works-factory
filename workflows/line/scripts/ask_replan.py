@@ -140,6 +140,11 @@ def policy_row(record: dict, folder: Path, answered: list) -> str:
     return "" if not row or gates._continued(answered, row) else row
 
 
+def _closed(stop_reason: str = "") -> dict:
+    """聞かずに閉じた時の返り（開けない・進めない）。ask の閉じる道と fallback が同じ形で返す"""
+    return {"open": False, "go": False, "stop_reason": stop_reason, "text": "", "widened": [], "asked": [], "pushed": None}
+
+
 def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before_fix, *, unattended: bool, run_id: str,
         policy: str = "", missing=(), means=(), judgment=None) -> dict:
     import answer
@@ -150,7 +155,7 @@ def ask(replan_got, review_got, old_plan: str, ids: list, conflicts: str, before
     import worldmark
     from src import gates
 
-    closed = {"open": False, "go": False, "stop_reason": "", "text": "", "widened": [], "asked": [], "pushed": None}
+    closed = _closed()
     if replan_got is None or replan_got["ok"] is not True:
         return closed
     missing = list(missing)   # 指す先が無い・読めない控え（聞く行にする。形の違う pointer は落ちる）
@@ -233,7 +238,7 @@ def compute() -> dict:
 def fallback(reason: str) -> dict:
     from src import guard
 
-    return {"open": False, "go": False, "stop_reason": guard.LINE_SCRIPT, "text": "", "widened": [], "asked": [], "pushed": None}
+    return _closed(guard.LINE_SCRIPT)
 
 
 ports.run(compute, fallback)

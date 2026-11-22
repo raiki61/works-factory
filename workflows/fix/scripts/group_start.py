@@ -17,7 +17,7 @@
   回は、試験に入ったと確かめられていないので取り置かない）
 - 実行器が無い・走らない組で、計画の語が static でない単位が在れば、返りの no_suite を真にして組を止める（orders.no_suite_why。
   docs/design/fix.md の 19.1。route-go と orders が tdd-start.json の no_suite を読む。static だけの組は止めない）
-返り {tdd（元の結末が取れた）, units, reason, suite_broken, no_suite}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で 1"""
+返り {tdd（元の結末が取れた）, units, reason, suite_broken, no_suite}。入力が読めない・前の組が止まっている・git が効かない・輪の頭が壊れた: 標準エラーに 1 行で書いて終了の値 1 で落ちる"""
 import sys
 from pathlib import Path
 

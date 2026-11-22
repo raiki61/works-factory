@@ -241,6 +241,48 @@ def _only_request_files(paths, request_files) -> bool:
     return bool(wanted) and bool(got) and all(p in wanted for p in got)
 
 
+def _question_errors(i: int, q: dict, units: list, keys: set) -> list:
+    """判定の返答の questions[i] 1 件を検証器の語彙で見た誤りの行（kind と status の不正は、ほかの検査を続けられないのでそこで返す）。
+    units は返答の units、keys はその key の集合"""
+    errs = []
+    unknown = sorted(set(q) - set(QUESTION_FIELDS))
+    if unknown:
+        errs.append(f"questions[{i}] に知らない欄: {unknown}（書けるのは {'/'.join(QUESTION_FIELDS)}）")
+    kind, status = q.get("kind"), q.get("status")
+    if kind not in QUESTION_KINDS:
+        errs.append(f"questions[{i}] の kind が不正: {kind}")
+        return errs
+    if status not in QUESTION_STATUS:
+        errs.append(f"questions[{i}] の status が不正: {status}")
+        return errs
+    domain, extra = QUESTION_KINDS[kind].domain, QUESTION_KINDS[kind].fields
+    for f in ("reason",) + extra + QUESTION_STATUS[status]:
+        if not q.get(f):
+            errs.append(f"questions[{i}]（{kind}/{status}）に '{f}' が要る")
+    if kind == "fork" and not (isinstance(q.get("options"), list) and len(q["options"]) >= 2):
+        errs.append(f"questions[{i}] の options は選択肢 2 つ以上（各項に帰結まで）")
+    # 出どころ（origin と depends）の走査は targets 1 本
+    for fld, dom, val in targets(q):
+        if dom == "unit" and val not in keys:
+            errs.append(f"questions[{i}] の {fld} '{val}' が units に無い")
+        elif dom == "material" and val not in files.MATERIALS:
+            errs.append(f"questions[{i}] の {fld} は素材名: {val}")
+        elif dom == "review" and val not in REVIEWS:
+            errs.append(f"questions[{i}] の {fld} は R1〜R4: {val}")
+    if domain == "none" and (q.get("origin") or q.get("depends")):
+        errs.append(f"questions[{i}]（{kind}）は origin / depends を持てない")
+    if status in gatemarks.ASKING and kind in NO_OPEN_ORIGIN:
+        for k in [q.get("origin")] + list(q.get("depends", []) or []):
+            u = next((x for x in units if x["key"] == k), None)
+            if u and is_open(u):
+                errs.append(f"questions[{i}]（{kind}）の出どころ '{k}' が [block] / do-now（人に聞く前に直す義務が消える。defer にして構造的理由を書け）")
+    errs += [f"questions[{i}]: {m}" for m in settled_state_errors(q, units)]
+    if gatemarks.asks_human(q):   # 人に回す問いの理由と選択肢は承認ノードの項目に字のまま載る
+        errs += plainask.gaps(f"questions[{i}].reason", q.get("reason"))
+        errs += [g for j, o in enumerate(q.get("options") or []) for g in plainask.gaps(f"questions[{i}].options[{j}]", o)]
+    return errs
+
+
 def judge_output(out, place, root, rev, materials, request_files=()):
     """判定の返答を、検証器の語彙で先に見る。落ちるなら判定役に返させ直す（Reject）。あわせて 1 行の欄を 1 行に正規化し、class_query の
     件数を機械が数えた値に置き換える（out を書き換える）。返りは置き換えの注記（無ければ ""）。request_files（依頼そのものを書いたファイルの
@@ -296,41 +338,7 @@ def judge_output(out, place, root, rev, materials, request_files=()):
     if unknown:
         errs.append(f"one_shot_closes に今の周の units に無い key: {unknown}")
     for i, q in enumerate(out["questions"]):
-        unknown = sorted(set(q) - set(QUESTION_FIELDS))
-        if unknown:
-            errs.append(f"questions[{i}] に知らない欄: {unknown}（書けるのは {'/'.join(QUESTION_FIELDS)}）")
-        kind, status = q.get("kind"), q.get("status")
-        if kind not in QUESTION_KINDS:
-            errs.append(f"questions[{i}] の kind が不正: {kind}")
-            continue
-        if status not in QUESTION_STATUS:
-            errs.append(f"questions[{i}] の status が不正: {status}")
-            continue
-        domain, extra = QUESTION_KINDS[kind].domain, QUESTION_KINDS[kind].fields
-        for f in ("reason",) + extra + QUESTION_STATUS[status]:
-            if not q.get(f):
-                errs.append(f"questions[{i}]（{kind}/{status}）に '{f}' が要る")
-        if kind == "fork" and not (isinstance(q.get("options"), list) and len(q["options"]) >= 2):
-            errs.append(f"questions[{i}] の options は選択肢 2 つ以上（各項に帰結まで）")
-        # 出どころ（origin と depends）の走査は targets 1 本
-        for fld, dom, val in targets(q):
-            if dom == "unit" and val not in keys:
-                errs.append(f"questions[{i}] の {fld} '{val}' が units に無い")
-            elif dom == "material" and val not in files.MATERIALS:
-                errs.append(f"questions[{i}] の {fld} は素材名: {val}")
-            elif dom == "review" and val not in REVIEWS:
-                errs.append(f"questions[{i}] の {fld} は R1〜R4: {val}")
-        if domain == "none" and (q.get("origin") or q.get("depends")):
-            errs.append(f"questions[{i}]（{kind}）は origin / depends を持てない")
-        if status in gatemarks.ASKING and kind in NO_OPEN_ORIGIN:
-            for k in [q.get("origin")] + list(q.get("depends", []) or []):
-                u = next((x for x in out["units"] if x["key"] == k), None)
-                if u and is_open(u):
-                    errs.append(f"questions[{i}]（{kind}）の出どころ '{k}' が [block] / do-now（人に聞く前に直す義務が消える。defer にして構造的理由を書け）")
-        errs += [f"questions[{i}]: {m}" for m in settled_state_errors(q, out["units"])]
-        if gatemarks.asks_human(q):   # 人に回す問いの理由と選択肢は承認ノードの項目に字のまま載る
-            errs += plainask.gaps(f"questions[{i}].reason", q.get("reason"))
-            errs += [g for j, o in enumerate(q.get("options") or []) for g in plainask.gaps(f"questions[{i}].options[{j}]", o)]
+        errs += _question_errors(i, q, out["units"], keys)
     awaiting = {name for name, m in (materials or {}).items() if isinstance(m, dict) and m.get("status") == "awaiting_human"}
     listed = {q.get("origin") for q in out["questions"] if q.get("kind") == "awaiting" and q.get("status") in gatemarks.ASKING}
     for name in sorted(awaiting - listed):

@@ -201,7 +201,6 @@ def owed_units_but_asked(place, owed, *, withheld=(), returned=(), back=None) ->
     修正前の関所か依頼の answers で答えた問いと、無人の run が判定の推しを採った問いの出どころ・depends（returned。元は
     gatemarks.returned）を戻し、直す裁定でない裁定を受けた単位（held_now。ask_human・fix_plan_item。返した段で返した項目の直しへ戻す単位 back〔None なら returned_units〕は除かない）を除く。控えが読めなければ裁定の単位を外さない（義務を減らさない側）。
     元 works/.shared/core/conflict.py:676（盤面の b.state["graph"] の規則と b.record の問いを読んだ）"""
-    import conflict
     got = (set(owed) - set(withheld)) | set(returned)
     try:
         return got - set(held_now(place, back))
@@ -216,7 +215,6 @@ def fix_duty(place, owed, *, withheld_by=None, returned=()) -> tuple:
     裁定の単位を外さない。
     withheld_by が None なら置き場の判定の写しと関所の答えから引く（gate_asks）。
     元 works/.shared/core/conflict.py:696（盤面の記録と問いの台帳を読んだ）"""
-    import conflict
     withheld_by = gate_asks(place)[0] if withheld_by is None else withheld_by
     owed = owed_units_but_asked(place, owed, withheld=set(withheld_by), returned=returned)
     out = {k: f"答え待ちの問い {q.get('key')}（{q.get('kind')}・{q.get('status')}）" for k, q in withheld_by.items()}
