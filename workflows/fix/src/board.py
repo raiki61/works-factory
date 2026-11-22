@@ -358,17 +358,17 @@ def _in_order(judgment, keys) -> list:
 
 def fix_groups(owed, items, only_items=()) -> list:
     """直す義務の単位 owed（順）を、承認済みの修正案の項目 items（planmarks.approved_items の形 [{item, unit_keys, …}] か None）を
-    共にする物どうしの組に分ける（lanekit.groups。つながりは推移的・組の並びは owed の順）。範囲（allowed_paths の glob と
+    共にする物どうしの組に分ける（lanes.groups。つながりは推移的・組の並びは owed の順）。範囲（allowed_paths の glob と
     tests・rewrite_tests のファイル。planrange.item_globs）が交わり得る項目（globs.globs_meet）もつなぐ: 別の組の子が同じ
     ファイルを変えると、締めの節で後の組の差分が字で当たらない。範囲の無い項目は項目の番号だけでつなぐ。項目の間の依存（works の欄
     depends_on）は組の分け方にも組の中の並びにも入れる: only_items・owed で単位 keys を絞った後に、planmarks.depends_pairs(items, among=keys)
-    （絞りの外の項目を通る依存は、中の端どうしの対に縮めた物）を lanekit.groups の after に渡す——前の項目の単位は後の項目の単位と
+    （絞りの外の項目を通る依存は、中の端どうしの対に縮めた物）を lanes.groups の after に渡す——前の項目の単位は後の項目の単位と
     同じ組に入り、組の中は前から先に直る（子の run は remote の既定の枝から切られ、別の組は前の組の変更を見ないので、依存する
     項目を別の組にしない）。依存の無い組の中は owed の順。only_items（項目の番号かその字の並び）が空でなければ、その項目に載る単位
     だけを残し、残した単位の項目の範囲だけを照らす。返り [{group_id: "g<n>", unit_ids, items: [項目の番号…]}]。
     元 works/blk-fix/lib/tddlanes.py:126・131 の items_of・groups（項目の番号を盤面の brief の行から引いた所を items の値で受ける）"""
     import globs
-    from src import lanes as lanekit
+    from src import lanes
     import planmarks
     import planrange
     by: dict = {}
@@ -390,7 +390,7 @@ def fix_groups(owed, items, only_items=()) -> list:
     rows = [(k, by.get(k, []) + [p for p in meets if set(p) & set(by.get(k, []))]) for k in keys]
     after = planmarks.depends_pairs(items, among=keys)
     return [{"group_id": f"g{i}", "unit_ids": list(g), "items": sorted({n for k in g for n in by.get(k, [])})}
-            for i, g in enumerate(lanekit.groups(rows, after=after), 1)]
+            for i, g in enumerate(lanes.groups(rows, after=after), 1)]
 
 
 def parallel(groups, allowed, repo) -> bool:
@@ -569,10 +569,10 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     """組の子の差分（木 from_tree → 木 end_tree。groups.diff_since）を親の作業ツリー repo へ 3 方向で当てる（unittrees.apply。
     union の試験のファイルの挿しだけの食い違いは合わせる）。差分は kept に控える。当てた後に check（当てたパスの並び → 戻す理由か
     空。確かめ直し）が理由を返すか落ちれば（CHECK_RAISED）、当てたパスを当てる前の姿に戻して backed_out に名指す。戻せなければ
-    当てていないと言わず、当たったままのパスを unrestored に名指して理由を UNRESTORED にする。返りは lanekit.Merge。
+    当てていないと言わず、当たったままのパスを unrestored に名指して理由を UNRESTORED にする。返りは lanes.Merge。
     元 works/blk-fix/lib/lanekit.py の merge（単位の worktree の差分を当てた所）を、子の run の終わりの木との差分で受ける形にした物"""
     import groups
-    from src import lanes as lanekit
+    from src import lanes
     from src import common
     import unittrees
     patch = groups.diff_since(repo, from_tree, end_tree)
@@ -583,7 +583,7 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
     got: list = []
     ok, why = unittrees.apply(repo, patch, union=union, unioned=got, check=unittrees.tests_unique)
     if not ok:
-        return lanekit.Merge(f"差分が親の作業ツリーに当たらない（{oneline.one_line(why)[:300]}）", str(kept), [], [], True)
+        return lanes.Merge(f"差分が親の作業ツリーに当たらない（{oneline.one_line(why)[:300]}）", str(kept), [], [], True)
     names = unittrees.patch_names(patch)
     try:
         why = (check(names) if check else "") if names else ""
@@ -593,20 +593,20 @@ def join_group(repo, from_tree: str, end_tree: str, kept, *, union=(), check=Non
         common.restore_paths(repo, before, names)
         raise
     if not why:
-        return lanekit.Merge("", str(kept), names, got, False)
+        return lanes.Merge("", str(kept), names, got, False)
     try:
         common.restore_paths(repo, before, names)
     except Exception as e:  # noqa: BLE001  戻せない組を当てていないと言わない（#403）
-        return lanekit.Merge(UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=why), str(kept), [], got,
+        return lanes.Merge(UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=why), str(kept), [], got,
                              False, unrestored=names)
-    return lanekit.Merge(why, str(kept), [], [], False, names)
+    return lanes.Merge(why, str(kept), [], [], False, names)
 
 
 def join_rows(groups, outcomes, backed_out=None, unrestored=None, old_red=None, uncompared=None, test_cmd_notes=None) -> tuple:
     """(組の行 [{group_id, unit_ids, returned, reason, backed_out?, unrestored?, unsatisfied?}], 単位の行 [{unit_id, group_id, status, reason}])
     （返す節の約束の形）。outcomes は {group_id: (子の結果の dict か None, 戻せたか, 理由)}。戻せた組の単位は子の結果の status・reason
     （結果に無い単位・知らない status は not_done）、戻せなかった組・結果の無い組の単位は not_done と組の理由。backed_out は
-    {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanekit.Merge の
+    {group_id: 当ててから確かめ直しが赤か落ちて戻したパス}、unrestored は {group_id: 戻せず当たったままのパス}（lanes.Merge の
     同じ名の欄）で、在る組の行にだけ同じ名の欄を置く（報告と後の節が当てなかった組と分ける）。old_red は {group_id: 確かめ直しで
     前から同じ形で赤だったので戻す理由にしなかった名指しの文}（rerun_problem の old_red。#837）、uncompared は {group_id: 確かめ直しで
     直す前の版と比べられなかったので戻す理由にしなかった赤の鍵}（rerun_problem の uncompared。#846）、test_cmd_notes は {group_id:
