@@ -116,6 +116,54 @@ class ReasonCase(unittest.TestCase):
                 self.assertEqual(forge.reason(d), "")
 
 
+class RedactAndHelperCase(unittest.TestCase):
+    def test_remote_helper_is_another_host_named_by_its_transport(self):
+        self.assertEqual(forge.classify("ext::ssh host git"), {"kind": forge.OTHER_HOST, "where": "remote helper ext"})
+
+    def test_redact_drops_only_the_userinfo_of_urls_and_passes_non_text(self):
+        self.assertEqual(forge.redact(f"fatal: https://x:{SECRET}@github.com/o/r failed"), "fatal: https://github.com/o/r failed")
+        self.assertEqual(forge.redact("ssh://git@host/o/r and plain text"), "ssh://host/o/r and plain text")
+        self.assertEqual(forge.redact("no url here"), "no url here")
+        self.assertIsNone(forge.redact(None))
+
+
+class RemoteReposCase(unittest.TestCase):
+    """remote_repos: gh repo set-default の記録（remote.<名>.gh-resolved）と remote の URL から、候補を順に返す"""
+
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.repo = pathlib.Path(self._td.name) / "r"
+        self.repo.mkdir()
+        _git(self.repo, "init", "-q")
+
+    def test_order_follows_resolved_then_first_then_upstream_origin_and_skips_non_repos(self):
+        _git(self.repo, "remote", "add", "origin", "git@github.com:fork/r.git")
+        _git(self.repo, "remote", "add", "upstream", "git@github.com:parent/r.git")
+        _git(self.repo, "remote", "add", "local", str(self.repo.parent / "bare.git"))
+        got = list(forge.remote_repos(self.repo, "local"))
+        self.assertEqual([(g["owner"], g["name"]) for g in got], [("parent", "r"), ("fork", "r")], "ローカルのパスの remote は候補に数えない")
+        self.assertTrue(all(g["kind"] == forge.GITHUB for g in got))
+
+    def test_gh_resolved_names_the_repo_unless_it_is_base_or_malformed(self):
+        _git(self.repo, "remote", "add", "origin", "git@github.com:fork/r.git")
+        _git(self.repo, "remote", "add", "upstream", "git@github.com:parent/r.git")
+        _git(self.repo, "config", "remote.origin.gh-resolved", "parent/other")
+        _git(self.repo, "config", "remote.upstream.gh-resolved", "base")
+        got = {g["owner"] + "/" + g["name"] for g in forge.remote_repos(self.repo, "origin")}
+        self.assertEqual(got, {"parent/other", "parent/r"})
+        _git(self.repo, "config", "remote.origin.gh-resolved", "a/b/c")
+        got = [g["owner"] + "/" + g["name"] for g in forge.remote_repos(self.repo, "origin")]
+        self.assertIn("fork/r", got, "OWNER/REPO でない値は remote の URL のまま")
+
+    def test_not_a_repo_yields_nothing(self):
+        self.assertEqual(list(forge.remote_repos(pathlib.Path(self._td.name) / "missing", "origin")), [])
+
+    def test_reason_uses_origin_when_remote_is_missing(self):
+        self.assertIn("remote 'origin' が無い", forge.reason({"kind": forge.NO_REMOTE}))
+        self.assertIn("remote 'up' はローカルのパス /x", forge.reason({"kind": forge.LOCAL_PATH, "remote": "up", "where": "/x"}))
+
+
 class DetectCase(unittest.TestCase):
     """本物の git で remote を引く（upstream の remote を先に、無ければ origin。写しの _github_repo と同じ選び方）"""
 
