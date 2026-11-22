@@ -79,7 +79,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-test-double-fidelity`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手: diagnose だけ。
-  - port `materials`（11 本の `material` の配列の 1 つ）を `materialkit.assemble` で 15 欄にそろえ、素材 `test_double_fidelity` を読む。
+  - port `materials`（10 本の `material` の配列の 1 つ）を `materialkit.assemble` で 15 欄にそろえ、素材 `test_double_fidelity` を読む。
   - 判定役の材料の「代役の忠実性」の穴（今の `{{?out.p1.test_double_fidelity}}`、`DIAGNOSE_EXCERPT` の `:2717`）は返答の全体（`material` と `mismatches`）だった。新しい形では同じ `material.json` の `reply` の欄から取る（`_reply_of` が `material-<役>.json` の `reply` を読んでいた形のまま）。どう描くかは diagnose の設計書が決める。
 - ほかに返答の欄を読む物は無い（`lib/` と `workflows/` を `mismatches`・`test_double_fidelity` で探した）。
 
