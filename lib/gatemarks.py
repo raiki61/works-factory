@@ -455,9 +455,9 @@ def _recommend_gap(got) -> str:
     extra = sorted(set(got) - set(RECOMMEND_KEYS))
     if extra:
         return f"{RECOMMEND} の知らない欄 {extra}"
-    answer = RECOMMEND_KEYS[0]
-    if got.get(answer) not in RECOMMEND_ANSWERS:
-        return f"{RECOMMEND}.{answer} が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get(answer)!r}）"
+    key = RECOMMEND_KEYS[0]
+    if got.get(key) not in RECOMMEND_ANSWERS:
+        return f"{RECOMMEND}.{key} が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get(key)!r}）"
     for k in RECOMMEND_KEYS[1:]:
         if not (isinstance(got.get(k), str) and len(got[k].strip()) >= RECOMMEND_MIN):
             return f"{RECOMMEND}.{k} が {RECOMMEND_MIN} 字に満たない（文字列で書く）"
@@ -584,9 +584,9 @@ REASON_SAFE = "（理由："
 
 def _words(rec: dict) -> str:
     """検めた推し rec の句「通す（continue）——<note>（理由: <why>）」。why の中の「（理由: 」は「（理由：」に替える"""
-    answer = rec[RECOMMEND_KEYS[0]]
+    verb = rec[RECOMMEND_KEYS[0]]
     note, why = (_tail_text(rec[k]) for k in RECOMMEND_KEYS[1:])
-    return f"{RECOMMEND_WORDS[answer]}（{answer}）——{note}{REASON_HEAD}{why.replace(REASON_HEAD, REASON_SAFE)}）"
+    return f"{RECOMMEND_WORDS[verb]}（{verb}）——{note}{REASON_HEAD}{why.replace(REASON_HEAD, REASON_SAFE)}）"
 
 
 def _push(mark: dict, head: str = "／" + PUSH) -> str:
@@ -1411,10 +1411,10 @@ def held_questions(b) -> list:
 
 def _pass_line(p) -> str:
     if p.get("by") in (PASSED_BY_HUMAN, PASSED_BY_PUSH):
-        at = p.get("passed_at") or {}
+        passed = p.get("passed_at") or {}
         who = "人が通した" if p.get("by") == PASSED_BY_HUMAN else "無人の run で推しを採って通した"
-        return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {at.get('round')}・"
-                f"{PLAIN.get(str(at.get('node')), at.get('node'))}）狭まりと同じ: {p['item']}")
+        return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {passed.get('round')}・"
+                f"{PLAIN.get(str(passed.get('node')), passed.get('node'))}）狭まりと同じ: {p['item']}")
     if searched := no_standard(p.get("decided_by")):
         return f"{named(p['node'])}（周 {p['round']}）で定石が見つからず、聞かずに推しで進めた: {p['item']}（探した所: {searched}）"
     return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"
