@@ -20,7 +20,7 @@
   書いたパス→印の長さを控える。印を許しの無いテストのファイルに書いたら当て直せないとする）
 - problems(place, repo, gid, reply, *, start, cases, skip, name, k): 受け付けの照らし（文の並び。空なら通る。印が残るかは控えの
   パスごとの印の長さで照らす）
-- settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位。子から親へ写す物は fixboard.adopt_returned）
+- settle_repaired(place, repo, gid, *, log): 組を戻せた組にする（join.json の行と単位。子から親へ写す物は board.adopt_returned）
 - settle_parked(place, repo, gid, *, pass_, why, skip): 当て直す前の木へ戻し、申し出を積み、join.json の行に訳を置く
 - cites(patch_text, files): 申し出の名指し（<パス>:<差分の最初の塊の新しい側の始めの行>）
 - brief(place, gid): 合わせ役の材料のファイル（印を書いたファイルごとの印の頭 markers を載せる。指示書は src/prompts.py の clash が組む）
@@ -34,7 +34,7 @@ import sys
 sys.dont_write_bytecode = True
 
 import conflict  # noqa: E402
-from src import board as fixboard  # noqa: E402
+from src import board  # noqa: E402
 from src.rulings import write as write_rulings  # noqa: E402
 import impact  # noqa: E402
 import oneline  # noqa: E402
@@ -74,12 +74,12 @@ def _path(place) -> pathlib.Path:
 
 def load(place) -> list:
     """控えの組の行（控えの順。無ければ空）"""
-    doc = fixboard.read_json(_path(place), {}) or {}
+    doc = board.read_json(_path(place), {}) or {}
     return [r for r in doc.get("clashes") or [] if isinstance(r, dict)]
 
 
 def _save(place, rows) -> None:
-    fixboard.write_json(_path(place), {"clashes": rows})
+    board.write_json(_path(place), {"clashes": rows})
 
 
 def new_row(group_id: str, unit_ids, patch: str, names, earlier, why: str, kind: str) -> dict:
@@ -140,18 +140,18 @@ def ruled_paths(place, row) -> list:
 
 # ---------------------------------------------------------------- 組の結果
 def result(place, gid) -> dict:
-    """組の子の結果（置き場の groups.json の out_dir/<group_id>/result.json。fixboard.usable_result）。使えなければ ValueError"""
-    plan = fixboard.read_json(pathlib.Path(place) / fixboard.GROUPS_FILE, {}) or {}
-    got = fixboard.usable_result(pathlib.Path(plan.get("out_dir") or "") / gid)
+    """組の子の結果（置き場の groups.json の out_dir/<group_id>/result.json。board.usable_result）。使えなければ ValueError"""
+    plan = board.read_json(pathlib.Path(place) / board.GROUPS_FILE, {}) or {}
+    got = board.usable_result(pathlib.Path(plan.get("out_dir") or "") / gid)
     if got is None:
         raise ValueError(f"組 {gid} の子の結果が読めない")
     return got
 
 
 def _joined(place) -> dict:
-    doc = fixboard.read_json(pathlib.Path(place) / fixboard.JOIN_FILE)
+    doc = board.read_json(pathlib.Path(place) / board.JOIN_FILE)
     if not isinstance(doc, dict) or not isinstance(doc.get("groups"), list):
-        raise ValueError(f"置き場に {fixboard.JOIN_FILE} が無い")
+        raise ValueError(f"置き場に {board.JOIN_FILE} が無い")
     return doc
 
 
@@ -160,7 +160,7 @@ def named_tests(place, gid) -> list:
     back = [g["group_id"] for g in _joined(place)["groups"] if g.get("returned") and g["group_id"] != gid]
     out: list = []
     for g in [*back, gid]:
-        for t in fixboard.child_verified(result(place, g)):
+        for t in board.child_verified(result(place, g)):
             if t not in out:
                 out.append(t)
     return out
@@ -168,7 +168,7 @@ def named_tests(place, gid) -> list:
 
 # ---------------------------------------------------------------- 当て直し
 def _back_to(repo, before: str, skip) -> None:
-    common.restore_paths(repo, before, fixboard.touched_since(repo, before, skip))
+    common.restore_paths(repo, before, board.touched_since(repo, before, skip))
 
 
 def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
@@ -184,8 +184,8 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     if row.get("before") and row.get("pass") == pass_:
         _back_to(repo, row["before"], skip)
     r = result(place, gid)
-    union = sorted({f for u in fixboard.child_tdd_units(r) for f in fixboard.unit_test_files(u)}
-                   | {t["path"] for t in fixboard.child_allowed_rows(r)})
+    union = sorted({f for u in board.child_tdd_units(r) for f in board.unit_test_files(u)}
+                   | {t["path"] for t in board.child_allowed_rows(r)})
     row.update(before=common.snapshot(repo), staged="")
     row["pass"] = pass_
     _save(place, rows)
@@ -194,7 +194,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
     ok, why = unittrees.apply(repo, patch, union=union, check=unittrees.tests_unique, marked=marked)
     if not ok:
         return False, NOT_APPLIED.format(why=oneline.one_line(why)[:300])
-    locked = _unpermitted_tests(r, set(fixboard.allowed_tests(place, [r])), marked)
+    locked = _unpermitted_tests(r, set(board.allowed_tests(place, [r])), marked)
     if locked:   # 印を残しても消しても受け付けが拒む（problems の UNRESOLVED と TESTS）。回さずに裁定へ
         return False, MARKED_TESTS.format(paths="・".join(locked))
     row.update(state=STAGED, staged=common.snapshot(repo), marked=marked)
@@ -206,7 +206,7 @@ def stage(place, repo, gid: str, pass_: str, skip=()) -> tuple:
 def _unpermitted_tests(r, permits: set, paths) -> list:
     """paths のうち、許し permits の無いテストのファイル（impact.is_test_file。宣言は組の子の結果 r の TDD のループの単位のテストの
     ファイル。組自身のテストであることは許しにならない）"""
-    declared = {f for u in fixboard.child_tdd_units(r) for f in fixboard.unit_test_files(u)}
+    declared = {f for u in board.child_tdd_units(r) for f in board.unit_test_files(u)}
     return sorted(p for p in paths if impact.is_test_file(p, declared) and p not in permits)
 
 
@@ -215,18 +215,18 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     印の形の行が残れば UNRESOLVED（拒んだパスに長さを添える）。
     当て直した後の木から今の作業ツリーで変わったパスが:
     1. 組が変えたファイル（控えの names）と、段 RULED なら直す裁定の範囲のパス（ruled_paths）の和に収まる
-    2. テストのファイル（impact.is_test_file。宣言は組の TDD のループの単位のテストのファイル）なら、許しの訳（fixboard.allowed_tests。
+    2. テストのファイル（impact.is_test_file。宣言は組の TDD のループの単位のテストのファイル）なら、許しの訳（board.allowed_tests。
        承認済みの修正案・範囲の相談の合意・裁定 fix_test_scope・子の結果の許し）に在る（組自身のテストであることは許しにならない）
-    3. 返答の files か bash_writes に在る（fixboard.undeclared_writes）
+    3. 返答の files か bash_writes に在る（board.undeclared_writes）
     の 3 つが通れば、4. 組の名指しのテストの中身が子の終わりの木と同じ（許しの在るテストのファイルは見ない）で、確かめ直し
-    （fixboard.rerun_problem。名指しは named_tests、走らせ直しの置き場は <name>-<k>）が緑。start は始めの記録、cases は直す前の結末。
+    （board.rerun_problem。名指しは named_tests、走らせ直しの置き場は <name>-<k>）が緑。start は始めの記録、cases は直す前の結末。
     確かめ直しは組を当てるノードと同じに、直す前の版と比べられなかった赤（uncompared。#846）と、当て直す前の木 before で見分けた
     test_cmd の前から赤・揺れ（test_cmd_notes。#855）を戻す理由にせず、控えの行の同じ名の欄に置く（通れば settle_repaired が
     join.json の組の行へ写す。報告が人に聞く・書く）"""
     row = _row(load(place), gid)
     r = result(place, gid)
     staged = row.get("staged") or ""
-    touched = fixboard.touched_since(repo, staged, skip)
+    touched = board.touched_since(repo, staged, skip)
     allowed = set(row["names"]) | (set(ruled_paths(place, row)) if row.get("pass") == RULED else set())
     out = []
     marked = row.get("marked") or {}
@@ -237,19 +237,19 @@ def problems(place, repo, gid: str, reply: dict, *, start: dict, cases, skip=(),
     outside = sorted(p for p in touched if p not in allowed)
     if outside:
         out.append(OUTSIDE.format(allowed="・".join(sorted(allowed)), paths="・".join(outside)))
-    tdd_rows = fixboard.child_tdd_units(r)
-    permits = set(fixboard.allowed_tests(place, [r]))
+    tdd_rows = board.child_tdd_units(r)
+    permits = set(board.allowed_tests(place, [r]))
     tests = _unpermitted_tests(r, permits, touched)
     if tests:
         out.append(TESTS.format(paths="・".join(tests)))
-    out += fixboard.undeclared_writes({"changes": [{"files": [f for f in reply.get("files") or [] if isinstance(f, str)]}],
+    out += board.undeclared_writes({"changes": [{"files": [f for f in reply.get("files") or [] if isinstance(f, str)]}],
                                        "bash_writes": reply.get("bash_writes") or []}, repo, staged, skip=skip)
     if out:
         return out
     unknown, notes = [], []
-    red = fixboard.tests_moved(repo, r["end_tree"], tdd_rows, set(row["names"]) - permits) or fixboard.rerun_problem(
+    red = board.tests_moved(repo, r["end_tree"], tdd_rows, set(row["names"]) - permits) or board.rerun_problem(
         place, repo, start.get("tdd_suite", ""), cases, named_tests(place, gid), name=f"{name or 'clash'}-{gid}-{k}",
-        shared=row.get("shared") or [], test_cmd=fixboard.rerun_cmd(place, r, start.get("test_cmd", "")),
+        shared=row.get("shared") or [], test_cmd=board.rerun_cmd(place, r, start.get("test_cmd", "")),
         uncompared=unknown, base=row.get("before") or "", cmd_notes=notes, skip=skip)
     if red:
         return [f"直した後の確かめ直しが赤のまま: {red}"]
@@ -265,29 +265,29 @@ def _rel(place, patch: str) -> str:
 
 
 def _settle_join(place, gid: str, *, returned: bool, reason: str, mark: dict, extra=None, row=None) -> None:
-    """join.json の組 gid の行と単位を置き直す（単位は fixboard.join_rows の決まりで組み直す。当ててから戻したパス backed_out は
+    """join.json の組 gid の行と単位を置き直す（単位は board.join_rows の決まりで組み直す。当ててから戻したパス backed_out は
     残す）。戻せた組は控えの行 row の uncompared・test_cmd_notes（problems が置いた物）を組の行の同じ名の欄に写す"""
     doc = _joined(place)
     old = next(g for g in doc["groups"] if g.get("group_id") == gid)
     got = (result(place, gid) if returned else None, returned, reason)
     kept = {k: {gid: (row or {}).get(k) or []} for k in ("uncompared", "test_cmd_notes")} if returned else {}
-    rows, units = fixboard.join_rows([{"group_id": gid, "unit_ids": old["unit_ids"]}], {gid: got},
+    rows, units = board.join_rows([{"group_id": gid, "unit_ids": old["unit_ids"]}], {gid: got},
                                      {gid: old.get("backed_out") or []}, extra, **kept)
     doc["groups"] = [{**rows[0], "clash": mark} if g.get("group_id") == gid else g for g in doc["groups"]]
     doc["units"] = [u for u in doc.get("units") or [] if u.get("group_id") != gid] + units
-    fixboard.write_json(pathlib.Path(place) / fixboard.JOIN_FILE, doc)
+    board.write_json(pathlib.Path(place) / board.JOIN_FILE, doc)
 
 
 def settle_repaired(place, repo, gid: str, *, log=None) -> None:
     """合わせ役の直しが受け付けを通った組 gid を、戻せた組にする: join.json の行（returned・理由は空・欄 clash の outcome は
-    REPAIRED）と単位（子の結果の結末）。子から親へ写す物は fixboard.adopt_returned。組を当てるノードが戻せた組にすることと同じ"""
+    REPAIRED）と単位（子の結果の結末）。子から親へ写す物は board.adopt_returned。組を当てるノードが戻せた組にすることと同じ"""
     import writelog
     rows = load(place)
     row = _row(rows, gid)
     r = result(place, gid)
     _settle_join(place, gid, returned=True, reason="",
                  mark={"outcome": REPAIRED, "requests": list(row.get("requests") or []), "patch": _rel(place, row["patch"])}, row=row)
-    fixboard.adopt_returned(place, repo, [r], log=log,
+    board.adopt_returned(place, repo, [r], log=log,
                             applied=[(r["worktree"], writelog.log_here(r["worktree"]), row["names"])] if r.get("worktree") else ())
     row.update(state=REPAIRED, staged="", before="", marked={})
     _save(place, rows)
@@ -308,7 +308,7 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
     """組 gid を直さずに申し出へ回す: 当て直していれば当て直す前の木へ戻し（作業ツリーは緑に戻る）、組の単位ごとの申し出
     （conflict.clash_claims。段 RULED は ask_human と BY_RULED_GIVE_UP の裁定つきで人に回す）を積み、控えの差分を名指し
     （conflict.mark_clash_patch）、join.json の行の理由に訳を足して欄 clash の outcome を PARKED にする。戻せなければ組を当てた
-    ままと名指し（欄 unrestored。fixboard.held が後のノードを止める）。積んだ申し出の id を返す"""
+    ままと名指し（欄 unrestored。board.held が後のノードを止める）。積んだ申し出の id を返す"""
     rows = load(place)
     row = _row(rows, gid)
     before = row.get("before") if row.get("pass") == pass_ else ""
@@ -317,8 +317,8 @@ def settle_parked(place, repo, gid: str, *, pass_: str, why: str, skip=()) -> li
         try:
             _back_to(repo, before, skip)
         except Exception as e:  # noqa: BLE001  戻せない組を当てていないと言わない（組を当てるノードと同じ）
-            stuck = fixboard.touched_since(repo, before, skip)
-            why += "。" + fixboard.UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=row["why"])
+            stuck = board.touched_since(repo, before, skip)
+            why += "。" + board.UNRESTORED.format(error=f"{type(e).__name__}: {oneline.one_line(e)[:300]}", why=row["why"])
     patch = pathlib.Path(row["patch"])
     text = patch.read_text(encoding="utf-8", errors="surrogateescape") if patch.is_file() else ""
     said = (TEXT_CLAIM if row.get("kind") == TEXT else CLAIM).format(gid=gid, red=oneline.one_line(row["why"])[:300], why=why, patch=patch)
@@ -362,6 +362,6 @@ def brief(place, gid: str) -> pathlib.Path:
         doc["rulings_file"] = str(pathlib.Path(place) / conflict.RULINGS_FILE)
         doc["rulings"] = [{"id": x["id"], **{k: x[conflict.RULING].get(k) for k in ("decision", "text", "limits")}}
                           for x in requests(place, row)]
-    return fixboard.write_json(pathlib.Path(place) / BRIEF.format(gid=gid), doc)
+    return board.write_json(pathlib.Path(place) / BRIEF.format(gid=gid), doc)
 
 

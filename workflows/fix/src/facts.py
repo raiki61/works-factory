@@ -3,7 +3,7 @@ board はどの口でも fix の run の置き場のフォルダ（scripts が�
 TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す仕事は呼び手（script）が先に済ませ、ここは名前の返答を受ける。
 
 口（受け付けの手順の番号）:
-- fix_unit_keys(reply, board, owed, ...): 返答の changes の単位の名前と直す義務（fixboard.fix_duty）（手順 0）
+- fix_unit_keys(reply, board, owed, ...): 返答の changes の単位の名前と直す義務（board_mod.fix_duty）（手順 0）
 - check_writes: 書き込みの出どころ（-2）。log は書き込みの記録（既定は置き場の writelog.LOG）、skip は除くパスの頭
 - check_frozen: TDD の輪で凍ったテストのファイル（1b）。agreed は範囲の相談の合意の行（None は置き場の trace。conflict.agreed）
 - frozen_tests(board, record, pass_): 凍ったテストのファイルと、輪が確かめた書き換えの名指し
@@ -12,11 +12,11 @@ TDD の輪の状態 tdd-<k>/ を置く所）。返答の番号を名前に戻す
   形の値か口。None は照らさない）。ask は拒否の頭で相談を先の道に言うか（None は consult_place の相談の控えで決める）
 - precheck(cfg, reply, items=, skip=): 修正役が sandbox の中の Bash で返答の前に回す事前の確かめ。上の 3 つ（凍結・書き込み・範囲）と書いた指し（recount.ref_problems）だけを、
   試験を回さずに当てる（変更に当たる試験と事後の関門の束は受け付けだけ）。修正役が変え始めた木 since は受け付けと同じ口
-  （fixboard.fixer_head。置き場の段の頭の控え）から読む。置き場は読むだけ。
+  （board_mod.fixer_head。置き場の段の頭の控え）から読む。置き場は読むだけ。
   範囲の相談の合意は、修正の輪の確かめの節が置き場の trace に書いた物（conflict.agreed）を受け付けと同じに読む。
   返り {ok, rejects: [{check, text}]}
 - main(argv): `<python> <block>/src/facts.py <相談の控え> [--reply <下書きの返答の JSON>]`。控えの board（置き場）の修正案の控えから項目を
-  引き（fixboard.place_items）、控えの skip（除くパスの頭。無ければ ()）を渡して precheck を回す。終了コード 0（通る）・1（拒否の行が在る）・
+  引き（board_mod.place_items）、控えの skip（除くパスの頭。無ければ ()）を渡して precheck を回す。終了コード 0（通る）・1（拒否の行が在る）・
   2（回す側の誤り）。出力は precheck の返りの 1 行
 """
 import argparse
@@ -36,7 +36,7 @@ if __name__ == "__main__":   # 修正役が事前の確かめのコマンドと�
 
 from src import consult  # noqa: E402   範囲の相談の控え（同じ block の src）
 import conflict  # noqa: E402
-from src import board as fixboard  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
+from src import board as board_mod  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
 from src import scope  # noqa: E402
 import recount  # noqa: E402  （書いた指しの照らし。受け付けと同じ口）
 from src import basecase, common  # noqa: E402
@@ -46,7 +46,7 @@ import writes  # noqa: E402
 
 
 def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=()):
-    """(changes[].unit_key の列（changes と同じ順）, 直す義務の key の集合, 直す義務から外れた単位 {key: 理由})（fixboard.fix_duty。
+    """(changes[].unit_key の列（changes と同じ順）, 直す義務の key の集合, 直す義務から外れた単位 {key: 理由})（board_mod.fix_duty。
     owed・withheld_by・returned はそこへ渡す）。changes の形が崩れている・単位の名前が文字列でないときは None（検査せず受け付けの
     型の照らしに任せる）。返答の番号は呼び手が名前に戻してから渡す"""
     rows = reply.get("changes") if isinstance(reply, dict) else None
@@ -55,7 +55,7 @@ def fix_unit_keys(reply: dict, board: Path, owed, *, withheld_by=None, returned=
     keys = [c.get("unit_key") for c in rows]
     if not all(isinstance(k, str) for k in keys):
         return None
-    return (keys, *fixboard.fix_duty(board, owed, withheld_by=withheld_by, returned=returned))
+    return (keys, *board_mod.fix_duty(board, owed, withheld_by=withheld_by, returned=returned))
 
 
 def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, record: str, *, log=None, since=None,
@@ -63,15 +63,15 @@ def check_writes(reply: dict, board: Path, base_rev: str, repo: Path, record: st
     """書き込みの出どころ（writes.check。欄 bash_writes を外した返答は reply に）。実行器が作ったファイルは run の全部の輪の物を
     外す（basecase.suite_made_all。元の結末・受け付けの書き戻し・写した物・返しの控えを含む）。盤面は書かない（申告の記録は writes.check が足す）。
     書き込みの記録は log（既定は置き場の writelog.LOG）。skip は除くパスの頭（writes.check）。
-    since は見る変更の起点（受け付けと事前の確かめは fixboard.fixer_head の段の頭。前の段が書いた物を修正役に求めない）"""
+    since は見る変更の起点（受け付けと事前の確かめは board_mod.fixer_head の段の頭。前の段が書いた物を修正役に求めない）"""
     made = set(common.suite_made(record)) | basecase.suite_made_all(board)
-    rev = fixboard.base_rev(None, base_rev)
+    rev = board_mod.base_rev(None, base_rev)
     return writes.check(reply, repo, [p for p in _changed(repo, rev, since) if p not in made],
                         Path(board) / writelog.LOG if log is None else Path(log), skip=tuple(skip))
 
 
 def _changed(repo, rev: str, since=None) -> list:
-    """見る変わったパス: since（修正役が変え始めた木。fixboard.fixer_head）が在ればそこからの変更（writes.changed_from。段の頭は
+    """見る変わったパス: since（修正役が変え始めた木。board_mod.fixer_head）が在ればそこからの変更（writes.changed_from。段の頭は
     HEAD でも index でもない木）、無ければ版 rev からの変更（writes.changed）"""
     return writes.changed_from(repo, since) if since else writes.changed(repo, rev)
 
@@ -91,7 +91,7 @@ def check_frozen(board: Path, record: str, repo: Path, pass_: str, agreed=None, 
     確かめた書き換えは、どの輪の物でも許しから外す。今の輪が無い（2 回目の段の輪が走らなかった）時、前の輪は輪の後の木で見る。
     裁定の範囲は今の輪だけ pass_ で決め（1 回目の受け付けは含めない）、前の輪はいつも含める（前の段で裁いた fix_test_scope の
     直しは、今の段の受け付けが first でも許し）。輪が 1 つも無ければ空。盤面は書かない。
-    範囲の相談の合意の範囲の行は修正前の版（base_rev。呼び手が fixboard.base_rev で選ぶ）の行で、凍結の検査が比べる木の行へ
+    範囲の相談の合意の範囲の行は修正前の版（base_rev。呼び手が board_mod.base_rev で選ぶ）の行で、凍結の検査が比べる木の行へ
     移して読む（conflict.test_permits の base。読む木は 1 つ）。
     asks に list を渡せば、相談に回せる凍ったファイル（範囲の外の塊が全部、輪の受け入れのテストでない既存のテストの関数の幅に
     収まる物。common.frozen_asks）の頼み {path, tests, line, ref} を足す（line は返す文のどれかと同じ。tests の行は修正前の版の行）"""
@@ -100,7 +100,7 @@ def check_frozen(board: Path, record: str, repo: Path, pass_: str, agreed=None, 
         return []
     b = board
     skip = _verified(board, loops)
-    rev = fixboard.base_rev(None, base_rev)
+    rev = board_mod.base_rev(None, base_rev)
     before = common.rev_source(repo, rev)
 
     def allowed(source, rulings):
@@ -171,14 +171,14 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     （consult.offered。None なら言わない）。
     凍らせたファイルと実行器が作ったファイルは run の全部の輪の物（_loop_freeze・common.suite_made_all）で、凍った後は一番後の
     輪の frozen_tree から見る（前の輪の後に 1 回目の段と後の輪が書いた物を、2 回目の修正役のせいにしない）。
-    since は修正役が変え始めた木（受け付けと事前の確かめは fixboard.fixer_head の段の頭）: 欠けは版からの差分の全部で見て、
+    since は修正役が変え始めた木（受け付けと事前の確かめは board_mod.fixer_head の段の頭）: 欠けは版からの差分の全部で見て、
     修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（scope.check。
     輪が直し終えた単位を修正役が変えずに返しても欠けにしない。段の頭より前に変わったファイルを out_of_scope で照らさない。
     run 97fd532f）"""
     b = board
     rows = [{"unit_key": k, "files": sorted(declared_files([c], repo))} for c, k in zip(reply.get("changes") or [], keys)]
     made = set(common.suite_made(record)) | basecase.suite_made_all(board)
-    rev = fixboard.base_rev(None, base_rev)
+    rev = board_mod.base_rev(None, base_rev)
     after = set(writes.changed_from(repo, since)) if since else None
     paths = sorted(p for p in set(writes.changed(repo, rev)) | (after or set()) if p not in made)
     tree, frozen = (since, paths) if since else _loop_freeze(board, record)
@@ -207,11 +207,11 @@ def declared_files(rows, repo) -> set:
 
 def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
     """事前の確かめ（モジュールの頭）。cfg は相談の控え（consult.load_config。board・repo・pass・base_rev・tdd_record と、在れば
-    書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（fixboard.fixer_head）。凍結は受け付けと同じく
+    書き込みの記録のファイル log）。修正役が変え始めた木は控えでなく置き場の段の頭（board_mod.fixer_head）。凍結は受け付けと同じく
     輪の記録の照らしと返しの控えの照らし（duties.frozen_by_returns）の両方を見る。items は承認済みの修正案の項目（check_plan_scope）、skip は除くパスの頭（check_writes）"""
     board, repo = Path(cfg["board"]), Path(cfg["repo"])
     record, pass_, base_rev = cfg.get("tdd_record") or "", cfg.get("pass") or "first", cfg.get("base_rev") or ""
-    log, since = cfg.get("log") or None, fixboard.fixer_head(board, pass_) or None
+    log, since = cfg.get("log") or None, board_mod.fixer_head(board, pass_) or None
     reply = reply if isinstance(reply, dict) else {"changes": []}
     agreed = conflict.agreed(board)
     found = [("frozen", t) for t in check_frozen(board, record, repo, pass_, agreed=agreed, base_rev=base_rev)]
@@ -224,7 +224,7 @@ def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
                                   pass_, agreed=agreed, ask=True, since=since,
                                   items=items)
     found += [("scope", t) for t in outside]
-    found += [("refs", t) for t in recount.ref_problems(wrote["reply"], board, fixboard.base_rev_of(board, base_rev), repo)]
+    found += [("refs", t) for t in recount.ref_problems(wrote["reply"], board, board_mod.base_rev_of(board, base_rev), repo)]
     return {"ok": not found, "rejects": [{"check": c, "text": t} for c, t in found]}
 
 
@@ -236,7 +236,7 @@ def main(argv=None) -> int:
     try:
         cfg = consult.load_config(a.config)
         reply = json.loads(Path(a.reply).read_text(encoding="utf-8")) if a.reply else None
-        out = precheck(cfg, reply, items=functools.partial(fixboard.place_items, cfg["board"]), skip=tuple(cfg.get("skip") or ()))
+        out = precheck(cfg, reply, items=functools.partial(board_mod.place_items, cfg["board"]), skip=tuple(cfg.get("skip") or ()))
     except (ValueError, OSError, KeyError) as e:
         print(f"factchecks: {e}", file=sys.stderr)
         return 2

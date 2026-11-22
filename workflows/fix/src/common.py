@@ -388,7 +388,7 @@ def _reached(st, repo, seeds=None, direct_only=True) -> tuple[list, bool]:
     元の結末に載ったモジュール（元の一式が走らせた物。元で赤だった試験が届いただけで拒まれない）のファイル。地図が引けない・
     run_all なら ([], True)（合図なしの一式）。
     seeds（根からの相対のパス）を渡せばそれを起点にし、direct_only が偽なら地図が届く試験の全部を選ぶ（組を当てた後の確かめ直し
-    fixboard.rerun_problem が、前の組と重なったファイルを起点に広げる口。F411 の 2）"""
+    board.rerun_problem が、前の組と重なったファイルを起点に広げる口。F411 の 2）"""
     if seeds is None:
         seeds = set(touched(repo, st["unit_head"], snapshot(repo))) - set(st["suite_made"])
     seeds = sorted(seeds)

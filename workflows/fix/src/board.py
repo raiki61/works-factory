@@ -1201,7 +1201,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。finish.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の finish.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。place は子の run の置き場（読み手は 2 つ: 親の conflict-check がこの組の申し出の名指しに許す根と、join の
-    fixboard.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tdd.exit_fields の形、
+    board.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tdd.exit_fields の形、
     tdd_record は子の TDD の輪の記録のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
@@ -1903,7 +1903,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     残らなければ義務の残りを全部止めて通し直す（parking.park_owed。写しの拒否の時だけ）。それでも残れば受けずに諦める（NOT_SETTLED）。
     型の義務が保留にした単位（直す前の結末を引けない）は、結べない行の結び先と park_owed の義務の残りから除いて諦めに巻き込まず、
     保留の単位が 1 つでも足跡を共にするだけで閉包に入った時は、何も戻さずに保留の止めで組を止める。
-    owed は直す義務の値（fixboard.fix_duty に渡す）、judged は判定の units、suite は実行器、record は今の段の
+    owed は直す義務の値（board.fix_duty に渡す）、judged は判定の units、suite は実行器、record は今の段の
     TDD の輪の記録のファイル（無ければ空。凍結・書き込み・範囲・返しの控え・足跡が読む。変更に当たる試験の選びは、輪が名指した試験を
     record か、record が空なら tests_record から読む）、tests_record は record が空の時に輪が名指した試験を読む輪の記録（裁定の後の段で
     組の輪が幾つも在る時。ruled_states の 2 つ目）。試験を走らせる実行器・置き場・元の結末は accept_base の base.json から読む。base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は

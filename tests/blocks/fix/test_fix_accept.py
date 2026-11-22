@@ -3,8 +3,8 @@
 
 写した元と、この中の 3 つの部分:
 1. 部品（_l_ の名）: test_fix_gates.py〔TestRedGreen は test_tdd.py〕・test_plan_scope.py・test_fix_units.py・
-   test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（unitrows・parking・fixboard・ruling）は
-   試験ごとに setUp で src の写しに結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
+   test_fix_duty.py・test_duty_sets.py。src の写しのモジュール（board・gates・scope・unitrows・parking・rules・tdd・ruling
+   など）は、このモジュールの同じ名に試験ごとに setUp で結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
    - 事後の関門の束（src/gates.py）: base の木の結末の使い回し・輪の記録した赤の木・既存のテストの変更・テストのファイルの申告・帳面と文
    - 承認済みの修正案の項目と修正の差分の照らし（src/scope.py の problems・new_test_ids・added_removed・with_agreed・reject_head）
    - 単位ごとの閉鎖の表（src/unitrows.py の build）と裁定の出どころの縛り（src/ruling.py の problems の grounds）・git が期限を持たない
@@ -45,16 +45,15 @@ from tests.blocks import kit
 from tests.blocks.fix import support
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
-_L_SRC = {"fixboard": "board", "gates": "gates", "scope": "scope", "unitrows": "unitrows", "parking": "parking",
-          "rules": "rules", "tdd": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
+_L_SRC = ("board", "gates", "scope", "unitrows", "parking", "rules", "tdd", "ruling", "common", "basecase")
 
 
 def _l_bind() -> None:
-    """block fix の src を読み直し、このモジュールの名（元の試験の lib の名）に結ぶ。lib のまま呼ぶ物も結ぶ"""
+    """block fix の src を読み直し、このモジュールの同じ名に結ぶ。lib のまま呼ぶ物も結ぶ"""
     kit.load("fix", "board")
     names = globals()
-    for name, module in _L_SRC.items():
-        names[name] = importlib.import_module(f"src.{module}")
+    for name in _L_SRC:
+        names[name] = importlib.import_module(f"src.{name}")
     for name in ("conflict", "planmarks", "planrange", "querytest"):
         names[name] = importlib.import_module(name)
 
@@ -2106,7 +2105,7 @@ class DutyCase(_LSrc):
         _l_put_rulings(self.tmp)
 
     def duty(self, withheld_by=None):
-        return fixboard.fix_duty(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY if withheld_by is None else withheld_by,
+        return board.fix_duty(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY if withheld_by is None else withheld_by,
                                  returned=_l_RETURNED)
 
 
@@ -2119,7 +2118,7 @@ class TestFixDuty(DutyCase):
         self.assertIn(_l_FORK["key"], excused[_l_FORK_UNIT])
         self.assertIn(_l_ESC["key"], excused[_l_ESC_UNIT])
         self.assertIn("ask_human の裁定 c1-1", excused[_l_ASKED_UNIT])
-        self.assertEqual(fixboard.nothing_owed_but_excused(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY, returned=_l_RETURNED), {},
+        self.assertEqual(board.nothing_owed_but_excused(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY, returned=_l_RETURNED), {},
                          "義務が残る置き場は空の changes を通さない")
 
     def test_excused_reason_reads_withheld_by_not_a_copy(self):
@@ -2174,7 +2173,7 @@ class DutySets(DutyCase):
         return set(json.loads(got["open_units"]))
 
     def accepted(self) -> tuple:
-        owed, excused = fixboard.fix_duty(self.tmp, _l_OWED, **self.kw())
+        owed, excused = board.fix_duty(self.tmp, _l_OWED, **self.kw())
         return set(owed), dict(excused)
 
     def tdd_owed(self) -> tuple:
@@ -2213,11 +2212,11 @@ class DutySets(DutyCase):
         self.assertEqual(self.gated_items(), owed, "事後の関門が見る項目の単位 = 受け付けの義務")
 
     def test_nothing_owed_only_when_owed_is_empty_and_excused_is_not(self):
-        self.assertEqual(fixboard.nothing_owed_but_excused(self.tmp, _l_OWED, **self.kw()), {}, "義務が残る置き場は空の申告を通さない")
+        self.assertEqual(board.nothing_owed_but_excused(self.tmp, _l_OWED, **self.kw()), {}, "義務が残る置き場は空の申告を通さない")
         shrunk = _l_OWED - {_l_OTHER_UNIT}
-        owed, excused = fixboard.fix_duty(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=())
+        owed, excused = board.fix_duty(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=())
         self.assertEqual((owed, bool(excused)), (set(), True))
-        self.assertEqual(fixboard.nothing_owed_but_excused(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=()), excused,
+        self.assertEqual(board.nothing_owed_but_excused(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=()), excused,
                          "義務が空で外れた単位が在る時だけ通し、外れた単位を並べる")
 
 
@@ -2662,8 +2661,8 @@ class FixgatesSeamCase(SeamTemp):
     def test_base_rev_and_duty_come_from_arguments(self):
         """修正前の版は board.base_rev(state, base_rev) の順、直す義務は owed・withheld・returned の値で受ける"""
         gates = self.m.gates
-        with mock.patch.object(gates.fixboard, "base_rev", wraps=self.b.base_rev) as rev, \
-                mock.patch.object(gates.fixboard, "owed_units_but_asked", wraps=self.b.owed_units_but_asked) as duty:
+        with mock.patch.object(gates.board, "base_rev", wraps=self.b.base_rev) as rev, \
+                mock.patch.object(gates.board, "owed_units_but_asked", wraps=self.b.owed_units_but_asked) as duty:
             gates.problems(self.place, self.repo, "HEAD", "", 1, state={"inputs": {"review_rev": self.rev}},
                               owed=[self.MEAN], withheld=[self.MEAN], returned=())
         rev.assert_called_once_with({"inputs": {"review_rev": self.rev}}, "HEAD")
@@ -2681,7 +2680,7 @@ class FixgatesSeamCase(SeamTemp):
 
 
 class FixAcceptSeamCase(SeamTemp):
-    """修正役の受け付けと範囲の相談の部品（fixboard の check_*_units・fix_reject_text・undeclared_writes・reply_marks・unit_outcomes・
+    """修正役の受け付けと範囲の相談の部品（board の check_*_units・fix_reject_text・undeclared_writes・reply_marks・unit_outcomes・
     allowed_tests・ruled_owed・ruled_reply_line・consult_ask・accept_reply）。元 works/blk-fix/scripts/accept.py の単位の行の照らしと
     元 works/blk-fix/lib/consult.py:522 の頼みの節を、置き場と値で回す"""
 

@@ -95,7 +95,7 @@ sys.dont_write_bytecode = True
 
 from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。gates・board が tdd の名で読む）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
-from src import board as fixboard  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
+from src import board  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as files_mod  # noqa: E402
 from src import rules as rules_mod  # noqa: E402  （同じ block の src。指示書の組み立て）
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
@@ -155,13 +155,13 @@ def _open_units(raw: str) -> list:
 
 
 def _duty(board_dir: pathlib.Path, owed=None, withheld_by=None, returned=()):
-    """(直す義務 owed か None, 直す義務から外れた単位 {key: 理由})（fixboard.fix_duty。受け付けと同じ 1 つの集合）。owed は写しの
+    """(直す義務 owed か None, 直す義務から外れた単位 {key: 理由})（board.fix_duty。受け付けと同じ 1 つの集合）。owed は写しの
     規則の直す義務の単位、withheld_by・returned は問いの台帳の値（どれも呼び手が渡す。元は盤面 board_dir を開いて読んだ）。
     owed が None（渡されない run）は (None, {})。読めなければ Broken（開いた単位のまま黙って続けない）"""
     if owed is None:
         return None, {}
     try:
-        got, excused = fixboard.fix_duty(board_dir, owed, withheld_by=withheld_by, returned=returned)
+        got, excused = board.fix_duty(board_dir, owed, withheld_by=withheld_by, returned=returned)
         return set(got), dict(excused)
     except Exception as e:
         raise Broken(f"置き場 {board_dir} の直す義務が読めない: {e}") from None
@@ -171,12 +171,12 @@ def plan_contract(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> 
     """単位 → 承認済みの修正案の約束（planmarks.unit_contract。約束の無い単位は載せない）。置き場 board_dir に凍結した欄の控え
     （plan-fields.json と trace.jsonl の凍結の印）が無い run は {}。欄の控えが凍結の印と食い違う（conflict.frozen_fields の
     ValueError）なら、理由の文のまま Broken（約束を黙って空にしない）。返した段で前の段の人に回した裁定から直しへ戻した単位は、
-    裁定が名指した受け入れの試験を約束の tests から外す（fixboard.stopped_tests）。元は盤面を開いて読んだ"""
+    裁定が名指した受け入れの試験を約束の tests から外す（board.stopped_tests）。元は盤面を開いて読んだ"""
     try:
         fields = conflict.frozen_fields(pathlib.Path(board_dir), round_)
     except ValueError as e:
         raise Broken(str(e)) from None
-    stops = fixboard.stopped_tests(board_dir)   # 返した段で、人に回した裁定が名指した試験の赤の義務は止めたまま
+    stops = board.stopped_tests(board_dir)   # 返した段で、人に回した裁定が名指した試験の赤の義務は止めたまま
     return {k: {**c, "tests": [t for t in c.get("tests") or [] if t.get("id") not in stops.get(k, ())],
                 "creates": _plan_creates(fields, k)}
             for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
@@ -477,8 +477,8 @@ def _over(st: dict) -> bool:
 
 
 def _paths(v, name) -> tuple:
-    """空でない文字列の配列 → (要素の決まり fixboard.test_file で整えたパスの一覧, 問題)"""
-    out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
+    """空でない文字列の配列 → (要素の決まり board.test_file で整えたパスの一覧, 問題)"""
+    out = [board.test_file(x) for x in v] if isinstance(v, list) else []
     if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
     bad = [x for x in out if x.startswith(("/", "../")) or x == ".."]
@@ -596,7 +596,7 @@ def declared_test_files(st, named=()) -> set[str]:
     （impact.is_test_file）の宣言の正本。純粋"""
     out = set()
     for u in (st.get("units") or {}).values():
-        out |= set(fixboard.unit_test_files(u))
+        out |= set(board.unit_test_files(u))
     for c in (st.get("contract") or {}).values():
         ids = [t.get("id") for t in (c or {}).get("tests") or [] if isinstance(t, dict)] + list((c or {}).get("rewrites") or [])
         out |= {id_path(i) for i in ids if isinstance(i, str) and i.strip()}

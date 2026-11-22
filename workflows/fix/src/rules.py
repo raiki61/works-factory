@@ -117,7 +117,7 @@ def kinds_now(values: dict, repo, before=()) -> dict:
 
 
 def owed_values(b, values: dict, *, owed, withheld_by=None, returned=()) -> dict:
-    """指示書に埋める値の open_units を、受け付けと同じ fixboard.fix_duty の owed に替えた物（判定の出口の is_open の並びを
+    """指示書に埋める値の open_units を、受け付けと同じ board.fix_duty の owed に替えた物（判定の出口の is_open の並びを
     保ち、関所で答えて直す義務に戻った単位を後ろに足す）。出口の値が読めなければ owed の並べ替えだけ。
     b は置き場、owed は写しの規則の直す義務の単位（元は盤面の _owed_units）、withheld_by・returned は問いの台帳の値（元は
     gatemarks の盤面の読み）。どれも呼び手が渡す"""

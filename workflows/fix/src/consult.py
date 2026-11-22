@@ -57,7 +57,7 @@ sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ 
 import answer  # noqa: E402
 import prompt  # noqa: E402   .shared の口（答えのファイルの決まった文は prompts/parts/answer-file-*.md）
 import conflict  # noqa: E402   範囲の相談の trace の行（ASKED_OP）と頼みの欄（CONSULT_FIELD）
-from src import board as fixboard  # noqa: E402   置き場の trace.jsonl への 1 行
+from src import board  # noqa: E402   置き場の trace.jsonl への 1 行
 import gatemarks  # noqa: E402   直す前の人の関所の節の名（GATE_NODE。関所の条件の相談の一言を引く）
 import globs  # noqa: E402   glob の当て方の正本
 import jsonfile  # noqa: E402
@@ -493,14 +493,14 @@ def _trace_rows(b, st: dict, answer, by_n: dict, turn: int, pass_: str, node: st
                         fields["granted_tests"])
         else:
             row.update({k: r[k] for k in ("why_refused", "why_unavailable") if r.get(k)})
-        fixboard.trace(b, conflict.ASKED_OP, **row)
+        board.trace(b, conflict.ASKED_OP, **row)
         out_rows.append(row)
     return out_rows
 
 
 def carry_agreed(place, results) -> None:
     """戻せた組の子の結果 results の各行の place（子の run の置き場）の合意（conflict.agreed の行）を、欄 op を外して group_id（結果の
-    組の id）を足した形で、親の置き場 place の trace.jsonl に足す（fixboard.trace）。親の trace（写した行も含める）に同じ行が在れば
+    組の id）を足した形で、親の置き場 place の trace.jsonl に足す（board.trace）。親の trace（写した行も含める）に同じ行が在れば
     足さない。place が空の結果・親と同じ置き場の結果・group_id の無い結果は飛ばす。deny などの行は写さない。子どうしの番号は
     重なりうるので、出どころは (group_id, id) で辿る"""
     place = pathlib.Path(place)
@@ -512,7 +512,7 @@ def carry_agreed(place, results) -> None:
         for row in conflict.agreed(src):
             carried = {**{k: v for k, v in row.items() if k != "op"}, "group_id": gid}
             if {"op": conflict.ASKED_OP, **carried} not in have:
-                fixboard.trace(place, conflict.ASKED_OP, **carried)
+                board.trace(place, conflict.ASKED_OP, **carried)
                 have.append({"op": conflict.ASKED_OP, **carried})
 
 

@@ -345,7 +345,7 @@ class TestStart(LoopCase):
         """TDD が振り分ける義務は受け付けと同じ conflict.fix_duty の owed。渡された open_units（is_open）に無くても、関所で答えて
         直す義務に戻った単位は載り、外れた単位は載らない"""
         back = "stats.py returned: 関所で答えて直す義務に戻った単位"
-        with mock.patch.object(tdd.fixboard, "fix_duty", return_value=({MEAN, back}, {CLAMP: "答え待ちの問い q1"})) as duty:
+        with mock.patch.object(tdd.board, "fix_duty", return_value=({MEAN, back}, {CLAMP: "答え待ちの問い q1"})) as duty:
             got = tdd.start(self.board, self.repo, str(self.suite), OPEN, owed={MEAN, CLAMP, back},
                                 withheld_by={CLAMP: "q1"})
         self.assertEqual(duty.call_args.args, (self.board, {MEAN, CLAMP, back}), "直す義務の値は呼び手が渡す（元は盤面）")
