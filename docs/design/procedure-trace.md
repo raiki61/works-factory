@@ -73,7 +73,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-procedure-trace`、`depends_on` は materials.md の 1.6。`with:`（line はメイングラフ `works-factory-line`〔judge のまとめを include する上の graph〕。始めの記録は run の頭に line の node `start` が書く記録〔`workflows/line/src/startrec.py`〕） は `base: <line が始めの記録から引いた diff_base〔差分の根の commit〕>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
-- 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ）。
+- 読み手: diagnose の `materials`（10 本の `material` の配列の 1 つ）。
   - 素材 `procedure_trace` は `materialkit.assemble` で 15 欄の 1 つになる（今の `fill_materials` と同じ）。
   - 所見の行: 今の判定役の材料は `findings` を「手順トレース: {{?record.process.procedure_findings}}」（lib の `judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2777`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply.findings` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
   - `unmeasured` は今どの読み手にも届いていない（`_diagnose_ctx` は返答の全部を `out.p1.procedure_trace` に入れるが、`DIAGNOSE_EXCERPT` に穴が無い。graphloops の `writes` にも無い）。新しい形でも `reply` に在るだけで、届けるかは diagnose の設計書が決める。この block の `report` の行には出す（1.5）。

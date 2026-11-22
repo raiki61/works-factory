@@ -77,7 +77,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-external-standards`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。目的の block が `failed` の run は、目的の block の設計書のとおり graph が判定の前で止めるので、ここに null が来るのは単独の run と目的の block を外した run だけ）。
-- 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。lib の `judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
+- 読み手: diagnose の `materials`（10 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。lib の `judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
 - `rankings` は今どの役の材料にも入っていない（graphloops の `writes` の `process.external_rankings` を工場は写したが、`_diagnose_ctx` は読まない）。新しい形も `reply` に残し、報告の行（1.5 の `report_lines`）だけが読む。
 
 ## 2 node の設計シート: external-standards（外部標準照合の役）
@@ -300,7 +300,7 @@ uv run --isolated python3 -m unittest tests.blocks.external_standards.test_promp
 ```
 
 2026-11-10 の削り（持ち主の決め `tests-guard-writes`・`slim-first`）: 書き込みと承認の判断を守らない試験を落とした。上の一覧は写した時の記録で、今は次を持たない。
-- 筋書きの `gave-up.stubs.yaml`・`skipped.stubs.yaml`: 役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/external_standards/test_external_standards.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/external_standards/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
+- 筋書きは `standalone.stubs.yaml` の 1 本だけ（`gave-up.stubs.yaml`・`skipped.stubs.yaml` は置かない）。役が諦めても run を止めない道は、返す node `finish` が `trigger_rule: all_done` で走ることを pack の全体の検査 `tests/workflows/test_returns_never_fail.py` が、3 回で諦めて `gave_up` を返す数えは `tests/blocks/external_standards/test_external_standards.py` の `FlowCase.test_three_rejections_give_up` が見る。判定から入る run で役を起こさない決めは `tests/blocks/external_standards/test_viewpoint.py` の due の試験と lib/tests の `test_materialkit.py` の `IntakeCase` が見る（輪の `when:` の配線そのものは照らさない。外すと役が入口の run でも起きるが、書き込みも承認の判断も変えない）。
 - `tests/blocks/external_standards/test_external_standards.py` の `FlowCase` から: 判定から入る run の飛ばしの 2 本・指示の字の 3 本（目的の有無・REVIEW.md の段落・次の周の拒みの節）・intake 無しの落ち・自分の place に書く。指示の字は `workflows/.shared/prompt.py` の emit が印と値の対で照らす。include の中で自分の place に書くことは `tests/blocks/shared/test_ports.py` の `PlaceCase.test_include_path_splits_the_place`、intake の無い prep が落ちることは lib/tests の `test_materialkit.py` の `PromptInputsCase.test_without_intake_fails` が見る。
 - `ShapeCase`（YAML の写し）: 輪の until の配線と上限は `tests/layers/test_loop_bounds.py`、読むだけの印と書き込みの塞ぎ（`mutates_checkout: false`・`denyWrite`）は `tests/layers/test_readonly_nodes.py` が見る。model・道具・返答の型の字の写しは持たない。
 - `tests/blocks/external_standards/test_viewpoint.py` の `ViewpointCase` から: 宣言の定数の写し（`test_declaration`。族の全部は `tests/blocks/materials/test_viewpoints.py` が見る）と報告の行の字。
