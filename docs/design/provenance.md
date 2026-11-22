@@ -69,7 +69,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-provenance`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
-- 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ）。
+- 読み手: diagnose の `materials`（10 本の `material` の配列の 1 つ）。
   - 素材 `provenance` は `materialkit.assemble` で 15 欄の 1 つになる。
   - 主張の行: 今の判定役の材料は返答の全部（`material` と `claims`）を「根拠の出所検査: {{?out.p1.provenance}}」（lib の `judge_accept.py:2717` の `DIAGNOSE_EXCERPT`、値は `:2783-2784` の `out`）で読む。新しい形では diagnose が `materialkit.read` で開いた `material.json` の `reply` を同じ欄に入れる（読み方は diagnose の設計書が決める。この block は `reply` を今の返答のまま置くだけ）。
 
