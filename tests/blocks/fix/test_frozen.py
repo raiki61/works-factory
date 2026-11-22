@@ -181,7 +181,7 @@ class PermitPathCase(unittest.TestCase):
         return sorted(p for p in FIX.rglob("*.py") if "__pycache__" not in p.parts)
 
     def test_permit_sources_are_read_in_one_place(self):
-        direct = re.compile(r"\b(?:planmarks\.rewrites|amended_keys|agreed_permits|ruled_limits)\(")
+        direct = re.compile(r"\b(?:planmarks\.rewrites|amended_rows_by_unit|agreed_permits|ruled_limits)\(")
         found = [f"{p.relative_to(FIX)}:{i}" for p in self.py_files()
                  for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line)]
         self.assertEqual(found, [])

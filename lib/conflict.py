@@ -30,9 +30,8 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 - clash_claims(unit_ids, between, why)・mark_clash_patch(b, ids, patch): 組どうしの合わせの申し出（JOIN_SOURCE）の行の形と、
   その行に組の直しの控えの差分を置く口（直しの在りかは REVERTED）。積むのは fix の block の clash（`workflows/fix/src/clash.py`）
 - rejudge_texts(rows): 裁定 rejudge の文（修正の出力の異議に足す）
-- items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b)・
-  kind_counts(b): 読む口。asked・waiting・counts・kind_counts の述語は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・
-  counts_of(rows)・kind_counts_of(rows) が持つ（置き場を開かずに読んだ行にも同じ読みを当てる）。decision(row) は裁定の語（裁定が
+- items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b): 読む口。asked・waiting・counts の述語と
+  種類の内訳は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・counts_of(rows)・kind_counts_of(rows) が持つ（置き場を開かずに読んだ行にも同じ読みを当てる）。decision(row) は裁定の語（裁定が
   dict でない行は None）
 - held_by_rulings(b)・ruled_units(row): 直す義務から外す単位と理由。決まりは「直す裁定（FIX_DECISIONS）でない裁定は、それが外す
   単位（申し出の単位と、fix_plan_item ならその項目に載る単位の全部）を直させない」の 1 つ
@@ -70,7 +69,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   在り」でなく控えを名指す。段の頭より前の行の直しは頭の木に在り、戻しても差分に残る）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
-  移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
+  移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_rows_by_unit(b)
 - 2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）は、1 回目の段の行を adopt_prior(b, prior, items) で自分の
   置き場に写して読む（元は 1 つの盤面に両方の段の行が在った。second_pass・amended_rows_by_unit・test_permits が
   1 回目の裁定と案を直した行を見る）。写した行は印 PRIOR を持ち、this_pass(b) はそれを外した今の段の行（組の子の結果に載せる行）
@@ -137,7 +136,7 @@ BRIEF_VS_JUDGMENT, _, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RE
 WHICH = tuple(ROW["properties"][WHICH_FIELD]["enum"])
 _, TEST, _, UNKNOWN, QUERY = WHICH
 RED_AT_BASE_DECISIONS = (REPLAN, ASK)   # red_at_base の申し出に許す裁定（fix_code_as は変えない段の注文でコードを変えさせるので許さない）
-UNSET = "unset"                         # kind_counts の鍵: kind の無い前の形の行
+UNSET = "unset"                         # kind_counts_of の鍵: kind の無い前の形の行
 WORD = "divergence"                     # superpowers の状態の語を読み替える works の語（216 の seams.json の words と同じ綴り）
 HEAD = "食い違いの申し出"                # 最後の関所の文の節の見出し・報告の行の頭
 RULED_TEST_ID = "conflict-ruling"       # 裁定が許したテストの変更を守りのファイルの行にする時の id の頭
@@ -414,11 +413,6 @@ def amended_rows_by_unit(b) -> dict:
     return out
 
 
-def amended_keys(b) -> set:
-    """項目を直した行（状態 AMENDED）が外していた単位の全部（直す義務に戻った単位）"""
-    return set(amended_rows_by_unit(b))
-
-
 def set_replan(b, ids, state: str, *, why: str = "") -> None:
     """fix_plan_item の行 ids の案の直しの状態を、WAITING から state（AMENDED か GAVE_UP）へ移す唯一の口。GAVE_UP は why
     （諦めた理由）が要る。在れば why を欄 REPLAN_WHY に置き、移した行ごとに trace の行 REPLAN_OP。同じ状態への移りは何もしない
@@ -530,10 +524,6 @@ def counts_of(rows) -> dict:
 
 def counts(b) -> dict:
     return counts_of(items(b))
-
-
-def kind_counts(b) -> dict:
-    return kind_counts_of(items(b))
 
 
 def kind_counts_of(rows) -> dict:
@@ -788,7 +778,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     最後の関所はこの行を読む）。許す元は 6 つ（6 つ目は関わる試験で直す前から壊れていた物のファイル〔broken_tests。行は broken: true〕。
     docs/design/fix.md の 19 節）。ほかの 5 つ: 承認済みの修正案の rewrite_tests（いつも。planmarks.rewrites の順）・範囲の相談の
     合意（agreed_permits）・承認済みの修正案の項目の files の change=remove の symbol（消す名）と op=delete の path・op=rename の元のパス from の .py のモジュールの名をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
-    丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_keys。
+    丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_rows_by_unit。
     前の輪の受け入れのテストの関数を、直した案で書き直してよい）。
     行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由, source: 許しの出どころの語（fixboard.ALLOWED_SOURCES。
     fixboard.allowed_test_rows の行の source）}。修正案の行は名指しのテストの id（test）も持つ
