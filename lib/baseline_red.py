@@ -28,6 +28,7 @@ if str(pathlib.Path(__file__).resolve().parent / "graphloops") not in sys.path: 
     sys.path.append(str(pathlib.Path(__file__).resolve().parent / "graphloops"))
 
 from engine import declared  # noqa: E402  （declared_checks は baseline_red を import するので、そこからは引かない）
+from engine.schema import validate_schema  # noqa: E402  （標準ライブラリだけの葉で、循環しない）
 
 # 実行器への合図（env）: 1 なら後ろに足した試験（ファイル・node id）だけを走らせてよい（既定の一式を集めない）。輪の赤・緑の回だけが
 # 付ける（元の結末・受け付け・版の写しは付けない）。解かない実行器は無視してよい（一式に足して走らせても確かめは同じ）
@@ -418,7 +419,6 @@ def test_outcomes(baseline_cases, cases) -> list:
 
 def _problems(doc) -> list:
     """元の結末の dict の、形（SCHEMA）に合わない所（欄の道を載せた文の並び。無ければ空）"""
-    from engine.schema import validate_schema
     return validate_schema(doc, SCHEMA)
 
 
