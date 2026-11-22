@@ -1,4 +1,4 @@
-"""実測の script（lib/measure.py）の数え方の決定的な試験（設計書 structure-block-design の 3 節・9 節）。
+"""実測の script（workflows/structure/src/measure.py）の数え方の決定的な試験（設計書 structure-block-design の 3 節・9 節）。
 
 fixture のリポジトリはクラスに 1 回、日時を固定して作る（マージ 1 本・改名 1 本・写し・入口・環境変数・skipped の種）。
 窓の始まりは --since 2020-06-01 で、その前の commit は c0 だけ。数はこの fixture で git を直に引いて確かめた値:
@@ -18,11 +18,8 @@ import unittest
 from tests.bin.gitkit import GIT_ID
 from tests.bin.hermetic import child_env
 
-LIB = pathlib.Path(__file__).resolve().parents[1]
-SCRIPT = LIB / "measure.py"
+SCRIPT = pathlib.Path(__file__).resolve().parents[3] / "workflows" / "structure" / "src" / "measure.py"
 sys.dont_write_bytecode = True
-if str(LIB) not in sys.path:
-    sys.path.append(str(LIB))
 SINCE = "2020-06-01"
 
 BLOCK = ["alpha = compute(1)", "beta = compute(2)", "gamma = alpha + beta", "delta = gamma * 2",
