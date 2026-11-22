@@ -24,7 +24,7 @@ works 自身の試験・柵を書き換えられる（run 24 の修正役は Bas
 - lines(rows):         関所の文と盤面の問いに載せる 1 行ずつの文
 - shown(rows, key, where): ノードの出力に載せる行（先頭 listcut.SHOWN 行と、超える時は残りの 1 行）。key は全件を残した置き場のファイル
                        where の中の欄の名で、残りの行が一覧の名（LIST）とその欄を言う。当たりが何万本でも出力の行は増えない
-標準ライブラリと core の accept・globs・listcut だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
+標準ライブラリと lib の accept・globs・listcut だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
 """
 import json
 import os

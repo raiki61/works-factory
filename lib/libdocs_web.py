@@ -13,7 +13,7 @@ libdocs.section から呼ぶ。控え（盤面・包みの家）と文書のフ�
 - llms.txt: docs の場所の下の llms-full.txt・llms.txt、次に host の根の同じ 2 つ。最初に受けた 1 本だけ（ライブラリ 1 本の問いは
   PyPI で多くて 6 本、npm で 9 本）。llms.txt の決まり
   （https://llmstxt.org。頭は `# ` の H1）どおり、空でない最初の行が `# ` で始まる物だけを受け、HTML（SPA の 200）は捨てる
-- docs の場所は safe_url（core の webget の物。https・点を持つ host の名。IP の字・localhost・点の無い社内の名は不可）を通る物
+- docs の場所は safe_url（lib の webget の物。https・点を持つ host の名。IP の字・localhost・点の無い社内の名は不可）を通る物
   だけ。コードの置き場（github.com・gitlab.com・bitbucket.org）と registry の頁は docs の場所に数えない。転送の先も同じ確かめ
   （webget.http_get）
 

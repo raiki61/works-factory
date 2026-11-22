@@ -1,13 +1,13 @@
 """止めの理由の住処（考え stop-reasons。地図 docs/concepts.md）。層 L1: 標準ライブラリだけ（works のほかの物を import しない）。
 Python 3.9 で動く。
 
-機械（線・ブロック・core）が盤面の state.stop.by に書く語は、頭 HEAD（works:）に名を付けた 1 語。報告の結末の口
+機械（線・ブロック・lib）が盤面の state.stop.by に書く語は、頭 HEAD（works:）に名を付けた 1 語。報告の結末の口
 （report の block の src/outcome.py）はこの頭の語を「線が止めた」（stopped_by_line）と読む（is_line）。同じ語は、答えを待つ
 process.human_items の行の node（conflict・replan・守りのファイル）・裁定の by（機械が人に回した裁定）にも使う。どれも「機械がした」の印で、名の空間は 1 つ（2 つの持ち主が同じ名を別の意味で使わない）。
 
 - HEAD: 機械の語の頭。is_line(by): 機械が止めた語か（頭で見る）
-- REASONS: 決まりが core（.shared/core）に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
-  ブロックだけでも、段の決まりが core に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
+- REASONS: 決まりが lib に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
+  ブロックだけでも、段の決まりが lib に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
   line-script・spec-changed・answer-redirected）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
   付けた語で、呼び手はその定数を引く（自分の定数に写さない）
 - HUMAN: 人が関所で止めた時の止めの理由の頭（後ろは関所の所）。機械の語ではない（is_line は偽）
@@ -79,7 +79,7 @@ def declared() -> dict:
 
 
 def is_line(by) -> bool:
-    """機械（線・ブロック・core）が書いた語か"""
+    """機械（線・ブロック・lib）が書いた語か"""
     return isinstance(by, str) and by.startswith(HEAD)
 
 
