@@ -89,7 +89,7 @@ def final_run(root: Path, place: Path, doc: dict, log_dir: Path) -> dict:
         ci["cases"] += cases or []
     record = {**ci, "suite": ran, "related": files.related_record(picked, ran)}
     if ran and picked is not None:
-        record["log"] = str(place / "suite-suite.log")
+        record["log"] = str(place / files.SUITE_LOG)
     try:
         rerun = base_rerun(root, place, doc, ci, ran, extra, narrow, log_dir)
     except (declared_checks.CiRefused, ValueError, OSError) as e:   # 走らせ直せないのは最後のテストの誤りでない（比べる事実が無いだけ）
@@ -127,7 +127,7 @@ def base_rerun(root: Path, place: Path, doc: dict, ci: dict, ran, extra, narrow:
         if ran:
             moved = [str(copy / rel) for rel in (Path(a).relative_to(root.resolve()) for a in extra) if (copy / rel).exists()]
             got, code, problems = baseline_red.run_suite(doc["tdd_suite"], copy, place, "suite-base-rev", args=moved, only=narrow)
-            out["logs"].append(str(place / "suite-suite-base-rev.log"))
+            out["logs"].append(str(place / files.SUITE_BASE_REV_LOG))
             if got is None:
                 out["problems"] = problems
                 return out
