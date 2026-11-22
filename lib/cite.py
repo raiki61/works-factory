@@ -78,11 +78,7 @@ NO_SOURCE = "決め手の出どころが現物に無い（パス:行・URL・依
 
 
 def inside(p: pathlib.Path, root: pathlib.Path) -> bool:
-    try:
-        p.relative_to(root)
-        return True
-    except ValueError:
-        return False
+    return p.is_relative_to(root)
 
 
 def resolved(path, repo) -> pathlib.Path:
