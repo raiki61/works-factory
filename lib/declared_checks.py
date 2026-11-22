@@ -9,7 +9,8 @@
   _reused_material・_reused_note
 - 書き直し: tree_runner・_engine_log・checks_plan・checks_reply・_skipped_note・run_ci・baseline_line
 - 元の盤面の部分を盤面なしで組み直した物: _planned_run・_declaration_moved（宣言の照合）・_fall_back（任せ先へ落とす）
-- 新しい関数: material_problems・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）
+- 新しい関数（元の版に無い）: material_problems・plan_by（走らせる前の止めは _refuse_scope_alone・_refuse_step_name で run_ci と分け合う）・
+  ran_reds・_junit_reports・_row・_no_runs・run_how・_found・gate_values
 """
 import contextlib
 import json
