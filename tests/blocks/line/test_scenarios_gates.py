@@ -10,7 +10,7 @@ Archon の源か bun が無ければ tests/archon.py の見送り。
 """
 import unittest
 
-from tests.blocks.line.test_scenarios import line_traces, out, ran
+from tests.blocks.line.test_scenarios import assert_no_write, line_traces, out, ran
 
 class GateCase(unittest.TestCase):
     """承認ノードの止めの答え（policy-stop・final-stop・replan-stop）。通す答えで修正へ進み差分を当てる結末は筋書き standard（test_scenarios.py の
@@ -151,16 +151,7 @@ class NoApplyCase(unittest.TestCase):
     NEVER_SEAL = ("policy-stop", "replan-stop", "eyes-failed", "unattended-push-stop")
 
     def test_no_write_after_a_stop(self):
-        traces = line_traces(self.NEVER_APPLY)
-        for name in self.NEVER_APPLY:
-            with self.subTest(scenario=name):
-                trace = traces[name]
-                for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
-                    self.assertFalse(ran(trace, node), node)
-                self.assertIsNone(out(trace, "result")["apply"])
-                if name in self.NEVER_SEAL:
-                    self.assertFalse(ran(trace, "merge-seal__merge"))
-                    self.assertIsNone(out(trace, "result")["sealed"])
+        assert_no_write(self, self.NEVER_APPLY, self.NEVER_SEAL)
 
 
 if __name__ == "__main__":

@@ -19,7 +19,6 @@ import os
 import pathlib
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -66,7 +65,7 @@ MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
 CLAMP = "stats.py clamp: 上限を超えた値に lo を返す"
 OPEN = json.dumps([MEAN, CLAMP], ensure_ascii=False)
 
-from tests.blocks.fix.support import SUITE  # noqa: E402
+from tests.blocks.fix.support import SUITE, SeedEdits  # noqa: E402
 
 # SUITE の写しで、pytest の JUnit に合わせる実行器: 断言の失敗も本体の例外も failure と書き、message に「<型>: <文>」を付ける
 # （pytest は本体の例外を failure と書く。引用の照らし common.red_check はこの message を読む）
@@ -289,6 +288,13 @@ class LoopCase(Case):
         got = self.step(reply)
         self.assertTrue(got["ok"], got)
         return got
+
+    def first_loop(self):
+        """tdd-1: MEAN を tdd で緑にして test_stats.py を凍らせる"""
+        self.route()
+        self.red()
+        self.assertTrue(self.fix_mean()["done"])
+        self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
 
 class TestStart(LoopCase):
     def test_baseline_and_first_prompt(self):
@@ -2627,13 +2633,6 @@ class TestCrossLoopFreeze(LoopCase):
     段の輪（tdd-2）の後も、2 回目の輪の状態の handoff の木（since）からの変更で見る。2 回目の輪が同じファイルに足したテストは
     2 回目の輪の凍結で見る。直した項目の単位の tdd-1 の受け入れのテストの関数（skip_spans）だけは書き直してよい"""
 
-    def first_loop(self):
-        """tdd-1: MEAN を tdd で緑にして test_stats.py を凍らせる"""
-        self.route()
-        self.red()
-        self.assertTrue(self.fix_mean()["done"])
-        self.assertEqual(list(self.st()["frozen"]), ["test_stats.py"])
-
     def second_loop(self, keys, route="direct") -> str:
         """tdd-2 を keys で起こして振り分ける（direct なら輪は済む）。返りは tdd-2 の状態のファイル"""
         got = tdd.start(self.board, self.repo, str(self.suite), json.dumps(keys, ensure_ascii=False))
@@ -2917,6 +2916,15 @@ class OutsideCase(Case):
         self.assertTrue(got["go"], got)
         return got["state_file"]
 
+    def logged_begin(self, runner):
+        """走らせた回ごとに [TDD_SUITE_ONLY の値, 名指しの引数] を self.log に 1 行足してから runner を回す実行器で輪を起こす"""
+        self.log = self.tmp / "runs.jsonl"
+        return self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
+                          "sys.argv[2:]]) + '\\n')\n" % str(self.log) + runner)
+
+    def runs(self):
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
     def base(self, state):
         """受け付けが読む元の結末 base.json（輪の状態を置いた置き場の直下）。輪の状態の実行器・置き場・元の結末の欄を同じ名と形で写す
         （basecase.take が組の頭で書く物と同じ読み手向けの欄）"""
@@ -2959,12 +2967,7 @@ class TestLoopRunsOnlyWhatItChecks(OutsideCase):
         self.write(OUTSIDE, OUTSIDE_TEST)   # stats に届くが、元の一式（TIER）の外
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "段の外の試験（stats に届く）")
-        self.log = self.tmp / "runs.jsonl"
-        self.state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
-                                "sys.argv[2:]]) + '\\n')\n" % str(self.log) + RUNNER)
-
-    def runs(self):
-        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+        self.state = self.logged_begin(RUNNER)
 
     def step(self, reply):
         return steps.loop_step(self.state, reply, self.repo)
@@ -3302,13 +3305,7 @@ class TestDirectOnly(OutsideCase):
         self.write(WRAP_FAR, WRAP_FAR_TEST)
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "stats に深さ 2 で届く試験")
-        self.log = self.tmp / "runs.jsonl"
-        self.state = self.begin("import json, os, sys\nopen(%r, 'a').write(json.dumps([os.environ.get('TDD_SUITE_ONLY'), "
-                                "sys.argv[2:]]) + '\\n')\n" % str(self.log)
-                                + RUNNER.replace('TIER = ["test_stats.py"]', f'TIER = ["test_stats.py", "{WRAP_FAR}"]'))
-
-    def runs(self):
-        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+        self.state = self.logged_begin(RUNNER.replace('TIER = ["test_stats.py"]', f'TIER = ["test_stats.py", "{WRAP_FAR}"]'))
 
     def accepted_at(self) -> str:
         """受け付けが書き戻した accept.json の置き場を引く口（common.final_left など）に渡す輪の記録のパス（この試験は輪を回さないので、
@@ -3507,7 +3504,7 @@ def direct_fields(**over):
     return [{**FIELDS[0], "route": "direct", "route_why": "既存の期待の書き換えだけの項目", "tests": [], **over}]
 
 
-class FixGatesCase(Case):
+class FixGatesCase(SeedEdits, Case):
     """種の git（self.repo）と fix の run の置き場（self.board。元の盤面の代わり）と小さな実行器"""
 
     def setUp(self):
@@ -3527,32 +3524,8 @@ class FixGatesCase(Case):
         planmarks.save(self.board, 1, FIELDS if fields is None else fields)
         return self.board
 
-    def edit_tree(self, subs):
-        path = self.repo / "stats.py"
-        text = path.read_text(encoding="utf-8")
-        for old, new in subs.items():
-            self.assertIn(old, text)
-            text = text.replace(old, new)
-        path.write_text(text, encoding="utf-8")
-
-    def edit_tests(self, old, new):
-        path = self.repo / "test_stats.py"
-        text = path.read_text(encoding="utf-8")
-        self.assertIn(old, text)
-        path.write_text(text.replace(old, new), encoding="utf-8")
-
-    def add_test(self, body):
-        self.edit_tests("\n\nif __name__", body + "\n\nif __name__")
-
     def add_test_mean_of_two(self):
         self.add_test(NEW_TEST)
-
-    def add_test_that_passes_on_base(self, name):
-        self.add_test(f"\n    def {name}(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n")
-
-    def git(self, *args):
-        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
-                              env=hermetic.child_env()).stdout.strip()
 
     def fields_for(self, test_id):
         """受け入れのテスト test_id を 1 本持つ tdd の項目（単位は mean）"""
@@ -3564,11 +3537,6 @@ class FixGatesCase(Case):
 
     def ledger(self):
         return json.loads((self.board / gates.LEDGER).read_text(encoding="utf-8"))
-
-    def worktrees(self):
-        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
-                             env=hermetic.child_env()).stdout
-        return out.strip().splitlines()
 
 
 class TestRedGreen(FixGatesCase):

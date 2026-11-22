@@ -22,7 +22,7 @@ from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = kit.ROOT
 LINE = kit.BLOCKS / "line"
 SEED = ROOT / "tests" / "e2e" / "target-seed"
 RUN = kit.RUN_ID

@@ -62,6 +62,14 @@ SELF_REPORT = {"bypass_tried": "修正を残したまま空の並びを渡して
                              "source": "https://docs.python.org/3/library/statistics.html"},
                "root_or_symptom": {"kind": "root", "why": "分母の式そのものを直した"}}
 
+
+
+def change(unit, files, **extra):
+    """修正役の返答の changes の 1 行（closure の site は 1 つ。自己申告の欄は SELF_REPORT）"""
+    return {"unit_key": unit, "files": files, "what": "直した", **SELF_REPORT, **extra,
+            "closure": {"mechanism": "分母", "fix_mechanism": "len(xs)", "verified_how": "読んだ",
+                        "sites": [{"site": f"{files[0]}:9", "red_seen": True}]}}
+
 # 走らせる試験を差分から自分で選ぶ実行器（tests/changed.py の形。#846）: 作業ツリーに HEAD からの差が在れば SUITE_WITH_MESSAGE と同じに
 # 全部（-k が在ればその語を id に含む物）を回し、差が無ければ（直す前の版の写し）既定では何も回さない。HEED_NAMED が真なら、差が無くても TDD_SUITE_ONLY=1 の後ろの名指し
 # 『<パス>::<クラス>::<名前>』だけを回す
@@ -207,3 +215,47 @@ def result(gid, unit_ids, end_tree, start_tree, **extra) -> dict:
            "changed": {k: False for k in MARKS}, "allowed_tests": [], "verified": []}
     doc.update(extra)
     return doc
+
+
+class SeedEdits:
+    """種の git（self.repo。stats.py と test_stats.py を持つ）を書き換える助け。unittest.TestCase と組んで継ぐ"""
+
+    def edit_tree(self, subs):
+        path = self.repo / "stats.py"
+        text = path.read_text(encoding="utf-8")
+        for old, new in subs.items():
+            self.assertIn(old, text)
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+
+    def edit_tests(self, old, new):
+        path = self.repo / "test_stats.py"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new), encoding="utf-8")
+
+    def add_test(self, body):
+        self.edit_tests("\n\nif __name__", body + "\n\nif __name__")
+
+    def add_test_that_passes_on_base(self, name):
+        self.add_test(f"\n    def {name}(self):\n        self.assertEqual(clamp(5, 0, 10), 5)\n")
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
+                              env=hermetic.child_env()).stdout.strip()
+
+    def worktrees(self):
+        out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
+                             env=hermetic.child_env()).stdout
+        return out.strip().splitlines()
+
+
+class GroupsPlace:
+    """組を分けた後の置き場（self.place）の助け。unittest.TestCase と組んで継ぐ"""
+
+    def groups_file(self, groups, start_tree, par=True):
+        """組の表 groups.json を置き、組の子の結果の置き場 out_dir を返す"""
+        out_dir = self.place / "groups"
+        write(self.place / "groups.json", {"groups": groups, "count": len(groups), "par": par, "start_tree": start_tree,
+                                           "out_dir": str(out_dir)})
+        return out_dir

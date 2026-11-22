@@ -14,14 +14,10 @@ import yaml
 from tests.blocks import kit
 from tests.blocks.diagnose import support
 from tests.blocks.diagnose.support import CLAMP, MEAN, REQUEST, judge_ok
-from tests.blocks.diagnose.test_inputs import PORTS
+from tests.blocks.diagnose.test_inputs import PORTS, dump
 from tests.blocks.diagnose.test_rejudge import FIRST, OBJECTION, UNIT_A, reply as rejudge_reply
 
 BLOCK = kit.BLOCKS / "diagnose"
-
-
-def dump(value):
-    return json.dumps(value, ensure_ascii=False)
 
 
 class _Base(unittest.TestCase):
