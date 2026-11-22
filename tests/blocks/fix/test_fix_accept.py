@@ -3343,7 +3343,7 @@ class FixAcceptSeamCase(SeamTemp):
         self.b.write_rulings(self.place)
         return self.b.fix_duty(self.place, [R_MEAN, R_CLAMP])[1][R_CLAMP]
 
-    def _held_turns(self, held_files: dict):
+    def _held_turns(self, held_files: dict, parked=None):
         """判定の写しを置き、段の頭の木を控えてから MEAN を直し、外れた単位 CLAMP の直し held_files {パス: 中身} を書く。返りは
         受け付けを回す口 accept(返答, iteration)"""
         (self.place / self.b.JUDGMENT_FILE).write_text(json.dumps({"units": R_JUDGED}, ensure_ascii=False), encoding="utf-8")
@@ -3356,7 +3356,7 @@ class FixAcceptSeamCase(SeamTemp):
 
         def accept(reply, iteration):
             return self.b.accept_reply(reply, self.place, self.repo, pass_="first", iteration=iteration,
-                                         owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP)
+                                         owed=[R_MEAN, R_CLAMP], judged=R_JUDGED, head=head, base_rev=self.rev, skip=SKIP, parked=parked)
         return accept
 
     def _held_row(self, files):
@@ -3423,31 +3423,42 @@ class FixAcceptSeamCase(SeamTemp):
 
     def test_last_turn_rejection_after_dropping_the_excused_row_returns_the_replaced_reply(self):
         """最後の回に外れた単位の行を外した後、写しの拒否が残り止める単位も残らなければ受けずに諦める（NOT_SETTLED）。その返りの reply の欄は
-        外れた単位の行を外した返答（受けた返答でなく、差し替えた後の物）。reply の変数だけを差し替えて返す所が元の返答を読むと、
-        外した行が戻って出る"""
+        外れた単位の行を外した返答（受けた返答でなく、差し替えた後の物）。止める単位が残らない形は本物の道で組む: 義務の残り R_MEAN を
+        前の回にもう止めた単位として渡すので、parking.park_owed は義務の残りが空で何も止めない。reply の変数だけを差し替えて返す所が
+        元の返答を読むと、外した行が戻って出る"""
         import recount
-        parking = self.m.parking
         self._hold_clamp()
-        accept = self._held_turns({"held.txt": "上限の枝\n"})
+        accept = self._held_turns({"held.txt": "上限の枝\n"}, parked={R_MEAN: "前の回に止めた"})
         reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.txt"])], "not_done": []}
-        calls = []
 
         def copy_fails(*a, **k):
-            calls.append(k.get("commit"))
             return {"ok": False, "problems": ["写しの拒否の行"]}
-        none_left = parking.Settlement({}, [], {}, set(), {})
-        real_settle = parking.settle
-
-        def settle(texts, **k):   # 写しの拒否の行は結べず、義務の残りも止められない（止める単位が残らない）形にする
-            return none_left if "写しの拒否の行" in " ".join(texts) else real_settle(texts, **k)
-        with mock.patch.object(recount, "accept_fix", copy_fails), \
-                mock.patch.object(parking, "settle", settle), \
-                mock.patch.object(parking, "park_owed", lambda *a, **k: none_left):
+        with mock.patch.object(recount, "accept_fix", copy_fails):
             got = accept(reply, 3)
         self.assertFalse(got["ok"], got)
         self.assertTrue(got["reason"].startswith(self.b.NOT_SETTLED), got["reason"])
+        self.assertEqual([c["unit_key"] for c in got["reply"]["changes"]], [],
+                         "拒否の返りの reply は外れた単位の行（R_CLAMP）を外した返答（差し替えた後）。止めた R_MEAN の行はもう無い")
+
+    def test_last_turn_stop_for_a_missing_before_returns_the_replaced_reply(self):
+        """最後の回に外れた単位の行を外した後、残る拒みが保留の行（型の義務が直す前の結末を引けない。duties の seen の no_before）だけなら
+        保留の止め（stopped）で組を止める。その返りの reply の欄も、外れた単位の行を外した返答（差し替えた後の物）。reply の変数だけを
+        差し替えて返す所が元の返答を読むと、外した行が戻って出る"""
+        held = "型 variant の単位 U の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）"
+        self._hold_clamp()
+        accept = self._held_turns({"held.txt": "上限の枝\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.txt"])], "not_done": []}
+
+        def duties_run(place, repo, rev, reply, **kw):
+            kw["seen"]["no_before"] = {"texts": [held], "log": str(pathlib.Path(place) / "duties")}
+            return [(R_MEAN, held)]
+        with mock.patch.object(self.m.common, "selected_problems", lambda *a, **k: ([], "")), \
+                mock.patch.object(self.m.duties, "accept_problems", duties_run):
+            got = accept(reply, 3)
+        self.assertTrue(got["stop"] and got["ok"] is False, got)
+        self.assertIn(held, got["reason"])
         self.assertEqual([c["unit_key"] for c in got["reply"]["changes"]], [R_MEAN],
-                         "拒否の返りの reply は外れた単位の行を外した返答（差し替えた後）")
+                         "保留の止めの返りの reply は外れた単位の行を外した返答（差し替えた後）")
 
     def test_last_turn_without_bound_unit_parks_the_rest_or_gives_up(self):
         """最後の回に止める単位が残らないのに写しの拒否が残れば（外れた単位の足跡の Markdown のリンクが届かない）、義務の残りを
