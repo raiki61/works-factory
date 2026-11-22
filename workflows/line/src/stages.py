@@ -78,7 +78,7 @@ def resolve(ptr, field: str) -> pathlib.Path:
     raw = json.dumps(ptr) if isinstance(ptr, dict) else str(ptr)
     got = _opened()[field](raw)
     if got is None:
-        raise ValueError("pointer が空")
+        raise ValueError(f"欄 {field} の pointer が空（作り手がこの控えを返していない）")
     return got
 
 

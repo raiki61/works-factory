@@ -14,20 +14,19 @@ import pathlib
 from src import files
 
 LOOP_DIR = "tdd-{k}"   # 置き直す輪のフォルダ（common.records が tdd-<k>/record.json を番号の順に読む）
-SUMMARY = "summary.md"
 
 
 def write(place) -> pathlib.Path | None:
     """place の申し出と輪の状態を carry.json に束ねて書き、パスを返す。どちらも無ければ書かずに None"""
     import conflict
-    from src import common
+    from src import common, tdd
     place = pathlib.Path(place)
     conflicts = None
     if (place / conflict.FILE).is_file():
         conflicts = json.loads((place / conflict.FILE).read_text(encoding="utf-8"))
     loops = []
     for record in common.records(place):
-        summary = record.parent / SUMMARY
+        summary = record.parent / tdd.SUMMARY
         loops.append({"record": json.loads(record.read_text(encoding="utf-8")),
                       "summary": summary.read_text(encoding="utf-8") if summary.is_file() else ""})
     from src import board
@@ -68,7 +67,7 @@ def place_prior(place, prior: dict) -> pathlib.Path:
         d.mkdir(parents=True, exist_ok=True)
         (d / tdd.RECORD).write_text(json.dumps(loop["record"], ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         if loop.get("summary"):
-            (d / SUMMARY).write_text(str(loop["summary"]), encoding="utf-8")
+            (d / tdd.SUMMARY).write_text(str(loop["summary"]), encoding="utf-8")
     if isinstance(prior.get("accept"), dict):
         _put(root / files.ACCEPT_FILE, prior["accept"])
     for k, b in enumerate(prior.get("bases") or [], 1):
