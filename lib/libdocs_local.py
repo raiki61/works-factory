@@ -262,6 +262,11 @@ def _parse(path: pathlib.Path, real: pathlib.Path, memo: dict | None = None):
     return tree
 
 
+def _uses(lib: dict) -> list:
+    """引く名の並び（重なりを落とし、MAX_USES まで）"""
+    return list(dict.fromkeys(lib.get("uses") or []))[:MAX_USES]
+
+
 def _doc(node, limit=DOC_MAX) -> str:
     d = ast.get_docstring(node, clean=True) if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
                                                                  ast.AsyncFunctionDef)) else None
@@ -391,7 +396,7 @@ def _read_python(roots_, lib, files) -> dict | None:
             dist = _py_dist(sp, real, lib)
             version, summary, dist_name = dist or (None, "", "")
             frags, missing, memo = [], [], {}
-            for use in list(dict.fromkeys(lib.get("uses") or []))[:MAX_USES]:
+            for use in _uses(lib):
                 parts = use.split(".")
                 node = path = None
                 for i in range(len(parts) - 1, 0, -1):
@@ -533,7 +538,7 @@ def _read_js(roots_, lib, files) -> dict | None:
             tdir = nm / "@types" / name.lstrip("@").replace("/", "__")
             tdoc = _json(tdir / "package.json", real) or {}
             entry = _types_entry(tdir, tdoc)
-        uses = list(dict.fromkeys(lib.get("uses") or []))[:MAX_USES]
+        uses = _uses(lib)
         dts = _dts_files(entry, real) if entry is not None and _inside(entry, real) else []
         frags, missing = _js_fragments(dts, uses)
         if not frags:
