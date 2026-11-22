@@ -1,4 +1,4 @@
-"""地図の探し方（.shared/core/concepthome.py。計画 2026-10-09-clean-whole の Task 2.1）。
+"""地図の探し方（lib/concepthome.py。計画 2026-10-09-clean-whole の Task 2.1）。
 名前の一覧だけを見る"""
 import pathlib
 import sys

@@ -5,10 +5,8 @@ HumanPassedCase の行の形の半分と、tests/workflows の test_eyes.py の 
 test_untaken_diff_is_unmeasured_not_zero・test_prep_diff_leaves_out_the_runtime_copy の名の試験・test_r1_head_carries_*・
 test_prep_carries_the_recorded_policy_section）を、関数を直に呼ぶ形で写した。各試験の docstring に元の試験の名を書く。
 """
-import json
 import pathlib
 import sys
-import tempfile
 import unittest
 
 LIB = pathlib.Path(__file__).resolve().parents[1]

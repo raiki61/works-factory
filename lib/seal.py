@@ -121,7 +121,7 @@ def deleted_paths(text: str) -> list:
             gone = True
         elif line.startswith("--- ") and not line.startswith("--- /dev/null") and path is None:
             got = unquote_git_path(line[4:].strip())
-            path = got[2:] if got.startswith("a/") else got
+            path = got.removeprefix("a/")
     close()
     return out
 
@@ -144,10 +144,8 @@ def _answer_refusal(answer: dict) -> str:
     if word in GO_WORDS:
         return ""
     text = answer.get("text")
-    if word in STOP_WORDS and isinstance(text, str) and text.startswith(REQUEST_BY):
-        kind = "（止め札）"
-    elif word in STOP_WORDS:
-        kind = ""
+    if word in STOP_WORDS:
+        kind = "（止め札）" if isinstance(text, str) and text.startswith(REQUEST_BY) else ""
     else:
         kind = f"（通す語 {'・'.join(GO_WORDS)} のどれでもない）"
     return f"最後の承認ノードで {word or '語なし'} と答えた{kind}"

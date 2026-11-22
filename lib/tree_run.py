@@ -352,7 +352,7 @@ def _live(members):
     return {pid: m for pid, m in members.items() if not m.stat.startswith("Z")}
 
 
-def _name(members):
+def _members_text(members):
     return ", ".join(f"pid {m.pid}（pgid {m.pgid}・{m.stat}）" for m in list(members.values())[:5])
 
 
@@ -419,7 +419,7 @@ def stop_group(p, first=signal.SIGTERM, born=None, known=None):
             if not live:
                 return why
             if not sigs:
-                return f"グループ {p.pid} の木が SIGKILL の後も残っている（{_name(live)}）"
+                return f"グループ {p.pid} の木が SIGKILL の後も残っている（{_members_text(live)}）"
             groups = {m.pgid for m in live.values() if m.pgid in members or m.pgid == p.pid}
             targets = [(os.killpg, g) for g in sorted(groups)] + [(os.kill, pid) for pid, m in live.items() if m.pgid not in groups]
             pending = set(live)

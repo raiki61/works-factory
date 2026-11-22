@@ -206,7 +206,7 @@ def finish(out) -> dict:
         reply, unread = eyekit.read_reply(out, files.MINIMALITY)
         row, took = eyekit.verdict_row("r1", reply, unread, settle=by_points)
         got = {"ok": took, "status": "ran" if took else "failed", "reason": "" if took else row["reason"], "verdict": row,
-               "questions": [], "findings": findings(row, reply), "report": report.lines(row, reply, comments)}
+               "questions": [], "findings": findings(row, reply) if took else [], "report": report.lines(row, reply, comments)}
     try:   # Archon の JSON.parse が読めない NaN・Infinity は、控えを書く前に落とす（出口が落ちた形にする）
         json.dumps(got, allow_nan=False)
     except ValueError as e:

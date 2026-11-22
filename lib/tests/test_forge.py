@@ -1,5 +1,4 @@
-"""対象の remote が forge（PR を持つホスト。今は GitHub）かを git だけで決める口（.shared/core/forge.py）と、その決めを盤面へ
-写す works の差し替え（entry.CORE_OVERRIDES の on_init・parallel_pr_due・fill_materials）の検査。
+"""対象の remote が forge（PR を持つホスト。今は GitHub）かを git だけで決める口（lib/forge.py）の検査。
 
 canary の run 5318f732 の事実: origin がローカルの bare リポジトリの run で、並行 PR の任せ先の役が素材 parallel_pr を
 awaiting_human と書き、判定が問いの台帳に保留の問いを置いて、直しが済みテストも緑なのに結末が round_limit になった（同じ形の

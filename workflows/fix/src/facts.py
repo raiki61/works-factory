@@ -34,7 +34,7 @@ if __name__ == "__main__":   # 修正役が事前の確かめのコマンドと�
     sys.path[:0] = [str(Path(__file__).resolve().parents[2] / ".shared"), str(Path(__file__).resolve().parents[1])]
     import ports  # noqa: E402,F401  （lib/ を sys.path に足す）
 
-from src import consult  # noqa: E402   範囲の相談の控え（同じブロックの lib）
+from src import consult  # noqa: E402   範囲の相談の控え（同じ block の src）
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
 from src import scope as planscope  # noqa: E402

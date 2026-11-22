@@ -1,7 +1,8 @@
 """書き手の型の block（workflows/weapon-<型>/）の 3 本の script の本体（docs/design/fix.md の 24.4）。
 
-各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と `from src import render`・
-`writerblock.prep(render)`（writer_save.py は `writerblock.save()`、writer_out.py は `writerblock.out()`）だけで、6 つの block で 1 字も違わない。型の名は渡さない:
+各 block の scripts/writer_prep.py・writer_save.py・writer_out.py は、PEP 723 の頭・sys.path の 2 行・`import writerblock` と、
+writer_prep.py は `from src import render`・`writerblock.prep(render)`、writer_save.py は `writerblock.save()`、writer_out.py は
+`writerblock.out()` だけで、6 つの block で 1 字も違わない。型の名は渡さない:
 呼んだ script の在る block のフォルダの名 `weapon-<w>`（ports.caller_block）から引く。型ごとに違う物は block の src/render.py の表だけ。
 
 - prep(table) -> {prompt}: 入力 order・slots を ports.json で読み、order.weapon が表の ORDER_WEAPON と違えば落ち（型の名と block の
@@ -86,7 +87,7 @@ def subagent_items(place, sub: dict) -> str:
     """slots の subagents（下請けを起こす単位 sub["owed"] が空でない）から、項目ごとの下請けのファイルを place に書き、修正役の指示の
     {g1_items} の字（項目ごとの 1 行を改行で並べた物）を返す。借りた写しの固定が合わなければ ValueError（呼び手が先に seat.pinned を呼ぶ）。
     実装役の指示 g1-impl の {weapon_rule} には、この block の prompts/parts/head.md（型の決まりの頭の段落）を空の値で組んだ字を渡す
-    （表の SPAWNS が真の型だけがここへ来る。head.md に {名} が在れば prompt.render が値の欠けで落ちる。黙って空の字にしない）"""
+    （表の SPAWNS が真の型だけがここへ来る。head.md に {名} が在れば prompt.render_part が値の欠けで落ちる。黙って空の字にしない）"""
     place = pathlib.Path(place)
     shown = {"scene": "g1-scene", "impl_report": "g1-impl-report", "report": "g1-report", "head_sha": "g1-head-sha"}
     texts = {key: prompt.render_shared(name, {}).strip() for key, name in shown.items()}

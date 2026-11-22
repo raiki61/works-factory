@@ -1,4 +1,4 @@
-"""承認済みの修正案を項目ごとの brief に切り出して凍結する（blk-fix。依頼 217）。AI を通さず、機械が置き場の物と引数だけから書く。
+"""承認済みの修正案を項目ごとの brief に切り出して凍結する（fix の block。依頼 217）。AI を通さず、機械が置き場の物と引数だけから書く。
 
 語:
 - brief: 修正案の 1 項目の要求の正本。修正役・TDD の役の指示書の頭で名指し、役はこれに従う。判定の単位は「背景」の節に参照として
@@ -329,12 +329,6 @@ def _put(p: pathlib.Path, data: bytes) -> None:
     p.write_bytes(data)
 
 
-def _write_ledger(p: pathlib.Path, rows: list) -> bytes:
-    """控えを一時のファイルから os.replace で置き、置いたバイトを返す（一時のファイルの置き場に先に在る物は消してから書く。
-    リンクの先へ書かない）"""
-    return jsonfile.dump(p, {"briefs": rows})
-
-
 def _out(b, rows: list) -> list[dict]:
     box = _box(b).resolve()
     return [{"item": r["item"], "unit_keys": list(r.get("unit_keys") or []), "file": str(box / r["file"]), "sha256": r["sha256"]}
@@ -363,7 +357,7 @@ def _freeze(b, rows: list, recut: list[int] | None = None, round_: int = 1) -> l
     CUT_OP の前に RECUT_OP の行を書く"""
     ledger = _box(b) / LEDGER
     ledger.parent.mkdir(parents=True, exist_ok=True)
-    raw = _write_ledger(ledger, rows)
+    raw = jsonfile.dump(ledger, {"briefs": rows})
     if recut is not None:
         fixboard.trace(b, RECUT_OP, round=round_, items=recut)
     out = _out(b, rows)

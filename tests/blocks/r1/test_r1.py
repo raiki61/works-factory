@@ -339,6 +339,13 @@ class VerdictCase(_RepoCase):
         self.assertEqual((done["ok"], done["status"], done["verdict"]["status"]), (False, "failed", "unverifiable"))
         self.assertIn("約束の外", done["verdict"]["reason"])
 
+    def test_off_contract_reply_returns_no_findings(self):
+        """判定の語が約束の外の返答は受けていない（took が偽）ので、deletions に needs が choose の行が在っても findings は空（R2 の
+        受けていない比べの返答と揃える。docs/design/r1.md の 1.2）"""
+        pick = {"where": "c.css:2", "why": "色を当てるか", "needs": "choose", "fix_kind": "trim", "options": ["当てる", "当てない"]}
+        done = self.ran({**PASS, "status": "ok", "deletions": [pick]})
+        self.assertEqual((done["status"], done["findings"]), ("failed", []))
+
     def test_a_port_that_cannot_be_read_fails_with_its_name(self):
         for name, raw in (("units", '{"rows": 1}'), ("judgment", self.run.pointer("absent.json")), ("policy", "/no/such/file.md"),
                           ("green", "yes"), ("review", dump({"verdict": "maybe"}))):

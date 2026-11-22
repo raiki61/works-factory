@@ -48,7 +48,7 @@ MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 REQUIRED_FOR = re.compile(r"\A<!-- required-for-(?:tools|fields): [A-Za-z_.]+(?: [A-Za-z_.]+)* -->\n")   # 共通の断片の頭の印（道具か返す欄。形の検査が読む。指示には出さない）
 NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
-LANG_DEFAULT = "lang-default"   # 共通の断片の名（lib/rolekit.py の LANG_DEFAULT と同じ意味の英語の文）
+LANG_DEFAULT = "lang-default"   # 共通の断片の名（lang が空の時の既定の英語の文）
 SYSTEM = ".system"
 RUNNER_WRITER = "runner-writer"   # 共通の断片の名（実行器の契約と書き方。test-gate の書き手と fix の書き直し役が取り込む）
 

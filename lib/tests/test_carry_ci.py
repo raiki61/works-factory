@@ -1,4 +1,4 @@
-"""run の後の CI の赤を次の run の依頼の prior_failures へ載せる口（.shared/core/carry.py の carry_ci と carry-ci）の検査。
+"""run の後の CI の赤を次の run の依頼の prior_failures へ載せる口（lib/carry.py の carry_ci と carry-ci）の検査。
 
 重い試験は run の外の CI で回るので、run が見ない赤が在る。前の run の報告が書いた next-request.json に、CI が赤と言った
 試験の id を prior_failures の行として足し、次の run の判定役と修正案の役へ届ける（計画 docs/plans/2026-10-06-carry-prior-failures.md の

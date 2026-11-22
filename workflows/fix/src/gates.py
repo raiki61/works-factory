@@ -66,7 +66,7 @@ import impact  # noqa: E402  （lib/。受け付けの置き場の trace の行�
 import jsonfile  # noqa: E402
 import planmarks  # noqa: E402  （lib/。修正案の書き換えの名指し・テストの定義の行）
 import planrange  # noqa: E402  （lib/。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
-from src import common, tdd as tddloop  # noqa: E402  （同じブロックの lib。輪の関門の読み口をそのまま使う）
+from src import common, tdd as tddloop  # noqa: E402  （同じ block の src。輪の関門の読み口をそのまま使う）
 from leftovers import Unreadable, git  # noqa: E402
 
 LEDGER = "fix-gates.json"

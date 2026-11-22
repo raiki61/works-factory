@@ -17,7 +17,7 @@ if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
 import related  # noqa: E402
-from tests.bin.gitkit import committed_copy, git  # noqa: E402
+from tests.bin.gitkit import committed_copy  # noqa: E402
 
 PROJ = {
     "pkg/__init__.py": "",

@@ -104,7 +104,7 @@ def repo_of(url):
     else:
         return None
     path = path.strip("/")
-    parts = (path[:-len(".git")] if path.endswith(".git") else path).split("/")
+    parts = path.removesuffix(".git").split("/")
     if len(parts) != 2 or not all(SEGMENT.match(p) for p in parts):
         return None
     return {"kind": got["kind"], "host": host, "owner": parts[0], "name": parts[1]}
@@ -131,7 +131,7 @@ def remote_repos(repo, first: str):
     """gh repo set-default は remote.<名>.gh-resolved に base（その remote）か OWNER/REPO（フォークの clone で親を名指した時など）を記す"""
     names = (_git(repo, "remote") or "").split()
     keys = (_git(repo, "config", "--get-regexp", r"^remote\..*\.gh-resolved$") or "").splitlines()
-    resolved = {k[len("remote."):-len(".gh-resolved")]: v for k, _, v in (line.partition(" ") for line in keys)}
+    resolved = {k.removeprefix("remote.").removesuffix(".gh-resolved"): v for k, _, v in (line.partition(" ") for line in keys)}
     for name in dict.fromkeys([*resolved, first, "upstream", "github", "origin", *names]):
         got = repo_of(_git(repo, "remote", "get-url", name) or "") if name in names else None
         if not got:

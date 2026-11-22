@@ -19,7 +19,6 @@
 """
 import json
 import pathlib
-import re
 import sys
 import tempfile
 import unittest

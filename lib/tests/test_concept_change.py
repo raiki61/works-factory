@@ -1,4 +1,4 @@
-"""考えの住処の柵を、対象のリポジトリの変更に当てる口（.shared/core/conceptfence.py の tables・places・scan_change。
+"""考えの住処の柵を、対象のリポジトリの変更に当てる口（lib/conceptfence.py の tables・places・scan_change。
 計画 2026-10-09-clean-whole の Task 2.2）。種の git は gitkit の型の写し（試験ごとに作らない）"""
 import json
 import pathlib

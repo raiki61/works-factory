@@ -145,7 +145,7 @@ def place(start_file, folder, reply) -> dict:
     elif not body.startswith("#!"):
         why = NO_SHEBANG
     else:
-        runner = _put(pathlib.Path(folder) / RUNNER, (body if body.endswith("\n") else body + "\n").encode("utf-8"))
+        runner = put_runner(pathlib.Path(folder) / RUNNER, body)
         _save(start_file, start, {**mark, "from": FROM_AI, "path": runner, "ok": None, "why": ""})
         return {"made": True, "why": ""}
     _save(start_file, start, {**mark, "from": FROM_AI, "path": "", "ok": False, "why": why})

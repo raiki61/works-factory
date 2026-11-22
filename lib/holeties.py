@@ -5,7 +5,7 @@
 添えるだけ）。盤面の節の名は知らない（集める口は refix.hole_ties）。
 
 規則（全部当てて枝の和を取る。VIA の語）:
-- compliance: 準拠の落ちた行（deltamarks の行 {item, face_key}）の face_key が穴の key → その項目
+- compliance: 準拠の落ちた行（delta-review の準拠の行 {item, face_key}）の face_key が穴の key → その項目
 - check:      塞がっていない検算の key が事前審査の穴の key → その穴の unit_keys を持つ項目（項目に無い単位はその単位の枝）
 - path:       穴の where が項目の範囲（planrange.inside。allowed_paths の glob か受け入れ・書き換えのテストのファイル）に入る
               → その項目

@@ -1,4 +1,4 @@
-"""実測の script（blk-structure/scripts/measure.py）の数え方の決定的な試験（設計書 structure-block-design の 3 節・9 節）。
+"""実測の script（lib/measure.py）の数え方の決定的な試験（設計書 structure-block-design の 3 節・9 節）。
 
 fixture のリポジトリはクラスに 1 回、日時を固定して作る（マージ 1 本・改名 1 本・写し・入口・環境変数・skipped の種）。
 窓の始まりは --since 2020-06-01 で、その前の commit は c0 だけ。数はこの fixture で git を直に引いて確かめた値:

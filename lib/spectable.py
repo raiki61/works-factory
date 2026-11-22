@@ -156,7 +156,7 @@ def _bare(heading: str) -> str:
 
 
 def heading_hits(md: str) -> list:
-    return [_bare(h) for _, _, h in _headings(md) if _bare(h) in HEADING_NAMES]
+    return [b for b in (_bare(h) for _, _, h in _headings(md)) if b in HEADING_NAMES]
 
 
 def sections(md: str) -> list:

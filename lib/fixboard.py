@@ -2,7 +2,7 @@
 README 9.3 の KEEP。integration.md 4.3-1）。使い手は KEEP の writes・conflict・planbrief・r1〜r4 の eyekit と、fix・delta-review・
 independent-design の src/。fix だけが使う物は fix の src/board.py、差分の審査と手直しの材料は delta-review、レンズは lens の src/ に在る。
 
-- trace(place, op, **kw)・trace_rows(place)・TRACE_FILE: 置き場の trace.jsonl に {"op": op, **kw} を 1 行足す・読む
+- trace(place, op, **kw)・trace_rows(place, keep)・TRACE_FILE: 置き場の trace.jsonl に {"op": op, **kw} を 1 行足す・読む
 - read_json・write_json・write_text: 置き場のファイルの読み書き
 - marks_view(place, round_=1)・plan_view(place, plan, judgment, round_=1): planmarks の凍結した欄と承認済みの修正案の読み口に渡す
   読むだけの形（dir と round と値だけ）
