@@ -20,7 +20,7 @@ narrows を書く前に狭めを避ける形を当たり、無い時だけ narro
 - NO_STANDARD: decided_by の頭の印。定石も依頼の本文も見つからず ①②③ のどれにも当たらない行は、印の後に探した所を書き、
   聞かずに推しで進む（出どころが無いことが中身なので軸 obvious の出どころの照らしと軸 world を揃える。報告には探した所を 1 行で残す）
 
-問いの台帳（record.questions）のうち人に聞く状態（検証器の ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
+問いの台帳（record.questions）のうち人に聞く状態（ASKING）の問いも、修正前の関所の項目に 1 件 1 行で載せる（持ち主
 2026-09-29。run 119 の人の答え）。人に聞くと名乗る問いが人の口に繋がらないまま、出どころの免除だけが効いて
 いたため。この行は決め手の濾しに掛けない。関所の continue はその問いへの答えで、一言が問いに触れなければ修正役は問いの理由の推しで
 直す。一言で「保留: <key>」と名指した問いは答えに数えない。無人の run（line の無人の方針）では問いの行を項目に載せない——関所を
@@ -777,11 +777,8 @@ def narrow_asks(plan, marks, facts: AxisFacts) -> list:
 
 
 def _asking(b) -> list:
-    qs = [q for q in (b.record.get("questions") or []) if isinstance(q, dict)]
-    if not qs:
-        return []
-    states = b.rules.validator_module(b).ASKING
-    return [q for q in qs if q.get("status") in states]
+    """問いの台帳のうち人に聞く状態（ASKING）の問い"""
+    return [q for q in (b.record.get("questions") or []) if isinstance(q, dict) and q.get("status") in ASKING]
 
 
 def asks_human(q) -> bool:
@@ -1300,7 +1297,7 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
     人に聞く状態の語は ASKING、測れていない素材の状態は UNMEASURED。始めの記録は読まず、値は呼び手（line）が渡す（integration.md 4.3-追加-6）"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
-    validator = types.SimpleNamespace(ASKING=ASKING, STATUS=status)
+    validator = types.SimpleNamespace(STATUS=status)
     record = {"questions": [q for q in doc.get("questions") or [] if isinstance(q, dict)],
               "units": [u for u in doc.get("units") or [] if isinstance(u, dict)],
               "materials": materials if isinstance(materials, dict) else {},
