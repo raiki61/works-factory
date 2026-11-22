@@ -343,6 +343,12 @@ PLANNED_PUSH = ("（計画はこの問いを無人の run の推し「{push}」�
 TALK_GATE = "gate-design"   # 設計の相談の承認ノードの id（対話モードの run の計画の往復の末尾。src/talk.py）。人がそこで止めた止めの理由の後ろ
 
 
+def _passed_row(rnd: int, row: dict, mark: dict) -> dict:
+    """決め手が揃って聞かずに通した行の控え（passes の 1 行。外れの行と聞く行が同じ形で足す）"""
+    return {"node": gatemarks.GATE_NODE, "round": rnd, "by": gatemarks.PASSED_BY, "item": str(row.get("text") or ""),
+            "decided_by": str(mark.get("decided_by") or "")}
+
+
 def _depart_items(deviations: list, answered, rnd: int, passes: list) -> tuple:
     """外れの行（事前審査の deviations の行）から修正前の承認ノードの項目を引く 1 本の規則。(項目 [(種類, 行)], 聞く世界の解の行)。
     source design は事前審査の穴の道で聞くので除く。world は why が在れば聞き、decided_by が揃えば聞かずに通して passes に足す。
@@ -364,8 +370,7 @@ def _depart_items(deviations: list, answered, rnd: int, passes: list) -> tuple:
                 items.append(_gate_row(gatemarks.WORLD_KIND, text))
                 kept.append(d)
         elif mark.get("decided_by"):
-            passes.append({"node": gatemarks.GATE_NODE, "round": rnd, "by": gatemarks.PASSED_BY, "item": str(d.get("text") or ""),
-                           "decided_by": str(mark.get("decided_by"))})
+            passes.append(_passed_row(rnd, d, mark))
     return items, kept
 
 
@@ -431,8 +436,7 @@ def before_fix(rounds: dict | None, *, unattended_run: bool, design: bool, ledge
                 items.append(_gate_row(str(a.get("kind") or gatemarks.AXIS_KIND), text, mark.get(gatemarks.RECOMMEND)))
                 kept_asks.append(a)
         else:   # 決め手が揃う行は聞かずに通し、出どころつきで返す（L-G18・L-G19）
-            passes.append({"node": gatemarks.GATE_NODE, "round": rnd, "by": gatemarks.PASSED_BY, "item": str(a.get("text") or ""),
-                           "decided_by": str(mark.get("decided_by") or "")})
+            passes.append(_passed_row(rnd, a, mark))
     ups = design_items(list(design_rows_), answered)
     items += ups
     if fell and isinstance(plan_fields, list):
