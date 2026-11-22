@@ -188,7 +188,7 @@ def _premise_gaps(doc: dict, answer_ids: list[str], theme_lines: list[str]) -> l
 # ---------------------------------------------------------------- 全体
 def gaps(doc, *, repo, base: str, theme_lines: list[str], answer_ids: list[str], prior: dict | None) -> list[str]:
     """設計の案 doc の拒否の行（空なら通る）"""
-    shape = ports.shape_errors(doc, "shared:theme-design.schema.json")
+    shape = ports.shape_errors(doc, files.DESIGN_SCHEMA)
     if shape:
         return [f"形 {files.DESIGN_SCHEMA} に合わない: {e}" for e in shape]
     out = _id_gaps(doc) + _anchor_gaps(doc, repo) + _ask_gaps(doc) + _ref_gaps(doc) + rework_gaps(doc, repo, base)
