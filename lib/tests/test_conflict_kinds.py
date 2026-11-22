@@ -14,8 +14,7 @@
   行は waiting と読む
 - （fix の試験 tests/blocks/fix/test_ruling.py へ移った）修正役の受け付け（fix の block の board.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
   食い違いの申し出の拒否（check conflict）にし、積まない（元 works/blk-fix/scripts/accept.py:319-333）
-盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git は FixAcceptSeamCase の
-受け付けが段の頭の木と版を引く小さなリポジトリだけ）。
+盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git も使わない）。
 """
 import json
 import pathlib
