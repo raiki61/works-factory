@@ -25,7 +25,7 @@ import rolekit   # lib/。loop の数え・却下の控え・諦め
 import unittrees # lib/。git が落ちた時の UnitTreeError
 from engine.util import Reject   # lib/graphloops/engine/util.py
 
-from src import files, premises, report
+from src import files, report
 
 HYPOTHESIS = "仮説"          # 制約の kind の語（正本は前提の実測の block の出力の形。md には {hypothesis} で入れる）
 UNKNOWN_SOURCE = "目的不明"   # 目的の出典の語（目的の固定の block の出力 source）
@@ -230,7 +230,7 @@ def design_prompt(out, repo) -> dict:
             request_text = pathlib.Path(doc["request"]).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as e:
             unread = REQUEST_UNREAD.format(path=doc["request"], why=type(e).__name__)
-    got = premises.material(r2_view(request_text, doc["answers"]), repo)
+    got = design.premise_material(r2_view(request_text, doc["answers"]), repo)
     ledger = got["ledger"]
     if unread:
         ledger["withheld"].append({"kind": "named_section", "what": doc["request_given"] or doc["request"] or "request", "why": unread})
