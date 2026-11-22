@@ -110,24 +110,11 @@ class RedAtBaseRulingCase(unittest.TestCase):
 
 
 class ConflictSeamCase(unittest.TestCase):
-    """conflict の継ぎ目: 申し出の控えは place の conflicts.json {"items": [...]}、trace は place の trace.jsonl（board.trace）、
-    周は引数 round_（既定 1）、壊れた控えは ValueError。直す義務の数え（board.fix_duty）は src の写し"""
+    """conflict の継ぎ目のうち、裁定と直す義務の数え（board.fix_duty。src の写し）が絡む所。申し出の控えの読み書き・壊れた控え・
+    案の問いの trace・テストの許しは、関数の在る lib 側の lib/tests/test_fix_seams.py の ConflictSeamCase が見る"""
 
     def setUp(self):
         self.place = hermetic.tmpdir(self)
-
-    def test_park_writes_and_reads_the_places_json(self):
-        c = conflict
-        ids = c.park(self.place, [CLAIM], source=c.FIX_SOURCE)
-        self.assertEqual(ids, ["c1-1"])
-        doc = json.loads((self.place / "conflicts.json").read_text(encoding="utf-8"))
-        self.assertEqual(list(doc), ["items"])
-        self.assertEqual([r["unit_key"] for r in doc["items"]], [KEY_A])
-        self.assertEqual(c.items(str(self.place))[0]["kind"], "brief_vs_judgment")   # 文字列のパスでも同じ置き場
-        self.assertEqual([r["id"] for r in c.unruled(self.place)], ["c1-1"])
-        self.assertEqual(c.park(self.place, [CLAIM], source=c.FIX_SOURCE), ["c1-1"], "同じ申し出は積み増さない")
-        self.assertEqual([r["op"] for r in _trace_rows(self.place)], [c.PARK_OP])
-        self.assertEqual(c.park(self.place, [{**CLAIM, "unit_key": KEY_B}], source=c.TDD_SOURCE, round_=2), ["c2-2"])
 
     def test_ruling_leaves_duty_and_fix_plan_item_gets_replan(self):
         c = conflict
@@ -186,43 +173,6 @@ class ConflictSeamCase(unittest.TestCase):
         self.assertIn("答え待ちの問い q1", excused[KEY_B])
         owed, _ = board.fix_duty(self.place, {KEY_A}, withheld_by={}, returned={KEY_B})
         self.assertEqual(owed, {KEY_A, KEY_B})
-
-    def test_broken_store_is_value_error(self):
-        c = conflict
-        for text in ("{", "[]", '{"items": {}}'):
-            with self.subTest(text=text):
-                (self.place / "conflicts.json").write_text(text, encoding="utf-8")
-                with self.assertRaises(ValueError):
-                    c.items(self.place)
-        with self.assertRaises(ValueError):
-            c.park(self.place, [CLAIM], source="other")
-
-    def test_plan_asks_read_the_places_trace(self):
-        c = conflict
-        board.trace(self.place, c.ASKED_OP, id="a1", item=1, status="answered", decision="allow", granted_paths=["docs/x.md"])
-        board.trace(self.place, c.ASKED_OP, id="a2", item=1, status="answered", decision="deny")
-        self.assertEqual([r["id"] for r in c.plan_asks(self.place)], ["a1", "a2"])
-        self.assertEqual([r["id"] for r in c.agreed(self.place)], ["a1"])
-
-    def test_permits_read_the_frozen_fields_in_the_place(self):
-        import planmarks
-        c = conflict
-        fields = [{"unit_keys": [KEY_A], "rewrite_tests": [{"id": "test_stats.py::test_clamp", "new": "hi を期待する",
-                                                            "limit": "test_stats.py:1"}]}]
-        planmarks.save(self.place, 1, fields)
-        got = c.test_permits(self.place)
-        self.assertEqual([(p["id"], p["limit"]) for p in got], [(f"{c.PLAN_TEST_ID}-1", "test_stats.py:1")])
-        self.assertEqual(c.test_permits(self.place, round_=2), [], "周の違う控えは読まない")
-        self.assertEqual(c.frozen_fields(self.place), fields)
-        (self.place / planmarks.FIELDS_FILE).write_text("{}", encoding="utf-8")   # 受け付けの後に書き換えた
-        stopped = []
-        with self.assertRaises(ValueError) as cm:
-            c.test_permits(self.place)
-        self.assertIn(c.FIELDS_TAMPERED, str(cm.exception))
-        err = c.fields_broken(self.place, planmarks.FieldsBroken("x"), stop=lambda why, by: stopped.append(by))
-        self.assertIsInstance(err, ValueError)
-        self.assertEqual(stopped, [c.stopby.FIX])
-
 
 class RulingSeamCase(unittest.TestCase):
     """ruling の継ぎ目: prep・accept_rule は place の conflicts.json・rule-tree.json・rejects-rule.json で回る。作業ツリーの控えは

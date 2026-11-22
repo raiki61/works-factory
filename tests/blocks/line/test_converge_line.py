@@ -16,7 +16,7 @@ import unittest
 from tests.blocks import kit
 
 rounds = kit.load("line", "rounds")
-import converge  # noqa: E402  （KEEP の読み口 plan_rows・central_keys と語の定数）
+import converge  # noqa: E402  （KEEP の読み口 plan_rows・block_faces と語の定数）
 
 
 class Adapter(types.SimpleNamespace):
@@ -157,12 +157,6 @@ class DecideCase(unittest.TestCase):
         self.assertEqual(C.decide(passed([face("a")], [edge("a")])), C.SETTLED)
         self.assertEqual(C.decide(passed([edge("b")], [edge("b"), face("c")])), C.AGAIN)
 
-    def test_central_keys_read_the_last_face_of_each_key(self):
-        """key ごとの札は、その key を最後に挙げた往復の face から引く。faces に行の無い key は中央"""
-        passes = passed([edge("a"), face("b", reach="loses_behavior")], [face("a", reach="against_policy"), edge("b")])
-        self.assertEqual(C.central_keys(passes, ["a", "b", "z"]), ["a", "z"])
-        self.assertEqual(C.REACH_SCHEMA["enum"], [*C.CENTRAL, C.PERIPHERAL])
-
     def test_block_from_any_earlier_pass_persists(self):
         self.assertEqual(C.decide([{"blocks": ["a"]}, {"blocks": ["a", "b"]}]), C.PERSISTED)
         self.assertEqual(C.decide([{"blocks": ["a", "b"]}, {"blocks": ["c"]}, {"blocks": ["a"]}]),
@@ -173,10 +167,6 @@ class DecideCase(unittest.TestCase):
         passes = [{"blocks": ["a", "b", "c"]}, {"blocks": ["d", "e"]}, {"blocks": ["f"]}]
         self.assertEqual(C.decide(passes), C.AGAIN)
         self.assertEqual(C.decide(passes[:2]), C.AGAIN)
-
-    def test_block_faces_keep_order_and_drop_repeats(self):
-        got = C.block_faces({"faces": [face("a"), face("s", severity="suggest"), face("b"), face("a")]})
-        self.assertEqual([f["key"] for f in got], ["a", "b"])
 
 
 class RecordCase(BoardCase):
