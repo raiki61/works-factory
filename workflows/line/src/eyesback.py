@@ -464,12 +464,12 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None, re
     次の目のその目の判定が通った（pass）か直しが要る（fix-needed）でない時と、返す前の状態を封じた最後の周（checkpoint）は確かめていない物。
     差分が変わらずに抜けた時（exit_ が EXITS の unchanged で始まる。_sealed_lines が SAME_AS_BEFORE を出す時と同じ）の最後の周で挙げ直さなかった物も、
     最後の目が同じ差分をもう一度見ただけなので直したと言わず、差分が変わらなかった旨の確かめていない物（OUTCOMES の unchanged）にする。
-    人が選ぶ物は全部 _sources（asked と同じ源。reaches は current が記録の側を取るか。取らない記録では最初の目の物だけ）から決める。結末の行の『人が選ぶ』と
+    人が選ぶ物は全部 asked（_sources の源を除きとまとめに通した物。reaches は current が記録の側を取るか。取らない記録では最初の目の物だけ）から決める。項目ごとの結末の行も、まとめる前の _sources を直に読まない。結末の行の『人が選ぶ』と
     足す行は、問いに残る指摘（asked）の字（_same）と同じ物だけを言う。足す行は、上の結末の行が人が選ぶ物と言った指摘（said）と字の同じ物を除き、
     返す前の状態を封じた周や目の判定が無い周の項目と重なる物も落とさない"""
     done = [r for r in rows or [] if isinstance(r, dict)]
     out, said = [], set()
-    sources = _sources(done, eyes, reaches)
+    chosen = asked(done, eyes, reaches)   # 項目ごとの『人が選ぶ』も問いと同じ除きとまとめを通す
     for n, r in enumerate(done):
         final = n == len(done) - 1
         if final:
@@ -480,7 +480,7 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None, re
             after_row, after = done[n + 1], [i for i in done[n + 1].get("items") or [] if isinstance(i, dict)]
             origin = done[n + 1].get("round")
         seen, picked = {_key(i) for i in after}, {}
-        for k, i in sources:
+        for k, i in chosen:
             if k == origin and origin is not False:
                 picked.setdefault(_key(i), []).append(_same(i))
         for item in (i for i in r.get("items") or [] if isinstance(i, dict)):

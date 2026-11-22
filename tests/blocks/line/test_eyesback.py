@@ -726,6 +726,24 @@ class ReportCase(_Case):
         out = self.e.record_lines(record)
         self.assertFalse(any(pick["text"] in line and self.e.OUTCOMES["choose"] in line for line in out), out)
 
+    def test_a_pick_reissued_as_fix_does_not_make_the_returned_item_line_say_choose(self):
+        """返した項目 A と同じファイルの choose X を、最後の目が同じ字で needs: fix に出し直した時（X は問いに残らない）、返した項目 A の行は
+        『人が選ぶ』と言わない（項目ごとの結末も問いと同じ asked を通す）。同じ X を 2 つの目が choose にした時は、問いが 1 件なら行も 1 行"""
+        x = {"eye": "r1", "where": "src/a.py:40", "text": "写しを残すか選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        fix = {**x, "needs": "fix"}
+        a2 = {"eye": "r1", "where": "docs/b.md:1", "text": "別の指摘"}
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A]), self.e.row(2, eyes(items=[a2, x]), [a2])]
+        last_eyes = {"r1": {"status": "pass"}, "r2": {"status": "fix-needed"}, "findings": [fix], "route": "stay", "questions": []}
+        record = self._record(rows, last_eyes, left=[fix])
+        self.assertEqual(self.e.asked(rows, last_eyes), [])
+        out = self.e.record_lines(record)
+        self.assertFalse(any(self.e.OUTCOMES["choose"] in line for line in out), out)
+        twice = {**x, "eye": "r2"}
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A])]
+        record = self._record(rows, {**self.PASSED, "findings": [x, twice], "questions": []})
+        chose = [line for line in self.e.record_lines(record) if self.e.OUTCOMES["choose"] in line and "選ぶ" in line]
+        self.assertEqual(len(chose), len(self.e.asked(rows, record["eyes"])), chose)
+
     def test_lines_and_questions_agree_when_the_record_has_no_fixed(self):
         """記録の fixed が null（状態が欠けた記録）の時、current は渡された最初の目の questions をそのまま使う。行の『人が選ぶ』は全部その最初の目が
         人が選ぶ物とした指摘（周の行 1 の asked）から作る: 1 周目に返す前の目の choose は行に出し（a）、最後の目の choose は返した項目と同じ
