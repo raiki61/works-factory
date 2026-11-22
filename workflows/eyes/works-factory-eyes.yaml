@@ -11,25 +11,25 @@ inputs:
   review: {default: '{}', description: 'json(shared:plan-verdict.schema.json): 修正が使った修正案を審査した事前審査の最後の往復の結論 {round, verdict, blocks, why}。空のオブジェクトは渡されていない'}
   answers: {default: '{}', description: 'json(shared:gate-answers.schema.json): 承認ノードの人の答え {start, before_fix}。空のオブジェクトは答えが無い'}
   request: {default: '', description: 'json(shared:request.schema.json): 依頼のファイル（工場の依頼の JSON）。空は依頼のファイルが無い'}
-  changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印（修正の出力の changed）。空のオブジェクトは渡されていない'}
+  changed: {default: '{}', description: 'json(shared:fix-marks.schema.json): 修正の印。空のオブジェクトは渡されていない'}
   pushes: {default: '[]', description: 'json(shared:pushes.schema.json): 無人の run が判定の保留の問いに採った推しの文の配列。空の配列は無い'}
   decisions: {default: '', description: 'json(shared:material.schema.json): 先行議論の突合の素材。空は突合が無い'}
   purpose: {default: '', description: 'text: 元の目的の 1 文（目的の固定の purpose_text）。空は渡されていない'}
   means: {default: '[]', description: 'json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（目的の文から外した物）。空の配列は示していない'}
   units: {default: '[]', description: 'json(shared:units.schema.json): 判定が切った根本の単位の目録 [{id, summary, paths}]。空の配列は渡されていない（直した後の実測は差分の全体を 1 つの単位として見る）'}
-  judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定の出力（judgment.json）。空は渡されていない'}
+  judgment: {default: '', description: 'json(shared:judgment.schema.json): 判定のまとめ（judgment.json の形）。空は渡されていない'}
   fixes: {default: '[]', description: 'json(shared:fixes.schema.json): この run の修正の単位ごとの結末 [{unit_id, group_id, status, reason}]。空の配列は渡されていない'}
   x_scalars: {default: '{}', description: 'json(shared:scalars.schema.json): 修正役が足した規模の数値の欄（名は x_ で始まる）の object。空の object は無い'}
-  checks: {default: '', description: 'file: 最後の試験の関門の証拠の文（試験の関門 final の出力 evidence の先）。空は渡されていない'}
+  checks: {default: '', description: 'file: 最後の試験の関門の証拠の文。空は渡されていない'}
   head: {default: '', description: 'text: 修正前の HEAD（審査する変更の先の版。直した後の実測の直す前の版にも使う）。空は HEAD'}
   base_label: {default: '', description: 'text: 累積差分の起点の出どころの文（例「PR #12 の根」）。空は書かない'}
   design: {default: 'null', description: 'json(shared:design.schema.json): 独立設計の役の返答。null は独立設計が無い'}
   design_reason: {default: '', description: 'text: 独立設計が無い訳。空は訳が無い'}
   design_premises: {default: 'null', description: 'json(shared:design-premises.schema.json): 独立設計の控え。null は控えが無い'}
-  constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約（前提の実測の出力 constraints）。空の配列は無い'}
+  constraints: {default: '[]', description: 'json(shared:constraints.schema.json): 記録の制約。空の配列は無い'}
   test_outcomes: {default: 'null', description: 'json(shared:outcomes.schema.json): テストごとの base と最後の結末 {rows, unmeasured}。null は渡されていない'}
   tdd: {default: 'null', description: 'json(shared:tdd.schema.json): 修正の段ごとの TDD の記録。null は渡されていない'}
-  ripple: {default: '', description: 'json(shared:ripple.schema.json): 波及の一覧（修正案の出力 ripple の先）。空は渡されていない'}
+  ripple: {default: '', description: 'json(shared:ripple.schema.json): 波及の一覧。空は渡されていない'}
   world_rows: {default: '', description: 'jsonl(lib:world-row.schema.json): 定石の行。空は渡されていない'}
   asked: {default: '[]', description: 'json(shared:asked.schema.json): 修正前の承認ノードで聞いた項目 [{kind, text}]。空の配列は聞いていない'}
   declared: {default: '[]', description: 'json(shared:declared.schema.json): 直す側が直さずに残すと答えた事前審査の block の行。空の配列は無い'}
