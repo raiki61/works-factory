@@ -460,7 +460,7 @@ def _no_timeouts(root: Path) -> list[str]:
 
 def _lang_neutral(root: Path) -> list[str]:
     """AI のノードへの指示の md（各 block の prompts/ と .shared/prompts/ の下の全部）と lib/"""
-    prompts = [p for folder in _blocks(root) for p in _files(folder, "prompts")]
+    prompts = [p for folder in _blocks(root) for p in _files(root, *folder.relative_to(root).parts, "prompts")]
     prompts += list(_files(root, "workflows", ".shared", "prompts"))
     return _grep(root, prompts + list(_files(root, "lib")), (LANG_WORD, lambda m: f"言語か実行器の名 {m[0]}"))
 
@@ -1276,7 +1276,7 @@ def _port_reads(pack: "_Pack") -> list[str]:
                 forms |= pack.forms_in(shape, cfolder)
         names = {f[f.index("(") + 1:-1] for f in forms if f.startswith("json(")}
         for part in ("scripts", "src"):
-            for py in _files(folder, part):
+            for py in _files(pack.root, *folder.relative_to(pack.root).parts, part):
                 if py.suffix != ".py":
                     continue
                 try:
@@ -1473,7 +1473,7 @@ def _inputs_read(root: Path) -> list[str]:
             continue
         refs = {m[1] for node in _nodes(document) for _, text in _scalars(node, skip={("loop_group", "nodes")})
                 for m in INPUT_REF.finditer(text)}
-        codes = ["\n".join(_lines(root, p)[0]) for part in ("scripts", "src") for p in _files(folder, part) if p.suffix == ".py"]
+        codes = ["\n".join(_lines(root, p)[0]) for part in ("scripts", "src") for p in _files(root, *folder.relative_to(root).parts, part) if p.suffix == ".py"]
         shared = _imported_shared(root, codes)
         for key, value in _pairs(_top(document, "inputs")):
             if key not in refs and not any(script_reads(text, key, root / "lib") for text in codes) \

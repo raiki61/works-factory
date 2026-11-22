@@ -28,6 +28,15 @@ class LangNeutralTest(unittest.TestCase):
         have = {p.relative_to(copy).as_posix() for p in copy.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
         self.assertEqual(have, want)
 
+    def test_git_ignored_files_under_a_block_are_not_read(self):
+        """block の prompts/ の下の、git が無視するファイル（道具の控え .ruff_cache/ など）は読まない。block のフォルダを根に数えて git の一覧を
+        使わない道に落ちると、無視されるファイルが読まれる。無視されない未追跡の物は今までどおり照らす"""
+        files = {".gitignore": ".ruff_cache/\n", "workflows/world/prompts/.ruff_cache/x.md": b"\x81 pytest\n",
+                 "workflows/world/prompts/y.md": "pytest\n"}
+        with tree(files, git_init=True) as root:
+            got = scan.problems("E13", root)
+        self.assertEqual([line.partition(":")[0] for line in got], ["workflows/world/prompts/y.md"], got)
+
     def test_seed_caught(self):
         got = scan.problems("E13", SEEDS / "e13")
         self.assertGreaterEqual(len(got), 1)
