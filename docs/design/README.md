@@ -219,9 +219,11 @@
 workflows/                       pack（作り直しの間は blocks/ に置き、組み込みで入れ替えた）
 ├── AGENTS.md                    憲法 6 行と、手本の block（workflows/world/）を写せという案内と、pack の決まり
 ├── .shared/                     pack の共通の部品（Archon は dot のフォルダを workflow と見ない）
-│   ├── AGENTS.md                ports.py と prompt.py の口の一覧・共通の断片と形の名
+│   ├── AGENTS.md                ports.py・prompt.py・requestrows.py・writerblock.py の口の一覧・共通の断片と形の名
 │   ├── ports.py                 port の読み・place・返り（組み込みの前の境 boundary.py の後継。口の一覧は .shared/AGENTS.md）
 │   ├── prompt.py                md に値を入れて指示を組む口（5 節）
+│   ├── requestrows.py           依頼の行の port を読む口（13 章）
+│   ├── writerblock.py           書き手の型の block が共に使う prep・out の本体（13 章）
 │   ├── prompts/<name>.md        2 つ以上の block が使う指示の断片（外への検索の決まり・却下の段落・役の定義・lang の既定の文。名は .shared/AGENTS.md）
 │   ├── schemas/<name>.schema.json   2 つ以上の block が使う port の形（json(shared:<name>) で名指す。13 章）
 │   └── 埋めの 3 本のファイル（fence.py・childsweep.py・skip_value.py。名簿は docs/polyfills.md）
@@ -317,7 +319,7 @@ Archon の源で確かめた読み方（この形はこれに合わせた）:
   - 段落を差し込むかの真偽。
   - 人に見せる欄の言語の値（port `lang`）。
 - accept（Python）: 却下の理由の文のうち、返答の中身（どの欄がなぜ駄目か）で変わる文。毎回同じ字の段落（直し方の決まり・戻し方の決まり）は run によらない決まった文なので、読む AI のノードの md に英語で置く（`{shared:rejected}` の頭書きと同じ扱い。#764 の決め 2）。憲法の 2 の「指示の文」は、返答ごとに変わる理由の文を含まない。理由の文はloop を諦めた時に報告に載るので、人に見せる文として日本語のまま Python が組み、次の回の指示には `{shared:rejected}` の中の `{rejection}` として入る。見分け方: 段落の字が、拒んだ返答の中身によらず毎回同じなら md、返答の欄の名や値が入るなら Python。この境は `tests/layers/test_no_prompt_text_in_python.py` が、定数に文を持つことと、指示を組む関数が文の定数を読むことで縛る。
-- 人に見せる欄の言語: md の中で、その node の人に見せる欄を名指し、`{lang}` で書けと言う。`lang` は port で受け、空なら今の既定（`lib/rolekit.py` の `LANG_DEFAULT`「依頼文の言語」）と同じ意味の英語の文を入れる。その文は共通の断片 `workflows/.shared/prompts/lang-default.md` に 1 つ置き、`prompt.lang` が読む（13 章）。言語を自動で選ぶ仕組みは作らない（持ち主の決め）。
+- 人に見せる欄の言語: md の中で、その node の人に見せる欄を名指し、`{lang}` で書けと言う。`lang` は port で受け、空なら、元の既定（「依頼文の言語」。`lib/rolekit.py` の定数だった物）と同じ意味の英語の文を入れる。その文は共通の断片 `workflows/.shared/prompts/lang-default.md` に 1 つ置き、`prompt.lang` が読む（13 章）。言語を自動で選ぶ仕組みは作らない（持ち主の決め）。
 - 依頼を見ない役（例 test-gate の CI の任せ先・TDD の実行器の書き手）には「依頼の言語」の既定が意味を持たない。だから line は、block を include する時にいつも `lang` を渡す（始めの記録の言語。空なら line が依頼の言語を決めて渡す）。既定の文は、block を単独で回した時のためだけに在る。
 
 ## 6 ノードごとの設計シートの型
