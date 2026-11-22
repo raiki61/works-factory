@@ -104,7 +104,8 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran,
     """赤の原因を事実だけで分ける ——（red_cause, summary）。red_cause は ""・environment・incomplete・introduced・inherited。順:
     1. 素材の status が clean → ("", "")
     2. 赤の段（exit が 0 でない段）が 1 つ以上在り、全部が起こせない段（tree_run.launch_kind が broken）→ environment
-       （今の works の entry.env_only_red。entry.py:768-772。素材が not_run でもこちらが先）
+       （元の works〔pack.json の works.commit の版〕の .shared/core/entry.py:768-772 の env_only_red。工場の lib/entry.py には無い。
+       素材が not_run でもこちらが先）
     3. status が測った結果（MEASURED）でない素材の語（NOT_DONE。not_run・awaiting_human・not_applicable・carried_over）か、
        junit_unran が空でなく走った赤の段（declared_checks.ran_reds。走った赤が走らなかった段より勝つ決めの持ち主）が無い → incomplete。
        走った赤の段が在れば 4.〜6. で分け、走らなかった段は summary に添える
