@@ -1198,8 +1198,8 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
     claimed, place, base, writer_report, unsatisfied}。unsatisfied は子の置き場の注文の索引の守れない依存の対（orders.unsatisfied_of。計画の依存で前に直すはずの単位が、型を回す順で後に回る [{before, after}]。join_rows が組の行の同じ名の欄に写し、line の最後の承認の本文が名で出す。止めにはしない）。writer_report は子の置き場の writer_report_rows の行（group_id を足す。親の finish が報告の行に集める）。base は子の置き場の元の結末のファイル base.json のパス（無い組は空。join が親の置き場の bases/<k>/ へ写す。
     adopt_bases）。allowed_rows は許しの訳（allowed_test_rows の行）、handoffs は reply の handoff_lines、mismatched は子の置き場の
     mismatched_lines（最後の関所を開ける理由）、accept_trace は子の置き場の accept_trace_rows の行（group_id を足す。親の collect が
-    diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。fixbeside.closure_rows）と claimed は reply の
-    changes の単位（親の collect が diff の隣の fixbeside.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
+    diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。finish.closure_rows）と claimed は reply の
+    changes の単位（親の collect が diff の隣の finish.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。place は子の run の置き場（読み手は 2 つ: 親の conflict-check がこの組の申し出の名指しに許す根と、join の
     fixboard.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
     tdd_record は子の TDD の輪の記録のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
@@ -1207,7 +1207,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
     ALLOWED_TESTS_FILE・allowed_test_changes が同じ 1 つの欄から読む。受け付けの行は accept_trace に残る）、conflicts は
     置き場の申し出の行（conflict.items）。新しい"""
-    from src import finish as fixbeside
+    from src import finish
     gid = str(group["group_id"])
     keys = [str(k) for k in group.get("unit_ids") or []]
     tdd = tdd if isinstance(tdd, dict) else {"ran": False, "suite": "", "reason": "", "units": []}
@@ -1226,7 +1226,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
             "accept_trace": [{**r, "group_id": gid} for r in accept_trace or [] if isinstance(r, dict)],
             "writer_report": [{**r, "group_id": gid} for r in writer_report or [] if isinstance(r, dict)],
             "closure": None if closure is None else [r for r in closure if isinstance(r, dict)],
-            "claimed": fixbeside.claimed_of(reply), "place": str(place or ""), "base": str(base or ""),
+            "claimed": finish.claimed_of(reply), "place": str(place or ""), "base": str(base or ""),
             "unsatisfied": [{"before": r["before"], "after": r["after"]} for r in unsatisfied or [] if isinstance(r, dict)]}
 
 
