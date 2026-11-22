@@ -15,7 +15,6 @@
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
 - ref_problems(reply, place, base_rev, repo): 修正が書いた指し（wrote_refs）と差分が足した Markdown のリンクの照らし（受け付けと
   修正役の事前の確かめ fix の facts.precheck が同じ口で回す）
-- 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
 import pathlib
