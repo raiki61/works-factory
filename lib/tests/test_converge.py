@@ -289,7 +289,7 @@ def row(*units, approach="案の手順"):
 
 
 class ItemsCase(BoardCase):
-    """項目ごとの壁打ち（線の木の段 1。設計 docs/plans/2026-10-06-tree-line.md の 2.3 の 5）: block の無い項目は閉じて次の往復で
+    """項目ごとの壁打ち（線の木の段 1。元の works の設計 2026-10-06-tree-line の 2.3 の 5。工場の木には無い）: block の無い項目は閉じて次の往復で
     審査も直しもしない・同じ中央の block が続いた項目は保留にしてほかの項目は中央の新しい block が出る間進める・相乗りの block は
     名指した項目だけを開き直す"""
     def setUp(self):

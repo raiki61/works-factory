@@ -1,4 +1,4 @@
-"""世界の解の行の住処（.shared/core/worldmark.py。計画 docs/plans/2026-10-09-world-solution.md の W4・5.3 節・5.7 節）。
+"""世界の解の行の住処（lib/worldmark.py。元の works の計画 2026-10-09-world-solution の W4・5.3 節・5.7 節。工場の木には無い）。
 
 行のファイル（JSON Lines）の読み・指示書の頭の節・答えの要る行・関所の軸・関所の行と、約束
 （lib/world-row.schema.json。欄と語の定数はそこから引く）で行を照らすことを見る。一時の置き場のファイルだけ（網・git・子のプロセスなし）。

@@ -1,7 +1,7 @@
 """次の run への持ち越しの住処（lib/carry.py。考え carry-over）の検査。
 
 推しの印が答えの印であること・読み手が prior_failures の行を Schema で照らすこと・
-下書きの行の作りと依頼の解き方が往復すること・行の鍵の決まりを見る（計画 docs/plans/2026-10-09-chained-rounds.md の Task 1）。
+下書きの行の作りと依頼の解き方が往復すること・行の鍵の決まりを見る（元の works の計画 2026-10-09-chained-rounds の Task 1。工場の木には無い）。
 関数を直に呼ぶだけ（ファイル・git・盤面・子のプロセスなし）。
 """
 import pathlib
