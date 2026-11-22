@@ -207,7 +207,7 @@ def _judge_prep(place: pathlib.Path, repo, raw: dict) -> tuple:
     spec_path = _port("spec_rows", lambda: ports.file(raw.get("spec_rows"), "json(shared:request.schema.json)"))
     spec_origin = ports.text(raw.get("spec_origin")).strip()
     port_answers = _port("answers", lambda: ports.json(raw.get("answers"), "answer-rows.schema.json"))
-    port_prior = _port("prior_failures", lambda: ports.json(raw.get("prior_failures"), "shared:prior-failures.schema.json"))
+    port_prior = _port("prior_failures", lambda: ports.json(raw.get("prior_failures"), "lib:prior-failures.schema.json"))
     policy_path = _port("policy", lambda: ports.file(raw.get("policy"), "file"))
     request_files = _port("request_files", lambda: ports.json(raw.get("request_files") or "[]", "request-files.schema.json"))
     answers = port_answers or request[carry.ANSWERS]

@@ -15,7 +15,6 @@ import posixpath
 import ports  # noqa: F401  （lib/ を sys.path に足す）
 
 import jsonfile  # lib/
-import holeties  # lib/
 import leftovers  # lib/
 import oneline  # lib/
 import planmarks  # lib/
@@ -24,7 +23,7 @@ import rolekit  # lib/
 import writelog  # lib/
 import writes  # lib/
 
-from src import cut, files, materials, verdicts
+from src import cut, files, holeties, materials, verdicts
 
 HANDLED = ("fixed", "declared")   # 手直しの答えの語（YAML の enum と同じ並び）
 UNDECLARED = ("書き込みの記録が無い run で、作業ツリーの変更が返答の handled[].files にも bash_writes にも無い——直したファイルなら "

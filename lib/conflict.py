@@ -43,7 +43,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   scope の周の置き場の物（2 回目の修正の段は 1 回目と分かれる）。
   fix_plan_item の裁定は、受け付けた機械が欄 plan_items（その単位の brief の項目の番号）と plan_units（その項目に載る単位の全部）を
   足して渡す
-- owed_units_but_asked・fix_duty・nothing_owed_but_excused: 盤面の記録を読んだので、値を引数で受ける形に書き直して fixboard に置いた
+- owed_units_but_asked・fix_duty・nothing_owed_but_excused: 盤面の記録を読んだので、値を引数で受ける形に書き直して fix の block の src/board.py に置いた
 - test_permits(b, rulings=, source=, skip_ids=, base=): テストの変更の許し（承認済みの修正案の rewrite_tests・範囲の相談の合意・裁定 fix_test_scope の範囲・
   案の直しで直した項目の単位。keep-essence の 3 の 1 本の道）の唯一の元。凍結の検査・事後の関門・範囲の照らし・最後の関所は
   ここから引く。permitted_units(b) はそのうち単位で許す行の単位。source を渡すと、修正案の行の範囲をその木でテストの id から引き直し、
@@ -83,12 +83,12 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
-if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util の Reject）
-    sys.path.insert(0, str(_CORE / "graphloops"))
+if str(_HERE / "graphloops") not in sys.path:   # 写しの engine（engine.util の Reject）
+    sys.path.insert(0, str(_HERE / "graphloops"))
 
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
@@ -107,7 +107,7 @@ RULINGS_FILE = "conflict-rulings.md"    # 裁定の文（修正役が 2 回目�
 PARKED_REPLY = "fix-parked-reply.json"  # 申し出を返した回の修正役の返答（裁定の後の出し直しで読む）。同じく今の scope の周の置き場
 # 控えの行の形の住処は lib/conflicts.schema.json（欄の名・型・語）。欄の名と語はそこから引く（写しを持たない）
 SCHEMA_FILE = "conflicts.schema.json"
-ROW = json.loads((_CORE / SCHEMA_FILE).read_text(encoding="utf-8"))["properties"][ITEMS]["items"]
+ROW = json.loads((_HERE / SCHEMA_FILE).read_text(encoding="utf-8"))["properties"][ITEMS]["items"]
 UNIT_FIELD, _, WHY_FIELD, WHICH_FIELD, KIND_FIELD, CORRECT = ROW["properties"]
 # 申し出の種類の欄 KIND_FIELD（食い違いの起きた場面。which_is_right とは別の軸）・理由の欄 WHY_FIELD（なぜ両方は同時に成り立たないか）・
 # 正しいと見た側の欄 WHICH_FIELD（WHICH のどれか）・which_is_right: query の時だけ要る欄 CORRECT（直した後の正しい行の写し）

@@ -31,7 +31,7 @@ def read_scope(root, steps: list) -> tuple:
         return {}, None
     try:
         d = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as e:
+    except (OSError, ValueError) as e:   # UnicodeDecodeError は ValueError の下
         return None, f"範囲の宣言 {SCOPE_DECL} が読めない（{type(e).__name__}: {e}）"
 
     def rel(x):

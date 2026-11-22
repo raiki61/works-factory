@@ -1,5 +1,5 @@
 """直した後の実測（段 B。docs/design/structure.md の 1.5・3 節。元の stage_b の写し）。直す前の版 base と対象の根 root の今の作業ツリーの
-差分を、lib/measure.py の差分の形（--diff。コマンドとして起こす）と、対象の柵の表（在れば。conceptfence.scan_change）で測る。
+差分を、src/measure.py の差分の形（--diff。コマンドとして起こす）と、対象の柵の表（在れば。conceptfence.scan_change）で測る。
 
 after: {status: ok|failed, reason, base_rev, changed: [パス], tables: [表のパス], tables_changed: [直しが変えた表のパス],
 fence_up: [{concept, what, path, before, after}], new_names: [{name, sites}], dup_blocks_added: int}
@@ -11,17 +11,17 @@ fence_up: [{concept, what, path, before, after}], new_names: [{name, sites}], du
 """
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-import conceptfence   # lib/
 import concepthome    # lib/
 
-MEASURE = Path(importlib.util.find_spec("measure").origin)   # lib/measure.py をコマンドとして起こす（import しない）
+from src import conceptfence
+
+MEASURE = Path(__file__).with_name("measure.py")   # src/measure.py をコマンドとして起こす（import しない）
 REASON_TAIL = 2000
 
 

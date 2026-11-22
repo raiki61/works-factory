@@ -18,9 +18,9 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import declared_checks  # noqa: E402
 import impact  # noqa: E402

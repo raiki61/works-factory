@@ -30,9 +30,9 @@ import time
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
 from leftovers import git  # noqa: E402

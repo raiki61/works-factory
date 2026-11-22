@@ -194,6 +194,7 @@ D1・D2 の後の違い（node）: 書き手の node のうち `tdd-close`・`pi
 | `lanekit.py` | `lanes.py` | 全部 |
 | `planscope.py` | `scope.py` | 全部 |
 | `unitrows.py` | `unitrows.py` | 全部 |
+| `rulebook.py` | （消した） | 使い手が `rules.py` の `PROMPT_DIRS` の決まりのフォルダの名 `writerules` だけだったので、名を `rules.py` に直に書いて消した |
 
 `src/` の新しいモジュール: `files.py`（place の名。1.4）・`runvals.py`（`values.json` の読み書き `write(place, ports)`・`read(place)`・`adopt(parent_place, place)`）・`intake.py`（port の読みと形ごとの必須）・`prompts.py`（AI の node の値と真偽を組む関数。2〜6 節の差し込み口の一覧と同じ名を返す。D1 から、書き手の分は `writer_slots`〔2.3〕で、型の block が組む指示の値は返さない）・`carry.py`（`carry.json` の書きと、`prior` から `prior/<k>/` に置く読み）・`finish.py`（出力の組み立て。今の `collect.py` の中身）・`report.py`（11 節）。
 
@@ -437,7 +438,7 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 
 ### 2.6 今の指示との差
 
-作り直しの時の、古い指示との差の記録。今の指示は workflows/fix の `commands/fix-rules/direct.md`（103 行）・`common.md`（73 行）・`brief.md`（46 行）と、lib の `fixrules.py`（`start_lines`・`RULINGS_LINE`・`fix_parts`・`resume`・`overflow_queued`）・`lib/fixboard.py`（`RULED_REPLY_LINE`・`FACES_HEAD`・`TESTS_HOW_HEAD`・`plan_faces_text`・`tests_how_text`）・`lib/planbrief.py`（`head_text`）・`lib/planrange.py`（`SCOPE_HEAD`・`TESTS_HEAD`・`OOS_MINE`・`scope_text`・`tests_text`）・`lib/libdocs.py`（`section`）・`lib/seat.py`（`section`・`g1_section` と `G1_*`・`DIVERGENCE_HINT`）・`lib/rolekit.py`（`REJECT_LINE`・`LANG_RULE`）・`lib/rulebook.py`（`HEADER` の行）に割れている。
+作り直しの時の、古い指示との差の記録。今の指示は workflows/fix の `commands/fix-rules/direct.md`（103 行）・`common.md`（73 行）・`brief.md`（46 行）と、lib の `fixrules.py`（`start_lines`・`RULINGS_LINE`・`fix_parts`・`resume`・`overflow_queued`）・`lib/fixboard.py`（`RULED_REPLY_LINE`・`FACES_HEAD`・`TESTS_HOW_HEAD`・`plan_faces_text`・`tests_how_text`）・`lib/planbrief.py`（`head_text`）・`lib/planrange.py`（`SCOPE_HEAD`・`TESTS_HEAD`・`OOS_MINE`・`scope_text`・`tests_text`）・`lib/libdocs.py`（`section`）・`lib/seat.py`（`section`・`g1_section` と `G1_*`・`DIVERGENCE_HINT`）・`lib/rolekit.py`（`REJECT_LINE`・`LANG_RULE`）・当時の lib の `rulebook`（`HEADER` の行）に割れている。
 
 - 移した: Python の定数に在った決まった文（上の全部の見出しと頭の文、`G1_STEPS`・`G1_OVERRIDES`・`DIVERGENCE_HINT`、`RULED_REPLY_LINE`・`RULINGS_LINE`、`resume`・`overflow_queued` の本文）を md へ。Python に残るのは材料の行（brief の行・穴の行・範囲の行・テストの行・ライブラリの行・項目ごとの下請けの行）と値。
 - まとめた: 却下の 1 行（今の `REJECT_LINE`。役に却下のファイルを Read させていた）を `{shared:rejected}` の 1 か所に。却下の理由は今と同じ控えから全部（古い順）を値で入れる。
@@ -1018,7 +1019,7 @@ node ごとの場面は 2〜6 節の 7。block 全体では:
 - `test_tdd.py`: 今の lib/tests の `test_blk_fix_tdd.py` の全部（153 本）と `test_tdd_outside.py`・`test_tdd_frozen.py`・`test_tdd_frozen_function_span.py`・`test_baseline_red.py` のうち tddloop を呼ぶ物。`skip_rerun` で test_cmd を省く試験を足す（今の `TestTestCmdGate` の軽量の行を port で）。
 - `test_frozen.py`: keep-essence の 3（10 節）。
 - 段 1 の PR A の試験: `test_weapons.py`（振り分けの表・注文・元の結末・義務の表・返しの控え・許しの読み口・裁定の後の注文）・`test_no_suite.py`（19.4）。`tests/layers/test_weapon_imports.py` は、型のモジュールが別の型のモジュールを import していないことを縛る（段 2 で型が block になったら `test_block_shape.py` に任せて消す）。
-- `test_fix_accept.py`: 今の `FixAcceptSeamCase`（36 本）・`SettleOverflowSeamCase`・`OverflowTraceSeamCase`・`FactchecksSeamCase`・`FixgatesSeamCase`・`ScopeTextSeamCase`・`PlanrangeSeamCase`・`GateItemsSeamCase`・lib/tests の `test_fix_gates.py`・`test_plan_scope.py`・`test_fix_units.py`・`test_fix_duty.py`・`test_duty_sets.py` と、tests/workflows の `test_fix.py` の `FixLoopScriptsCase`・`FixAcceptCase`・`HandoffCase`、`OverflowRowCase`（今の `lib/tests/test_impact.py`。値を受ける新しい形）、`WritesLogNameCase`（今の `lib/tests/test_writes.py`。書き込みの記録の名は `writelog.LOG` の 1 か所）。
+- `test_fix_accept.py`: 今の `FixAcceptSeamCase`（36 本）・`SettleOverflowSeamCase`・`OverflowTraceSeamCase`・`FactchecksSeamCase`・`FixgatesSeamCase`・`ScopeTextSeamCase`・`GateItemsSeamCase`（`PlanrangeSeamCase` は lib 側の同じ試験に寄せて消した）・lib/tests の `test_fix_gates.py`・`test_plan_scope.py`・`test_fix_units.py`・`test_fix_duty.py`・`test_duty_sets.py` と、tests/workflows の `test_fix.py` の `FixLoopScriptsCase`・`FixAcceptCase`・`HandoffCase`、`OverflowRowCase`（今の `lib/tests/test_impact.py`。値を受ける新しい形）、`WritesLogNameCase`（今の `lib/tests/test_writes.py`。書き込みの記録の名は `writelog.LOG` の 1 か所）。
 - `test_consult.py`: 今の lib/tests の `test_consult.py` の全部と `RolesCase` の相談の配線。
 - `test_join.py`・`test_clash.py`: 今の `BlockScriptsCase` の join と conflict-check・`ClashScenarioCase`・lib/tests の `test_clash.py`・`test_lanekit.py`・`GroupScriptsSeamCase`、`test_fix_seams.py` の `LanekitSeamCase`（`lanes.groups`。`test_join.py`）。
 - `test_fix_seams.py` の割り当て（integration.md の 4.2-6。KEEP のモジュールを試す `TestGroups`・`TestLeftovers`・`TestWritesSeams` は lib/tests に残る）: `GateAsksCase` → `test_intake.py`、`LaneChecksSeamCase` → `test_tdd.py`（`StepLogCase`。step の記録）と `test_fix_accept.py`（`SinceCase`。since）、`SmallGapsSeamCase` → `test_tdd.py`（`RunnerSeamCase`。3 回目で諦める）と `test_fix_accept.py`（`ParkingSkipCase`。parking）と `test_prompts.py`（`ConflictWordsCase`。申し出の種類の全部が決まりの文に在る）、`LanekitSeamCase` → `test_join.py`。

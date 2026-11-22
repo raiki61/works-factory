@@ -352,7 +352,8 @@ class TreeCase(TreeBase):
         f = self.flow
         text = self.prepped()
         merge = text[text.index("When every sub-agent has returned"):]
-        shape = self.material.SLOTS["recommend_shape"](None)
+        shape = self.material.prompt.render_shared(
+            "recommend-shape", {n: self.material.SLOTS[n](None) for n in ("recommend_answers", "recommend_min")}).strip()
         for part in (self.converge.STUCK_PUSH, shape, '"Held items"', "as the rules above say",
                      "read the `why` of the blocks in the sub-agents' answer files and the plan items"):
             with self.subTest(part=part):

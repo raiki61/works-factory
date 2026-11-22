@@ -1,14 +1,13 @@
 """止めの理由の住処（考え stop-reasons。地図 docs/concepts.md）。層 L1: 標準ライブラリだけ（works のほかの物を import しない）。
 Python 3.9 で動く。
 
-機械（線・ブロック・core）が盤面の state.stop.by に書く語は、頭 HEAD（works:）に名を付けた 1 語。報告の結末の口
-（report.stop_outcome）はこの頭の語を「線が止めた」（stopped_by_line）と読む（is_line）。同じ語は、答えを待つ
-process.human_items の行の node（conflict・replan・守りのファイル）・裁定の by（機械が人に回した裁定）・trace の行の by
-（empty-fix）にも使う。どれも「機械がした」の印で、名の空間は 1 つ（2 つの持ち主が同じ名を別の意味で使わない）。
+機械（線・ブロック・lib）が盤面の state.stop.by に書く語は、頭 HEAD（works:）に名を付けた 1 語。報告の結末の口
+（report の block の src/outcome.py）はこの頭の語を「線が止めた」（stopped_by_line）と読む（is_line）。同じ語は、答えを待つ
+process.human_items の行の node（conflict・replan・守りのファイル）・裁定の by（機械が人に回した裁定）にも使う。どれも「機械がした」の印で、名の空間は 1 つ（2 つの持ち主が同じ名を別の意味で使わない）。
 
 - HEAD: 機械の語の頭。is_line(by): 機械が止めた語か（頭で見る）
-- REASONS: 決まりが core（.shared/core）に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
-  ブロックだけでも、段の決まりが core に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
+- REASONS: 決まりが lib に在る段の語と、2 つ以上の持ち主が共に書く語の表（名 → 意味）。止めを書くのが
+  ブロックだけでも、段の決まりが lib に在れば表に置く（lens・pr・plan-converge）。線が足す語（start-refused・needs-human・
   line-script・spec-changed・answer-redirected）は、線の script が書き report が読むのでここに置く。定数（ADAPTER など）はこの表の名に HEAD を
   付けた語で、呼び手はその定数を引く（自分の定数に写さない）
 - HUMAN: 人が関所で止めた時の止めの理由の頭（後ろは関所の所）。機械の語ではない（is_line は偽）
@@ -31,7 +30,6 @@ REASONS = {
     "ci": "CI の任せ先の役の返答を受けられなかった（3 回とも拒まれた・ループが回らなかった）か、CI の役の後に start のループへ戻れない",
     "conflict": "食い違いの申し出が答えを待つまま止めた（その答えの行の node も同じ語）",
     "delta": "差分の審査の段が止めた（審査役が 3 回とも拒まれた・受けた 2 判定の控えを置けない・修正案の欄の控えの壊れを見た）",
-    "empty-fix": "止めでなく trace の行の by: 直す義務 0 件の周で、機械が修正のノードに空の返答を渡した",
     "fix": "修正の段が止めた（受け付けた返答が作業ツリーを変えていない・brief の控えが壊れた・修正案の欄の控えが凍結と食い違った）",
     "lens": "レンズの集め役が終わらなかった",
     "line-script": "メイングラフの script の中で例外が起きた（後ろを飛ばして報告へ進めた）",
@@ -45,7 +43,6 @@ REASONS = {
     "rejudge": "再審のノードの返答を受けられなかった（3 回とも拒まれた・回した後も待ちのまま）",
     "rejudge-session": "判定役の会話が見つからず、再審せずに止めた",
     "replan": "同じ run の中の案の直しで止めた（その答えの行の node も同じ語）",
-    "scope-check": "窓の照らし（部品の置き場と宣言）が誤りを見て止めた",
     "spec-changed": "修正の後に、承認済みの受け入れ条件のテストのファイルが承認の版から変わったか、変わったかを照らせなかった（承認し直すかを人に諮る）",
     "suite-broken": "工場が書いた試験の起動スクリプトが壊れていて（関わる試験が起動スクリプト越しにだけ中身に届く前に落ち、試験のコマンドを単体で走らせると通る）、書き直しても直らなかった（TDD のループを回さず、確かめていない直しを書き進めずに止めた）",
     "start-refused": "入口が入力を受けなかった（AI を起こす前に止めた）",
@@ -82,7 +79,7 @@ def declared() -> dict:
 
 
 def is_line(by) -> bool:
-    """機械（線・ブロック・core）が書いた語か"""
+    """機械（線・ブロック・lib）が書いた語か"""
     return isinstance(by, str) and by.startswith(HEAD)
 
 
@@ -91,7 +88,6 @@ ANSWER_REDIRECTED = word("answer-redirected")
 CI = word("ci")
 CONFLICT = word("conflict")
 DELTA = word("delta")
-EMPTY_FIX = word("empty-fix")
 FIX = word("fix")
 LENS = word("lens")
 LINE_SCRIPT = word("line-script")
@@ -105,7 +101,6 @@ REFIX = word("refix")
 REJUDGE = word("rejudge")
 REJUDGE_SESSION = word("rejudge-session")
 REPLAN = word("replan")
-SCOPE_CHECK = word("scope-check")
 SPEC_CHANGED = word("spec-changed")
 START_REFUSED = word("start-refused")
 SUITE_BROKEN = word("suite-broken")

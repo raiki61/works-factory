@@ -1,7 +1,7 @@
 """組の差分を親の作業ツリーへ当てる口（元 works/.shared/core/unittrees.py の、fix の組の締めが使う部分）。層 L1（works の物を
-何も知らない）。標準ライブラリと git だけ。
+何も知らない）。標準ライブラリと git と lib の changemap だけ。
 
-組ごとの子の run（fan_out）が直した差分（groups.diff_since）を、締めの節 join（fixboard.join_group）が親の作業ツリーへ順に当てる。
+組ごとの子の run（fan_out）が直した差分（groups.diff_since）を、締めの節 join（fix の block の board.join_group）が親の作業ツリーへ順に当てる。
 親の作業ツリー（repo）の本物の index・HEAD・枝はどの口も動かさない（index を使う手は全部一時の GIT_INDEX_FILE で回す）。
 
 - fresh_tree(repo) -> sha: 作業ツリーの今の姿の木の sha（HEAD を空の一時の index に読んで add -A。commit も参照も作らない。

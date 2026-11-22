@@ -143,13 +143,6 @@ RECOMMEND_SHAPE = ("{" + f"{RECOMMEND_KEYS[0]}: " + " か ".join(f"{a}（{RECOMM
                    + "}")
 
 
-def recommend_shape() -> str:
-    """推しの形の英語の指示の字（RECOMMEND_KEYS・RECOMMEND_ANSWERS・RECOMMEND_MIN から。欄の意味は各 block の md が書く）"""
-    head, *rest = RECOMMEND_KEYS
-    return ("{" + f"{head}: " + " | ".join(RECOMMEND_ANSWERS)
-            + "".join(f", {k}: … ({RECOMMEND_MIN} characters or more)" for k in rest) + "}")
-
-
 # 決め手が在っても人に聞く行の印（外への書き込み・取り消せない操作・方針の文書の変更・守り（資格・sandbox）を広げる・web の結果が
 # 新しい疑いを出した）
 FENCES = ("external_write", "irreversible", policy.POLICY_DOC_FENCE, "widen_protection", "web_doubt")
@@ -215,7 +208,7 @@ ANSWER_HOW = ('答え方: 次の run の依頼を {"findings": [...], "answers":
 ANSWER_TIES = "answer_ties"
 ANSWER_TIE_MIN = 20     # none の訳の最小の長さ（本流の事前審査が entrance の穴に求める no_add と同じ長さ）
 NO_CARRY_HEAD = "### 判定が単位にしなかった作り直し（次の run に運ばない）"   # 人が読む報告のセクション PRIOR_HEADING の中の小見出し
-DESIGN_ONLY = "true"                  # 入力 design_only の設計だけの語（entry.DESIGN_ONLY_WORDS）
+DESIGN_ONLY = "true"                  # 入力 design_only の設計だけの語（line の scripts/start.py が design_talk の値と照らす）
 DESIGN_ONLY_KIND = "design_only"      # 関所の項目の kinds（設計だけの行）
 DESIGN_KIND = "design"                # 関所の項目の kinds（構造の目が決めきれなかった設計の問い）
 DESIGN_HEAD = "構造の目が決めきれない設計の問い"   # その行の頭
@@ -265,7 +258,7 @@ REVIEW_WORDS = {**seal.STATUS_WORDS,
 # 素材の状態の語（写しの graph の material.status の enum）→ 平易な言い方。目の判定と共通の語は REVIEW_WORDS から引く
 MATERIAL_WORDS = {"found": "赤", "clean": "緑", "awaiting_human": "走らせられず人に諮った",
                   **{k: REVIEW_WORDS[k] for k in ("carried_over", "not_applicable", "not_run")}}
-# 修正前のテストの行（entry.baseline_line）が、走らなかった段・走ったかを確かめていない段に添える語
+# 修正前のテストの行（declared_checks.baseline_line）が、走らなかった段・走ったかを確かめていない段に添える語
 BASELINE_NOT_RUN = "基準の検査が走らなかった（コードの赤ではない）"
 BASELINE_UNVERIFIED = "走ったかは確かめていない"
 HANDLED_WORDS = {"fixed": "直した", "declared": "直さずに残すと申告した"}   # 手直しの行の handled の語（写しの graph の enum）
@@ -462,9 +455,9 @@ def _recommend_gap(got) -> str:
     extra = sorted(set(got) - set(RECOMMEND_KEYS))
     if extra:
         return f"{RECOMMEND} の知らない欄 {extra}"
-    answer = RECOMMEND_KEYS[0]
-    if got.get(answer) not in RECOMMEND_ANSWERS:
-        return f"{RECOMMEND}.{answer} が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get(answer)!r}）"
+    key = RECOMMEND_KEYS[0]
+    if got.get(key) not in RECOMMEND_ANSWERS:
+        return f"{RECOMMEND}.{key} が {'・'.join(RECOMMEND_ANSWERS)} のどれでもない（{got.get(key)!r}）"
     for k in RECOMMEND_KEYS[1:]:
         if not (isinstance(got.get(k), str) and len(got[k].strip()) >= RECOMMEND_MIN):
             return f"{RECOMMEND}.{k} が {RECOMMEND_MIN} 字に満たない（文字列で書く）"
@@ -478,10 +471,7 @@ def recommend_gaps(node: str, reply: dict) -> list:
     if node not in NODES:
         return []
     out = []
-    rows = _rows(node, reply)
-    pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
-             if node == "p2.fix_plan" else [(f"faces[{j}]", f) for j, f in enumerate(rows)])
-    for where, row in pairs:
+    for where, row in _pairs(node, reply):
         if isinstance(row, dict) and RECOMMEND in row:
             gap = _recommend_gap(row[RECOMMEND])
             if gap:
@@ -511,13 +501,18 @@ def plain_gaps(node: str, reply: dict) -> list:
     事前審査の返答は一番上の止まった時の推し（converge.STUCK_PUSH）も照らす（recommend_gaps と同じ行の並び）"""
     if node not in NODES:
         return []
-    rows = _rows(node, reply)
-    pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
-             if node == "p2.fix_plan" else [(f"faces[{j}]", f) for j, f in enumerate(rows)])
-    out = [g for where, row in pairs for g in _row_plain_gaps(where, row)]
+    out = [g for where, row in _pairs(node, reply) for g in _row_plain_gaps(where, row)]
     if node == "p2.plan_review" and isinstance(reply, dict) and isinstance(reply.get(converge.STUCK_PUSH), dict):
         out += [g for k in RECOMMEND_KEYS[1:] for g in plainask.gaps(f"{converge.STUCK_PUSH}.{k}", reply[converge.STUCK_PUSH].get(k))]
     return out
+
+
+def _pairs(node: str, reply: dict) -> list:
+    """行の (返答の中の場所, 行) の並び（plan は narrows の行、plan_review は faces の行。recommend_gaps と plain_gaps が照らす）"""
+    rows = _rows(node, reply)
+    if node == "p2.fix_plan":
+        return [(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
+    return [(f"faces[{j}]", f) for j, f in enumerate(rows)]
 
 
 def _rows(node: str, reply: dict) -> list:
@@ -589,9 +584,9 @@ REASON_SAFE = "（理由："
 
 def _words(rec: dict) -> str:
     """検めた推し rec の句「通す（continue）——<note>（理由: <why>）」。why の中の「（理由: 」は「（理由：」に替える"""
-    answer = rec[RECOMMEND_KEYS[0]]
+    verb = rec[RECOMMEND_KEYS[0]]
     note, why = (_tail_text(rec[k]) for k in RECOMMEND_KEYS[1:])
-    return f"{RECOMMEND_WORDS[answer]}（{answer}）——{note}{REASON_HEAD}{why.replace(REASON_HEAD, REASON_SAFE)}）"
+    return f"{RECOMMEND_WORDS[verb]}（{verb}）——{note}{REASON_HEAD}{why.replace(REASON_HEAD, REASON_SAFE)}）"
 
 
 def _push(mark: dict, head: str = "／" + PUSH) -> str:
@@ -1295,13 +1290,13 @@ def duty(b) -> set:
 class Ledger(types.SimpleNamespace):
     """盤面の代わりに値で引く問いの台帳の見え方（ledger が作る。asks・answered・pending・withheld_by・withheld・returned・duty・
     returned_lines・held_lines・answered_lines・unmatched_answer_lines・answer_key・answer_tie_lines が読む物だけを持つ。takes_push は
-    無人の run か＝判定の推しを答えに採るか。run_push が読む。design_only は設計だけの run か）"""
+    無人の run か＝判定の推しを答えに採るか。run_push が読む）"""
 
 
-def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False, design_only=False) -> Ledger:
+def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False) -> Ledger:
     """問いの台帳の値の見え方: judgment は判定の dict（units・questions）、answers は依頼の answers（始めの記録の欄）、gate は修正前の
     関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（判定の出力の欄 answer_ties の先の最後の周）、materials は
-    素材の状態（判定の出力の欄 materials の先）、takes_push は無人の run か（判定の推しを答えに採る。run_push）、design_only は設計だけの run か。
+    素材の状態（判定の出力の欄 materials の先）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。
     人に聞く状態の語は ASKING、測れていない素材の状態は UNMEASURED。始めの記録は読まず、値は呼び手（line）が渡す（integration.md 4.3-追加-6）"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
@@ -1312,7 +1307,7 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
               "process": {"human_items": [h for a in (gate if isinstance(gate, list) else [gate]) for h in gate_items(a)]}}
     return Ledger(dir=None, round=1, record=record, answers=[a for a in answers or [] if isinstance(a, dict)],
                   ties=[r for r in ties or [] if isinstance(r, dict)], rules=types.SimpleNamespace(validator_module=lambda b: validator),
-                  takes_push=bool(takes_push), design_only=bool(design_only))
+                  takes_push=bool(takes_push))
 
 
 def ledger_files(judgment, *, ties_file=None, materials_file=None, answers=(), gate=None, takes_push=False) -> Ledger:
@@ -1416,10 +1411,10 @@ def held_questions(b) -> list:
 
 def _pass_line(p) -> str:
     if p.get("by") in (PASSED_BY_HUMAN, PASSED_BY_PUSH):
-        at = p.get("passed_at") or {}
+        passed = p.get("passed_at") or {}
         who = "人が通した" if p.get("by") == PASSED_BY_HUMAN else "無人の run で推しを採って通した"
-        return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {at.get('round')}・"
-                f"{PLAIN.get(str(at.get('node')), at.get('node'))}）狭まりと同じ: {p['item']}")
+        return (f"{named(p['node'])}（周 {p['round']}）で聞き直さなかった——{who}（周 {passed.get('round')}・"
+                f"{PLAIN.get(str(passed.get('node')), passed.get('node'))}）狭まりと同じ: {p['item']}")
     if searched := no_standard(p.get("decided_by")):
         return f"{named(p['node'])}（周 {p['round']}）で定石が見つからず、聞かずに推しで進めた: {p['item']}（探した所: {searched}）"
     return f"{named(p['node'])}（周 {p['round']}）で決め手が在るので聞かずに通した: {p['item']}（決め手: {p.get('decided_by')}）"

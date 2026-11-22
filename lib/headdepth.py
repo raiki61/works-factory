@@ -18,15 +18,14 @@ run 全体の深さ（軽量・標準・重厚）の語と並び HEADS はここ
 - groups_lines(doc): 報告の ## 模型 のセクションに並べる群ごとの選びの行。選びか既定への戻しの在る群だけを 1 群 1 行で描き、
   無ければ NO_CHOICE の 1 行。記録だけで走りの模型は起動の時の口で替える 1 行（RUN_SWITCH）を添える
 """
-import json
 import pathlib
 import sys
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import cite  # noqa: E402
 import jsonfile  # noqa: E402
@@ -63,10 +62,7 @@ def write(jdir, doc: dict) -> pathlib.Path:
 
 
 def read_file(path) -> dict:
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        doc = None
+    doc = jsonfile.read_or(path)
     if not isinstance(doc, dict) or doc.get("depth") not in HEADS:
         return record(STANDARD, NO_RECORD)
     return doc

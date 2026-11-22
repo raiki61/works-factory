@@ -68,7 +68,7 @@ def _opened():
         "record": lambda raw: ports.file(raw, "json(shared:plan-converge.schema.json)"),
         "plan": lambda raw: ports.file(raw, "json(shared:plan-fields.schema.json)"),
         "start": lambda raw: ports.file(raw, "json(start-record.schema.json)"),
-        "prior_failures": lambda raw: ports.file(raw, "json(shared:prior-failures.schema.json)"),
+        "prior_failures": lambda raw: ports.file(raw, "json(lib:prior-failures.schema.json)"),
     }
 
 

@@ -78,11 +78,7 @@ NO_SOURCE = "決め手の出どころが現物に無い（パス:行・URL・依
 
 
 def inside(p: pathlib.Path, root: pathlib.Path) -> bool:
-    try:
-        p.relative_to(root)
-        return True
-    except ValueError:
-        return False
+    return p.is_relative_to(root)
 
 
 def resolved(path, repo) -> pathlib.Path:
@@ -97,7 +93,7 @@ def file_problem(path, repo, roots=(), *, label=None) -> str:
     repo = pathlib.Path(repo).resolve()
     p = resolved(path, repo)
     allowed = [repo] + [pathlib.Path(r).resolve() for r in roots if r]
-    if not any(p == r or inside(p, r) for r in allowed) or inside(p, repo / ".git"):
+    if not any(inside(p, r) for r in allowed) or inside(p, repo / ".git"):
         return f"名指し {label!r} のパスが作業ツリー・依頼のファイル・共有ボードの外"
     if not p.is_file():
         return f"名指し {label!r} のファイルが無い"
@@ -282,7 +278,7 @@ def ref_problem(source, prefix, known) -> list:
 # ---------------------------------------------------------------- 指し先の綴りと版（元 judge_accept。名は元のまま）
 def blank(s, min_len) -> bool:
     """役が埋める自由文が「空同然」か（表と長さの両方で見る）。元 works/.shared/core/graphloops/rules/review-loop.py:480"""
-    t = (s or "").strip() if isinstance(s, str) else ""
+    t = s.strip() if isinstance(s, str) else ""
     return t.lower() in EMPTY or len(t) < min_len
 
 

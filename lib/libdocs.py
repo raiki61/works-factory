@@ -30,7 +30,7 @@
   取れなかった物・見つからない物・上限で取らない物・読めない file・手元に入っていない物は節の頭に数と名前で書く（黙って落とさない）。
   WORKS_LIBDOCS_WEB=off は網に出ない（公式を引かない。手元は読む）
 - run をまたぐ控え（呼ぶ側が根 shared を渡す時だけ。置き場の理由は webget の頭、長さの理由は定数の注記。読み書きは
-  core の webget.Store）: 公式の取れた物と見つからない物を、取った時刻と一緒に <shared>/libdocs/ にも書き、同じ根の後の run は
+  lib の webget.Store）: 公式の取れた物と見つからない物を、取った時刻と一緒に <shared>/libdocs/ にも書き、同じ根の後の run は
   SHARED_TTL（7 日）の内なら網に出ずに使う（盤面の今の周にも写す）。
   前の版が同じ置き場に残した Context7 の控え（<名>@<版>.json・<名>@<版>-<問いの digest>.json・枠切れの印 _quota.json）は、名が
   公式の控えの名（尾 OFFICIAL_SUFFIX）と違うので読まない（消しもしない）
@@ -204,7 +204,8 @@ def detect(repo, files) -> dict:
         p = repo / rel
         name = pathlib.PurePosixPath(rel).name
         suffix = pathlib.PurePosixPath(rel).suffix
-        if not (suffix in PY_SUFFIXES or suffix in JS_SUFFIXES or name in MANIFESTS or REQ_RE.fullmatch(name)):
+        manifest = name in MANIFESTS or REQ_RE.fullmatch(name)
+        if not (suffix in PY_SUFFIXES or suffix in JS_SUFFIXES or manifest):
             continue
         counts["files"] += 1
         try:
@@ -212,7 +213,7 @@ def detect(repo, files) -> dict:
         except (OSError, UnicodeDecodeError) as e:
             unreadable.append({"path": rel, "reason": type(e).__name__})
             continue
-        if name in MANIFESTS or REQ_RE.fullmatch(name):
+        if manifest:
             if rel != name:           # 根の宣言だけを読む（deps も根の物だけ）
                 unreadable.append({"path": rel, "reason": "根でない依存の宣言は読まない"})
             else:

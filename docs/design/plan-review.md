@@ -228,7 +228,7 @@ import しない（組み込みで別の block へ移るか消える）: `boardv
 1. `<!-- if rejected -->` `{shared:rejected}` `<!-- end rejected -->` — 条件: 却下の控え `rolekit.rejected(place, REVIEW_NODE)` が空でない（出し直しの役でなく、この役がもう 1 度起きる時。合わせた答えの控えが無かった時）。`{rejection}` ← `rolekit.rejects_text(<控え>)`（古い順に全部。日本語）。
 2. `{part:role}`（決まった文）。中身: `{shared:role-judge}`（断片の中の `{shared:query-rule}` の段落 `spawns` は真。この役は Agent を持つ）・別の目であること（判定者は自分の一撃の原理に肩入れしうる。直した後の段だけでは修正の作った穴が次の周の全体審査で初めて見つかっていた〔実測 2026-09-24: 3 周目の指摘のうち 8 件が 2 周目の修正の産物〕）・根拠は読む版で取れ（作業ツリーは直しの途中でありうる）。
 3. 道具と読むだけの決まり（決まった文）: 道具は Read・Grep・Glob・WebSearch・WebFetch と、下請けを起こす Agent と、下請けが答えのファイルを書く Write だけ。作業ツリーを 1 字も変えない（受け付けが起こす前の姿と比べて拒む）。
-4. `{part:head}`（決まった文。形 plan と replan の 3 つの役と下請けの指示が共に使う）: 既にある物を量ったかを見よ（今の `REUSE_REVIEW`）・人に回す物は人の口で挙げよ（`HANDOFF_REVIEW`。`fences` の `policy_doc` の決まりを含む）・判断の 1 軸と考えの住処を見よ（`concepthome.AXIS`・`REVIEW_ASK`。`why` の頭は md が「考えの住処: 」を字のまま持つ（読み手 `concepthome.PREFIX` と同じ字。試験が突き合わせる。差し込み口は持たない）・承認ノードの項目の決め手（今の `gatemarks._RULE` を穴の行に当てた物と `_NO_NARROW_REVIEW`。`{no_narrow}` ← `gatemarks.NO_NARROW`・`{no_narrow_min}` ← `gatemarks.NO_NARROW_MIN`・`{recommend_shape}` ← `gatemarks.RECOMMEND_SHAPE`・`{recommend}` ← `gatemarks.RECOMMEND`）・壁打ちが止まる時の推し（今の `_STUCK_RULE`。`{stuck_push}` ← `converge.STUCK_PUSH`。今の「『止まった時の推しの note に引く物』のセクション」は材料の `### Held items` の節を名指す）。
+4. `{part:head}`（決まった文。形 plan と replan の 3 つの役と下請けの指示が共に使う）: 既にある物を量ったかを見よ（今の `REUSE_REVIEW`）・人に回す物は人の口で挙げよ（`HANDOFF_REVIEW`。`fences` の `policy_doc` の決まりを含む）・判断の 1 軸と考えの住処を見よ（`concepthome.AXIS`・`REVIEW_ASK`。`why` の頭は md が「考えの住処: 」を字のまま持つ（読み手 `concepthome.PREFIX` と同じ字。試験が突き合わせる。差し込み口は持たない）・承認ノードの項目の決め手（今の `gatemarks._RULE` を穴の行に当てた物と `_NO_NARROW_REVIEW`。`{no_narrow}` ← `gatemarks.NO_NARROW`・`{no_narrow_min}` ← `gatemarks.NO_NARROW_MIN`・`{shared:recommend-shape}`（推しの形の共通の断片）・`{recommend}` ← `gatemarks.RECOMMEND`）・壁打ちが止まる時の推し（今の `_STUCK_RULE`。`{stuck_push}` ← `converge.STUCK_PUSH`。今の「『止まった時の推しの note に引く物』のセクション」は材料の `### Held items` の節を名指す）。
 5. `<!-- if excluded -->` 並行 PR の範囲は触らず単位に入れない・材料の該当の節を先に読め（今の `EXCLUDED_HEAD` の行）`<!-- end excluded -->` — 条件: `excluded.json` が在る。
 6. `## Material`（決まった文）と `{material_file}` ← 材料のファイルの絶対パス: 全部を Read で読め。ほかの指示書を読みに行かなくてよい（根拠のコードは読め）。
 7. `<!-- if defaults -->` 既定で読んだ入力の節が在る・その入力は無いとして読め `<!-- end defaults -->`。
@@ -486,7 +486,7 @@ Write `why`, `where`, … in the language of the request (the user's language). 
 8. `<!-- if done_items -->` 済んだ下請け（起こし直さない）と `{done_items}` ← 項目とファイルの行 `<!-- end done_items -->`。
 9. `<!-- if redo -->` 起こし直す下請け（この下請けだけを起こす）`<!-- end redo -->` と `<!-- if fresh -->` 開いた項目の下請けのファイル `<!-- end fresh -->` と `{todo_items}` ← 項目とファイルの行。
 10. `<!-- if rest -->` 審査しない項目（前の往復で閉じた・保留にした）と `{rest_items}` `<!-- end rest -->`。
-11. まとめの返し方（決まった文。今の `AGG_MERGE`）: 返答はこの型の欄（`reason`・`items`・要るなら `stuck_recommend`）だけ・`reason` は 20 字以上・`items` は開いた項目ごとに 1 行 `{item, verdict, blocks}`（`verdict` は `{clean}`・`{block}` ← `converge.VERDICTS`）・block の項目が在るか保留の項目の節が在る往復は一番上に `{stuck_push}` を `{recommend_shape}` で（書く前に答えのファイルの block の why と案の項目を読む）・閉じた・保留の項目の行は入れない・前の拒否の理由が済んだ項目の答えを名指していれば、その下請けを起こし直して直させる。
+11. まとめの返し方（決まった文。今の `AGG_MERGE`）: 返答はこの型の欄（`reason`・`items`・要るなら `stuck_recommend`）だけ・`reason` は 20 字以上・`items` は開いた項目ごとに 1 行 `{item, verdict, blocks}`（`verdict` は `{clean}`・`{block}` ← `converge.VERDICTS`）・block の項目が在るか保留の項目の節が在る往復は一番上に `{stuck_push}` を `{shared:recommend-shape}` の形で（書く前に答えのファイルの block の why と案の項目を読む）・閉じた・保留の項目の行は入れない・前の拒否の理由が済んだ項目の答えを名指していれば、その下請けを起こし直して直させる。
 12. `<!-- if synergy -->` 開いた項目の全部が clean なら、同じ往復の最後に相乗りの下請けを 1 つ起こす（`{synergy_file}`）・block の項目が在れば起こさない（今の `AGG_SYNERGY`）`<!-- end synergy -->` — 条件: 案の項目が 2 つ以上。
 13. 言語の 1 文と `{lang}`（`reason`・`items[].blocks[].why`・`stuck_recommend` の note と why）。結びの 1 文。
 
@@ -1208,7 +1208,7 @@ R2 の `request_conflicts` の行は R4 の問い（最後の承認ノードの�
 2. 人待ちの語は `stopby` の表に足さない。今の `r4-ask`・`premise-escalate`・`ask-human` も `stopby` に無く、`facts.py` の中の語（報告の `outcome._wait` は語の意味を引かずに「<段>:<語>」で出す）なので、`r2-means-ask` も `facts.MEANS_WAIT` に置いた。
 3. 報告の「人が決めること」の見出し `MEANS_ASK_HEAD` の組（6.3 の 3 の 2）には、答えを得ていない行だけを載せる。数え方は人待ちと次の run の答えの下書き（6.3 の 3 の 3・4）と同じ口 `facts.means_questions`。答えた行を人が決めることに載せると、答え済みの問いを次も決めると読めるため。
 4. 最後の承認ノードの冒頭の推しの並び（`gatemarks.head3` の 3 行目。`final_head`）に R2 の行の推しを足した（R4 の問いと同じ）。
-5. 推しの形の英語の字（`{answer: continue | stop, note: …, why: …}`）は、plan-review の `src/material.py` の `_recommend_shape` と R2 の指示が同じ物を使うので、`lib/gatemarks.py` の `recommend_shape` に寄せた（憲法 4）。
+5. 推しの形の英語の字（`{answer: continue | stop, note: …, why: …}`）は、plan-review と R2 の指示が同じ物を使うので、共通の断片 `workflows/.shared/prompts/recommend-shape.md` に置いた（憲法 2。前は `lib/gatemarks.py` の関数が字を組んでいた）。値は `gatemarks.RECOMMEND_ANSWERS`・`RECOMMEND_MIN` から prep が渡す。
 6. 筋書き（6.7 の 5）: `eyes__verdict` を差し替える line の筋書き 19 本のうち、`eyes-failed.stubs.yaml` はわざと壊した返り（`{"ok": "壊れた返り", "notes": null}`）なので `means_questions` を足さず、18 本に足した。
 
 ### 7 決めた細目

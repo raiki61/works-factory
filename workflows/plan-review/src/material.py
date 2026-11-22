@@ -657,11 +657,6 @@ def _framing(c: _Ctx) -> str:
     return json.dumps(got, ensure_ascii=False) if got else ""
 
 
-def _recommend_shape() -> str:
-    """推しの形（gatemarks.recommend_shape。欄の意味は md の head.md が書く）"""
-    return gatemarks.recommend_shape()
-
-
 # 差し込み口の名 → 作り手（名ごとに 1 つ）
 SLOTS = {
     "rejection": lambda c: rolekit.rejects_text(rolekit.rejected(c.place, c.node)),
@@ -676,7 +671,8 @@ SLOTS = {
     "no_narrow": lambda c: gatemarks.NO_NARROW,
     "no_narrow_min": lambda c: gatemarks.NO_NARROW_MIN,
     "recommend": lambda c: gatemarks.RECOMMEND,
-    "recommend_shape": lambda c: _recommend_shape(),
+    "recommend_answers": lambda c: " | ".join(gatemarks.RECOMMEND_ANSWERS),   # 推しの形（共通の断片 recommend-shape）の答えの語
+    "recommend_min": lambda c: gatemarks.RECOMMEND_MIN,
     "stuck_push": lambda c: converge.STUCK_PUSH,
     "item_cite": lambda c: converge.ITEM_CITE.format(n="n"),
     "policy_doc_fence": lambda c: policy.POLICY_DOC_FENCE,

@@ -19,7 +19,7 @@
 - COPY_FILE: 事前審査が自分の置き場へ控えを写す名（写しの design_file は写した行を指す）
 
 直しの後の実測の控え（盤面の根の structure-after.json。計画 2026-10-09-clean-whole の Task 2.5）: 線の直しの後の境の節が 1 回書き、
-報告・最後の関所・独立の目の頭・結末の残りの数え（report.rest_outside_validator）がこの 1 つのファイルだけを読む。
+報告・最後の関所・独立の目の頭・結末の残りの数え（line の src/facts.py の _after_rows）がこの 1 つのファイルだけを読む。
 形: {status: ok|failed, reason, after: <構造のブロックの after.json の中身か {}>, deviations: [修正案の外れの訳]}。
 - write_after(board_dir, …)・read_after(board_dir): 控えを書く・読む（無い・読めない・形が違うなら None）
 - after_rows(board_dir): 結末を fixed にしない残りの行 [{where, text}]（柵の表を持つ対象で、住処の外の知る場所が増えた所。
@@ -34,6 +34,7 @@ import pathlib
 
 import concepthome
 import eye   # ブロックの時間の欄（eye.wall）
+import jsonfile
 import listcut
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
 
@@ -59,10 +60,7 @@ def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped
 def read(path) -> dict | None:
     if not path:
         return None
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+    doc = jsonfile.read_or(path)
     return doc if isinstance(doc, dict) and doc.get("status") in ("ok", "failed") else None
 
 
@@ -152,10 +150,7 @@ def write_after(board_dir, *, status: str, reason: str, after: dict, deviations:
 
 
 def read_after(board_dir) -> dict | None:
-    try:
-        doc = json.loads((pathlib.Path(board_dir) / AFTER_FILE).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+    doc = jsonfile.read_or(pathlib.Path(board_dir) / AFTER_FILE)
     if not isinstance(doc, dict) or doc.get("status") not in ("ok", "failed") or not isinstance(doc.get("after"), dict):
         return None
     return doc

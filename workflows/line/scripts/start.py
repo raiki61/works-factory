@@ -277,7 +277,7 @@ def from_fixture(raw: dict, checked: dict, asked: dict, repo: Path, artifacts: P
     doc.update({"versions": versions_doc, **features(checked), "request_file": named,
                 gates.FINAL_KEY: checked[gates.FINAL_KEY], gates.UNATTENDED_KEY: checked[gates.UNATTENDED_KEY],
                 "input": {**startrec.shape(doc), "request_file": named}})
-    prior = (ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(shared:prior-failures.schema.json)")
+    prior = (ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(lib:prior-failures.schema.json)")
              if (artifacts / carry.PRIOR_IN_FILE).is_file() else None)
     return {**begun(doc, startrec.shape(doc), prior, raw, repo, artifacts, run_id,
                     ports.pointer(artifacts / fixture.CARRIED, "json(received.schema.json)")), "fixture_gate": fixture.pending(carried)}
@@ -345,7 +345,7 @@ def start(raw: dict, repo: Path, artifacts: Path, run_id: str) -> dict:
     prior = None
     if parts[carry.PRIOR]:
         carry.place_prior(artifacts, parts[carry.PRIOR])
-        prior = ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(shared:prior-failures.schema.json)")
+        prior = ports.pointer(artifacts / carry.PRIOR_IN_FILE, "json(lib:prior-failures.schema.json)")
     return begun(record, shape, prior, raw, repo, artifacts, run_id)
 
 

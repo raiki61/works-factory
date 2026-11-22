@@ -1,4 +1,4 @@
-"""名指しの形と場所の文の読みの住処 cite の試験（本物の cite・holeties・conflict・material を直に呼ぶ。FAST）"""
+"""名指しの形と場所の文の読みの住処 cite の試験（本物の cite を直に呼ぶ。FAST）"""
 import pathlib
 import subprocess
 import sys

@@ -8,7 +8,7 @@
 where＝材料の行の where の写し、why_outside＝目的の外とした理由）。写しの graph の型は欄を持てない（写しはバイト一致で縛られる）
 ので、役の型にだけ足し、受け付けが盤面へ渡す前に外して確かめる: where が盤面の材料の行（P1 の節の
 出力の where・text を持つ行と、今の周に積まれた依頼の行）のどれにも当たらなければ拒む。通れば当たった材料の行ごと盤面の根の
-FILE に周ごとに控え、判定の写し judgment.json に戻す。次の run の依頼（report.next_request）は最後の周に控えた材料の行の全部の欄を、
+FILE に周ごとに控え、判定の写し judgment.json に戻す。次の run の依頼（line の src/facts.py の next_request）は最後の周に控えた材料の行の全部の欄を、
 目的の外から運んだ印 MARK と下書きの印 draft・source つきで載せる（依頼の入口が拒むので、人が見直すまで次の run の目的に
 ならない）。この run では直さない。
 
@@ -127,7 +127,7 @@ def _read(board_dir) -> dict:
         return {"rounds": {}}
     try:
         doc = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as e:
+    except (OSError, ValueError) as e:   # UnicodeDecodeError は ValueError の下
         raise ValueError(f"目的の外の所見の控え {p} が読めない: {e}") from None
     if not (isinstance(doc, dict) and isinstance(doc.get("rounds"), dict)):
         raise ValueError(f"目的の外の所見の控え {p} の形が違う（rounds が要る）")

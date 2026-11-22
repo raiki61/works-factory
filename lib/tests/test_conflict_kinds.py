@@ -12,10 +12,9 @@
 - fix_plan_item の行の案の直しの状態（waiting・amended・gave_up。依頼 226）: 裁定で waiting に置き、set_replan の 1 か所で
   amended か gave_up に移す。amended の単位は直す義務に戻り、gave_up の行は ask_human の行として字のまま並ぶ。欄の無い前の形の
   行は waiting と読む
-- （fix の試験へ移った）修正役の受け付け（fixboard.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
-  食い違いの申し出の拒否（check conflict）にし、積まない（FixAcceptSeamCase。元 works/blk-fix/scripts/accept.py:319-333）
-盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git は FixAcceptSeamCase の
-受け付けが段の頭の木と版を引く小さなリポジトリだけ）。
+- （fix の試験 tests/blocks/fix/test_ruling.py へ移った）修正役の受け付け（fix の block の board.accept_reply）は、直す義務の外の単位の申し出と、申し出た単位を changes にも書いた返答を
+  食い違いの申し出の拒否（check conflict）にし、積まない（元 works/blk-fix/scripts/accept.py:319-333）
+盤面・子のプロセスは使わない（関数を直に呼ぶ。一時の置き場に種のファイルと控えを書くだけ。git も使わない）。
 """
 import json
 import pathlib
@@ -348,7 +347,7 @@ class TestReplanState(unittest.TestCase):
 
     def test_fix_place_is_chosen_in_one_place(self):
         """#368: 直しの在りかを種類と控えの欄から選ぶのは conflict.fix_place だけ。読み手は fix_place・place_words を引き、欄を直に見ない"""
-        direct = re.compile(r"\bconflict\.(REVERTED_FIELD|FIX_IN_DIFF|UNFIXED_LEFT|FIX_REVERTED|left_words)\b|QUERY_HITS_FIXED\s*\}")
+        direct = re.compile(r"\bconflict\.(REVERTED_FIELD|FIX_IN_DIFF|UNFIXED_LEFT|FIX_REVERTED)\b|QUERY_HITS_FIXED\s*\}")
         found = [f"{p.relative_to(LIB)}:{i}" for p in sorted(LIB.rglob("*.py"))
                  if p.relative_to(LIB).parts[0] != "tests" and p.name != "conflict.py"
                  for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line.split("#")[0])]

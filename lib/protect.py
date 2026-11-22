@@ -24,7 +24,7 @@ works 自身の試験・柵を書き換えられる（run 24 の修正役は Bas
 - lines(rows):         関所の文と盤面の問いに載せる 1 行ずつの文
 - shown(rows, key, where): ノードの出力に載せる行（先頭 listcut.SHOWN 行と、超える時は残りの 1 行）。key は全件を残した置き場のファイル
                        where の中の欄の名で、残りの行が一覧の名（LIST）とその欄を言う。当たりが何万本でも出力の行は増えない
-標準ライブラリと core の accept・globs・listcut だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
+標準ライブラリと lib の accept・globs・listcut だけ。git は repo を cwd にして呼ぶ（期限は足さない）。
 """
 import json
 import os
@@ -34,15 +34,15 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import accept  # noqa: E402
 import globs  # noqa: E402   glob の当て方の正本
 import listcut  # noqa: E402
 
-MANIFEST = _CORE / "protected.json"
+MANIFEST = _HERE / "protected.json"
 TARGET_FILE = ".works-protected.json"
 TARGET_ID = "target:"   # 宣言の行の id の頭（自分の一覧の id と混ざらない）
 TARGET_SELF = {"id": TARGET_ID + TARGET_FILE, "glob": TARGET_FILE,

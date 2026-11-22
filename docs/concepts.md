@@ -3,7 +3,7 @@
 
 状態: 2026-10-13（issue #254・PR #269）。今の works の地図（`works/docs/concepts.md`）の柵を持つ 31 の考えを 1 つずつ今の木に当て、住処が works-factory に在る考えと散らばりの考えは全部載せ、考えそのものが works-factory に無い物は下の「載せない考え」に訳を書いた。載せた考えの住処の外の当たりは、本当の漏れなら表の既知の漏れに件数と理由を置き、同じ字の別の考えに当たるだけなら語の形を狭めた。行のパスが今の木に在ることは人が見る（`docs/` の中のパスは機械が照らさない。`AGENTS.md` の E26）。まだ無い物は「予定」と書く。
 
-works-factory 自身の木に地図と表の全部を当てる試験は置かない（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）。考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。表の既知の漏れの件数は 2026-11-05 に今の木で数え直した（数えは `lib/conceptfence.py` の `scan` と `verdict`）。揃いを照らす試験は無いので、その後の差分でずれうる。
+works-factory 自身の木に地図と表の全部を当てる試験は置かない（`docs/design/README.md` の 9.4）。表 `docs/concepts.json` は、run の中で構造の目が対象の表として読む（works-factory 自身を直す run）。考えの住処は、block の `src/`・`lib/` の行の形のモジュール・`workflows/.shared/` の口（`docs/design/README.md` の 1.2・4.1）。表の既知の漏れの件数は 2026-11-05 に今の木で数え直した（数えは `workflows/structure/src/conceptfence.py` の `scan` と `verdict`）。揃いを照らす試験は無いので、その後の差分でずれうる。
 
 載せない考え（今の works の地図に在り、考えそのものが works-factory に無い。漏れの多さは載せない訳にしない）:
 
@@ -29,7 +29,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 - 知ってよい所（allowed places）: 住処のほかに、その考えの語・欄の名・値を書いてよい所。柵が照らす一覧は表 `docs/concepts.json` の `allowed` で、その全部を地図の行（住処・約束・知ってよい所）が字で名指す（試験が照らす）
 - 漏れ（leak）: 知ってよい所の外に、その考えの語・欄の名・値が書かれていること。漏れた所は、考えが変わった時に一緒に直す必要があるのに、誰もそれを知らない所になる
 - 散らばり: 住処の無い考え。同じ考えを複数の所がそれぞれの形で知っている状態
-- 柵（fence）: 漏れを見つける安い試験。考えの語の形（正規表現）と知ってよい所を表に書き、表の外で語が見つかったら赤にする。今ある漏れは「既知の漏れ」として件数と理由つきで表に置き、減らす向きにだけ動かす。分かれ目の表より考えや柵を消す・知ってよい所・`exclude`・`bound` を広げる・語の形を変えるのも赤で、意図した緩めは表の `loosened` に新しい `"<鍵>": "<理由>"` の行を足した時だけ通る。道具は `lib/conceptfence.py`
+- 柵（fence）: 漏れを見つける安い試験。考えの語の形（正規表現）と知ってよい所を表に書き、表の外で語が見つかったら赤にする。今ある漏れは「既知の漏れ」として件数と理由つきで表に置き、減らす向きにだけ動かす。分かれ目の表より考えや柵を消す・知ってよい所・`exclude`・`bound` を広げる・語の形を変えるのも赤で、意図した緩めは表の `loosened` に新しい `"<鍵>": "<理由>"` の行を足した時だけ通る。道具は `workflows/structure/src/conceptfence.py`
 - 状態: `住処あり`（住処が在り、柵を掛けられる）か `散らばり`（住処が無い）。どちらも柵を持つ
 - 数の歯止め: 散らばりの考えの柵。知ってよい所が空で、今その考えを知っている所を全部既知の漏れとして件数つきで表に置く。まとめるたびに数が減り、増やす差分は試験が赤にする。表そのものも、`origin/main` から分かれた所の表より既知の漏れの件数の和が増えない
 
@@ -170,7 +170,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 - 状態: 住処あり
 - 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・共有ボードで照らす `check_paths`）
 - 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`・`files`（ファイル構成の行。行の型 `FILES_SCHEMA`）・`depends_on`（欄の型と読みは `lib/planmarks.py`）
-- 知ってよい所: 住処と、glob の当て方の下回り `lib/globs.py`（`glob_match`・`glob_problem`・`globs_meet`）と、項目の欄の読みを持つ `lib/planmarks.py`（`glob_match` を呼ぶ `gaps`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `workflows/fix/src/scope.py`・手直しの受け付け `workflows/delta-review/src/touchup.py`・波及の照らし `workflows/plan/src/ripple.py` の `_covered`・穴の名札の path の規則 `lib/holeties.py`（`inside`）・修正の組分け `workflows/fix/src/board.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
+- 知ってよい所: 住処と、glob の当て方の下回り `lib/globs.py`（`glob_match`・`glob_problem`・`globs_meet`）と、項目の欄の読みを持つ `lib/planmarks.py`（`glob_match` を呼ぶ `gaps`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `workflows/fix/src/scope.py`・手直しの受け付け `workflows/delta-review/src/touchup.py`・波及の照らし `workflows/plan/src/ripple.py` の `_covered`・穴の名札の path の規則 `workflows/delta-review/src/holeties.py`（`inside`）・修正の組分け `workflows/fix/src/board.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
 - 今: 同じ当て方を手で書く所が残る（範囲の相談の `workflows/fix/src/consult.py`。`out_of_scope` に当たるパスを範囲から除く別の決まりで、`inside` に寄せると振る舞いが変わる。柵の表の既知の漏れ）。`lib/protect.py` は守りのファイルの型を同じ下回りで当てる別の考え
 
 ### `test-files` テストのファイルの見分け

@@ -1,4 +1,4 @@
-"""変更の周りの地図（.shared/core/impact.py）と、その土台の写し（.shared/core/changemap.py）の検査。
+"""変更の周りの地図（lib/impact.py）と、その土台の写し（lib/changemap.py）の検査。
 
 - 写し: changemap.py は attention の変更の地図の部品（attention/scripts/lib/changemap.py）のバイト単位の写しで、
   COPIED_FROM.changemap の 1 行目の commit と同じ（手直しは台帳の ! 行だけ）

@@ -1,18 +1,15 @@
-"""考えの住処の柵を、対象のリポジトリの変更に当てる口（lib/conceptfence.py の tables・places・scan_change。
+"""考えの住処の柵を、対象のリポジトリの変更に当てる口（workflows/structure/src/conceptfence.py の tables・places・scan_change。
 計画 2026-10-09-clean-whole の Task 2.2）。種の git は gitkit の型の写し（試験ごとに作らない）"""
 import json
 import pathlib
 import shutil
-import sys
 import tempfile
 import unittest
 
-LIB = pathlib.Path(__file__).resolve().parents[1]
-sys.dont_write_bytecode = True
-if str(LIB) not in sys.path:
-    sys.path.append(str(LIB))
-import conceptfence as cf  # noqa: E402
-from tests.bin.gitkit import committed_copy, git  # noqa: E402
+from tests.bin.gitkit import committed_copy, git
+from tests.blocks import kit
+
+cf = kit.load("structure", "conceptfence")
 
 TABLE = {"about": "種", "exclude": ["tests/**"], "concepts": {
     "word": {"status": "住処あり", "fences": [{"what": "語", "pattern": r"\bWORD\b", "allowed": ["home.py"],

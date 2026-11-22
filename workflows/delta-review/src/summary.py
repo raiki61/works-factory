@@ -7,7 +7,6 @@ import pathlib
 import ports
 
 import gatemarks  # lib/。HANDLED_WORDS
-import holeties  # lib/
 import jsonfile  # lib/
 import leftovers  # lib/
 import lens  # lib/
@@ -15,7 +14,7 @@ import oneline  # lib/
 import rolekit  # lib/
 import unittrees  # lib/
 
-from src import files, touchup
+from src import files, holeties, touchup
 
 STATUSES = ("ok", "gave_up", "failed")
 BRANCH_HEAD = "差分の審査の穴の枝（機械が修正案の項目に結んだ名札。手直しの役にも同じ名札を渡した）"   # 1 回目の往復の頭

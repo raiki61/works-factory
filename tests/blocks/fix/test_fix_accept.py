@@ -11,7 +11,7 @@
    - 直す義務の正本（src/board.py の fix_duty・nothing_owed_but_excused）と最後の回の拒否の行の結び（src/parking.py の settle の declared）
    - 直す義務の集合を消費する所の入口（rules.owed_values・board.fix_duty・tdd.start・gates._accept_tests）から作って突き合わせる
 2. 継ぎ目（SeamTemp・_s_ の名）: lib/tests/test_fix_seams.py の FixAcceptSeamCase・SettleOverflowSeamCase・OverflowTraceSeamCase・
-   FactchecksSeamCase・FixgatesSeamCase・ScopeTextSeamCase・PlanrangeSeamCase・GateItemsSeamCase。RecountSeamCase は受け付け
+   FactchecksSeamCase・FixgatesSeamCase・ScopeTextSeamCase・GateItemsSeamCase（PlanrangeSeamCase は lib 側の同じ試験に寄せて消した）。RecountSeamCase は受け付け
    （board.accept_reply）を通す振る舞いの試験に作り直した（10 節の 7）
    - 受け付け（board.accept_reply）: 単位の行・申し出・範囲・閉鎖の数え直し・写しの照らし・最後の回の諦め・はみ出しの相談
    - 書き込みの出どころ（board.undeclared_writes。keep-essence の 5）
@@ -2281,64 +2281,12 @@ def _fix_ok() -> dict:
             "interactions": [{"surface": "stats.py", "checked": "mean と clamp は別の関数で、順序を入れ替えても結果が同じ"}]}
 
 
-class PlanrangeSeamCase(unittest.TestCase):
-    """planrange の継ぎ目: 承認済みの修正案の項目は値 items で受け、合意と裁定は置き場（conflict と同じ置き場）から読む"""
-
-    ITEMS = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["stats.py"], "tests": [], "rewrite_tests": [],
-              "out_of_scope": [{"glob": "vendored/**", "why": "外の写し"}]}]
-
-    def setUp(self):
-        import planrange
-        self.conflict, self.planrange = conflict, planrange
-        self.b = _s_load().board
-        self.place = hermetic.tmpdir(self)
-
-    def test_outside_the_items_range_is_rejected_inside_passes(self):
-        pr = self.planrange
-        lines, rec = pr.check_paths(self.place, ["stats.py"], items=self.ITEMS)
-        self.assertEqual((lines, rec), ([], {"checked": True, "items": [1]}))
-        lines, rec = pr.check_paths(self.place, ["stats.py", "other.py", "vendored/x.py"], items=self.ITEMS)
-        self.assertTrue(rec["checked"])
-        self.assertEqual(len(lines), 2, lines)
-        self.assertTrue(any("other.py" in x and "allowed_paths" in x for x in lines), lines)
-        self.assertTrue(any("vendored/x.py" in x and "out_of_scope" in x for x in lines), lines)
-
-    def test_trailing_slash_scope_globs_cover_paths_underneath(self):
-        """末尾 / の allowed_paths・out_of_scope の glob は、その下の全部に効く（前は何にも当たらず、範囲が空・柵が空だった）"""
-        items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["lib/"], "tests": [], "rewrite_tests": [],
-                  "out_of_scope": [{"glob": "lib/vendored/", "why": "外の写し"}]}]
-        lines, rec = self.planrange.check_paths(self.place, ["lib/x.py", "docs/x.md", "lib/vendored/y.py"], items=items)
-        self.assertTrue(rec["checked"])
-        self.assertEqual(len(lines), 2, lines)
-        self.assertFalse(any("lib/x.py" in x for x in lines), lines)
-        self.assertTrue(any("docs/x.md" in x and "allowed_paths" in x for x in lines), lines)
-        self.assertTrue(any("lib/vendored/y.py" in x and "out_of_scope" in x for x in lines), lines)
-
-    def test_unchecked_without_a_scoped_plan(self):
-        pr = self.planrange
-        self.assertEqual(pr.check_paths(self.place, ["x.py"], items=None), ([], {"checked": False, "why": pr.NO_PLAN}))
-        self.assertEqual(pr.check_paths(self.place, ["x.py"], items=[{"item": 1}]),
-                         ([], {"checked": False, "why": pr.NO_SCOPE}))
-        self.assertEqual(pr.approved(self.ITEMS), (self.ITEMS, ""))
-
-    def test_agreed_and_ruled_paths_widen_from_the_place(self):
-        c, pr = self.conflict, self.planrange
-        self.b.trace(self.place, c.ASKED_OP, id="a1", item=1, status="answered", decision="allow",
-                       granted_paths=["docs/x.md"])
-        c.park(self.place, [CLAIM], source=c.FIX_SOURCE)
-        c.apply_rulings(self.place, {"c1-1": {"decision": "fix_code_as", "text": "設定のファイルも直してよい",
-                                              "limits": ["conf.ini"]}}, by="t")
-        self.assertEqual(pr.check_paths(self.place, ["docs/x.md", "conf.ini"], items=self.ITEMS)[0], [])
-        lines, _ = pr.check_paths(self.place, ["conf.ini"], items=self.ITEMS, ruled=False)
-        self.assertTrue(any("conf.ini" in x for x in lines), lines)
-        self.assertEqual(pr.permit_paths(self.place, ruled=True), ["conf.ini"])
-
-
 class ScopeTextSeamCase(SeamTemp):
     """#570: 役の指示に貼る範囲の行（rules.scope_rows）は、受け付けが照らす値（planrange.scope）と同じ関数から引く。貼った
     具体のパスは照らしが通し、貼っていないパスと out_of_scope は拒む。引数を変えれば節と照らしが揃って動く"""
 
-    ITEMS = PlanrangeSeamCase.ITEMS
+    ITEMS = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["stats.py"], "tests": [], "rewrite_tests": [],
+              "out_of_scope": [{"glob": "vendored/**", "why": "外の写し"}]}]
 
     def setUp(self):
         super().setUp()

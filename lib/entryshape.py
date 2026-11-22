@@ -1,10 +1,10 @@
 """入口の変換（考え entry-kind の住処の core の側。層 L3）。入口の生の入力を 1 つの入力の形に揃える。
 
 持ち主の決め（2026-10-09）: 「依頼と変更と PR と抽象化するとやることは同じはず…どの入り口でも最終的に環境変数に何をセットするの
-かだけ」。入口の種類（依頼のファイルだけ・差分の根 base・PR）を知るのは、生の事実を集める殻（dev/use.sh・dev/dogfood.sh）と、
-線の最初のブロックである入口のブロック（起動の関所と節 open）だけで、その節 open の中身（core の entry.start）が入口の種類に
-触れる所はこのモジュールに集める。ほかのモジュール・ブロック・境の節は、ここが作る入力の形（欄 input。約束は入口のブロックの
-schemas/input.schema.json）の中身——差分が空か・依頼の行の数・PR の添え物・仕様の段を挟むか——だけを読み、入口の種類を見ない
+かだけ」。入口の種類（依頼のファイルだけ・差分の根 base・PR）を知るのは、生の事実を集める殻（bin/ の起動の殻）と、
+線の最初のブロックである入口のブロック（起動の関所と節 open）だけで、その節 open の中身（line の scripts/start.py の start）が入口の種類に
+触れる所はこのモジュールに集める。ほかのモジュール・ブロック・境の節は、ここが作る入力の形（欄 input。約束は line の
+schemas/start-record.schema.json の欄 input）の中身——差分が空か・依頼の行の数・PR の添え物・仕様の段を挟むか——だけを読み、入口の種類を見ない
 （表 docs/concepts.json の柵 entry-kind が、入口の種類の語を読む所をこのモジュールとメイングラフの start に縛る。柵が本物の木に
 当たるかを照らす試験は無い）。
 
@@ -258,7 +258,8 @@ def _worktree_tree():
     当たるファイルは `add -A` に拾われず、版から落ちて『削除』に見えた（実測 2026-09-25: 別のリポジトリの run で、判定役が
     これを根拠に誤った [block] を出した）。写しは stat の情報も持つので、`add -A` は変わったファイルだけをハッシュする。
     写しの上で `--really-refresh` を打つのは assume-unchanged の印を外すため——印を持ったままだと、git はそのファイルを
-    見ずに古い中身で版を作る。本物の index は読むだけで書かない"""
+    見ずに古い中身で版を作る。本物の index は読むだけで書かない。
+    materialkit.worktree_tree と違い skip-worktree の印は外さない（揃えると入口の差分の測りの木の id が変わりうるので揃えない）"""
     tmp = tempfile.mkdtemp(prefix="graphloops-index-")
     idx = pathlib.Path(tmp) / "index"
     env = {"GIT_INDEX_FILE": str(idx)}

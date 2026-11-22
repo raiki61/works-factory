@@ -49,12 +49,12 @@ import urllib.parse
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように（必ず import より前）
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
-if str(_CORE / "graphloops") not in sys.path:
-    sys.path.insert(0, str(_CORE / "graphloops"))
+if str(_HERE / "graphloops") not in sys.path:
+    sys.path.insert(0, str(_HERE / "graphloops"))
 from listcut import FILE_CAP, cap_bytes  # noqa: E402
 from engine.util import Reject  # noqa: E402
 import accept  # noqa: E402

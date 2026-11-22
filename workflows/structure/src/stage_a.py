@@ -2,7 +2,7 @@
 _sections・_rel・HEADING の写し）。
 
 - read_units(path): 単位のファイル（JSON の配列で、各行は {id, paths, summary}）を読み、形を確かめて返す。読めない・形が違うなら ValueError
-- measure_unit(unit, root): 単位の paths を lib/measure.py にコマンドとして渡し（import しない）、
+- measure_unit(unit, root): 単位の paths を src/measure.py にコマンドとして渡し（import しない）、
   {id, summary, paths, status, reason, measure} を返す。status は measured か failed（実測が落ちても例外にしない）
 - find(root): 対象の柵の表と地図を探す（投げない）
 - concepts(root, paths, found): 単位のパスに当たる考えの地図の行と、単位のファイルの知る場所の数
@@ -10,19 +10,18 @@ _sections・_rel・HEADING の写し）。
 from __future__ import annotations
 
 import fnmatch
-import importlib.util
 import json
 import pathlib
 import re
 import subprocess
 import sys
 
-import conceptfence   # lib/
 import concepthome    # lib/
 
+from src import conceptfence
 from src.intent import TEXT_CAP   # 地図の 1 行の字の上限（目の指示を小さく保つ。切ったら印を付ける）
 
-MEASURE = pathlib.Path(importlib.util.find_spec("measure").origin)   # lib/measure.py をコマンドとして起こす
+MEASURE = pathlib.Path(__file__).with_name("measure.py")   # src/measure.py をコマンドとして起こす（import しない）
 REASON_TAIL = 2000
 HEADING = re.compile(r"^### `([^`]+)`")
 

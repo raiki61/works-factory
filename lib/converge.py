@@ -41,7 +41,7 @@ note_plan の無い控え（行に items が無い）は今までどおり全体
   後の回の審査の材料の差分（plan-review の material）と、新しい block の出自の文の照らし（_origins）が同じ組を引く
 - read(b)・pass_no(b)・note_answers(b, answers)・record_pass(b, review, ...)・stash_rejects(b, rows)・held(doc):
   控えの読み書き
-- held・filled_units・splice・answer_gaps・revise_section は盤面でなく控え（read の形の dict）を取る（盤面を持つ呼び手は
+- held・filled_units・splice・answer_gaps は盤面でなく控え（read の形の dict）を取る（盤面を持つ呼び手は
   read(b) を渡す）。add_pass（record_pass の往復の行を足す半分）・plan_rows（note_plan の行）と共に、盤面を持たない呼び手
   （line の rounds。周ごとのファイルから控えを組み直す）も使う
 - note_plan(b, rows)・open_items(b)・filled_units(doc)・splice(doc, rows)・item_id・item_hash: 項目の控え・次に審査する項目の番号・
@@ -762,12 +762,13 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
             if it["n"] in (refs or {}):
                 it["refs"] = list(refs[it["n"]])
         row["synergy"] = list(synergy or [])
+    new = [key for key in blocks if key not in earlier] if passes else []   # この往復で初めて挙がった block の key
     row["origins"], row["origins_claimed"] = _origins(
-        [key for key in blocks if key not in earlier] if passes else [], origins if isinstance(origins, list) else [],
+        new, origins if isinstance(origins, list) else [],
         rows=row.get("items") or [], prev=list(_last_items(doc).values()), face_units=row.get("face_units") or {},
         earlier=earlier, earlier_units={key: units for p in passes for key, units in (p.get("face_units") or {}).items()},
         resolved=list(resolved))
-    take_flips(row, passes, origins, [key for key in blocks if key not in earlier] if passes else [])
+    take_flips(row, passes, origins, new)
     passes.append(row)
     row["outcome"] = decide(passes)
     if at_cap and row["outcome"] == AGAIN:   # 輪がもう 1 周回せない: 抜けないと輪が尽きて節が落ちるので、ここで止める
@@ -876,7 +877,7 @@ def stray_resolved(doc: dict, resolved, n: int | None = None) -> list[str]:
 
 def owed_faces(doc: dict, p: dict) -> list[dict]:
     """控え doc の往復の行 p について、次の往復で答えと照らしが要る穴の行 [{key, severity, kind, where, why, unit_keys}]
-    （答えの要る穴の正本。answer_gaps・resolved_gaps・revise_section・review_section・item_blocks と plan-review の下請けのファイルが
+    （答えの要る穴の正本。answer_gaps・resolved_gaps・item_blocks と plan-review の材料と下請けのファイルが
     これを引き、block の字と項目の state を自分では持たない）。中身は p の穴（_pass_faces）のうち、block の全部と、doc のどの往復の
     resolved にも入っていない suggest（審査が消えたと言った suggest は持ち越しの写しが後の往復の faces に残っても、答えも照らしも
     開き直さない）。どちらも今の開いた項目で絞る: face の unit_keys が

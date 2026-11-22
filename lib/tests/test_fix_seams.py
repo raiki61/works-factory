@@ -229,8 +229,7 @@ def _fix_ok() -> dict:
 
 class RecountSeamCase(TempCase):
     """recount.accept_fix: 受け付けの時に数え直しの欄を照らす（元 works/tests/test_blk_fix.py の TestRecount・
-    test_fix_accept_all.py の DryTakeCase の場合を写した。盤面の代わりに判定の units・直す義務・修正前の版を引数で渡す）。
-    fixboard.fix_reply は置き場のファイルで読む"""
+    test_fix_accept_all.py の DryTakeCase の場合を写した。盤面の代わりに判定の units・直す義務・修正前の版を引数で渡す）"""
 
     def setUp(self):
         super().setUp()
