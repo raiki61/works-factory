@@ -1,0 +1,1 @@
+Your tools are Read, Grep, Glob, Bash, WebSearch, and WebFetch. Bash runs inside a sandbox, and its network is open. Make any copy you need for running things in a temporary folder (create it with `mktemp -d`); the wrapper stops writes to the target's working tree.
