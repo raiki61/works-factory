@@ -12,7 +12,7 @@ import pathlib
 import unittest
 from unittest import mock
 
-from tests.bin.itemshape import missing_required, undeclared
+from tests.bin.itemshape import missing_required, schema_key_diffs, undeclared
 from tests.blocks import kit
 
 BLOCK = "line"
@@ -130,16 +130,34 @@ class FactsCase(unittest.TestCase):
                          "試験のコマンドの注意の種の行 1 つ。本文は行の全文")
         self.assertEqual(got["left"], [])
 
+    NESTED = (("waits", "Waits"), ("head", "Head"), ("apply", "Apply"), ("carry", "Carry"), ("stop_lines", "StopLines"),
+              ("outcome_parts", "OutcomeParts"), ("decisions", "Decisions"))
+    # 落ちた時に既定の dict を使う部分（build の part の default が dict の物）。関数の名 → facts の鍵
+    FALLING = (("wait_rows", "waits"), ("apply_of", "apply"), ("stop_lines", "stop_lines"), ("outcome_parts", "outcome_parts"),
+               ("decisions", "decisions"))
+
+    def assert_facts_keys(self, got):
+        self.assertEqual(missing_required(self.f.Facts, got), set())
+        self.assertEqual(undeclared(self.f.Facts, got), set())
+        for key, name in self.NESTED:
+            td = getattr(self.f, name)
+            self.assertEqual(missing_required(td, got[key]), set(), key)
+            self.assertEqual(undeclared(td, got[key]), set(), key)
+
     def test_facts_type_keys_match_what_build_makes(self):
-        """Facts（TypedDict）の鍵が build の作る鍵と合う（鍵をずらす・落とすと赤）。入れ子の型も同じに照らす"""
+        """Facts（TypedDict）の鍵が build の作る鍵と合う（鍵をずらす・落とすと赤）。入れ子の型も同じに照らす。部分の関数が落ちて既定の dict を
+        使う筋も同じに照らす（既定の dict の鍵の改名・削除を拾う）"""
         for name, got in (("passing", self.build(passing())), ("empty", self.build({}, {}))):
             with self.subTest(name):
-                self.assertEqual(missing_required(self.f.Facts, got), set())
-                self.assertEqual(undeclared(self.f.Facts, got), set())
-                for key, td in (("waits", self.f.Waits), ("head", self.f.Head), ("apply", self.f.Apply), ("carry", self.f.Carry),
-                                ("stop_lines", self.f.StopLines), ("outcome_parts", self.f.OutcomeParts), ("decisions", self.f.Decisions)):
-                    self.assertEqual(missing_required(td, got[key]), set(), key)
-                    self.assertEqual(undeclared(td, got[key]), set(), key)
+                self.assert_facts_keys(got)
+        for fn, _ in self.FALLING:
+            with self.subTest(f"{fn} が落ちた"), mock.patch.object(self.f, fn, side_effect=RuntimeError("boom")):
+                self.assert_facts_keys(self.build(passing()))
+
+    def test_facts_type_keys_match_schema(self):
+        """Facts（入れ子の TypedDict も）の鍵の組が facts.schema.json の properties（入れ子も）と同じ（schema にだけ在る欄・型にだけ在る欄が赤）"""
+        schema = json.loads(FACTS_SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(schema_key_diffs(self.f.Facts, schema), [])
 
     def with_request(self, doc=None, *, path="start/request.json", raw=None, other=None):
         """始めの節の ports.request に依頼の写し（doc を書いた path）の pointer を置いた collect の入力。other は request-in の返りの写し"""
