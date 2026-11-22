@@ -282,9 +282,9 @@ def parse_etime(s):
         return None
 
 
-def _ps_all():
+def ps_all():
     """全プロセスの表 ——({pid: _Proc}, None)。読めなければ (None, 理由)。開始時刻は ps を起こす**前**の時刻から etime を
-    引く（後から引くと ps の遅れが開始時刻に乗り、番号の再利用の見分けを誤る）。本線 role_run._ps_all の写し"""
+    引く（後から引くと ps の遅れが開始時刻に乗り、番号の再利用の見分けを誤る）。本線 role_run._ps_all の写し。bin/_lib/runstop.py も呼ぶ"""
     now = time.time()
     try:
         r = subprocess.run([PS, "-A", "-o", "pid=,ppid=,pgid=,uid=,etime=,stat="], stdin=subprocess.DEVNULL,
@@ -303,9 +303,6 @@ def _ps_all():
     return rows, None
 
 
-ps_all = _ps_all   # 外（bin/_lib/runstop.py）から呼ぶ名。元の名は本線の写しのまま残す
-
-
 def _tree_members(pgid, known=None, born=None):
     """木の仲間を数え上げる ——({pid: _Proc}, 理由)。表が読めなければ (None, 理由)。本線 role_run._tree_members の写し。
     拾う印は 3 つ: pgid が長の番号・セッションの番号が長の番号（長は setsid で起こしてある）・その 2 つと known（前の回に
@@ -314,7 +311,7 @@ def _tree_members(pgid, known=None, born=None):
     （グループもセッションも在る限り番号は再利用されない）ので、グループとセッションでは拾わない。
     呼んだ自分と自分の祖先は数えない。セッションの番号を読めない同じ利用者のプロセスが在れば、仲間かを決められないと
     理由を返す"""
-    rows, why = _ps_all()
+    rows, why = ps_all()
     if rows is None:
         return None, why
     uid, sessions, unreadable = os.getuid(), {}, []
