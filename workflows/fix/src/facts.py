@@ -37,7 +37,7 @@ if __name__ == "__main__":   # 修正役が事前の確かめのコマンドと�
 from src import consult  # noqa: E402   範囲の相談の控え（同じ block の src）
 import conflict  # noqa: E402
 from src import board as fixboard  # noqa: E402  （直す義務・突き合わせの起点の版・承認済みの修正案の項目の読み口）
-from src import scope as planscope  # noqa: E402
+from src import scope  # noqa: E402
 import recount  # noqa: E402  （書いた指しの照らし。受け付けと同じ口）
 from src import basecase, common  # noqa: E402
 import writelog  # noqa: E402
@@ -160,19 +160,19 @@ def frozen_tests(board, record, pass_: str) -> dict:
 
 def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: Path, record: str, pass_: str,
                      agreed=None, ask=None, since=None, *, items=None, consult_place=None) -> tuple:
-    """承認済みの修正案の項目と差分の照らし（planscope.check）。行は changes と keys（単位の名前）を並べ、files を根からの相対に
+    """承認済みの修正案の項目と差分の照らし（scope.check）。行は changes と keys（単位の名前）を並べ、files を根からの相対に
     揃えた物。変わったパスは版からの変更（writes.changed）と since からの変更（版と同じ中身に戻した・版に無く since の後に消した
     ファイルも修正役に問う）の和から、実行器が作ったファイル（common.suite_made）を除いた物。TDD の輪が
-    凍らせたファイル（輪の記録の frozen と frozen_tree）は planscope.check に渡し、欠けは版からの
+    凍らせたファイル（輪の記録の frozen と frozen_tree）は scope.check に渡し、欠けは版からの
     差分の全部で、修正役に問う外れと余分は凍った後に変えた分だけで見させる。
-    返り (拒否の行（最初の行の頭に planscope.reject_head）, 記録)。盤面は書かない（控えの食い違いで止めるのは planscope.check）。
+    返り (拒否の行（最初の行の頭に scope.reject_head）, 記録)。盤面は書かない（控えの食い違いで止めるのは scope.check）。
     items は承認済みの修正案の項目（planmarks.approved_items の形の値か口。修正案の無い run は None で、照らさない）。
     頭は、範囲の相談がこの段に在れば相談を先の道に言う。ask が None なら consult_place（相談の控えの在るフォルダ）の控えで決める
     （consult.offered。None なら言わない）。
     凍らせたファイルと実行器が作ったファイルは run の全部の輪の物（_loop_freeze・common.suite_made_all）で、凍った後は一番後の
     輪の frozen_tree から見る（前の輪の後に 1 回目の段と後の輪が書いた物を、2 回目の修正役のせいにしない）。
     since は修正役が変え始めた木（受け付けと事前の確かめは fixboard.fixer_head の段の頭）: 欠けは版からの差分の全部で見て、
-    修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（planscope.check。
+    修正役に問う外れと余分は since の後に変えた分（git の比べ）だけで見る（scope.check。
     輪が直し終えた単位を修正役が変えずに返しても欠けにしない。段の頭より前に変わったファイルを out_of_scope で照らさない。
     run 97fd532f）"""
     b = board
@@ -182,12 +182,12 @@ def check_plan_scope(reply: dict, keys: list, board: Path, base_rev: str, repo: 
     after = set(writes.changed_from(repo, since)) if since else None
     paths = sorted(p for p in set(writes.changed(repo, rev)) | (after or set()) if p not in made)
     tree, frozen = (since, paths) if since else _loop_freeze(board, record)
-    problems, note = planscope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen, touched=after,
+    problems, note = scope.check(rows, b, repo, rev, paths, pass_=pass_, loop_tree=tree, frozen=frozen, touched=after,
                                      agreed=agreed, items=items)
     if problems:
         if ask is None:
             ask = consult.offered(consult_place, pass_)
-        problems = [planscope.reject_head(ask) + problems[0], *problems[1:]]
+        problems = [scope.reject_head(ask) + problems[0], *problems[1:]]
     return problems, note
 
 
@@ -220,10 +220,10 @@ def precheck(cfg: dict, reply=None, *, items=None, skip: tuple = ()) -> dict:
     wrote = check_writes(reply, board, base_rev, repo, record, log=log, since=since, skip=skip)
     found += [("writes", t) for t in wrote["problems"]]
     keys = [c.get("unit_key") for c in wrote["reply"].get("changes") or [] if isinstance(c, dict)]   # 返答は単位の名前で書く
-    scope, _ = check_plan_scope(wrote["reply"], keys, board, base_rev, repo, record,
-                                pass_, agreed=agreed, ask=True, since=since,
-                                items=items)
-    found += [("scope", t) for t in scope]
+    outside, _ = check_plan_scope(wrote["reply"], keys, board, base_rev, repo, record,
+                                  pass_, agreed=agreed, ask=True, since=since,
+                                  items=items)
+    found += [("scope", t) for t in outside]
     found += [("refs", t) for t in recount.ref_problems(wrote["reply"], board, fixboard.base_rev_of(board, base_rev), repo)]
     return {"ok": not found, "rejects": [{"check": c, "text": t} for c, t in found]}
 

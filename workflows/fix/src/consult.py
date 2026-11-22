@@ -584,7 +584,7 @@ def load_config(path) -> dict:
 
 def offered(place, pass_: str) -> bool:
     """置き場 place にこの段（pass_）の相談の控えが在り、項目が在るか（支度の節が相談の節を指示書に載せた段）。控えに段の名が
-    無ければどの段にも効く。受け付けが拒否の文で相談を先の道に言うかを決める（planscope.reject_head）"""
+    無ければどの段にも効く。受け付けが拒否の文で相談を先の道に言うかを決める（scope.reject_head）"""
     if not place:
         return False
     doc = _read_json(pathlib.Path(place) / CONFIG)

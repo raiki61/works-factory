@@ -2458,7 +2458,7 @@ def _overflow_items(place) -> list:
 
 def gather_overflow(scope_note, frozen, gates: list, place, rev: str, repo) -> list:
     """受け付けが見つけた、相談に回せるはみ出し [{line, item, paths, tests, new_tests, ref}]。入口は 3 つで、見分けは持ち主が持つ:
-    範囲の持ち主 planscope の記録 overflow、凍結の持ち主 tddloop の頼み（check_frozen の asks）、事後の関門の持ち主 fixgates の
+    範囲の持ち主 scope の記録 overflow、凍結の持ち主 tddloop の頼み（check_frozen の asks）、事後の関門の持ち主 fixgates の
     test_edits の行（fixgates.overflow_asks）。ここは束ねるだけ。rev は修正前の版。元 works/blk-fix/scripts/accept.py:505"""
     from src import gates as fixgates
     import planrange
@@ -2530,7 +2530,7 @@ def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> Non
 def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: str, reverted, trail: dict, pass_: str,
                     again, ask: bool = True):
     """はみ出しの行だけの回の道筋の選び。返りは出口の dict（積んだ {ok: False, queued: True, count: false, …}・戻して通し直した返り）か、拒む時は
-    None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（planscope の overflow・fixgates.overflow_asks・
+    None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（scope の overflow・fixgates.overflow_asks・
     common.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・common.restore_paths・
     common.restore_tests・_without_rows が持ち、ここは選ぶだけ:
     - 戻したのにまだ行が残る物（reverted に在る）は『はみ出しを戻せない』
