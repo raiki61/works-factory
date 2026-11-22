@@ -15,6 +15,7 @@ docs/design/independent-design.md）。設計の役の入力は目的の文と�
                  次の行の下線・上線と下線。.md・.markdown は囲いの外の # の見出し）で切る。貼る見出しに出どころのパス:行を添える。引けなかった・結び付けられなかった名指しは理由の
                  1 行で withheld。1 節は engine が役に貼る本文の上限 FILE_CAP バイトまで。超えた残りは行の範囲で withheld）と
                  repo_map（対象のリポジトリの根の MAP_NAMES を地図として毎回貼る。無ければ「地図なし」の 1 行と withheld）
+- premise_material(view, repo): human_answers・named_sections・repo_map を呼び、返りの本文から頭（見出しと頼みの文の 2 段落。# が 3 つの見出しで始まる時だけ）を外した材料 {answers, named, map, ledger}（independent-design と r2 の 2 つの block が呼ぶ）
 - claims_unpassed: R2 の返答のうち『渡されていない』『渡っていない』と書いた文（独立の目の出口が控えと並べる）
 - head_file(repo, path): 名指しのパスを固めた版 HEAD の追跡ファイルに解く（根から無ければ末尾の一致がただ 1 本の時だけ。独立設計の支度の印も引く）
 - anchors・anchor_misses・anchor_note: 問いが立たない根拠の文の名指し（パス:行。拡張子が ANCHOR_EXT の物）を拾い、固めた版で検算し、
@@ -61,6 +62,7 @@ import answer  # noqa: E402
 import cite  # noqa: E402
 import impact  # noqa: E402
 import planmarks  # noqa: E402
+from rolekit import BoardGap  # noqa: E402
 
 DESIGN_FILE = "design.json"             # 受け付けた設計の返答（盤面の根。run に 1 つ）
 MISSING = "独立設計が取れなかった"
@@ -416,6 +418,41 @@ def repo_map(repo) -> tuple:
         if not withheld:
             withheld.append({"kind": "repo_map", "what": "・".join(MAP_NAMES), "why": "対象のリポジトリの根に追跡されていない"})
     return "\n\n".join(parts), given, withheld
+
+
+# ---------------------------------------------------------------- 前提の材料（independent-design と r2 が使う）
+LIB_HEAD = re.compile(r"### [^#\n]")   # lib の節の見出し（3 つの # と空白。本文の見出しは # が 4 つ以上なのでこれに当たらない）
+
+
+def _premise_body(text: str, what: str) -> str:
+    """lib が組んだ節の本文 text から頭（見出しと頼みの文の 2 段落）を外した材料。見出しと頼みの文は共通の断片 prompts/design-premises.md が
+    持つので、lib の字は読まない（頭の形だけで見分ける）。頭が無い本文（頭を md へ出した後の lib）はそのまま。空の節は空"""
+    if not text:
+        return ""
+    if not LIB_HEAD.match(text):
+        return text
+    parts = text.split("\n\n", 2)
+    if len(parts) < 3:
+        raise ValueError(f"{what} の本文に見出しと頼みの文の後ろの材料が無い")
+    return parts[2]
+
+
+def premise_material(view, repo) -> dict:
+    """{answers, named, map, ledger}。answers・named・map は材料の字（答えの行・抜き出した本文・地図の本文。無ければ空）。
+    ledger は {given, withheld, seen}（貼った入力の控え。kind は PREMISE_KINDS の中だけ）"""
+    human, rows, machine, seen = human_answers(view)
+    named, named_given, named_withheld = named_sections(view, repo)
+    mapped, map_given, map_withheld = repo_map(repo)
+    given = [{"kind": "human_answer", "what": r} for r in rows] + named_given + map_given
+    outside = sorted({g["kind"] for g in given} - set(PREMISE_KINDS))
+    if outside:   # 一覧の外の源（ほかの block の出力など）から貼る口を作らない
+        raise BoardGap(f"独立設計に渡す入力の種類が許す一覧（{' / '.join(PREMISE_KINDS)}）の外: {', '.join(outside)}")
+    withheld = ([{"kind": "human_item", "what": m, "why": "answer の無い行（機械が積んだ。人の答えでない）"} for m in machine]
+                + named_withheld + map_withheld)
+    return {"answers": _premise_body(human, "承認ノードの答え"),
+            "named": _premise_body(named, "依頼が名指した部分"),
+            "map": _premise_body(mapped, "地図"),
+            "ledger": {"given": given, "withheld": withheld, "seen": seen}}
 
 
 def claims_unpassed(reply) -> list:

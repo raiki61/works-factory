@@ -329,35 +329,31 @@ class AcceptCase(_RepoCase):
 
 class PremisesCase(_RepoCase):
     def test_kinds_outside_the_allowlist_fall(self):
-        premises = kit.load("independent-design", "premises")
-        design = premises.design
         view = self.steps.r2_view("", [])
-        with unittest.mock.patch.object(design, "repo_map", return_value=("x", [{"kind": "judgment", "what": "w"}], [])):
-            with self.assertRaises(premises.BoardGap):
-                premises.material(view, self.run.repo)
+        with unittest.mock.patch.object(self.steps.design, "repo_map", return_value=("x", [{"kind": "judgment", "what": "w"}], [])):
+            with self.assertRaises(self.steps.rolekit.BoardGap):
+                self.steps.design.premise_material(view, self.run.repo)
 
     def test_the_head_is_cut_by_its_shape_not_by_the_libs_words(self):
         """lib の見出しと頼みの文の字を読まずに、頭（# が 3 つの見出しと頼みの 2 段落）を外す。頭の無い本文（頭を md へ出した後の lib）はそのまま。
         頭だけで材料が無い本文は誤り（黙って頭を貼り直さない）"""
-        premises = kit.load("independent-design", "premises")
         view = self.steps.r2_view("", values.ANSWERS)
-        self.assertTrue(premises.material(view, self.run.repo)["answers"].startswith("- 周 1"))
+        self.assertTrue(self.steps.design.premise_material(view, self.run.repo)["answers"].startswith("- 周 1"))
         reworded = ("### 違う見出し\n\n違う頼み\n\n- 周 1", ["周 1"], [], {"count": 1, "last_round": 1})
-        with unittest.mock.patch.object(premises.design, "human_answers", return_value=reworded):
-            self.assertEqual(premises.material(view, self.run.repo)["answers"], "- 周 1")
+        with unittest.mock.patch.object(self.steps.design, "human_answers", return_value=reworded):
+            self.assertEqual(self.steps.design.premise_material(view, self.run.repo)["answers"], "- 周 1")
         bare = ("- 周 1", ["周 1"], [], {"count": 1, "last_round": 1})
-        with unittest.mock.patch.object(premises.design, "human_answers", return_value=bare):
-            self.assertEqual(premises.material(view, self.run.repo)["answers"], "- 周 1")
+        with unittest.mock.patch.object(self.steps.design, "human_answers", return_value=bare):
+            self.assertEqual(self.steps.design.premise_material(view, self.run.repo)["answers"], "- 周 1")
         headless = ("### 見出しだけ\n\n頼み", ["周 1"], [], {"count": 1, "last_round": 1})
-        with unittest.mock.patch.object(premises.design, "human_answers", return_value=headless):
+        with unittest.mock.patch.object(self.steps.design, "human_answers", return_value=headless):
             with self.assertRaises(ValueError):
-                premises.material(view, self.run.repo)
+                self.steps.design.premise_material(view, self.run.repo)
 
     def test_map_without_documents_says_so(self):
         git(self.run.repo, "rm", "-q", "AGENTS.md")
         git(self.run.repo, "commit", "-q", "-m", "no map")
-        premises = kit.load("independent-design", "premises")
-        got = premises.material(self.steps.r2_view("", []), self.run.repo)
+        got = self.steps.design.premise_material(self.steps.r2_view("", []), self.run.repo)
         self.assertIn("地図なし", got["map"])
 
 

@@ -9,6 +9,7 @@ import pathlib
 import ports
 import prompt
 
+import design        # lib/。前提の材料 premise_material
 import eyekit        # lib/。独立の目の族の共通の部品
 import gatemarks     # lib/。推しの形（共通の断片 recommend-shape）の答えの語と字の下限
 import jsonfile      # lib/
@@ -138,7 +139,7 @@ def compare_prompt(out, repo) -> dict:
     """比べの役の指示と system prompt（docs/design/r2.md の 2.3）を組み、貼った前提の控え r2-premises.json を書く。返り {prompt, system}"""
     out = pathlib.Path(out)
     doc = _intake(out, "compare")
-    got = premises.material(premises.view_of(doc["answers"], doc["request_text"]), repo)
+    got = design.premise_material(premises.view_of(doc["answers"], doc["request_text"]), repo)
     said = worldmark.means_hints(doc.get("means"))
     post = premises.after(got["ledger"], doc["request_read"], doc["design_premises"], doc["changed"], doc["constraints"], said)
     diff, dv = doc["diff"], eyekit.diff_values(doc["diff"])
