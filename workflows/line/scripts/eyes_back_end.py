@@ -26,7 +26,7 @@ def compute():
     heads = [ports.parsed(os.environ.get(name)) for name in ("INPUTS_BACK_1", "INPUTS_BACK_2", "INPUTS_BACK_3", "INPUTS_BACK_4")]
     record = eyesback.last(heads)
     if record is None:
-        raise ValueError("周の頭が 1 つも走っていない")
+        raise ValueError("周の頭（INPUTS_BACK_1〜4）が 1 つも走っていない（どの周の頭のノードも出力を持たない。周の列が最初の周で落ちたかを見る）")
     return record
 
 
