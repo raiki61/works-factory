@@ -4,7 +4,7 @@
 - snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
 - tree_state・tree_change・tree_moved: 読むだけの役（blk-pr・blk-ci・entry.take・rejudge.take）を起こす前後の作業ツリーの姿
                  （snapshot_tree に HEAD・枝を足した物）と、その違いの文（R47）。
-- TREE・tree_snapshot・moved_since: 役を起こす前の作業ツリーの写しのファイルの名・その読み・写しから今の作業ツリーが変わった所の文
+- TREE・_tree_snapshot・moved_since: 役を起こす前の作業ツリーの写しのファイルの名・その読み・写しから今の作業ツリーが変わった所の文
                  （前は materialkit と、purpose・premises・parallel-pr・verify の写し。integration.md 4.4-H。block はここを呼ぶ）
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（テストのキャッシュは除く。index の印に隠れた物も入れる。protect が数える）
@@ -308,7 +308,7 @@ def tree_moved(before: dict, repo: pathlib.Path, *, keys=TREE_KEYS) -> list:
 TREE = "tree.json"   # 役を起こす前の作業ツリーの写しのファイルの名（置き場の中。materialkit.snap_tree が書く）
 
 
-def tree_snapshot(path):
+def _tree_snapshot(path):
     """置いた作業ツリーの写し path の TREE_KEYS の欄。無ければ None、読めない・JSON でない・形が違えば Reject（前は
     materialkit._tree_snapshot。写す元 judge_accept._tree_snapshot）"""
     p = pathlib.Path(path)
@@ -328,7 +328,7 @@ def moved_since(place, repo, keys) -> list:
     """place の TREE から今の作業ツリーが変わった所の文（tree_moved。keys の欄だけを比べる。keys は status_keys(<見張る欄>)）。
     同じなら空。写しが無い・読めない・形が違えば Reject（前は materialkit.moved_since。写す元 judge_accept._moved_since）"""
     path = pathlib.Path(place) / TREE
-    snap = tree_snapshot(path)
+    snap = _tree_snapshot(path)
     if snap is None:
         raise Reject(f"作業ツリーの写し {path} が無い——役を起こす前の作業ツリーと比べられない（写しを置く段が先に走る）")
     return tree_moved(snap, pathlib.Path(repo), keys=keys)
@@ -353,7 +353,7 @@ def _marks(repo, env=None) -> tuple:
     return assumed, skipped
 
 
-def clear_marks(repo, env) -> None:
+def _clear_marks(repo, env) -> None:
     """env の GIT_INDEX_FILE が指す index（本物の index の写し）から印を外す（外す物は _marks）"""
     for flag, paths in zip(("--no-assume-unchanged", "--no-skip-worktree"), _marks(repo, env)):
         if paths:
@@ -361,7 +361,7 @@ def clear_marks(repo, env) -> None:
 
 
 def copy_flag_free_index(repo, index) -> None:
-    """本物の index を index（パス）に写し、写しの印を外す（clear_marks）。本物の index が無ければ（まだ何も add していない
+    """本物の index を index（パス）に写し、写しの印を外す（_clear_marks）。本物の index が無ければ（まだ何も add していない
     リポジトリ）写さない。本物の index は読むだけ。git が効かなければ Reject"""
     real = _git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index").strip()
     try:
@@ -370,7 +370,7 @@ def copy_flag_free_index(repo, index) -> None:
         return
     except OSError as e:
         raise Reject(f"本物の index を写せない: {e}")
-    clear_marks(repo, {"GIT_INDEX_FILE": str(index)})
+    _clear_marks(repo, {"GIT_INDEX_FILE": str(index)})
 
 
 @contextlib.contextmanager

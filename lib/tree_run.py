@@ -269,7 +269,7 @@ def _answers(send, target):
         return True
 
 
-def parse_etime(s):
+def _parse_etime(s):
     """ps の etime（[[dd-]hh:]mm:ss）を秒に。読めなければ None"""
     try:
         days, _, rest = s.strip().rpartition("-")
@@ -294,7 +294,7 @@ def ps_all():
     rows = {}
     for line in r.stdout.splitlines():
         f = line.split()
-        secs = parse_etime(f[4]) if len(f) >= 6 else None
+        secs = _parse_etime(f[4]) if len(f) >= 6 else None
         if secs is None or not all(x.lstrip("-").isdigit() for x in f[:4]):
             continue
         rows[int(f[0])] = _Proc(int(f[0]), int(f[1]), int(f[2]), int(f[3]), now - secs, f[5])

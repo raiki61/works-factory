@@ -6,7 +6,7 @@
                   これを読むのが決まり。外れは、会話を継ぐ輪（fresh_context: false）の頭の節が前の周の受け付けの返りから拒否の 1 件
                   だけを渡す所（前の回の拒否は会話に残る）。会話を継ぐ輪でも全部を渡してよい（judge の仕様と再審の輪・eyes の R4。
                   resume で輪が 1 周目から回り直すと役は新しい会話で起きる）
-- write_rejects・reject_file・reject_file_or_blank・rejects_text_path: rejects_text を置き場の rejects-<名>.md に書く（道具を持つ役が読む）。
+- _write_rejects・reject_file・reject_file_or_blank・rejects_text_path: rejects_text を置き場の rejects-<名>.md に書く（道具を持つ役が読む）。
                   役に拒否を見せる頭書きの文は持たない（共通の断片 workflows/.shared/prompts/rejected.md）
 - accept_round:   受け付けの回の住処（返答を読む→take→拒否を控えに積む→GIVE_UP_AFTER 回目で諦める→最後の回かを答える）。呼び手は
                   口を引き、控えの名も回数も自分で持たない。方針 net（計画と事前審査の受け付け）は GIVE_UP_AFTER の代わりに、届かない
@@ -81,7 +81,7 @@ def rejects_text(reasons) -> str:
     return "\n\n".join([f"受け付けがこれまでに拒んだ理由の全部（古い順に {len(reasons)} 件。前の回の拒否も直したままにする）。", *blocks])
 
 
-def write_rejects(board, name: str, reasons) -> str:
+def _write_rejects(board, name: str, reasons) -> str:
     """拒否の文の並び reasons（古い順）の rejects_text を置き場 board の rejects-<name>.md に書き、そのパスを返す。並びが空なら空の字"""
     text = rejects_text(reasons)
     if not text:
@@ -92,13 +92,13 @@ def write_rejects(board, name: str, reasons) -> str:
 
 
 def rejects_text_path(board, name: str) -> pathlib.Path:
-    """write_rejects が拒否の全部を書くファイル（置き場 board の rejects-<name>.md）"""
+    """_write_rejects が拒否の全部を書くファイル（置き場 board の rejects-<name>.md）"""
     return pathlib.Path(board) / f"rejects-{safe_name(name)}.md"
 
 
 def reject_file(board, name: str) -> str:
-    """盤面の節でない受け付け name の拒否の控えの全部を write_rejects で書いたファイル（拒否が無ければ空の字）"""
-    return write_rejects(board, name, rejected(board, name))
+    """盤面の節でない受け付け name の拒否の控えの全部を _write_rejects で書いたファイル（拒否が無ければ空の字）"""
+    return _write_rejects(board, name, rejected(board, name))
 
 
 def reject_file_or_blank(board, name: str) -> str:
