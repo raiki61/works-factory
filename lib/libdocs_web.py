@@ -1,6 +1,6 @@
 """ライブラリの公式の文書を、登録の要らない口から引く（PyPI・npm の registry・docs の場所の llms.txt・GitHub の raw）。層 L3（共有）。
 
-持ち主 2026-10-08「全部使う」の 2 つめの出どころ（設計 works/docs/plans/2026-10-08-libdocs-sources.md）。支度の script の節が
+持ち主 2026-10-08「全部使う」の 2 つめの出どころ（元の works の設計 2026-10-08-libdocs-sources。工場の木には無い）。支度の script の節が
 libdocs.section から呼ぶ。控え（盤面・包みの家）と文書のファイルは libdocs が持つ。ここは引くことだけ（断片には切らない）。
 
 引く物:

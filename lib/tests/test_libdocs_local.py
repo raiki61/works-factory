@@ -1,4 +1,4 @@
-"""手元に入っている版のライブラリの文書（.shared/core/libdocs_local.py）の検査。
+"""手元に入っている版のライブラリの文書（lib/libdocs_local.py）の検査。
 
 一時の置き場に偽の仮想環境（.venv/lib/python3.x/site-packages）と node_modules を作って読む（網・git・子のプロセスなし）。
 - 使う名: 単位のファイルの import と、import した名の属性（requests.get）を ast で拾う。JS は名の import と名前空間の属性
