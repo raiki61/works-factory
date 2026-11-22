@@ -34,6 +34,7 @@ import pathlib
 
 import concepthome
 import eye   # ブロックの時間の欄（eye.wall）
+import jsonfile
 import listcut
 import planmarks   # 修正案の外れの訳の文の住処（answer_line）
 
@@ -59,10 +60,7 @@ def write(path, *, status: str, reason: str, design_file: str, timed=(), skipped
 def read(path) -> dict | None:
     if not path:
         return None
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+    doc = jsonfile.read_or(path)
     return doc if isinstance(doc, dict) and doc.get("status") in ("ok", "failed") else None
 
 
@@ -152,10 +150,7 @@ def write_after(board_dir, *, status: str, reason: str, after: dict, deviations:
 
 
 def read_after(board_dir) -> dict | None:
-    try:
-        doc = json.loads((pathlib.Path(board_dir) / AFTER_FILE).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+    doc = jsonfile.read_or(pathlib.Path(board_dir) / AFTER_FILE)
     if not isinstance(doc, dict) or doc.get("status") not in ("ok", "failed") or not isinstance(doc.get("after"), dict):
         return None
     return doc
