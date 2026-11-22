@@ -44,7 +44,7 @@ def read(b) -> list | None:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None
-    except (OSError, UnicodeDecodeError, ValueError) as e:
+    except (OSError, ValueError) as e:   # UnicodeDecodeError は ValueError の下
         raise ValueError(f"レンズの控え {path} が読めない: {e}") from None
     rows = doc.get("rows") if isinstance(doc, dict) else None
     if not isinstance(rows, list) or not all(isinstance(r, dict) and isinstance(r.get("lens"), str)

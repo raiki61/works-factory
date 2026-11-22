@@ -127,7 +127,7 @@ def _read(board_dir) -> dict:
         return {"rounds": {}}
     try:
         doc = json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError) as e:
+    except (OSError, ValueError) as e:   # UnicodeDecodeError は ValueError の下
         raise ValueError(f"目的の外の所見の控え {p} が読めない: {e}") from None
     if not (isinstance(doc, dict) and isinstance(doc.get("rounds"), dict)):
         raise ValueError(f"目的の外の所見の控え {p} の形が違う（rounds が要る）")
