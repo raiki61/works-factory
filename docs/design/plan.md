@@ -187,9 +187,9 @@ md は英語。上から次の節を並べる。`<!-- if … -->` の名は prep
 4. `<!-- if not replan -->` やること（決まった文。今の `fix-plan.md:12`）: 直す義務の単位を全部どれかの項目に入れる・どの単位が義務かは「直す単位」の節の行ごとの印が正本（必ず入れる・入れてもよい・機械が差し込む）・入れてはいけない単位は拒まれる・1 つの項目で複数の単位を閉じてよいのは根を共にする時（下の項目の組み方の決まり）`<!-- end replan -->`。
 5. その直前に `{shared:reply-types}` を置く。項目の欄の書き方（決まった文。今の `fix-plan.md:13-25` の 1〜6。ここに並べるのは md に写す文の要約で、原文は今の `fix-plan.md` を英語に訳した物: `unit_keys`・`approach`・`files`〔新しく生まれる物を全部、1 ファイル 1 行で書く。各行の欄は `path`・`op`・`responsibility`・`symbols`・`home`・`considered`。案の審査は案に無い物を見ないので、書き落とした物は審査されない〕・消す物〔`files` の消す側の行と名に、消す訳 `why` と置き換え先 `replaced_by` を書く〕・`shrink_first`・`narrows`〔この案で BASE（修正前の版。この並びの 16 のリポジトリの行の `diff_base`）に在った能力が消える・狭まる物を全部。比べる基準は観点の正本〔この並びの 16 の `review_md` が指す REVIEW.md〕の「移行退行の棚卸し」の項。代償として採るかを役が自分で決めず、1 件でも書けば修正の前に run が人に聞く〕）と結びの 1 文（今の `fix-plan.md:27`「まだ手を動かすな。案は別の目が審査し、予測した穴への応答を後で求められる」。予測した穴は、事前審査の別の目が案に予測して挙げる穴）。
    - `shrink_first` は、足す仕組みが補う前提を 1 文で言わせ、その前提を消す形を先に探させる。足すなら訳を書き、訳は共通の断片 `deviation-grounds`（`workflows/.shared/prompts/deviation-grounds.md`）に従う（対象で今その前提が成り立つことは訳にしない）。
-6. works の欄（決まった文。今の `planmarks.HEAD`）。
+6. works の欄（決まった文。元の `planmarks.HEAD`。今は無い）。
 7. 項目の組み方・既にある物を先に探す・対象の文を前の決定に使わない・判断の 1 軸と考えの住処（決まった文。今の `planblk.ITEMS_RULE`・`REUSE_RULE`・`TARGET_TEXT_PLAN`・`concepthome.PLAN_RULE`）。
-8. 承認ノードの項目の決め手と、狭めない案を先に探す（決まった文。今の `gatemarks.HEAD["p2.fix_plan"]` の 2 段落）。
+8. 承認ノードの項目の決め手と、狭めない案を先に探す（決まった文。元の `gatemarks.HEAD["p2.fix_plan"]` の 2 段落。今は無い）。
 9. `<!-- if excluded -->` 並行 PR の範囲の 1 文（決まった文）と `{excluded_file}` ← port `excluded` のパス `<!-- end excluded -->` — 条件: `excluded` が在る。
 10. `{lib_docs}` ← `libdocs.section(place, repo, files, shared=ports.shared_cache())`（`files` は `libdocs.unit_files(repo, <判定のファイル>, keys)`。`keys` は判定の案に入れてよい単位の key、判定が無ければ None。判定のファイルが無ければ空の並びと訳「判定のファイルが無い」の 1 行を足す。今の `planfile.lib_section`）。`libdocs.section` は材料の行（文書の控え・引けない訳）だけを返し、見出しと「自分で引け」の文は md `prompts/parts/lib-docs.md` が持つ（`prompt.render_part("lib-docs", {"rows": …})`。#764）。
 11. `{shared:prior-failures}`（断片の中の段落 `prior_notes`・`prior_redesign` と口 `{prior_notes}`・`{prior_redesign}`。値は `carry.prior_section` の行の組み方の写し: 前の run の行のうち作り直しでない行と作り直しの行〔`carry.is_redesign`〕を 1 件 1 行 `- <where>: <text>`）。行の形が違えば節を出さず、27 の読めなかった入力に `prior_failures: <訳>` を足す（今のまま）。
@@ -272,7 +272,7 @@ Put every unit you owe a fix into one of the plan's items. …
 
 Do not touch anything yet. …
 
-Works fields of a plan item: …（今の planmarks.HEAD）
+Works fields of a plan item: …（元の planmarks.HEAD）
 
 How to group items: … / Look for what already exists first: … / … / One axis of judgment: … / Use the homes of concepts: …
 
@@ -390,7 +390,7 @@ Return only JSON that matches the output schema.
 
 作り直しの時の、古い指示との差の記録。後の指示の変更では、ここに足さない。
 
-今の指示は、node の `command: fix-plan`（workflows/plan の `commands/fix-plan.md`。27 行）と、それが Read させる材料のファイル `brief-<n>.md`（`planfile.write_brief` が `planblk.head`・`HEAD["plan"]`・`gatemarks.HEAD["p2.fix_plan"]` と、KEEP の lib の 12 のモジュールの文の定数から組んだ物）の 2 か所に在る。
+今の指示は、node の `command: fix-plan`（workflows/plan の `commands/fix-plan.md`。27 行）と、それが Read させる材料のファイル `brief-<n>.md`（`planfile.write_brief` が `planblk.head`・`HEAD["plan"]`・元の `gatemarks.HEAD["p2.fix_plan"]` と、KEEP の lib の 12 のモジュールの文の定数から組んだ物）の 2 か所に在る。
 
 - 移した: 材料のファイルの全部の決まった文（見出し・頼み・決まり）を md へ。lib の Python に残るのは材料の行と値だけ（2.3 の札の表は英語にした）。
 - 移した: `fix-plan.md` の本文（理由・やること・欄の 1〜6・結び）を md の頭へ。材料のファイルを先に Read させる 1 行目（「新しい会話で起きている」「材料のファイル `$plan-prep.output.brief` を Read で読め」）は消した。指示は prep が組んで `prompt` で直に渡す（README の 5.2）。輪は `fresh_context: false` なので「新しい会話で起きている」と言わない。
@@ -401,7 +401,7 @@ Return only JSON that matches the output schema.
 - 替えた: 方針の文書を、置き場を名指して「先に全部読め」と言う段落（`planfile.POLICY_PART`）から、本文を貼る共通の断片 `{shared:policy}` に（10 節の 5）。
 - 替えた: 頭の深さの行ごとの指示（`headdepth.ASKS` を行ごとに貼っていた）を、共通の断片 `unknown-asks` の種類ごとの 1 回に。行は種類の語を名指す。
 - 消した: 下流の node の名と、ほかの block の振る舞いの名指し（「P3 の `plan_faces`」・「修正役・TDD の役」・「事前審査の下請けが答える」・「修正前の承認ノードで人に回る」の node の名・「修正の段へ申し送られる」・「承認ノードが読む」）。この役が書く欄の効き目（人に聞かれる行・聞かずに通る行・拒まれる物）は、名を出さずに「the run asks a person before fixing」「a later review」の形で残した（10 節の 8）。
-- 消した: 「包みが system prompt に足す」（`concepthome.PLAN_RULE` の中。今の包みは地図の節を足していない。地図の節はこの md が入れる）。「写しの指示書はこの欄を知らないが」（`planmarks.HEAD` の頭。写しの指示書は無くなった）。「共有ボード」（`libdocs` の外の文。この block の言葉でない）。
+- 消した: 「包みが system prompt に足す」（`concepthome.PLAN_RULE` の中。今の包みは地図の節を足していない。地図の節はこの md が入れる）。「写しの指示書はこの欄を知らないが」（元の `planmarks.HEAD` の頭。写しの指示書は無くなった）。「共有ボード」（`libdocs` の外の文。この block の言葉でない）。
 - 移した: 言語の 1 行（`rolekit.LANG_RULE`）を md の 1 文に。汎用の欄の並びは、この node の人に見せる欄の名指しに替えた。
 - 足した物は無い。英語にした。役の名「修正案の役」は "the planning role"。
 
@@ -634,12 +634,12 @@ script を子のプロセスで回す。始めの記録の無い使い捨ての 
 - `fix-plan.md`:15-25: `unit_keys` は no で指し key を写さない・`approach` は関数・欄・文書の名で具体的に・`files` は新しく生まれる物を全部 1 ファイル 1 行・`op` の 4 語と rename の `from`・`responsibility`・`symbols` の `name`（パスや拡張子で終わる字を書かない）と `change`・新しく生まれる物の見本の並び・`home` と `considered`（1 件以上・`why_not` 10 字以上）を op を問わず全部の行に・書き落とした物は審査されない・消す物は delete/rename と remove の symbol・消す側の `why`（10 字以上）と `replaced_by`・足す側に `why`・`replaced_by` を書かない・`shrink_first`（足さずに閉じる形を先に。柵を足す直しは次の指摘の種）・`narrows`（BASE の能力が消える・狭まる物を全部・基準は観点の正本の移行退行の棚卸し・反復の速さ・デバッグ手段・観測・既定の安全装置も能力・1 件でも書けば修正の前に人に聞く・代償として採るかを自分で決めない・書き落とせば審査が後退として挙げる）。
 - `fix-plan.md`:27: まだ手を動かさない。
 - `planblk.HEAD["plan"]`: 読むだけ・道具・作業ツリーを 1 字も変えない（受け付けが写しと比べる）・schema に合う JSON だけ。
-- `planmarks.HEAD`: works の欄の全部（`route` の 2 語と `route_why` の 10 字・`tests` の欄と id の形・赤の数え方〔宣言した名の失敗だけを赤に数える〕・既存のテストの置き方に合わせる・`rewrite_tests` の欄と期待値を実装に合わせる書き換えを書かない・`refactor`・承認された案が修正役の要求の正本になる〔名は出さずに「the fixing step」〕・名指さない既存のテストは変えられない・`allowed_paths`〔glob の形・テストのファイルは範囲に入る・移す/消すファイルの元のパス・付いてくる文書・丸ごとの許しを拒む〕・`out_of_scope`・`files` の 5 つの照らし・機械が差分で名を探す・消す物の `why` と `replaced_by`・消す名を名指すファイルを `allowed_paths` に・`depends_on` の書き方と拒まれる物・`structure` の 3 種の答え〔構造の目の行・処方・世界の解の行〕と 20 字・出どころの書き方と run の置き場のファイルは絶対パス:<行>・答えていない行は拒まれる）。
+- 元の `planmarks.HEAD`: works の欄の全部（`route` の 2 語と `route_why` の 10 字・`tests` の欄と id の形・赤の数え方〔宣言した名の失敗だけを赤に数える〕・既存のテストの置き方に合わせる・`rewrite_tests` の欄と期待値を実装に合わせる書き換えを書かない・`refactor`・承認された案が修正役の要求の正本になる〔名は出さずに「the fixing step」〕・名指さない既存のテストは変えられない・`allowed_paths`〔glob の形・テストのファイルは範囲に入る・移す/消すファイルの元のパス・付いてくる文書・丸ごとの許しを拒む〕・`out_of_scope`・`files` の 5 つの照らし・機械が差分で名を探す・消す物の `why` と `replaced_by`・消す名を名指すファイルを `allowed_paths` に・`depends_on` の書き方と拒まれる物・`structure` の 3 種の答え〔構造の目の行・処方・世界の解の行〕と 20 字・出どころの書き方と run の置き場のファイルは絶対パス:<行>・答えていない行は拒まれる）。
 - `planblk.ITEMS_RULE`: 項目をまとめるのは同じ根・同じ行か塊の時だけ・依存する直しは分けて `depends_on`・同じファイルの別の所だけではまとめない・一撃の原理は根を共にする単位の話。
 - `planblk.REUSE_RULE`: 新しい機構を足す前に触るファイルと兄弟を Grep で探す・在れば使う・新設するなら `considered` に当たった物と退けた訳（当たらなければ探し方）・新しいモジュールは op=create の行・書いていない新設は審査が挙げる。
 - `planblk.TARGET_TEXT_PLAN`: 記録された方針に無い対象の文（コメント・docstring・テストの説明）は持ち主の決めでない・`out_of_scope` の why と `decided_by` に使わない・食い違うなら書き換えを案に入れる。
 - `concepthome.PLAN_RULE`: 判断の 1 軸（目的・守る仕組み・簡潔さは考えを知る場所の数）・考えの住処を先に探す（地図の節・README・モジュールの境・同じ語の定数）・住処を変え写さない・新しい所に知らせるなら `considered` に住処の行・住処の無い考えは既に知る所に寄せる。
-- `gatemarks.HEAD["p2.fix_plan"]` の 1 段落目: `decided_by` の出どころの 5 種と、対象の同じ場面にコメントの意図を含めない・記録された方針の名指しを字のまま・機械が現物を照らし照らせない行は人に回る・run の置き場のファイルは絶対パス:<行>・`undecided_because`（書けないなら空）・`fences` の 5 語・聞かずに通る行の条件の全部（決め手・柵なし・現物・世界の解の軸・構造の目・単位の外を名指さない）と出どころつきで報告に並ぶ・人に回す前に世界の解の行を使い、無い問いだけ自分で標準・著名 OSS・公式を引く・依頼の解き方は決め手にならない・定石で決まるなら自分で決める・どの行にも `world`・人に回す行には `recommend`（2 語・note と why の 4 字）・無人の run では推しが全部通すなら通り、note が修正への一言になり、止めるなら次の run の答えの下書きになる。
+- 元の `gatemarks.HEAD["p2.fix_plan"]` の 1 段落目: `decided_by` の出どころの 5 種と、対象の同じ場面にコメントの意図を含めない・記録された方針の名指しを字のまま・機械が現物を照らし照らせない行は人に回る・run の置き場のファイルは絶対パス:<行>・`undecided_because`（書けないなら空）・`fences` の 5 語・聞かずに通る行の条件の全部（決め手・柵なし・現物・世界の解の軸・構造の目・単位の外を名指さない）と出どころつきで報告に並ぶ・人に回す前に世界の解の行を使い、無い問いだけ自分で標準・著名 OSS・公式を引く・依頼の解き方は決め手にならない・定石で決まるなら自分で決める・どの行にも `world`・人に回す行には `recommend`（2 語・note と why の 4 字）・無人の run では推しが全部通すなら通り、note が修正への一言になり、止めるなら次の run の答えの下書きになる。
 - 同 2 段落目: 狭めない案を先に当たる（直したい場合だけに新しい動き・当てられない場合は BASE の動きを残し黙らずに名指す）・在れば narrows に書かない・無い時だけ `no_narrow`（20 字以上）・欠けと短さは拒まれ、承認ノードの項目にそのまま載る。
 - `planblk.head` の並行 PR の行: 触らず単位に入れない・先に Read・ほかの PR が扱う。
 - `carry.PRIOR_HEAD`・`REDESIGN_HEAD`: 受け付けの拒否の行は直す穴でなく同じ所で落ちない注意・作り直しの行は直す穴でこの周の先頭で直す。

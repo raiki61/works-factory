@@ -166,7 +166,7 @@
     - 止め方と安全の上限、1 回目に出た所見の割合を報告に: line の `src/`（往復の記録・止め・上限。形の直し 6）と plan-review の block（2 往復目からの新しい穴の出自 missed・introduced・rephrased を申告させる md の節・受け付け・出力の欄）。2 か所（作り手が欄を足し、往復を持つ line が読む）。上限の数 `round_limit` を plan-review へ渡す配線は要らない（上限で止めたかは line が決める）。
     - 消す名の波及を審査の前に数える: plan の block（`src/` の ripple と、md の「消す名を名指すファイルは allowed_paths に入れよ」）と、修正案の項目の行の形 `lib/planmarks`（欄 `removes` と、名の読み方の決まり。fix の範囲の照らしも読む）。2 か所。
     - 持ち主の決めの補足: `docs/owner-decisions.md` 1 本。
-    - 起きなくなる分: `gatemarks.PLAN_GATE_FILE` のような、2 つのモジュールが同じファイルの名を持つための寄せ（place のファイルの名は block の `src/` だけが持つ）・柵の許しの行・筋書きの注記の許しの行。
+    - 起きなくなる分: 元の `gatemarks.PLAN_GATE_FILE`（今は無い）のような、2 つのモジュールが同じファイルの名を持つための寄せ（place のファイルの名は block の `src/` だけが持つ）・柵の許しの行・筋書きの注記の許しの行。
 15. `e8385872`（D）run の深さを 3 段にし、重厚で判定の裏取りと木の事前審査を足す。3 つの直しの束。
     - 段を 1 つ足す: `lib/headdepth`（段の語と未知の種類 → 段の表。head-depth・line・diagnose・plan が共に読む）と head-depth の block（md の段の意味の文）と line（段 → 回す物の表）。
     - 重厚で木の事前審査を足す: plan-review の block の port `tree`（初めて足す時だけ）と line の表の 1 行。2 か所。その後、どの段で木にするかを替えるのは line の表 1 か所。判定の裏取りは verify の block を line が `when:` で回すかだけなので、line 1 か所。
