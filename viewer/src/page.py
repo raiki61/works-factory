@@ -21,29 +21,12 @@ ASSETS = Path(__file__).resolve().parents[1] / "page"
 TEMPLATE = ASSETS / "page.tpl.html"
 
 
-def render(data: dict, target: Path, pack_name: str) -> str:
-    """ページの字。data は runtrace.read の答え、target は対象の根（回し直しの命令の --cwd）、pack_name は run の写しの中の pack の
-    フォルダの名"""
-    run, graphs = data["run"], data["shape"]["graphs"]
-    by_name = {g["name"]: k for k, g in graphs.items()}
-    top_graph = by_name.get(run["graph"])
-    # 段に畳むのは line の run だけ（段の表は line の物）。ほかの graph の run は一番上のノードを根の下に並べる
-    table = stages.TABLE["stages"] if top_graph == stages.TABLE["graph"] else []
-    events = run["events"]
-    skipped = run.get("skipped") or []
-
-
-    def under(key, toks):
-        return tuple(toks[:len(key)]) == key
-
-
-    # 木: key（tokens の組）→ 物
+def _build_tree(graphs: dict, top_graph: str | None, table: list, root_name: str) -> tuple[dict, list, dict, set]:
+    """木（key = tokens の組 → 物）と、一番上のノードの key の並び・ノード → 段の番号・段の配線のノードの集合"""
     tree = {}
-
 
     def add(key, name, kind, item=None, kids=()):
         tree[key] = {"key": key, "name": name, "kind": kind, "item": item or {}, "kids": list(kids)}
-
 
     def walk_items(prefix, items):
         keys = []
@@ -60,7 +43,6 @@ def render(data: dict, target: Path, pack_name: str) -> str:
                 add(k, it["id"], it["kind"], it)
         return keys
 
-
     top_keys = walk_items((), graphs[top_graph]["items"] if top_graph in graphs else [])
     stage_of = {}
     wiring = set()
@@ -74,7 +56,27 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         kids = [k for k in top_keys if stage_of.get(k[0]) == i]
         add(sk, s["name"], "stage", {"desc": s.get("line") or ""}, kids)
         root_kids.append(sk)
-    add((), top_graph or run["graph"], "root", {}, root_kids if table else top_keys)
+    add((), root_name, "root", {}, root_kids if table else top_keys)
+    return tree, top_keys, stage_of, wiring
+
+
+def render(data: dict, target: Path, pack_name: str) -> str:
+    """ページの字。data は runtrace.read の答え、target は対象の根（回し直しの命令の --cwd）、pack_name は run の写しの中の pack の
+    フォルダの名"""
+    run, graphs = data["run"], data["shape"]["graphs"]
+    by_name = {g["name"]: k for k, g in graphs.items()}
+    top_graph = by_name.get(run["graph"])
+    # 段に畳むのは line の run だけ（段の表は line の物）。ほかの graph の run は一番上のノードを根の下に並べる
+    table = stages.TABLE["stages"] if top_graph == stages.TABLE["graph"] else []
+    events = run["events"]
+    skipped = run.get("skipped") or []
+
+
+    def under(key, toks):
+        return tuple(toks[:len(key)]) == key
+
+
+    tree, top_keys, stage_of, wiring = _build_tree(graphs, top_graph, table, run["graph"])
 
 
     def leaf_events(key):
