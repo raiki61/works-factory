@@ -204,7 +204,8 @@ def detect(repo, files) -> dict:
         p = repo / rel
         name = pathlib.PurePosixPath(rel).name
         suffix = pathlib.PurePosixPath(rel).suffix
-        if not (suffix in PY_SUFFIXES or suffix in JS_SUFFIXES or name in MANIFESTS or REQ_RE.fullmatch(name)):
+        manifest = name in MANIFESTS or REQ_RE.fullmatch(name)
+        if not (suffix in PY_SUFFIXES or suffix in JS_SUFFIXES or manifest):
             continue
         counts["files"] += 1
         try:
@@ -212,7 +213,7 @@ def detect(repo, files) -> dict:
         except (OSError, UnicodeDecodeError) as e:
             unreadable.append({"path": rel, "reason": type(e).__name__})
             continue
-        if name in MANIFESTS or REQ_RE.fullmatch(name):
+        if manifest:
             if rel != name:           # 根の宣言だけを読む（deps も根の物だけ）
                 unreadable.append({"path": rel, "reason": "根でない依存の宣言は読まない"})
             else:
