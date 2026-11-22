@@ -18,7 +18,6 @@
 - 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
-import os
 import pathlib
 import re
 import sys
@@ -35,6 +34,7 @@ if str(_GL) not in sys.path:
     sys.path.insert(0, str(_GL))
 
 from engine.util import READ_CAP, git, read_capped, read_json, run_count, write_json  # noqa: E402
+import jsonfile  # noqa: E402
 import cite  # noqa: E402  （指し先の綴りと版・Markdown のリンクの読み。integration.md 4.3-4・4.5-5）
 import materialkit  # noqa: E402  （黙って通る閉鎖の状態 SILENT_STATUS。integration.md 4.3-4 の (a)）
 
@@ -374,7 +374,5 @@ def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=Non
                 raise RuntimeError(_PREV_UNREADABLE.format(file=COVERAGE_FILE, why="items が並びでない"))
             now = {a.get("unit_key") for a in afters}
             afters = [a for a in prev["items"] if isinstance(a, dict) and a.get("unit_key") not in now] + afters
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps({"round": round_, "items": afters}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    jsonfile.write(path, {"round": round_, "items": afters})
     return {"ok": True, "problems": [], "changes": v1_changes(reply.get("changes") or []), "coverage_file": str(path)}
