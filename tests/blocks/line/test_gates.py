@@ -16,28 +16,14 @@ import tempfile
 import unittest
 
 from tests.blocks import kit
-from tests.blocks.line.test_tiers import handed
+from tests.blocks.line.support import NARROW, TOP, ask_row, handed, rounds, fix as stage_fix, values as stage_values
 
 BLOCK = "line"
 SCRIPTS = kit.BLOCKS / BLOCK / "scripts"
 RUN = kit.RUN_ID
 REC = {"answer": "continue", "note": "空の列は 0 を返す形で通す", "why": "呼び手が 0 を前提に書かれている"}
 STOP_REC = {**REC, "answer": "stop"}
-NARROW = "修正案 1 が狭める能力: 空の列で例外を投げる——0 を返す形に変える"
 FACE = "事前審査の穴 [regression] keep-zero: 0 を返すと前の呼び手が壊れる"
-
-
-def ask_row(text=NARROW, *, decided=False, why=None, mark=None, kind="regression") -> dict:
-    """plan-review の出力 asks の 1 行（plan-review の設計書の 10.1）"""
-    return {"kind": kind, "node": "p2.fix_plan", "text": text, "units": ["u1"], "mark": mark or {},
-            "decided": decided, "why": why if why is not None else ({} if decided else {"obvious": ["決め手の欄が揃わない"]})}
-
-
-def rounds(**over) -> dict:
-    """計画の往復の返り（plan-out の返り）。既定は修正へ進む抜け方で、人に回しうる行は無い"""
-    return {"done": True, "ok": True, "status": "ok", "round": 1, "plan_prior": None, "record": None, "plan": None, "fix_plan": None,
-            "reply": None, "handoffs": [], "ripple": None, "owed": ["u1"], "gave_up": None, "stalled": False, "capped": False,
-            "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "", **over}
 
 
 class _BeforeFixCase(unittest.TestCase):
@@ -1478,16 +1464,14 @@ class ScriptCase(unittest.TestCase):
 
     def long_fix(self, **over) -> dict:
         """直しの単位が 100 で訳の長い修正の返り（単位 units と差分のパスを項目に決める記録 item_claims が単位の数だけ伸びる）"""
-        from tests.blocks.line import test_stages
         units = [{"unit_id": f"u{n}", "group_id": "g1", "status": "given_up", "reason": f"{self.WHY}{n}"} for n in range(100)]
         claims = {"items": [{"item": 1, "unit_keys": [u["unit_id"] for u in units], "approach": self.WHY, "after": []}],
                   "claims": [{"unit_key": u["unit_id"], "files": [f"src/{n}.txt"]} for n, u in enumerate(units)], "unread": []}
-        return test_stages.fix(units=units, item_claims=claims, **over)
+        return stage_fix(units=units, item_claims=claims, **over)
 
     def fixed_outputs(self, fix: dict) -> dict:
         """fixed の with: が結ぶ node の返り（修正の返りは fix）"""
-        from tests.blocks.line import test_stages
-        v = test_stages.values(fix=fix)
+        v = stage_values(fix=fix)
         return {"fix-in": v["fix_in"], "fix": v["fix"], "after-fix": v["after_fix"], "raise": v["raise"], "lens": v["lens"],
                 "delta-review": v["delta"], "start": {"from_spec": False}}
 
@@ -1584,7 +1568,6 @@ class ScriptCase(unittest.TestCase):
         """script を、line の YAML の node の with: をそのまま node の返り outputs（node の id → 返り）で結んで回す
         （with: の配線の取り違えも赤になる）。無い node は飛んだ物（if_skipped）。字の値はそのまま、ほかは JSON の字で渡す。
         Archon と同じに入力を 1 本ずつ環境変数で渡すので、1 本が OS の上限を越える結びは起動が E2BIG で落ちる"""
-        from tests.blocks.line.test_wiring import TOP
 
         def resolve(value):
             skipped = None

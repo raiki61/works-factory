@@ -10,8 +10,7 @@ import json
 import unittest
 
 from tests.blocks import kit
-from tests.blocks.line.test_tiers import handed
-from tests.blocks.line.test_gates import rounds
+from tests.blocks.line.support import handed, rounds
 
 BLOCK = "line"
 LINE_SCRIPT = "works:line-script"

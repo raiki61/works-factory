@@ -10,7 +10,7 @@ import json
 import unittest
 
 from tests.blocks import kit
-from tests.blocks.line.test_gates import rounds
+from tests.blocks.line.support import rounds
 
 BLOCK = "line"
 

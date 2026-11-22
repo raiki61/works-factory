@@ -8,114 +8,27 @@ docs/design/report.md の 1.2 の表の欄ごとに見る。組んだ形は repo
 """
 import inspect
 import json
-import pathlib
 import unittest
 from unittest import mock
 
 from tests.bin.itemshape import missing_required, schema_key_diffs, undeclared
 from tests.blocks import kit
+from tests.blocks.line.support import COLLECT_INPUTS, check, passing, ptr, base_record, seed_closure
 
 BLOCK = "line"
 ROOT = kit.ROOT
 FACTS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "facts.schema.json"
 SECTIONS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "sections.schema.json"
-INPUTS = ("notices", "start", "answer_start", "test_gate_base", "judge", "tiers", "owed", "structure", "structure_in", "independent_design",
-          "design_in", "rounds", "ask_before_fix", "answer_before_fix", "fix_in", "fix", "after_fix", "raise", "lens", "lens_in", "delta",
-          "replan", "replan_review", "ask_replan", "answer_replan", "refix", "lens_2", "lens_2_in", "delta_2", "fixed", "parallel_after",
-          "rejudge", "spec_check", "judged", "test_gate_final", "eyes_in", "eyes", "eyes_back", "back_1", "merge_seal", "ask_final", "answer_final", "merge_apply",
-          "optional")
-
-
-def ptr(path: str) -> dict:
-    return {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": path}
-
-
-def check(value, schema: pathlib.Path) -> list:
-    import sys
-    sys.path.insert(0, str(ROOT / "lib" / "graphloops"))
-    from engine.schema import validate_schema
-    return validate_schema(value, json.loads(schema.read_text(encoding="utf-8")))
-
-
-def passing() -> dict:
-    """どの段も通った run の collect の入力の値（block の返りと line の script の出力）"""
-    tests = {"mode": "final", "ok": True, "green": True, "red_cause": "", "ran_steps": {"ran": ["t"], "unran": []}, "baseline": None,
-             "fingerprint": None, "test_outcomes": None, "evidence": ptr("test-gate-final/evidence.txt"), "by": "test_cmd", "suites_line": "",
-             "log": "", "baseline_line": "直す前のテスト: 緑", "reason": "", "suite": "", "suite_note": "",
-             "related": {"applied": False, "whole": False, "files": [], "left": [], "far": [], "reasons": [], "ran": "none"},
-             "report": ["- 最後のテスト: 緑"]}
-    fix = {"ok": True, "reason": "", "units": [{"unit_id": "u1", "status": "fixed"}], "groups": [], "conflicts": None, "carry": None,
-           "replan_items": [], "objection": "", "diff": ptr("fix/diff"), "start_tree": "t", "reply": None, "ruled_reply": None,
-           "scope": None, "checked": {"ok": True, "reason": ""}, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [], "handoff_titles": {},
-           "mismatched": [], "plan_declared": [], "stop_reason": "", "allowed_tests": None, "accept_trace": None, "closure": None,
-           "tdd_unit": None, "tdd": [{"units": [{"unit_key": "u1", "test_cmd": "light"}]}], "frozen": None, "removed": [],
-           "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- u1: fixed"]}
-    fix["closure"] = ptr("fix/closure.json")
-    eyes = {"ok": True, **{f"r{n}": {"status": "pass", "reason": ""} for n in range(1, 5)}, "questions": [], "means_questions": [], "passes": [],
-            "premise_check": None, "notes": [], "after": None, "dirty": 0, "escalate": 0, "after_ok": True, "findings": [], "route": "stay",
-            "route_why": "返す物が無い（どの目も通った）", "report": ["- 目: 通した"],
-            "sections": [{"title": "独立の目 R1 最小性とコメント", "lines": ["- R1 通した"]}, {"title": "直した後の構造の実測", "lines": ["- 実測"]}]}
-    judge = {"ok": True, "stop_reason": "", "reason": "", "ready": True, "units": [{"id": "u1"}], "questions": [], "judgment": None, "answer_ties": None,
-             "out_of_purpose": None, "materials": None, "brief": None, "inputs": None, "purpose": None, "purpose_text": "P",
-             "purpose_source": "", "means": [], "purpose_review": None, "constraints": None, "world": None, "world_state": {"status": "ok", "reason": ""},
-             "spec": None, "spec_rows": None, "spec_origin": "", "excluded": None, "pr_drafts": None, "downgrades": [], "decisions": None,
-             "tier": "標準", "tier_why": "", "row_asks": [], "tier_record": None, "verify": None, "verify_why": "既定で切（features の既定）",
-             "report": [], "sections": [{"title": "世界の解", "lines": ["- 世界"]}, {"title": "根本の診断", "lines": ["- 判定"]},
-                                        {"title": "素材: 局所レビュー", "lines": ["- 局所"]}, {"title": "素材: コード衛生", "lines": ["- 衛生"]}],
-             "optional": [{"node": "world", "bare": False}]}
-    seal = {"mode": "seal", "ok": True, "hash": "h", "diff": ptr("merge-seal/diff"), "protected_hits": [], "protected_count": 0,
-            "reason": "", "deliver": None, "report": ["- 封じた"]}
-    fixed = {"go": True, "done": True, "held": False, "no_fix": False, "diffed": True, "checks": True, "eyes_due": True, "skip_why": "",
-             "rejudge": False, "refixed": False, "stages": [{"stage": 1, "kind": "first", "fix": fix, "lens": None, "delta": None}], "carry": [],
-             "tdd": [fix["tdd"]], "units": fix["units"], "groups": [], "conflicts": [], "replan_items": [], "objection": "", "diff": fix["diff"],
-             "item_claims": None, "allowed_test_changes": [], "changed": {}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [],
-             "plan_declared": [], "plan": None, "ripple": None, "left": [], "stop_reason": ""}
-    return {name: None for name in INPUTS} | {
-        "notices": "注意（test_cmd）: x",
-        "start": {"ok": True, "stop_reason": "", "reason": "", "record": ptr("r1/start.json"), "prior_failures": None, "ask": False,
-                  "gate_text": "", "unattended": False, "design_talk": False, "final_gate": "always", "from_fixture": False, "fixture": None,
-                  "ports": {"run_id": kit.RUN_ID, "user_env_dir": ""}},
-        "answer_start": {"go": True, "answer": None, "stop_reason": ""},
-        "test_gate_base": {**tests, "mode": "base", "report": ["- 直す前: 緑"]},
-        "judge": judge,
-        "rounds": {"done": True, "ok": True, "status": "ok", "round": 1, "plan_prior": None, "record": None, "plan": ptr("plan/p.json"),
-                   "fix_plan": None, "reply": None, "handoffs": [], "ripple": None, "owed": ["u1"], "gave_up": None, "stalled": False,
-                   "capped": False, "review": None, "asks": [], "deviations": [], "review_status": "ok", "review_reason": "", "stop_reason": "", "pointed": []},
-        "ask_before_fix": {"open": True, "go": True, "stop_reason": "", "text": "", "deferred": [], "asked": [], "pushed": None, "passes": [],
-                           "policy_changed": False},
-        "answer_before_fix": {"go": True, "answer": {"decision": "approve", "text": "よい"}, "stop_reason": "", "policy": ""},
-        "fix_in": {"go": True, "no_fix": False, "received": None, "switches": {"tier": "標準", "lines": ["- 省く物は無い"]}},
-        "fix": fix, "after_fix": {"replan": False, "prior": None, "stop_reason": ""},
-        "raise": {"units": [{"unit_id": "u1", "depth": "軽量", "why": "単位が小さい"}], "checks": True, "skip_why": "", "eyes_due": True, "raised": [], "counted": "", "lines": ["深さ: 標準"],
-                  "stop_reason": ""},
-        "fixed": fixed, "judged": {"units": [], "lines": [], "carry": [], "stop_reason": ""}, "test_gate_final": tests, "eyes": eyes,
-        "merge_seal": seal, "ask_final": {"open": True, "go": True, "stop_reason": "", "text": "", "reasons": []},
-        "answer_final": {"go": True, "answer": {"decision": "approve", "text": "当てる"}, "stop_reason": ""},
-        "optional": ["eyes__", "lens__", "lens-2__"],
-    }
-
-
-def seed(run) -> None:
-    """修正の段の控え（閉鎖の表）を place に置く"""
-    (run.artifacts / "fix").mkdir(exist_ok=True)
-    (run.artifacts / "fix" / "closure.json").write_text(json.dumps({"rows": [{"unit_key": "u1", "closed": True}], "claimed": ["u1"]}))
-    (run.artifacts / "fix" / "diff").write_text("")
-
-
-def record() -> dict:
-    return {"input": {"base": {"label": "差分なし（HEAD）"}}, "answers": [], "versions": {}}
-
-
 class FactsCase(unittest.TestCase):
     def setUp(self):
         self.f = kit.load(BLOCK, "facts")
         self.s = kit.load(BLOCK, "sections")
         self.run = kit.Run(self, BLOCK)
-        seed(self.run)
+        seed_closure(self.run)
 
     def build(self, values, rec=None):
         with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
-            return self.f.build(values, rec if rec is not None else record())
+            return self.f.build(values, rec if rec is not None else base_record())
 
     def test_passing_run(self):
         got = self.build(passing())
@@ -329,7 +242,7 @@ class FactsCase(unittest.TestCase):
         self.assertEqual((rows[self.f.MEANS_ASK_HEAD]["text"].startswith(self.MEANS_Q), rows[self.f.MEANS_ASK_HEAD]["title"]), (True, "頼みどおりにするか決める"))
         self.assertEqual([a["kind"] for a in got["asks"]].count(self.f.EYE_ASK_HEAD), 1, "本文が空の行は載せない")
         with self.run.env():
-            drafts = self.f.answer_drafts(v, self.f.returns_of(v, record()), self.f.gates_of(v), True)
+            drafts = self.f.answer_drafts(v, self.f.returns_of(v, base_record()), self.f.gates_of(v), True)
         self.assertEqual(sorted(d["question"] for d in drafts), sorted(["守りを触ってよいか", self.MEANS_Q]))
 
     def test_cut_when_the_final_test_is_missing(self):
@@ -422,7 +335,7 @@ class SectionsCase(unittest.TestCase):
 
     def build(self, values):
         with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
-            return self.s.build(values, record(), cwd=self.run.repo, folder=self.run.artifacts)
+            return self.s.build(values, base_record(), cwd=self.run.repo, folder=self.run.artifacts)
 
     def test_returned_rounds_are_a_section(self):
         """報告の sections に、承認ノードと同じ見出しと行で、返した周の節が入る。返した周が 0 なら節は無い"""
@@ -506,13 +419,13 @@ class SectionsCase(unittest.TestCase):
 
 class CollectScriptCase(unittest.TestCase):
     def args(self, values) -> dict:
-        return {name: "null" if values.get(name) is None else json.dumps(values[name], ensure_ascii=False) for name in INPUTS}
+        return {name: "null" if values.get(name) is None else json.dumps(values[name], ensure_ascii=False) for name in COLLECT_INPUTS}
 
     def seeded_run(self) -> "kit.Run":
         run = kit.Run(self, BLOCK)
-        seed(run)
+        seed_closure(run)
         (run.artifacts / "r1").mkdir()
-        (run.artifacts / "r1" / "start.json").write_text(json.dumps(record()), encoding="utf-8")
+        (run.artifacts / "r1" / "start.json").write_text(json.dumps(base_record()), encoding="utf-8")
         return run
 
     def test_writes_both_files_and_returns_pointers(self):
@@ -595,7 +508,7 @@ class CollectScriptCase(unittest.TestCase):
     def test_all_null_still_writes(self):
         """落ちない: どの入力も null（全部の段が飛んだ）でも 2 つのファイルを書く"""
         run = kit.Run(self, BLOCK)
-        got = run.script("collect", **{name: "null" for name in INPUTS})
+        got = run.script("collect", **{name: "null" for name in COLLECT_INPUTS})
         facts = json.loads((run.artifacts / got["facts"]["path"]).read_text(encoding="utf-8"))
         self.assertEqual((facts["start_ok"], check(facts, FACTS_SCHEMA)), (False, []))
 
@@ -620,7 +533,7 @@ class SpecRunCase(unittest.TestCase):
         self.s = kit.load(BLOCK, "sections")
         self.r = kit.load(BLOCK, "specrounds")
         self.run = kit.Run(self, BLOCK)
-        seed(self.run)
+        seed_closure(self.run)
 
     def spec_values(self, **over) -> dict:
         v = passing()
@@ -638,7 +551,7 @@ class SpecRunCase(unittest.TestCase):
         return self.r.collect_values(v)
 
     def rec(self) -> dict:
-        return {**record(), "spec_table": "/x/t.yaml"}
+        return {**base_record(), "spec_table": "/x/t.yaml"}
 
     def test_spec_values_fill_the_current_fields(self):
         v = self.spec_values()

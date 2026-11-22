@@ -9,8 +9,7 @@ import unittest
 import yaml
 
 from tests.blocks import kit
-from tests.blocks.line import test_start as ts
-from tests.blocks.line.test_talk import TalkBase
+from tests.blocks.line.support import Seeded, TalkBase
 from tests.blocks.theme import values as tv
 
 BLOCK = "line"
@@ -18,7 +17,7 @@ LINE_YAML = kit.BLOCKS / "line" / "works-factory-line.yaml"
 
 
 # ---------------------------------------------------------------- 入口（start）
-class ThemeStartCase(ts.Seeded):
+class ThemeStartCase(Seeded):
     def theme_request(self, theme, **more) -> str:
         return str(self.outside("theme-request.json", json.dumps({"theme": theme, **more}, ensure_ascii=False)))
 

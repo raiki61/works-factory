@@ -12,84 +12,9 @@ import pathlib
 import unittest
 
 from tests.blocks import kit
-from tests.blocks.line.test_tiers import handed
-from tests.blocks.line.test_gates import NARROW, ask_row, rounds
+from tests.blocks.line.support import APPROACH, NARROW, TalkBase, ask_row, got, handed, line_traces, out, ran, rounds, written_record
 
 BLOCK = "line"
-APPROACH = "空の列で 0 を返す形に変える"
-
-
-def written_record(rounds_mod, dest, *, passes=((),)) -> dict:
-    """line の書き手の道で作った往復の記録: 項目 1 つの案に、passes の往復ごとの block の key の組で事前審査の返答を足す"""
-    doc = rounds_mod.fresh()
-    for k, keys in enumerate(passes, 1):
-        rounds_mod.record_pass(doc, {"plan": [{"id": "u1", "unit_keys": ["u1"], "hash": "h1"}],
-                                     "review": {"faces": [{"key": key, "kind": "x", "where": "", "why": "w", "severity": "block",
-                                                           "unit_keys": ["u1"]} for key in keys]},
-                                     "answers": [], "resolved": []}, at_cap=False, dest=pathlib.Path(dest) / str(k))
-    return doc
-
-
-def no_materials(_rounds) -> dict:
-    """設計の相談の行の材料（判定・構造の目・方針の文書の変化・前の答えの無い run）"""
-    return {"ledger": None, "design_rows_": [], "policy_row": "", "stuck_reason": "", "record_doc": None, "answered": [],
-            "unread": []}
-
-
-class TalkBase(unittest.TestCase):
-    """設計の相談の試験の助け（周の頭と終わりを place の一時のフォルダで回す）"""
-
-    def setUp(self):
-        self.run = kit.Run(self, BLOCK)
-        with self.run.env():
-            self.t = kit.load(BLOCK, "talk")
-            self.r = kit.load(BLOCK, "rounds")
-            self.g = kit.load(BLOCK, "gates")
-        self.answer = __import__("answer")
-
-    def put(self, rel: str, doc) -> dict:
-        path = self.run.artifacts / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        return json.loads(self.run.pointer(rel))
-
-    def record(self) -> dict:
-        """往復が 1 つで、項目 1 つの閉じた記録（plan-converge.json）。line の書き手（rounds.fresh・record_pass）で作る"""
-        return written_record(self.r, self.run.artifacts / "plan-converge")
-
-    def plan_out(self, **over) -> dict:
-        """plan-out の返り（往復の記録と案の控えの pointer つき）"""
-        record = self.put("plan-converge.json", self.record())
-        fix_plan = self.put("plan/r1/p2.fix_plan.json", {"plan": [{"unit_keys": ["u1"], "approach": APPROACH}]})
-        fields = self.put("plan/r1/plan-fields.json", {"round": 1, "fields": [{"unit_keys": ["u1"], "allowed_paths": ["a.py"], "out_of_scope": [], "route": "tdd"}]})
-        reply = self.put("plan/r1/reply.json", {"plan": [{"unit_keys": ["u1"], "approach": APPROACH}]})
-        prior = self.put("plan-rounds/prior-1.json", {"round": 1, "reply": reply, "fields": fields, "record": self.record()})
-        return {**rounds(record=record, plan_prior=prior, fix_plan=fix_plan, plan=fields), **over}
-
-    def turn(self, answer="", previous=None, last=None, design_talk=True, **given):
-        with self.run.env():
-            return self.t.turn(answer_raw=answer if isinstance(answer, str) else json.dumps(answer),
-                               previous_raw=json.dumps(previous) if previous is not None else "",
-                               last_raw=json.dumps(last) if last is not None else "",
-                               given={"design_talk": design_talk, "unattended": False, "request_answers": [{"question": "q", "text": "a"}],
-                                      **given},
-                               recorded=[{"source": "doc", "name": "p.md", "text": ""}], place=self.run.artifacts)
-
-    def materials(self, po) -> dict:
-        """材料の読み（asking.materials と同じく往復の記録を 1 つの読み口で読む。ほかの材料は無い run）"""
-        return {**no_materials(po), "record_doc": self.t._record_of(po.get("record"))}
-
-    def settle(self, turn_got, plan_out=None, previous=None, design_talk=True):
-        with self.run.env():
-            return self.t.settle(turn_got=turn_got, plan_out=plan_out, previous=previous,
-                                 given={"design_talk": design_talk, "unattended": False}, materials=self.materials, run_id=kit.RUN_ID)
-
-    def opened(self, **over) -> dict:
-        """対話モードで往復が止まった周の design-talk の返り（関所が開いた）"""
-        return self.settle(self.turn(), self.plan_out(**over))
-
-
-
 class TalkCase(TalkBase):
     # ------------------------------------------------------------------ 通常の run は変わらない
     def test_normal_run_carries_the_previous_round_as_it_was(self):
@@ -694,25 +619,23 @@ class DryRunCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from tests.blocks.line import test_scenarios as sc
-        cls.sc = sc
-        cls.traces = sc.line_traces(("standard", "design-talk"))
+        cls.traces = line_traces(("standard", "design-talk"))
 
     def test_normal_run_skips_the_talk_and_returns_the_plan_out(self):
         trace = self.traces["standard"]
-        self.assertTrue(self.sc.ran(trace, "design-turn") and self.sc.ran(trace, "design-talk"))
+        self.assertTrue(ran(trace, "design-turn") and ran(trace, "design-talk"))
         self.assertNotIn("gate-design", trace, "筋書きの木は本体の終わりの関所を外す")
-        self.assertEqual(self.sc.got(trace, "plan-rounds")["status"], "ok", "往復の返りが空でない（dry-run でも本物と同じ形）")
-        po, talk = self.sc.out(trace, "plan-out"), self.sc.out(trace, "design-talk")
+        self.assertEqual(got(trace, "plan-rounds")["status"], "ok", "往復の返りが空でない（dry-run でも本物と同じ形）")
+        po, talk = out(trace, "plan-out"), out(trace, "design-talk")
         self.assertEqual({k: talk[k] for k in po}, po)
         self.assertEqual((talk["open"], talk["agreed"], talk["talks"]), (False, None, []))
-        turn = self.sc.out(trace, "design-turn")
+        turn = out(trace, "design-turn")
         self.assertEqual((turn["plan"], turn["plan_prior"], turn["record"], turn["recorded"]), (True, None, None, []))
 
     def test_dialogue_run_shows_the_design_and_the_review(self):
         trace = self.traces["design-talk"]
-        self.assertEqual(self.sc.got(trace, "plan-rounds")["open"], True, "往復の返りは design-talk の返り（本物と同じ）")
-        talk = self.sc.out(trace, "design-talk")
+        self.assertEqual(got(trace, "plan-rounds")["open"], True, "往復の返りは design-talk の返り（本物と同じ）")
+        talk = out(trace, "design-talk")
         self.assertEqual((talk["open"], talk["done"]), (True, False))
         for word in ("設計案（計画の周 1）", "事前審査の結果", " revise ", "人が決める項目"):
             self.assertIn(word, talk["text"])

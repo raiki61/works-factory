@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 from tests.blocks import kit
-from tests.blocks.line import test_collect as base
+from tests.blocks.line.support import COLLECT_INPUTS, passing, base_record, seed_closure
 
 BLOCK = "line"
 # 頭に訳なしで出てはいけない内側の名前の形（ノードの id は nodenames.json の行。止めの語・審査役の印・記録の欄の名は字の形で見る）
@@ -34,11 +34,11 @@ class HeadAfterBase(unittest.TestCase):
     def setUp(self):
         self.f = kit.load(BLOCK, "facts")
         self.run = kit.Run(self, BLOCK)
-        base.seed(self.run)
+        seed_closure(self.run)
 
     def facts_of(self, values: dict, record: dict | None = None) -> dict:
         with self.run.env(), mock.patch.object(__import__("report"), "CMD_LIGHT", "light", create=True):
-            return self.f.build(values, record or base.record())
+            return self.f.build(values, record or base_record())
 
     def after(self, values: dict, record: dict | None = None) -> list:
         """頭の after の知らせの行 {kind, slots, text}"""
@@ -57,7 +57,7 @@ class SuiteBrokenHeadCase(HeadAfterBase):
            "届く前に落ちた（error 1 件。ログ /r/fix/tdd-2/suite-0.log）のに、test_cmd を単体で走らせると通る（ログ /r/fix/tdd-2/test-cmd-alone.log）")
 
     def test_the_stop_reason_with_the_log_paths_heads_the_report(self):
-        v = base.passing()
+        v = passing()
         v["fixed"] = {**v["fixed"], "tdd": [[{"group_id": "g1", "ran": False, "reason": self.WHY, "suite": "/r/runner", "units": [],
                                               "suite_broken": True, "runner_log": "/r/fix/tdd-2/suite-0.log",
                                               "cmd_log": "/r/fix/tdd-2/test-cmd-alone.log"}]]}
@@ -68,14 +68,14 @@ class SuiteBrokenHeadCase(HeadAfterBase):
 
     def test_a_group_stopped_for_no_suite_heads_the_report(self):
         """試験の実行器が無い・走らないで止めた組（止めの語 no-suite。docs/design/fix.md の 19.1 の「試験なしで直す逃げ道を閉じる」）も、種つきで知らせる"""
-        v = base.passing()
+        v = passing()
         v["fixed"] = {**v["fixed"], "tdd": [[{"group_id": "g1", "ran": False, "reason": "試験の実行器が無いか走らない組", "units": [],
                                               "no_suite": True}]]}
         self.assertEqual(self.kinds(self.after(v), "suite_broken", "no_suite"),
                          [{"kind": "no_suite", "slots": {"group": "g1"}, "text": "試験の実行器が無いか走らない組"}])
 
     def test_a_fix_that_did_not_stop_says_nothing(self):
-        self.assertEqual(self.kinds(self.after(base.passing()), "suite_broken", "no_suite"), [])
+        self.assertEqual(self.kinds(self.after(passing()), "suite_broken", "no_suite"), [])
         stopped = [{"kind": "suite_broken", "slots": {"group": "g", "runner_log": "a", "cmd_log": "b"}, "text": ""}]
         self.assertTrue(self.kinds(stopped, "suite_broken", "no_suite"), "その種の要素を入れた facts は赤になる")
         self.assertEqual(self.kinds(["修正の段が止めた（古い形の字）"], "suite_broken"), [], "字の要素は種を持たない")
@@ -87,7 +87,7 @@ class BaseStopHeadCase(HeadAfterBase):
     WHY = "素材が not_run——緑を仮定しない（試験のコマンド（no-such-tool）の最初の語を起こせない（PATH に no-such-tool が無い）。試験は走らせずに確かめた）"
 
     def test_the_stop_reason_of_the_base_gate_heads_the_report(self):
-        v = base.passing()
+        v = passing()
         v["test_gate_base"] = {**v["test_gate_base"], "ok": False, "green": False, "reason": self.WHY}
         for name in ("judge", "fix_in", "fixed", "eyes", "merge_seal", "merge_apply", "test_gate_final"):
             v[name] = None
@@ -99,16 +99,16 @@ class BaseStopHeadCase(HeadAfterBase):
         import green_cert
         _, reason = green_cert.certify(mode="base", material_status="not_run", material_reason="試験のコマンド（no-such-tool）の最初の語を起こせない",
                                        green=None, before=None, after=None, now=None)
-        v = base.passing()
+        v = passing()
         v["test_gate_base"] = {**v["test_gate_base"], "ok": False, "green": False, "reason": reason}
-        facts = self.facts_of(v, {**base.record(), "test_cmd": "WORKS_SECRET=x no-such-tool --flag"})
+        facts = self.facts_of(v, {**base_record(), "test_cmd": "WORKS_SECRET=x no-such-tool --flag"})
         [note] = self.kinds(facts["head"]["after"], "base_gate_stopped")
         self.assertIn(green_cert.RAN_GUIDE, note["text"])
         self.assertEqual(note["slots"], {"cmd": "no-such-tool"})
         self.assertNotIn("WORKS_SECRET", json.dumps(note["slots"]), "前置きの環境変数の値は頭に出さない")
 
     def test_a_base_gate_that_went_on_says_nothing(self):
-        self.assertEqual(self.kinds(self.after(base.passing()), "base_gate_stopped"), [])
+        self.assertEqual(self.kinds(self.after(passing()), "base_gate_stopped"), [])
         gate = [{"kind": "base_gate_stopped", "slots": {"cmd": "x"}, "text": ""}]
         self.assertTrue(self.kinds(gate, "base_gate_stopped"), "その種の要素を入れた facts は赤になる")
 
@@ -123,7 +123,7 @@ class StopReasonHeadCase(HeadAfterBase):
 
     def test_the_refused_line_says_what_to_do_next_without_inner_names(self):
         import stopby
-        v = {name: None for name in base.INPUTS} | {"notices": "", "optional": []}
+        v = {name: None for name in COLLECT_INPUTS} | {"notices": "", "optional": []}
         v["start"] = {"ok": False, "stop_reason": stopby.START_REFUSED, "reason": self.REFUSED, "record": None}
         [note] = self.kinds(self.after(v), "start_refused")
         self.assertEqual((note["slots"], note["text"]), ({}, self.REFUSED))
@@ -142,10 +142,10 @@ class TddNoticeHeadCase(HeadAfterBase):
     run の頭が『取り置きを使った』と言って、ループを回していない事実が頭から消える。そこで本物の facts の build に状態ごとの記録を渡し、種と表の文の組を見る"""
 
     def mark(self, **over) -> dict:
-        return {**base.record(), "suite_written": {"from": "ai", "path": "", "ok": True, "why": "", "dropped": "", "stored": False, **over}}
+        return {**base_record(), "suite_written": {"from": "ai", "path": "", "ok": True, "why": "", "dropped": "", "stored": False, **over}}
 
     def notes(self, record: dict) -> list:
-        return self.kinds(self.after(base.passing(), record), "suite_used", "suite_wrote", "suite_not_made")
+        return self.kinds(self.after(passing(), record), "suite_used", "suite_wrote", "suite_not_made")
 
     def test_a_runner_that_was_not_made_says_the_loop_did_not_run(self):
         import suitewrite
@@ -171,4 +171,4 @@ class TddNoticeHeadCase(HeadAfterBase):
                 self.assertNotIn(other, said)
                 self.assertNotIn("TDD のループは回さない", said)
         self.assertEqual(self.notes(self.mark(**{"from": "keep"}))[0]["text"], suitewrite.note_detail(self.mark(**{"from": "keep"})))
-        self.assertEqual(self.notes(base.record()), [], "実行器を用意しなかった run には知らせが無い")
+        self.assertEqual(self.notes(base_record()), [], "実行器を用意しなかった run には知らせが無い")

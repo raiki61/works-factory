@@ -4,6 +4,7 @@ import json
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.support import TOP, would_run
 
 BLOCK = "line"
 FIRST = {"judgment": {"path": "judge/j.json"}, "units": [{"id": "u1"}], "answer_ties": {"path": "t.json"}, "materials": {"path": "m.json"},
@@ -93,7 +94,6 @@ class StoppedJudgmentWiringCase(unittest.TestCase):
     後ろの節の when: は読まず、走りうる節は走ったと見る（それでも封じと当てが飛ぶことを見る）"""
 
     def test_a_stopped_judgment_reaches_neither_the_seal_nor_the_apply(self):
-        from tests.blocks.line.test_wiring import TOP, would_run
         self.assertIn("$judged.output.stop_reason == ''", TOP["test-gate-final"]["when"])
         below = {"test-gate-final"}
         grew = True
