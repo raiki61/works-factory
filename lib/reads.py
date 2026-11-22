@@ -82,7 +82,7 @@ def index_name(owner: str, replan: bool = False) -> str:
 
 
 def index_why(path) -> str:
-    """索引 path の訳（INDEX_WHY）。読めない・訳が無ければ """""
+    """索引 path の訳（INDEX_WHY）。読めない・訳が無ければ空の字"""
     doc = jsonfile.read_or(path)
     why = doc.get(INDEX_WHY) if isinstance(doc, dict) else None
     return why if isinstance(why, str) else ""
