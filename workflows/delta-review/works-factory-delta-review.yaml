@@ -383,7 +383,7 @@ nodes:
               type: {type: string, enum: [archon_artifact]}
               run_id: {type: string}
               path: {type: string}
-          description: 'json(shared:delta-holes.schema.json): 往復ごとの穴の名札と手直しの handled の行'
+          description: 'json(delta-holes.schema.json): 往復ごとの穴の名札と手直しの handled の行'
         diff: {<<: *pointer_or_null, description: 'file: 手直しの後までの累積の差分（空なら null）'}
         carry:
           type: array

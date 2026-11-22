@@ -221,7 +221,7 @@ def _common(place, repo, rows_groups, groups, extras, results, *, ok, reason, fi
             "accept_trace": ports.pointer(place / files.ACCEPT_TRACE_FILE, "json(shared:accept-trace.schema.json)"),
             "closure": ports.pointer(place / CLOSURE_FILE, "json(shared:closure.schema.json)") if (place / CLOSURE_FILE).is_file() else None,
             "tdd_unit": ports.pointer(unit_file, "json(shared:tdd-units.schema.json)"), "tdd": tdd_rows,
-            "frozen": ports.pointer(frozen, "json(shared:frozen.schema.json)") if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
+            "frozen": ports.pointer(frozen, "json(frozen.schema.json)") if frozen else None, "removed": _removed(place), "tdd_refused": _tdd_refused(place),
             "removed_tests": removed_tests, "untested": untested,
             "freeze_off": report.freeze_off(tdd_rows), "report": report.lines(place, tdd_rows, units_rows, repo, groups_rows,
                                                                      board.writer_report_rows(place, results))}
