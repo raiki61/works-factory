@@ -164,7 +164,7 @@ def returns_of(place) -> list:
     for p in sorted(d.glob("*.json")) if d.is_dir() else []:
         doc = jsonfile.read_or(p)
         if not isinstance(doc, dict):
-            raise ValueError(f"返しの控え {p} が読めない（JSON のオブジェクトでない。壊れた控えを直すか消して、組の run をやり直す）")
+            raise ValueError(f"返しの控え {p} が読めない（JSON として読めないか、オブジェクトでない。壊れた控えを直すか消して、組の run をやり直す）")
         out.append(doc)
     return out
 
@@ -383,7 +383,7 @@ def returned_weapons(place) -> dict:
     for p in sorted(d.glob("*.json"), key=lambda q: (len(q.stem), q.stem)) if d.is_dir() else []:
         doc = jsonfile.read_or(p)
         if not isinstance(doc, dict):
-            raise ValueError(f"返しの控え {p} が読めない（JSON のオブジェクトでない。壊れた控えを直すか消して、組の run をやり直す）")
+            raise ValueError(f"返しの控え {p} が読めない（JSON として読めないか、オブジェクトでない。壊れた控えを直すか消して、組の run をやり直す）")
         for u in doc.get("units") or []:
             if isinstance(u, dict) and isinstance(u.get("key"), str):
                 out[u["key"]] = str(doc.get("weapon") or "")
@@ -495,7 +495,7 @@ def order_docs(place) -> dict:
     for p in sorted(d.glob("*.json")) if d.is_dir() else []:
         doc = jsonfile.read_or(p)
         if not isinstance(doc, dict):
-            raise ValueError(f"注文 {p} が読めない（JSON のオブジェクトでない。壊れた注文を直すか消して、注文を作る段からやり直す）")
+            raise ValueError(f"注文 {p} が読めない（JSON として読めないか、オブジェクトでない。壊れた注文を直すか消して、注文を作る段からやり直す）")
         out[p.stem] = doc
     return out
 
