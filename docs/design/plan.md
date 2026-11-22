@@ -52,7 +52,7 @@
 - `spec`: `json(shared:spec.schema.json): 固めた仕様（requirements・acceptance を持つ spec.json）。空は仕様が無い`。既定 `""`。
 - `spec_doc`: `file: 人と固めた仕様の本文（設計書の本文と表の md。字のまま貼る）。空は渡されていない`。既定 `""`（#851: 1 つの入力が JSON と字の文書の 2 つの形を運ばないよう、仕様駆動の道の本文を `spec` から分けた）。
 - `policy`: `file: 人の方針の文書の固めた写し。空は方針の文書が無い`。既定 `""`。
-- `prior_failures`: `json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い`。既定 `[]`。
+- `prior_failures`: `json(lib:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い`。既定 `[]`。
 - `prior`: `json(shared:plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）`。既定 `""`。
 - `ruling`: `json(shared:replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）`。既定 `[]`。
 - `conflicts`: `json(lib:conflicts.schema.json): 修正の段の申し出と裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い`。既定 `""`。
@@ -66,7 +66,7 @@
 
 - `workflows/.shared/schemas/judgment.schema.json`（新しく足す。判定を読む block は plan のほかに plan-review・verify・fix が在る）: `{"type": "object", "required": ["units"], "properties": {"units": {"type": "array", "items": {"type": "object", "required": ["key"], "properties": {"key": {"type": "string", "minLength": 1}, "label": {"type": "string"}, "disposition": {"type": "string"}, "prescriptions": {"type": "array", "items": {"type": "string"}}}}}, "questions": {"type": "array", "items": {"type": "object"}}}}`。作る時に同じ名の形が `.shared/schemas/` に在れば、それを使い、足さない。
 - `workflows/.shared/schemas/units.schema.json`（#851 で plan の写し unit-catalog.schema.json を消して寄せた）: 直しの単位の目録の形。今はこの 1 つだけで、plan の側に写しは無い（作った時は名を替えて plan の側に unit-catalog.schema.json として写していた。10 節の 6）。
-- `workflows/.shared/schemas/prior-failures.schema.json`（新しく足す。読み手は plan と diagnose）: `{"type": "array", "items": {"type": "object", "required": ["where", "text"], "properties": {"where": {"type": "string"}, "text": {"type": "string"}}}}`。同じ名の形が在れば使う。
+- `lib/prior-failures.schema.json`（読み手は plan と diagnose と、住処の `lib/carry.py`。`workflows/.shared/schemas/` に置いた同じ形の写しは消して 1 本にした）: `{"type": "array", "items": {"type": "object", "required": ["where", "text"], "properties": {"where": {"type": "string"}, "text": {"type": "string"}}}}`。同じ名の形が在れば使う。
 - `workflows/.shared/schemas/request-answers.schema.json`（#851 で .shared へ移した）: 依頼の answers の行 `[{question, text, command?, output?, pushed?}]`（`pushed` は無人の run が採った推しの行の印。必須は縛らない。形を確かめる住処は `lib/carry.py`）。
 - `workflows/.shared/schemas/replan-items.schema.json`（plan-review の入力 `ruling` と同じ形）: `{"type": "array", "items": {"type": ["integer", "string"]}}`（番号の照らしは `planmarks.handed` のまま）。
 - `workflows/.shared/schemas/plan-prior.schema.json`（#851 で line と plan が同じ名を指すよう .shared へ移した。欄の description が指す先の形を名指す。下は移す前の形）:

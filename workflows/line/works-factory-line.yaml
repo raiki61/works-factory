@@ -64,7 +64,7 @@ nodes:
               run_id: {type: string}
               path: {type: string}
           description: 'json(start-record.schema.json): 始めの記録（run directory の根の r1/start.json）'
-        prior_failures: {<<: *pointer_or_null, description: 'json(shared:prior-failures.schema.json): 依頼の prior_failures の写し。無ければ null'}
+        prior_failures: {<<: *pointer_or_null, description: 'json(lib:prior-failures.schema.json): 依頼の prior_failures の写し。無ければ null'}
         ask: {type: boolean}
         gate_text: {type: string}
         unattended: {type: boolean}

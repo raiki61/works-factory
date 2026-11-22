@@ -219,7 +219,7 @@ def intake(place, repo, k: int, raw: dict) -> dict:
     ctx["means"] = _optional("means", unread, lambda: ports.json(_text_of(raw.get("means")) or "[]", "shared:stated-means.schema.json"), [])
     ctx["answers"] = _optional("answers", unread, lambda: ports.json(_text_of(raw["answers"]) or "[]", "shared:request-answers.schema.json"), [])
     ctx["prior_failures"] = _optional("prior_failures", unread, lambda: ports.json(_text_of(raw["prior_failures"]) or "[]",
-                                                                                    "shared:prior-failures.schema.json"), [])
+                                                                                    "lib:prior-failures.schema.json"), [])
     try:
         ctx["takes_push"] = ports.flag(raw["takes_push"])
     except ValueError as e:

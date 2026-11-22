@@ -23,7 +23,7 @@ inputs:
   spec: {default: '', description: 'json(shared:spec.schema.json): 固めた仕様（requirements・acceptance を持つ spec.json）。空は仕様が無い'}
   spec_doc: {default: '', description: 'file: 人と固めた仕様の本文（設計書の本文と表の md。字のまま貼る）。空は渡されていない'}
   policy: {default: '', description: 'file: 人の方針の文書の固めた写し。空は方針の文書が無い'}
-  prior_failures: {default: '[]', description: 'json(shared:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い'}
+  prior_failures: {default: '[]', description: 'json(lib:prior-failures.schema.json): 前の run で最後まで通らなかった物の行の配列 [{where, text}]。空の配列は無い'}
   prior: {default: '', description: 'json(shared:plan-prior.schema.json): 前の周（形 plan では直前の計画の周と、それへの事前審査。形 replan では直す元の承認済みの案の周）。pointer・パス・値のどれか。空の字は前の周が無い（1 周目）'}
   ruling: {default: '[]', description: 'json(shared:replan-items.schema.json): 案の直しで直す項目の番号（1 始まり。整数か数字の字）の配列。空の配列は案の直しでない（形 plan）'}
   conflicts: {default: '', description: 'json(lib:conflicts.schema.json): 項目の誤りの申し出と、その裁定の行のファイル（{items: [...]}）。形 replan だけが読む。空は行が無い'}
