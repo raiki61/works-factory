@@ -28,7 +28,6 @@ workflows/.shared/prompts/policy.md、記録された方針の節の文（前の
   方針の文書の柵の語の持ち主（issue #454。judge_accept・fixboard・gatemarks がここから引く）
 """
 import hashlib
-import json
 import pathlib
 import re
 import sys
@@ -43,6 +42,7 @@ if str(_CORE / "graphloops") not in sys.path:
     sys.path.insert(0, str(_CORE / "graphloops"))
 from engine import util  # noqa: E402
 import answer  # noqa: E402
+import jsonfile  # noqa: E402
 import listcut  # noqa: E402
 
 DIR = "policy"
@@ -140,10 +140,7 @@ _GATE_ID = 6   # 承認ノードの答えの名指しの印（一言の sha256 �
 
 def _settled_rows(path) -> list:
     """決定記録の突合の返答 path の reply.settled のうち dict の行。無い・読めない・形が違えば []"""
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    doc = jsonfile.read_or(path)
     reply = doc.get("reply") if isinstance(doc, dict) else None
     rows = reply.get("settled") if isinstance(reply, dict) else None
     return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
