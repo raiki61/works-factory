@@ -771,6 +771,53 @@ def _owner_pool(ix, mods, kind, key, path):
     return [path]
 
 
+def _unanalysable(ix, mods, missing, near) -> list[dict]:
+    """読めない物の行（reason と in_neighbourhood を持つ）。大きすぎる・バイナリ・言語が分からない・Python の読み誤り・動的な import・
+    ix.special・ファイルの無い起点。near は起点と辿り着いた先の path の集まり"""
+    module_words = set()
+    for p in near:
+        if p in mods.pys:
+            for name, _root in _names_of(p, mods.pkgdirs):
+                module_words.add(name)
+                module_words.add(name.rsplit(".", 1)[-1])
+    unanalysable = []
+    hint_words = set(ix.by_base) | {d.rsplit("/", 1)[-1] for d in ix.dirs} | {
+        s for s in ix.by_stem if len(s) >= KEY_MIN}
+    for p in sorted(ix.files):
+        rec = ix.rec(p)
+        lang = ix.lang[p]
+        if rec.get("large"):
+            unanalysable.append({"path": p, "reason": "too-large",
+                                 "in_neighbourhood": p in near or _ext(p) not in DOC_EXT})
+            continue
+        if lang == "binary":
+            unanalysable.append({"path": p, "reason": "binary", "in_neighbourhood": False})
+            continue
+        if lang == "unknown":
+            unanalysable.append({"path": p, "reason": "unknown-language", "in_neighbourhood": p in near})
+            continue
+        if lang != "python":
+            continue
+        facts = rec.get("py") or {}
+        if facts.get("error"):
+            may = p in near or bool(module_words & set(rec["words"]))
+            unanalysable.append({"path": p, "reason": "py-parse-error", "text": facts["error"],
+                                 "in_neighbourhood": may})
+            continue
+        for line, text, consts in facts.get("dyn", []):
+            pieces = {q for c in consts for q in c.split("/") if q}
+            if pieces & hint_words:
+                continue
+            unanalysable.append({"path": p, "reason": "dynamic-import", "line": line, "text": text,
+                                 "in_neighbourhood": p in near})
+    for p, why in sorted(ix.special.items()):
+        unanalysable.append({"path": p, "reason": why, "in_neighbourhood": p in near and why != "missing"})
+    for p in sorted(missing):
+        if p not in ix.special:
+            unanalysable.append({"path": p, "reason": "missing", "in_neighbourhood": False})
+    return unanalysable
+
+
 def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
     from_diff = list(changed) if diff else []
     files, names, missing = _normalize_seeds(ix, list(seeds) + from_diff)
@@ -923,47 +970,7 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
 
     # 読めない物
     near = seed_set | set(reach)
-    module_words = set()
-    for p in near:
-        if p in mods.pys:
-            for name, _root in _names_of(p, mods.pkgdirs):
-                module_words.add(name)
-                module_words.add(name.rsplit(".", 1)[-1])
-    unanalysable = []
-    hint_words = set(ix.by_base) | {d.rsplit("/", 1)[-1] for d in ix.dirs} | {
-        s for s in ix.by_stem if len(s) >= KEY_MIN}
-    for p in sorted(ix.files):
-        rec = ix.rec(p)
-        lang = ix.lang[p]
-        if rec.get("large"):
-            unanalysable.append({"path": p, "reason": "too-large",
-                                 "in_neighbourhood": p in near or _ext(p) not in DOC_EXT})
-            continue
-        if lang == "binary":
-            unanalysable.append({"path": p, "reason": "binary", "in_neighbourhood": False})
-            continue
-        if lang == "unknown":
-            unanalysable.append({"path": p, "reason": "unknown-language", "in_neighbourhood": p in near})
-            continue
-        if lang != "python":
-            continue
-        facts = rec.get("py") or {}
-        if facts.get("error"):
-            may = p in near or bool(module_words & set(rec["words"]))
-            unanalysable.append({"path": p, "reason": "py-parse-error", "text": facts["error"],
-                                 "in_neighbourhood": may})
-            continue
-        for line, text, consts in facts.get("dyn", []):
-            pieces = {q for c in consts for q in c.split("/") if q}
-            if pieces & hint_words:
-                continue
-            unanalysable.append({"path": p, "reason": "dynamic-import", "line": line, "text": text,
-                                 "in_neighbourhood": p in near})
-    for p, why in sorted(ix.special.items()):
-        unanalysable.append({"path": p, "reason": why, "in_neighbourhood": p in near and why != "missing"})
-    for p in sorted(missing):
-        if p not in ix.special:
-            unanalysable.append({"path": p, "reason": "missing", "in_neighbourhood": False})
+    unanalysable = _unanalysable(ix, mods, missing, near)
     reasons = sorted({f"{u['reason']}: {u['path']}" + (f":{u['line']}" if u.get("line") else "")
                       for u in unanalysable if u["in_neighbourhood"] and u["reason"] in UNANALYSABLE_TRIGGERS})
 
