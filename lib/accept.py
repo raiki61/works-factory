@@ -38,6 +38,7 @@ if str(_GL) not in sys.path:
 import engine.util as _util  # noqa: E402
 from engine.schema import validate_schema  # noqa: E402
 from engine.util import Reject  # noqa: E402
+import jsonfile  # noqa: E402
 
 RACY_NS = 2_000_000_000   # ファイルの時刻の細かさの上限（FAT の 2 秒）。これより新しい mtime は印だけでは信じない
 
@@ -95,11 +96,7 @@ def read_board(board, name):
 
 
 def write_board(board, name, obj):
-    p = pathlib.Path(board) / name
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, p)
-    return p
+    return jsonfile.write(pathlib.Path(board) / name, obj)
 
 
 def type_errors(value, schema, what):
