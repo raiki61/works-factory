@@ -1,6 +1,6 @@
 # 素材の観点の族の設計書: 共通の形（materials）
 
-- 何の話か: 判定の前に集める素材の観点 11 本（README の 8.1）を、1 本ずつ単独で呼べる block にする。その 11 本が共に従う形（intake → prep → 役 → accept → finish）、11 本が共に使う `lib/` の部品 `lib/materialkit.py`、指示の md の共通の節と共通の断片、観点の block の宣言の仕方を、この文書が決める。1 本目の観点 prior-decisions の設計は [prior-decisions.md](prior-decisions.md)。残りの 10 本の設計書はこの文書と prior-decisions.md を写して書く。型は [README.md](README.md)、手本は [world.md](world.md)。
+- 何の話か: 判定の前に集める素材の観点 11 本（README の 8.1。judge が回すのは gate-efficacy を除く 10 本）を、1 本ずつ単独で呼べる block にする。その 11 本が共に従う形（intake → prep → 役 → accept → finish）、11 本が共に使う `lib/` の部品 `lib/materialkit.py`、指示の md の共通の節と共通の断片、観点の block の宣言の仕方を、この文書が決める。1 本目の観点 prior-decisions の設計は [prior-decisions.md](prior-decisions.md)。残りの 10 本の設計書はこの文書と prior-decisions.md を写して書く。型は [README.md](README.md)、手本は [world.md](world.md)。
 - 読む人と使い方: 残りの 10 本の観点の設計書の書き手（この文書の 7 節の形で書く）と、族の部品 `lib/materialkit.py` と観点の block を作る実装者（2〜6 節の名と順をそのまま作る）。11 本の PR の前に要る（README の 11.1 の 1 波目）。
 - 決めたこと: 観点ごとに 5 つの node（intake・prep・役・accept・finish）の block にする。回すか（今の `material-route` の要否）と、回さない時の素材の状態（今の `material-route.json` の `fill`）は、観点の block の intake が自分で決める。block はどの道でも素材の状態を 1 つの `material.json` に書いて pointer で返す。対象差分の取り方・作業ツリーの写しと照らし・所見の場所の照らし・素材の欄の照らし・受け付けの流れは `lib/materialkit.py` の 1 か所に置き、観点の block は `src/viewpoint.py` の宣言（名・素材の名・回す条件・『条件に当たらない』の扱い・md の値・返答から素材への写し・観点だけの受け付け）だけを持つ。11 本の md が字のまま写している 4 つの段落（素材の書き方・所見の場所・『条件に当たらない』・作業ツリーを変えるな）と works-gh の段落は、共通の断片にする。振る舞いは変えない。
 - 持ち主に求めること: なし。
