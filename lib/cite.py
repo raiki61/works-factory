@@ -278,7 +278,7 @@ def ref_problem(source, prefix, known) -> list:
 # ---------------------------------------------------------------- 指し先の綴りと版（元 judge_accept。名は元のまま）
 def blank(s, min_len) -> bool:
     """役が埋める自由文が「空同然」か（表と長さの両方で見る）。元 works/.shared/core/graphloops/rules/review-loop.py:480"""
-    t = (s or "").strip() if isinstance(s, str) else ""
+    t = s.strip() if isinstance(s, str) else ""
     return t.lower() in EMPTY or len(t) < min_len
 
 
