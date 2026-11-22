@@ -31,7 +31,6 @@ ROUTE_REASON = "目が決め手から 1 つに決めた（決めきれない訳�
 MIN_UNDECIDED = 20   # 決まらない訳の字の下限（承認ノードの項目の訳になる）
 VERDICTS = ("汚れる", "汚れない")
 DIRTY, CLEAN = VERDICTS
-FORM_COUNT = 6   # prompts/structure-eye.md の見る形の数（output_format の faces の範囲の上限と同じ。試験が突き合わせる）
 MIN_QUOTE = 20       # 抜き書きの字の下限
 DIFF_CAP = 40000     # after の指示に入れる差分のバイト数の上限（全体は after.diff に残す）
 UNREADABLE = "design_unreadable"   # 目の控えの status: 書いた設計の行を読み直せなかった

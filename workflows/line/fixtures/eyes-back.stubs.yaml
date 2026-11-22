@@ -600,7 +600,15 @@ eyes__r2__intake:
   premise: false
   reason: ''
 eyes__r2__finish:
-  findings: []
+  findings:
+  - needs: choose
+    kind: unfinished
+    where: app.py:9
+    text: 空の入力にも見出しを出すか
+    options:
+    - 出す
+    - 出さない
+    recommend: 出さない（頼みにも承認した計画にも無い）
   ok: true
   status: ran
   reason: ''
@@ -950,7 +958,15 @@ back-1-eyes__r2__intake:
   premise: false
   reason: ''
 back-1-eyes__r2__finish:
-  findings: []
+  findings:
+  - needs: choose
+    kind: unfinished
+    where: app.py:9
+    text: 空の入力にも見出しを出すか
+    options:
+    - 出す
+    - 出さない
+    recommend: 出さない（頼みにも承認した計画にも無い）
   ok: true
   status: ran
   reason: ''
