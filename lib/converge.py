@@ -88,6 +88,7 @@ import json
 import os
 import re
 import shutil
+from typing import Any, TypedDict
 
 import cite
 import jsonfile
@@ -320,6 +321,32 @@ def take_flips(row: dict, passes: list[dict], claimed, new) -> None:
     row["origins_claimed"] = [c for c in row["origins_claimed"] if not (c.get("key") in got and c.get("origin") == ORIGIN_FLIP)]
 
 
+class PlanItem(TypedDict, total=False):
+    """控えの plan の行（plan_rows が作り、控えの json にそのまま書く dict。形の正本は plan-converge.schema.json の plan）。
+    型は読み手への注記で、実行時の値は dict のまま（鍵は id・unit_keys・hash が常に在り、row・PLAN_MARKS の鍵は在れば）"""
+    id: str
+    unit_keys: list[str]
+    hash: str
+    row: dict[str, Any]
+    marks: list[Any]
+
+
+class ItemState(TypedDict, total=False):
+    """往復の行の items の行（_item_states が作る dict。形の正本は plan-converge.schema.json の passes の items）。
+    n・id・unit_keys・hash・state・blocks・reopened は常に在り、row は plan の行に在れば、hits・refs・file_notes は在れば"""
+    n: int
+    id: str
+    unit_keys: list[str]
+    hash: str
+    state: str
+    blocks: list[str]
+    reopened: bool
+    row: dict[str, Any]
+    hits: Any
+    refs: list[str]
+    file_notes: list[Any]
+
+
 def item_id(unit_keys) -> str:
     """項目の見分け（unit_keys の組。並びに依らない）"""
     return " | ".join(sorted(str(k) for k in unit_keys or []))
@@ -330,7 +357,7 @@ def item_hash(row: dict) -> str:
     return hashlib.sha256(json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _attributed(units: list, items: list) -> list[int]:
+def _attributed(units: list, items: list[ItemState]) -> list[int]:
     """face の unit_keys が重なる項目の位置（どの項目とも重ならなければ全部）"""
     hit = [i for i, it in enumerate(items) if set(units) & set(it["unit_keys"])]
     return hit or list(range(len(items)))
@@ -394,10 +421,12 @@ def _quoted(quote: str, mine: list, before: dict, changed: set) -> str:
     return {(True, False, False): ORIGIN_MISSED, (False, True, False): ORIGIN_INTRODUCED}.get(tuple(hit), ORIGIN_UNSPLIT)
 
 
-def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set, soft=()) -> list[dict]:
+def _item_states(plan: list[PlanItem], faces: list, face_units: dict, prev: list[ItemState], earlier: set,
+                 soft=()) -> list[ItemState]:
     before = {it["id"]: it for it in prev}
-    rows = [{"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
-             "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
+    rows: list[ItemState] = [
+        {"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
+         "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
     hard = {f.get("key") for f in faces if central(f)} - set(soft)   # soft: 前の往復で採った裏返し（保留にしない）
     for f in faces:
         for i in _attributed(face_units.get(f.get("key")) or [], rows):
@@ -458,15 +487,15 @@ def note_plan(b, rows: list, *, marks: list | None = None) -> None:
 PLAN_MARKS = "marks"   # 控えの plan の行に添える、row の narrows の行から外した関所の決め手の欄（#849）
 
 
-def plan_rows(rows: list, *, marks: list | None = None) -> list[dict]:
+def plan_rows(rows: list, *, marks: list | None = None) -> list[PlanItem]:
     """控えの plan の行 [{id, unit_keys, hash, row}]（受けた案の項目の行の並びから）。marks（rows と同じ並びの、項目ごとの narrows の
     行から外した決め手の欄の並び [[{…}…]…]。gatemarks.split の形）を渡せば、行ごとに PLAN_MARKS に添える（row は決め手の欄を
     持たない審査の形のまま。修正案の受け付けが役の書く形に戻す元）"""
-    out = []
+    out: list[PlanItem] = []
     for i, r in enumerate(rows):
         if not isinstance(r, dict):
             continue
-        it = {"id": item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
+        it: PlanItem = {"id": item_id(r.get("unit_keys")), "unit_keys": [str(k) for k in r.get("unit_keys") or []],
               "hash": item_hash(r), "row": copy.deepcopy(r)}
         if isinstance(marks, list) and i < len(marks):
             it[PLAN_MARKS] = copy.deepcopy(marks[i])
