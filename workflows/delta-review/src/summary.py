@@ -212,6 +212,6 @@ def finish(place, repo) -> dict:
             else f"- 差分の審査: 落ちた（{reason}）")
     gave = [f"- {'差分の審査' if role.startswith('review') else '手直し'}（{n} 回目）が {rolekit.GIVE_UP_AFTER} 回拒まれて諦めた: {why}"
             for role, n, why in got["gave_up"]]
-    return _out(status, reason, got["rounds"], got["pass"] and not got["gave_up"] and status != "failed", ports.pointer(holes, "json(shared:delta-holes.schema.json)"),
+    return _out(status, reason, got["rounds"], got["pass"] and not got["gave_up"] and status != "failed", ports.pointer(holes, "json(delta-holes.schema.json)"),
                 cumulative_diff(place, repo, intake["base"]), carry_items(ties, handled, state),
                 [head, *branch_lines(ties, handled), *gave, *lens_lines(state)])

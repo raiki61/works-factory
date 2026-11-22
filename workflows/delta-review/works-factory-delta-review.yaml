@@ -67,13 +67,14 @@ nodes:
           description: '1 回目の審査役: この周の修正だけの差分を読み、修正が新しく作った穴と塞いだと言われた穴の検算を返す（読むだけ）'
           prompt: "$review-1-prep.output.prompt"
           depends_on: [review-1-prep]
-          model: '@wf-fix-review'
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: &review_launch
+            model: '@wf-fix-review'
+            settingSources: [user]
+            allowed_tools: [Read, Grep, Glob]
+            mutates_checkout: false
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -182,13 +183,14 @@ nodes:
           description: '1 回目の手直しの役: 審査が挙げた穴と塞がっていなかった検算の全部に、直す（fixed）か残す（declared）かで答えて直す'
           prompt: "$refix-1-prep.output.prompt"
           depends_on: [refix-1-prep]
-          model: '@wf-fix-writers'
-          settingSources: [user]
-          skills: [receiving-code-review]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: &refix_launch
+            model: '@wf-fix-writers'
+            settingSources: [user]
+            skills: [receiving-code-review]
+            allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
+            sandbox: {enabled: true, allowUnsandboxedCommands: false}
+            idle_timeout: 1728000000
+            retry: {max_attempts: 2, on_error: all}
           output_format:
             type: object
             additionalProperties: false
@@ -251,13 +253,7 @@ nodes:
           description: '2 回目の審査役: 手直しだけの差分を読み、手直しが新しく作った穴と塞いだと言われた穴の検算を返す（読むだけ）'
           prompt: "$review-2-prep.output.prompt"
           depends_on: [review-2-prep]
-          model: '@wf-fix-review'
-          settingSources: [user]
-          allowed_tools: [Read, Grep, Glob]
-          mutates_checkout: false
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: *review_launch
           output_format:
             type: object
             additionalProperties: false
@@ -322,13 +318,7 @@ nodes:
           description: '2 回目の手直しの役: 審査が挙げた穴と塞がっていなかった検算の全部に、直す（fixed）か残す（declared）かで答えて直す'
           prompt: "$refix-2-prep.output.prompt"
           depends_on: [refix-2-prep]
-          model: '@wf-fix-writers'
-          settingSources: [user]
-          skills: [receiving-code-review]
-          allowed_tools: [Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, Skill]
-          sandbox: {enabled: true, allowUnsandboxedCommands: false}
-          idle_timeout: 1728000000
-          retry: {max_attempts: 2, on_error: all}
+          <<: *refix_launch
           output_format:
             type: object
             additionalProperties: false
@@ -393,7 +383,7 @@ nodes:
               type: {type: string, enum: [archon_artifact]}
               run_id: {type: string}
               path: {type: string}
-          description: 'json(shared:delta-holes.schema.json): 往復ごとの穴の名札と手直しの handled の行'
+          description: 'json(delta-holes.schema.json): 往復ごとの穴の名札と手直しの handled の行'
         diff: {<<: *pointer_or_null, description: 'file: 手直しの後までの累積の差分（空なら null）'}
         carry:
           type: array

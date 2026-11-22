@@ -4,7 +4,7 @@
 - 試験が無いかの印 no_tests の決め（src/basecase._no_tests。docs/design/fix.md の 22.3 の場合分けと、宣言を読む木。予約の 1 件だけの元の結末は 0 件）。どの試験も対象の試験を
   走らせない（持ち主の決め base-runs-nothing。走らせるのは試験の一覧のコマンドだけ）
 - 確かめの表（src/duties.py）の形の決まりと、型の義務の関数（static・pin・remove・variant・rebuild）
-- 口の形（.shared/schemas/weapon-order.schema.json・schemas/weapon-return.schema.json）
+- 口の形（.shared/schemas/weapon-order.schema.json）
 - 共通の受け付けが型の義務の表を引く口（duties.accept_problems）・赤を見ない clean の照らしを当てる単位（board.red_units・
   recount の red_units）・返しの控えを書く所（duties.write_returns）・返しの控えの凍結の照らし（duties.frozen_by_returns）・
   受け付けの名指しの出どころ（orders.named_tests）（4.4 の 4）

@@ -476,7 +476,7 @@ Return only JSON that matches the output schema.
 
 `carry` の行（今の `fixbeside.next_items` の手直しの部分の字）: 往復ごとの `handled` の行のうち declared は `{where: <files の頭か key>, text: "<key>（手直しが declared で残した穴: <how>）（枝: <名札>）"}`、2 往復目の fixed は `{where, text: "<key>（手直し 2 回目が fixed と言ったが、3 回目の審査は無い——検算が要る: <how>）（枝: <名札>）"}`。レンズの控えが読めなかった時は `{where: "レンズ", text: "レンズの控えが読めない——再実行の要あり: <訳>"}`。
 
-`finish` の `output_format`: `required` は全部の欄。`status` は `enum: [ok, gave_up, failed]`、`rounds` は `{type: integer, minimum: 0, maximum: 2}`、`holes`・`diff` は pointer（`type: [object, 'null']`。description に指す先の form、`holes` は `json(shared:delta-holes.schema.json)`、`diff` は `file`）、`carry` は `{where, text}` の object の配列、`report` は字の配列。ほかの script の node の返りは、どれも `additionalProperties: false` で全部の欄を `required` にする。
+`finish` の `output_format`: `required` は全部の欄。`status` は `enum: [ok, gave_up, failed]`、`rounds` は `{type: integer, minimum: 0, maximum: 2}`、`holes`・`diff` は pointer（`type: [object, 'null']`。description に指す先の form、`holes` は `json(delta-holes.schema.json)`、`diff` は `file`）、`carry` は `{where, text}` の object の配列、`report` は字の配列。ほかの script の node の返りは、どれも `additionalProperties: false` で全部の欄を `required` にする。
 
 ## 7 今の工場との比べ（確かめ・守り・落ちた時・書く順）
 

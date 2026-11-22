@@ -1297,7 +1297,7 @@ nodes:
         accept_trace: {<<: *pointer_or_null, description: 'json(shared:accept-trace.schema.json): 受け付けが選んだ試験を走らせた回の行'}
         closure: {<<: *pointer_or_null, description: 'json(shared:closure.schema.json): 閉鎖の表'}
         tdd_unit: {<<: *pointer_or_null, description: 'json(shared:tdd-units.schema.json): 組ごとの TDD の記録'}
-        frozen: {<<: *pointer_or_null, description: 'json(shared:frozen.schema.json): 周ごとの凍ったテストのファイルの hash'}
+        frozen: {<<: *pointer_or_null, description: 'json(frozen.schema.json): 周ごとの凍ったテストのファイルの hash'}
         # この段の組ごとの TDD の記録（tdd-unit.json の中身を値で）
         tdd: {type: array, description: 'json(shared:tdd-units.schema.json): 組ごとの TDD の記録'}
         # clean が消したパスの控えのポインタの並び。clean が走っていなければ []、探せなければ null

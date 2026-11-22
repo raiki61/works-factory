@@ -175,7 +175,7 @@ nodes:
   - id: theme-world
     include: works-factory-world
     depends_on: [answer-start]
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: &theme_run "$answer-start.output.go == true && $start.output.ports.theme != ''"
     with:
       request: "$start.output.ports.theme_request"
       purpose: "$start.output.ports.theme_text"
@@ -189,7 +189,7 @@ nodes:
       mutates_checkout: false
     depends_on: [answer-start, theme-world]
     trigger_rule: none_failed_min_one_success
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       got: {from: "$theme-world.output", if_skipped: null}
       field: "rows"
@@ -203,7 +203,7 @@ nodes:
   - id: theme-blind
     include: works-factory-independent-design
     depends_on: [answer-start]
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       purpose: "$start.output.ports.theme_text"
       answers: "$answer-start.output.answer"
@@ -216,7 +216,7 @@ nodes:
     <<: *relay
     depends_on: [answer-start, theme-blind]
     trigger_rule: none_failed_min_one_success
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       got: {from: "$theme-blind.output", if_skipped: null}
       field: "design reason"
@@ -369,7 +369,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [theme-rounds]
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       rounds: "$theme-rounds.output"
       ports: "$start.output.ports"
@@ -1106,31 +1106,32 @@ nodes:
     depends_on: [fix-in]
     when: "$fix-in.output.go == true && $fix-in.output.no_fix == false"
     with:
-      mode: "whole"
-      routes: "$start.output.ports.routes"
-      judgment: "$fix-in.output.judgment"
-      answer_ties: "$fix-in.output.answer_ties"
-      materials: "$fix-in.output.materials"
+      <<: &fix_with_common
+        mode: "whole"
+        routes: "$start.output.ports.routes"
+        judgment: "$fix-in.output.judgment"
+        answer_ties: "$fix-in.output.answer_ties"
+        materials: "$fix-in.output.materials"
+        request_answers: "$request-in.output.request_answers"
+        unattended: "$start.output.ports.unattended"
+        parallel: "$start.output.ports.parallel"
+        test_cmd: "$start.output.ports.test_cmd"
+        reuse_dir: "$start.output.ports.reuse_dir"
+        reuse_key: "$start.output.ports.run_id"
+        user_env_dir: "$start.output.ports.user_env_dir"
+        lang: "$start.output.ports.lang"
+        policy: "$fix-in.output.policy"
+        request: "$request-in.output.request_file"
+        baseline: "$fix-in.output.baseline"
+        tdd_suite: "$fix-in.output.suite"
+        suite_made: "$fix-in.output.suite_made"
+        excluded: "$fix-in.output.excluded"
       plan: "$fix-in.output.plan"
       fix_plan: "$fix-in.output.fix_plan"
       ripple: "$fix-in.output.ripple"
       plan_review: "$fix-in.output.review"
       answers: "$fix-in.output.answer"
-      request_answers: "$request-in.output.request_answers"
-      unattended: "$start.output.ports.unattended"
-      parallel: "$start.output.ports.parallel"
-      test_cmd: "$start.output.ports.test_cmd"
-      reuse_dir: "$start.output.ports.reuse_dir"
-      reuse_key: "$start.output.ports.run_id"
-      user_env_dir: "$start.output.ports.user_env_dir"
-      lang: "$start.output.ports.lang"
-      policy: "$fix-in.output.policy"
-      request: "$request-in.output.request_file"
-      baseline: "$fix-in.output.baseline"
-      tdd_suite: "$fix-in.output.suite"
-      suite_made: "$fix-in.output.suite_made"
       skip_rerun: "$fix-in.output.skip_rerun"
-      excluded: "$fix-in.output.excluded"
   # 12 案の直しを差し込むか（run に 1 度）と、案の直しの plan に渡す前の周（docs/design/line.md の 4.2）
   - id: after-fix
     script: after_fix
@@ -1357,11 +1358,7 @@ nodes:
     depends_on: [answer-replan]
     when: "$answer-replan.output.go == true"
     with: &refix_with
-      mode: "whole"
-      routes: "$start.output.ports.routes"
-      judgment: "$fix-in.output.judgment"
-      answer_ties: "$fix-in.output.answer_ties"
-      materials: "$fix-in.output.materials"
+      <<: *fix_with_common
       plan: "$replan.output.plan"
       fix_plan: "$replan.output.fix_plan"
       ripple: "$answer-replan.output.fix_ripple"
@@ -1371,21 +1368,7 @@ nodes:
       only_items: "$fix.output.replan_items"
       item_kinds: "[]"   # 返した項目の種は独立の目から返した段 back-k-fix だけが渡す（空は元の案の route のまま）
       prior: "$fix.output.carry"
-      request_answers: "$request-in.output.request_answers"
-      unattended: "$start.output.ports.unattended"
-      parallel: "$start.output.ports.parallel"
-      test_cmd: "$start.output.ports.test_cmd"
-      reuse_dir: "$start.output.ports.reuse_dir"
-      reuse_key: "$start.output.ports.run_id"
-      user_env_dir: "$start.output.ports.user_env_dir"
-      lang: "$start.output.ports.lang"
-      policy: "$fix-in.output.policy"
-      request: "$request-in.output.request_file"
-      baseline: "$fix-in.output.baseline"
-      tdd_suite: "$fix-in.output.suite"
-      suite_made: "$fix-in.output.suite_made"
       skip_rerun: "$answer-replan.output.skip_rerun"
-      excluded: "$fix-in.output.excluded"
   # 16 2 度目の段の差分の審査（2 度目の修正が走った時だけ）。形と when: の決めは 14 と同じで、値は 2 度目の fix から。上げ直しはしない
   - id: lens-2
     include: works-factory-lens
