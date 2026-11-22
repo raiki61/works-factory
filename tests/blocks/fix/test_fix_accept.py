@@ -2422,7 +2422,7 @@ class ScopeTextSeamCase(SeamTemp):
 
 
 class FactchecksSeamCase(SeamTemp):
-    """factchecks の継ぎ目: 事前の確かめと受け付けの事実の確かめは、置き場（board）のファイルと引数の値で回り、置き場を書かない
+    """facts の継ぎ目: 事前の確かめと受け付けの事実の確かめは、置き場（board）のファイルと引数の値で回り、置き場を書かない
     （元 works/tests/test_fix_precheck.py の PrecheckCase の場合を写した。盤面の代わりに承認済みの修正案の項目 items を値で渡し、
     合意は置き場の trace.jsonl に置く）。直す義務は board.fix_duty、書き込みの記録は引数 log、除くパスの頭は skip"""
 
@@ -2431,8 +2431,7 @@ class FactchecksSeamCase(SeamTemp):
 
     def setUp(self):
         super().setUp()
-        factchecks = self.m.facts
-        self.fc = factchecks
+        self.fc = self.m.facts
         path = self.repo / "stats.py"
         text = path.read_text(encoding="utf-8")
         for old, new in R_FIXED.items():
@@ -2598,7 +2597,7 @@ class FactchecksSeamCase(SeamTemp):
 
     def run_main(self, allowed):
         """置き場に修正案の控え（planmarks.save の欄・p2.fix_plan.json・judgment.json）と相談の控えを置き、下書きの返答で main を
-        子のプロセスで回す（修正役の指示書に書くコマンド `<python> factchecks.py <相談の控え> --reply <下書き>` の形）"""
+        子のプロセスで回す（修正役の指示書に書くコマンド `<python> facts.py <相談の控え> --reply <下書き>` の形）"""
 
         consult = self.m.consult
         import planmarks

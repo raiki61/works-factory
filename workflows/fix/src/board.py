@@ -729,7 +729,7 @@ def cited_rows(rows, repo, roots=()) -> tuple:
 def declared_files(replies, repo) -> list:
     """受け付けた修正役の返答（dict の並び）の changes[].files を、リポジトリ repo の根からの相対に揃えた並び（重ねない・名の順。
     揃え方は受け付けと同じ facts.declared_files）。形の違う行は ValueError。元 works/blk-fix/scripts/assert_changed.py の declared_files"""
-    from src import facts as factchecks
+    from src import facts
     out = set()
     for reply in replies:
         changes = reply.get("changes") if isinstance(reply, dict) else None
@@ -739,7 +739,7 @@ def declared_files(replies, repo) -> list:
             for f in c["files"]:
                 if not isinstance(f, str) or not f.strip():
                     raise ValueError(f"changes[].files に空・文字列でない物が在る（{f!r}）")
-            out |= factchecks.declared_files([c], repo)
+            out |= facts.declared_files([c], repo)
     return sorted(out)
 
 
@@ -904,7 +904,7 @@ def place_items(place):
     """置き場の承認済みの修正案の項目（planmarks.approved_items。修正案の役の返答の写し PLAN_REPLY_FILE と判定の写し judgment.json
     を plan_view で渡し、凍結の欄 plan-fields.json と凍結の印は置き場から）。どれか無ければ None。凍結の印と食い違えば
     planmarks.FieldsBroken。承認済みの項目を置き場から読む口はここ 1 つで、修正の段（群の組み立て prep・修正役の指示書・
-    受け付け・事前の確かめ factchecks.main）と手直しの段（refix.cut・accept_review・accept_fix・prep_fix）が同じ物を items に口（引数なし）として渡す"""
+    受け付け・事前の確かめ facts.main）と手直しの段（refix.cut・accept_review・accept_fix・prep_fix）が同じ物を items に口（引数なし）として渡す"""
     import planmarks
     p = pathlib.Path(place)
     return planmarks.approved_items(plan_view(p, read_json(p / PLAN_REPLY_FILE), read_json(p / JUDGMENT_FILE)))
@@ -1132,7 +1132,7 @@ def adopt_prior_pass(place, prior, items, repo) -> dict:
     """2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）の置き場 place に、1 回目の段の置き場 prior（入力
     prior_conflicts の指し札の先のフォルダ）の申し出と裁定（conflict.adopt_prior。直す項目 items の待つ行は AMENDED）と TDD の輪の
     状態（印 PRIOR_LOOP つき。実行器は作業ツリー repo で解き直す）を写す。元は 1 つの盤面に両方の段が在り、conflict.second_pass・
-    輪をまたぐ凍結（factchecks.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（fixgates）が 1 回目の段を見た
+    輪をまたぐ凍結（facts.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（fixgates）が 1 回目の段を見た
     （元 works/.shared/core/conflict.py:411・works/blk-fix/lib/fixgates.py:103・works/blk-fix/lib/tddloop.py:1816）。
     返り {rows: 写した行の id, loops: 写した記録のパス, bases: 写した元の結末の bases/<k>/, returns: 写した返しの控え}。新しい"""
     import conflict
@@ -1392,9 +1392,9 @@ def adopt_returned(place, repo, results, *, log=None, applied=()) -> None:
 
 def ruled_states(place) -> tuple:
     """裁定の後の修正の受け付けに渡す (今の輪の記録, 変更に当たる試験の輪の記録)。1 回目の段の輪（PRIOR_LOOP）は数えない（凍結の検査は
-    前の輪として見る。factchecks.check_frozen）。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
+    前の輪として見る。facts.check_frozen）。置き場の輪（adopt_tdd_states が写した組ごとの輪）が
     1 つならそれを今の輪に（元の 1 つの輪の run と同じ）。幾つも在れば今の輪は無し（どの輪も同じ段に並んで走ったので、凍結は全部の輪を
-    輪の後の木で見る。factchecks.check_frozen）、輪が名指した試験は最後の輪の記録から読む（受け付けの tests_record）。試験を走らせる実行器は
+    輪の後の木で見る。facts.check_frozen）、輪が名指した試験は最後の輪の記録から読む（受け付けの tests_record）。試験を走らせる実行器は
     accept_base が選ぶ元の結末 base.json から読む。無ければ ("", "")"""
     from src import common
     loops = [str(p) for p in common.records(place) if not read_json(p, {}).get(PRIOR_LOOP)]
@@ -1889,10 +1889,10 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
                  record: str = "", tests_record: str = "", base_rev: str = "", head: str = "", skip=(), parked=None,
                  reverted=frozenset(), trail=None, log=None) -> dict:
     """修正役の返答の受け付け（fix-accept は pass_ first・fix-ruled-accept は ruled）。確かめは返さずに FIX_CHECKS の id で積み、
-    最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（factchecks.check_frozen）→ 書き込みの出どころ（factchecks.check_writes。
+    最後に 1 回だけ拒む。順は 範囲の相談の枠 → 凍ったテスト（facts.check_frozen）→ 書き込みの出どころ（facts.check_writes。
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
-    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（factchecks.check_plan_scope）→ 変更に当たる試験（common.selected_problems）→ 直し方の型の義務（duties.accept_problems）→
+    単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（facts.check_plan_scope）→ 変更に当たる試験（common.selected_problems）→ 直し方の型の義務（duties.accept_problems）→
     事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
     戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True, count: false}。戻した回は戻した返答で頭から通し直す。reverted・
@@ -1907,7 +1907,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     TDD の輪の記録のファイル（無ければ空。凍結・書き込み・範囲・返しの控え・足跡が読む。変更に当たる試験の選びは、輪が名指した試験を
     record か、record が空なら tests_record から読む）、tests_record は record が空の時に輪が名指した試験を読む輪の記録（裁定の後の段で
     組の輪が幾つも在る時。ruled_states の 2 つ目）。試験を走らせる実行器・置き場・元の結末は accept_base の base.json から読む。base_rev は修正前の版（空なら base_rev_of）、skip は除くパスの頭、log は
-    書き込みの記録のファイル（factchecks.check_writes。None なら置き場の既定）。
+    書き込みの記録のファイル（facts.check_writes。None なら置き場の既定）。
     返り {ok, reason, rejects: [{check, text}], reply（受けた返答。bash_writes と conflicts を外した物）, units（unit_outcomes）,
     parked {key: 理由}, conflicted}。変更に当たる試験を走らせた回が no_suite_at_accept に当たれば、型の義務より前に
     {ok: False, stop: True, reason} で組を止める（tdd-start.json に no_suite を書く。呼び手は出し直させずに輪を抜ける）。型の義務が名指しの
@@ -1917,7 +1917,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
     import conflict
     from src import basecase, consult, duties, orders
-    from src import facts as factchecks
+    from src import facts
     from src import gates as fixgates
     from src import parking
     import recount
@@ -1939,10 +1939,10 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         reply = {k: v for k, v in reply.items() if k != conflict.CONSULT_FIELD}
     whole = reply
     frozen_over = []   # 相談に回せる凍ったファイルの頼み（check_frozen が足す）
-    note("frozen", factchecks.check_frozen(pathlib.Path(place), record, repo, pass_, asks=frozen_over, base_rev=rev))
+    note("frozen", facts.check_frozen(pathlib.Path(place), record, repo, pass_, asks=frozen_over, base_rev=rev))
     note("frozen", duties.frozen_by_returns(place, repo))   # 返しの控えの凍結を注文の許しで（今の照らしと両方を通る物だけを通す）
     made = set(common.suite_made(record)) | basecase.suite_made_all(place)
-    wrote = factchecks.check_writes(reply, pathlib.Path(place), rev, repo, record, log=log, since=head or None,
+    wrote = facts.check_writes(reply, pathlib.Path(place), rev, repo, record, log=log, since=head or None,
                                     skip=tuple(skip))
     note("writes", wrote["problems"])
     if not wrote["problems"] and wrote["note"] == writes.NO_RECORD:
@@ -1959,7 +1959,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
             if key:
                 declared.setdefault(text, set()).add(key)
     scope_note = None   # 承認済みの修正案の項目と差分を照らした記録（はみ出しの行 overflow を持つ）
-    got = factchecks.fix_unit_keys(reply, pathlib.Path(place), owed)
+    got = facts.fix_unit_keys(reply, pathlib.Path(place), owed)
     if got is not None:
         note("pack", check_pack_copy(reply, place, repo, skip))
         note("excluded", check_excluded(place, repo))
@@ -1967,7 +1967,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         note("duplicate", [DUPLICATE + k for k in check_unique_units(keys)])
         note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, duty | set(excused))])
         note("excused", [f"{EXCUSED}{k}（{why}）" for k, why in check_excused_units(keys, duty, excused).items()])
-        scope, scope_note = factchecks.check_plan_scope(reply, keys, pathlib.Path(place), rev, repo, record, pass_, since=head or None,
+        scope, scope_note = facts.check_plan_scope(reply, keys, pathlib.Path(place), rev, repo, record, pass_, since=head or None,
                                                items=functools.partial(place_items, place), consult_place=place)
         note("scope", scope)
     else:
@@ -2392,7 +2392,7 @@ def no_suite_stop(place) -> str:
 
 def fixer_head(place, pass_: str) -> str:
     """修正役が変え始めた木（段 pass_ の頭の木。stage_head）。受け付け（fix-accept・fix-ruled-accept）と修正役の事前の確かめ
-    （factchecks.precheck）が since に渡す木はここ 1 か所から読む。段の頭のファイルは fixrules.head_file（PASSES に無い段は ValueError）"""
+    （facts.precheck）が since に渡す木はここ 1 か所から読む。段の頭のファイルは fixrules.head_file（PASSES に無い段は ValueError）"""
     from src import rules as fixrules
     return stage_head(place, fixrules.head_file(pass_))
 
@@ -2435,7 +2435,7 @@ def fix_values(place, owed, *, start=None, record: str = "", summary: str = "", 
 
 def consult_skip(place, skip, log=None) -> None:
     """置き場の範囲の相談の控え（consult.CONFIG。fixrules.ask_config が書く）に除くパスの頭 skip と書き込みの記録のファイル log
-    （在れば。受け付けと同じ物）を足す（factchecks.main が書き込みの出どころで読む）。控えが無ければ何もしない"""
+    （在れば。受け付けと同じ物）を足す（facts.main が書き込みの出どころで読む）。控えが無ければ何もしない"""
     from src import consult
     doc = read_json(pathlib.Path(place) / consult.CONFIG)
     if isinstance(doc, dict):
@@ -2503,11 +2503,11 @@ def _queue_rows(asks: list) -> list:
 
 def _without_rows(reply: dict, rest: list, mine: set, repo) -> dict:
     """changes を rest にし、外したファイル（mine）の bash_writes の申告も外した返答。元 accept.py:425"""
-    from src import facts as factchecks
+    from src import facts
     out = {**reply, "changes": rest}
     if isinstance(reply.get("bash_writes"), list):
         out["bash_writes"] = [w for w in reply["bash_writes"]
-                              if not (isinstance(w, dict) and factchecks.declared_files([{"files": [w.get("path")]}], repo) & mine)]
+                              if not (isinstance(w, dict) and facts.declared_files([{"files": [w.get("path")]}], repo) & mine)]
     return out
 
 
@@ -2546,7 +2546,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     回らない。答えの後の周の受け付けが、ここで聞いた物を戻すか（allow なら範囲に入って行が消える）を選ぶ"""
     import conflict
     from src import consult
-    from src import facts as factchecks
+    from src import facts
     from src import common
     answered = [r for r in conflict.plan_asks(place) if r.get("origin") == consult.ORIGIN_ACCEPT]
     pending = consult.queued(place, pass_)
@@ -2570,7 +2570,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     back += fresh   # 枠が足りず聞けない物
     paths = sorted({p for a in back for p in a["paths"]})
     emptied = [c.get("unit_key") for c in whole.get("changes") or [] if isinstance(c, dict)
-               and factchecks.declared_files([c], repo) and factchecks.declared_files([c], repo) <= set(paths)]
+               and facts.declared_files([c], repo) and facts.declared_files([c], repo) <= set(paths)]
     if emptied:
         for key in emptied:
             found.append(("scope", f"{EMPTIED}{key}"))
@@ -2595,7 +2595,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     gone = set(paths)
     rows = []
     for c in whole.get("changes") or []:
-        keep = [f for f in c.get("files") or [] if not isinstance(f, str) or not factchecks.declared_files([{"files": [f]}], repo) & gone] \
+        keep = [f for f in c.get("files") or [] if not isinstance(f, str) or not facts.declared_files([{"files": [f]}], repo) & gone] \
             if isinstance(c, dict) else None
         rows.append({**c, "files": keep} if keep is not None else c)
     return again(_without_rows(whole, rows, gone, repo), set(reverted) | {a["line"] for a in back})
