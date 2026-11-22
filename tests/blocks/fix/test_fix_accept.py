@@ -3399,6 +3399,56 @@ class FixAcceptSeamCase(SeamTemp):
         rows = [r for r in _traced(self.place) if r["op"] in (self.b.ABSORBED_OP, conflict.ACCEPT_PARKED_OP)]
         self.assertEqual([(r["op"], r["dropped"], r["absorbed"]) for r in rows], [(self.b.ABSORBED_OP, [R_CLAMP], [excused])])
 
+    def test_last_turn_dropping_the_excused_row_recounts_the_copy_with_commit_and_saves_the_closure(self):
+        """最後の回に外れた単位の行を外して当て直す写しの照らし（recount.accept_fix の 2 回目）は、積んだ行が残らないので commit を真で
+        呼び（recount の刻み）、通れば閉鎖の表を置き場に置く（querytest.save_closure）。外す前の 1 回目は拒みの行が在るので commit は偽。
+        nothing_found が張り替える前の found を読むと 2 回目の commit が偽になり、刻みも表の保存も落ちる"""
+        import querytest
+        import recount
+        self._hold_clamp()
+        accept = self._held_turns({"held.txt": "上限の枝\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.txt"])], "not_done": []}
+        commits, saved = [], []
+        real = recount.accept_fix
+
+        def spy_fix(*a, **k):
+            commits.append(k.get("commit"))
+            return real(*a, **k)
+        with mock.patch.object(recount, "accept_fix", spy_fix), \
+                mock.patch.object(querytest, "save_closure", lambda *a, **k: saved.append(a)):
+            got = accept(reply, 3)
+        self.assertTrue(got["ok"], got["reason"])
+        self.assertEqual(commits, [False, True], "1 回目は拒みの行が在り commit は偽・外した後の 2 回目は積んだ行が無く commit は真")
+        self.assertEqual(len(saved), 1, "写しの照らしを刻んだ回は閉鎖の表を置き場に置く（1 回目は置かない）")
+
+    def test_last_turn_rejection_after_dropping_the_excused_row_returns_the_replaced_reply(self):
+        """最後の回に外れた単位の行を外した後、写しの拒否が残り止める単位も残らなければ受けずに諦める（NOT_SETTLED）。その返りの reply の欄は
+        外れた単位の行を外した返答（受けた返答でなく、差し替えた後の物）。reply の変数だけを差し替えて返す所が元の返答を読むと、
+        外した行が戻って出る"""
+        import recount
+        parking = self.m.parking
+        self._hold_clamp()
+        accept = self._held_turns({"held.txt": "上限の枝\n"})
+        reply = {"changes": [_fix_row(R_MEAN, 1), self._held_row(["held.txt"])], "not_done": []}
+        calls = []
+
+        def copy_fails(*a, **k):
+            calls.append(k.get("commit"))
+            return {"ok": False, "problems": ["写しの拒否の行"]}
+        none_left = parking.Settlement({}, [], {}, set(), {})
+        real_settle = parking.settle
+
+        def settle(texts, **k):   # 写しの拒否の行は結べず、義務の残りも止められない（止める単位が残らない）形にする
+            return none_left if "写しの拒否の行" in " ".join(texts) else real_settle(texts, **k)
+        with mock.patch.object(recount, "accept_fix", copy_fails), \
+                mock.patch.object(parking, "settle", settle), \
+                mock.patch.object(parking, "park_owed", lambda *a, **k: none_left):
+            got = accept(reply, 3)
+        self.assertFalse(got["ok"], got)
+        self.assertTrue(got["reason"].startswith(self.b.NOT_SETTLED), got["reason"])
+        self.assertEqual([c["unit_key"] for c in got["reply"]["changes"]], [R_MEAN],
+                         "拒否の返りの reply は外れた単位の行を外した返答（差し替えた後）")
+
     def test_last_turn_without_bound_unit_parks_the_rest_or_gives_up(self):
         """最後の回に止める単位が残らないのに写しの拒否が残れば（外れた単位の足跡の Markdown のリンクが届かない）、義務の残りを
         全部止めて通し直し（parking.park_owed）、それでも残れば受けずに諦める（NOT_SETTLED）。元 works/blk-fix/scripts/accept.py:738-740
