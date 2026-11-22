@@ -7,40 +7,10 @@ import json
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.support import delta, fix, lens, values
 
 BLOCK = "line"
 
-
-def fix(**kw) -> dict:
-    """fix の返り（docs/design/fix.md の 1.2 の欄）"""
-    got = {"ok": True, "reason": "", "units": [{"unit_id": "u1", "status": "given_up"}], "groups": [{"group_id": "g1"}],
-           "conflicts": {"path": "fix/conflicts.json"}, "carry": None, "replan_items": ["1"], "objection": "", "diff": {"path": "fix/diff"},
-           "start_tree": "t1", "reply": None, "ruled_reply": None, "scope": None, "checked": {"ok": True, "reason": ""},
-           "allowed_test_changes": ["tests/a.py"], "changed": {"path_changed": False}, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [],
-           "plan_declared": [], "stop_reason": "", "allowed_tests": {"path": "fix/allowed.json"}, "accept_trace": {"path": "fix/trace.json"},
-           "closure": {"path": "fix/closure.json"}, "tdd_unit": {"path": "fix/tdd.json"}, "tdd": [{"units": []}], "frozen": None,
-           "removed": [], "tdd_refused": {"refused": [], "unread": []}, "item_claims": None, "freeze_off": [], "removed_tests": [], "untested": [], "report": ["- 修正"]}
-    got.update(kw)
-    return got
-
-
-def lens(**kw) -> dict:
-    return {"ok": True, "status": "ok", "reason": "", "rows": None, "ran": 1, "failed": 0, "not_routed": 0,
-            "carry": [{"where": "レンズ x", "text": "再実行の要あり"}], "report": [], **kw}
-
-
-def delta(**kw) -> dict:
-    return {"ok": True, "status": "ok", "reason": "", "rounds": 1, "pass": True, "holes": None, "diff": {"path": "delta/diff"},
-            "carry": [], "report": [], **kw}
-
-
-def values(**kw) -> dict:
-    base = {"fix_in": {"go": True, "no_fix": False, "plan": {"path": "p.json"}, "ripple": {"path": "r.json"}},
-            "fix": fix(), "after_fix": {"replan": False, "prior": None, "stop_reason": ""},
-            "raise": {"units": [], "checks": True, "skip_why": "", "eyes_due": True, "raised": [], "counted": "", "lines": [], "stop_reason": ""},
-            "lens": lens(), "delta": delta(), "replan": None, "refix": None, "lens_2": None, "delta_2": None}
-    base.update(kw)
-    return base
 
 
 class FixedCase(unittest.TestCase):

@@ -13,7 +13,7 @@ import unittest
 import yaml
 
 from tests.blocks import kit
-from tests.workflows.test_returns_never_fail import would_run   # Archon の待ち方の模型（緩くない読み手の照らしもそこが全部の graph に当てる）
+from tests.blocks.line.support import would_run
 
 BLOCK = "line"
 EYESBACK = kit.BLOCKS / "line" / "src" / "eyesback.py"

@@ -7,115 +7,19 @@
 TestPolicyBrief は test_blk_fix.py の同じ名の場面の line の側（始めの記録が方針の写しを固め、配る値 policy がその写しを指す。
 integration.md の 4.2-7。写しを役に貼る側は fix の試験）。
 """
-import importlib.util
 import json
 import os
 import pathlib
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from unittest import mock
 
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-
-ROOT = kit.ROOT
-LINE = kit.BLOCKS / "line"
-SEED = ROOT / "tests" / "e2e" / "target-seed"
-RUN = kit.RUN_ID
-INPUTS = ("request", "base", "pr", "spec", "test_cmd", "tdd_suite", "final_gate", "unattended", "design_talk", "thickness",
-          "features_off", "features_on", "policy_md", "fix_fixture", "lang", "deliver", "spec_table")
-
-
-def script(name: str):
-    """workflows/line/scripts/<name>.py を名で読む（__main__ でないので ports.run は回らない）。src と共通の口を sys.path の頭に置く"""
-    sys.dont_write_bytecode = True
-    for mod in [n for n in sys.modules if n == "src" or n.startswith("src.")]:
-        del sys.modules[mod]
-    for path in (str(LINE), str(kit.SHARED)):
-        while path in sys.path:
-            sys.path.remove(path)
-        sys.path.insert(0, path)
-    spec = importlib.util.spec_from_file_location(f"line_script_{name}", LINE / "scripts" / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-start = script("start")
-start.load()
-entry, entryshape, stopby = start.entry, start.entryshape, start.stopby
-startrec, fixture, deal = start.startrec, start.fixture, start.deal
-
-
-def raw(**kw) -> dict:
-    got = dict.fromkeys(INPUTS, "")
-    got.update(kw)
-    return got
-
-
-class Artifacts(unittest.TestCase):
-    """run directory（ARTIFACTS_DIR）と run の id（WORKFLOW_ID）を一時の物にする"""
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.tmp = pathlib.Path(tmp.name)
-        self.artifacts = self.tmp / "artifacts"
-        self.artifacts.mkdir()
-        env = mock.patch.dict(os.environ, {"ARTIFACTS_DIR": str(self.artifacts), "WORKFLOW_ID": RUN})
-        env.start()
-        self.addCleanup(env.stop)
-
-
-class Seeded(Artifacts):
-    def setUp(self):
-        super().setUp()
-        self.repo = self.tmp / "repo"
-        self.fork = committed_copy(self.repo, SEED)
-        git(self.repo, "branch", "base")
-        with (self.repo / "stats.py").open("a", encoding="utf-8") as f:
-            f.write("\n# 変更\n")
-        git(self.repo, "commit", "-q", "-am", "change")
-
-    def start(self, **kw):
-        return start.start(raw(**kw), self.repo, self.artifacts, RUN)
-
-    def record(self, got):
-        self.assertEqual(got["record"]["run_id"], RUN)
-        return json.loads((self.artifacts / got["record"]["path"]).read_text(encoding="utf-8"))
-
-    def outside(self, name: str, text: str) -> pathlib.Path:
-        """対象の木の外に置く依頼のファイル（木を汚すと差分が空でなくなる）"""
-        path = self.tmp / name
-        path.write_text(text, encoding="utf-8")
-        return path
-
-    def refused(self, **kw) -> str:
-        got = self.start(**kw)
-        self.assertEqual((got["ok"], got["stop_reason"]), (False, stopby.START_REFUSED), got)
-        return got["reason"]
-
-    def pr_reads(self, **pr) -> dict:
-        doc = {"baseRefOid": self.fork, "headRefOid": git(self.repo, "rev-parse", "HEAD"), "title": "題 T", "body": "本文X",
-               "status": "ok"}
-        doc.update(pr)
-        return {"version": 1, "pr": {"7": doc}, "issue": {}}
-
-    def start_with_gh(self, reads, **kw):
-        """run の中の gh の読み出しを reads に差して start を回す（呼ばれた回数を返す）"""
-        import ghreads
-        calls = []
-
-        def read_named(repo, prs, issues):
-            calls.append((prs, issues))
-            return reads
-        with mock.patch.object(ghreads, "read_named", read_named):
-            return self.start(**kw), calls
-
+from tests.blocks.line.support import LINE, RUN, SEED, Seeded, deal, entry, entryshape, fixture, raw, start, startrec, stopby
 
 class SpecTableCase(Seeded):
     """入力 spec_table（仕様駆動の道の表。docs/design/spec-driven.md の 6.2 の変える node の 1 と 6.5 の 4）。start は表のファイルが在る

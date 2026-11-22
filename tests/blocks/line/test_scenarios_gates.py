@@ -10,7 +10,7 @@ Archon の源か bun が無ければ tests/archon.py の見送り。
 """
 import unittest
 
-from tests.blocks.line.test_scenarios import assert_no_write, line_traces, out, ran
+from tests.blocks.line.support import assert_no_write, line_traces, out, ran
 
 class GateCase(unittest.TestCase):
     """承認ノードの止めの答え（policy-stop・final-stop・replan-stop）。通す答えで修正へ進み差分を当てる結末は筋書き standard（test_scenarios.py の

@@ -11,6 +11,7 @@ import unittest
 import yaml
 
 from tests.blocks import kit
+from tests.blocks.line.support import handed
 
 BLOCK = "line"
 rounds = kit.load(BLOCK, "rounds")
@@ -18,7 +19,6 @@ files = kit.load(BLOCK, "files")
 import converge  # noqa: E402
 import judgmark  # noqa: E402
 from tests.bin.itemshape import dropped_row, missing_required, undeclared  # noqa: E402
-from tests.blocks.line.test_tiers import handed  # noqa: E402
 
 U1, U2 = "u1", "u2"
 

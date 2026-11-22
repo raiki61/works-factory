@@ -18,7 +18,7 @@ from unittest import mock
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-from tests.blocks.line.test_start import LINE, ROOT, SEED, script
+from tests.blocks.line.support import LINE, ROOT, SEED, handed, rounds, script
 
 testcmd = script("testcmd")
 result = script("result")
@@ -189,14 +189,12 @@ class LoopCarryCase(ScriptRun):
         return self.run.pointer("r1/start.json")
 
     def ask(self, rounds: dict, **over) -> dict:
-        from tests.blocks.line.test_tiers import handed
         inputs = {"request": handed({}), "rounds": json.dumps(rounds), "structure": "null",
                   "judge": json.dumps({"judgment": None, "answer_ties": None, "materials": None}), "record": self.record(),
                   "ports": json.dumps({"unattended": False, "design_talk": False, "policy": "", "base_rev": "abc", "deliver": ""}), **over}
         return self.run.script("ask_before_fix", **inputs)
 
     def test_ask_before_fix_carries_the_fields_collect_reads(self):
-        from tests.blocks.line.test_gates import rounds
         given = {**rounds(), "pointed": [], **self.EXTRA}
         self.assertLessEqual(set(self.lc.ROUNDS), set(given))
         for name, out in (("通る", self.ask(given)), ("fallback", self.ask(given, ports="{"))):

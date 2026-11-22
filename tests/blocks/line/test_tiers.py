@@ -8,17 +8,13 @@ import json
 import unittest
 
 from tests.blocks import kit
+from tests.blocks.line.support import handed
 
 BLOCK = "line"
 tiers = kit.load(BLOCK, "tiers")
 import headdepth  # noqa: E402  （KEEP の lib）
 
 descend = kit.load(BLOCK, "descend")
-
-
-def handed(dealt: dict) -> str:
-    """request-in の返りの形の依頼の欄（配る値まるごとを受ける script は依頼をここから読む。src/descend.py の dealt）"""
-    return json.dumps({name: dealt.get(name) for name in descend.REQUEST_FIELDS}, ensure_ascii=False)
 
 
 UNKNOWN_NONE = "無し"   # head-depth の行ごとの未知の種類「無し」（workflows/head-depth/src/steps.py の NONE。block の間は import しない）

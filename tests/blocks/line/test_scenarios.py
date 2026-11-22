@@ -11,114 +11,16 @@
   読む owed・始めの記録を作れない固定材料の start と fix-in だけ stub で差す）
 - Archon の源か bun が無ければ tests/archon.py の absent で見送る（CI は赤）
 
-組 B の試験は、ここの line_traces・ran・bound を import して使う。
+組 B の試験は、support.py の line_traces・ran・bound を import して使う。
 """
-import json
 import re
 import unittest
 
-import yaml
-
 from tests.blocks import kit
-from tests.blocks.line.test_wiring import would_run
+from tests.blocks.line.support import assert_no_write, bound, got, line_traces, nodes, out, ran, would_run
 
 BLOCK = "line"
 LINE = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"
-
-
-def nodes() -> dict:
-    """line の node の id → node（loop_group の本体の node も含む）"""
-    top = yaml.safe_load(LINE.read_text(encoding="utf-8"))["nodes"]
-    return {n["id"]: n for n in [*top, *(m for n in top for m in (n.get("loop_group") or {}).get("nodes") or [])]}
-
-
-def included_blocks(block: str = BLOCK) -> list[str]:
-    """block が include する block の名（graph の中の include も辿る）。dry-run の木に一緒に置く"""
-    seen: set[str] = set()
-
-    def walk(name: str) -> None:
-        doc = yaml.safe_load((kit.BLOCKS / name / f"works-factory-{name}.yaml").read_text(encoding="utf-8"))
-        todo = list(doc["nodes"])
-        while todo:
-            node = todo.pop()
-            todo.extend((node.get("loop_group") or {}).get("nodes") or [])
-            inner = str(node.get("include", "")).removeprefix("works-factory-")
-            if inner and inner not in seen:
-                seen.add(inner)
-                walk(inner)
-
-    walk(block)
-    return sorted(seen)
-
-
-_TRACES: dict = {}
-
-
-def line_traces(names) -> dict:
-    """筋書きの名 → その筋書きの stub で line を dry-run（exec-code）した trace（node の id → trace の行）。同じ名は 1 度だけ回す"""
-    todo = [n for n in names if n not in _TRACES]
-    if todo:
-        _TRACES.update(kit.dry_run_traces(BLOCK, todo, included=included_blocks()))
-    return {n: _TRACES[n] for n in names}
-
-
-def ran(trace: dict, node: str) -> bool:
-    """node が走った（completed か stubbed）か。飛ばされた・落ちた・trace に無い node は偽"""
-    return node in trace and trace[node]["state"] in ("completed", "stubbed")
-
-
-def out(trace: dict, node: str):
-    """node の出力（JSON）。include した block の返りは `got(trace, id)`"""
-    return json.loads(trace[node]["output"])
-
-
-def returned(include: str) -> str:
-    """include の id → trace の中の返す節の id（`<include の id>__<block の returns:>`。Archon が `$<include>.output` を解く先）"""
-    inner = str(nodes()[include]["include"]).removeprefix("works-factory-")
-    doc = yaml.safe_load((kit.BLOCKS / inner / f"works-factory-{inner}.yaml").read_text(encoding="utf-8"))
-    return f"{include}__{doc['returns']}"
-
-
-def got(trace: dict, include: str):
-    """include した block の返り（返す節の出力）か、輪（loop_group）の返り（輪の行の出力）。走らなければ None"""
-    node = returned(include) if "include" in nodes()[include] else include
-    return out(trace, node) if ran(trace, node) else None
-
-
-def _traced(trace: dict, node: str) -> str:
-    """with: が名指す node の trace の行の id（include は返す節）"""
-    return node if node in trace or "include" not in nodes().get(node, {}) else returned(node)
-
-
-def bound(trace: dict, value):
-    """line の node の with: の 1 つの値を、dry-run の trace の出力で結ぶ（`$<id>.output.<欄>`・まるごとの参照 `$<id>.output` と
-    `{from, if_skipped}`。include した block の返りは trace に include の id の行が無いので、返す節の行から読む）"""
-    if isinstance(value, dict) and "from" in value:
-        node = _traced(trace, value["from"].split(".", 1)[0].lstrip("$"))
-        if node not in trace or trace[node]["state"] == "skipped":
-            return value.get("if_skipped")
-        value = value["from"]
-    if isinstance(value, str) and value.startswith("$") and value.endswith(".output"):
-        node = _traced(trace, value[1:-len(".output")])
-        return trace[node].get("output") if node in trace else None
-    if not (isinstance(value, str) and value.startswith("$") and ".output." in value):
-        return value
-    node, field = value[1:].split(".output.", 1)
-    return json.loads(trace[_traced(trace, node)]["output"]).get(field)
-
-
-def assert_no_write(case, never_apply, never_seal):
-    """筋書き never_apply のどれも差分を当てる段を走らせず、result の apply が null。never_seal のものは封じもしない"""
-    traces = line_traces(never_apply)
-    for name in never_apply:
-        with case.subTest(scenario=name):
-            trace = traces[name]
-            for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
-                case.assertFalse(ran(trace, node), node)
-            case.assertIsNone(out(trace, "result")["apply"])
-            if name in never_seal:
-                case.assertFalse(ran(trace, "merge-seal__merge"))
-                case.assertIsNone(out(trace, "result")["sealed"])
 
 
 class LineReturnsTest(unittest.TestCase):
