@@ -185,7 +185,8 @@ def _unfrozen(what, why, hint=None):
 def worktree_tree(repo):
     """写す元 judge_accept._worktree_tree（元 rules:1501）。作業ツリーの今の姿の木の id（未追跡の新規ファイルも含め、追跡していない
     .gitignore の対象は除く）。本物の index を一時 index に写して印を外し（accept.copy_flag_free_index）てから add -A する（本物の
-    index は読むだけで書かない）。git は呼び手が accept.in_repo で repo に向ける。固められなければ Reject"""
+    index は読むだけで書かない）。git は呼び手が accept.in_repo で repo に向ける。固められなければ Reject。
+    entryshape._worktree_tree と違い skip-worktree の印も外す（揃えると採点に使う作業ツリーの木の id が変わりうるので揃えない）"""
     tmp = tempfile.mkdtemp(prefix="graphloops-index-")
     idx = pathlib.Path(tmp) / "index"
     env = {"GIT_INDEX_FILE": str(idx)}

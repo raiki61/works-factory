@@ -258,7 +258,8 @@ def _worktree_tree():
     当たるファイルは `add -A` に拾われず、版から落ちて『削除』に見えた（実測 2026-09-25: 別のリポジトリの run で、判定役が
     これを根拠に誤った [block] を出した）。写しは stat の情報も持つので、`add -A` は変わったファイルだけをハッシュする。
     写しの上で `--really-refresh` を打つのは assume-unchanged の印を外すため——印を持ったままだと、git はそのファイルを
-    見ずに古い中身で版を作る。本物の index は読むだけで書かない"""
+    見ずに古い中身で版を作る。本物の index は読むだけで書かない。
+    materialkit.worktree_tree と違い skip-worktree の印は外さない（揃えると入口の差分の測りの木の id が変わりうるので揃えない）"""
     tmp = tempfile.mkdtemp(prefix="graphloops-index-")
     idx = pathlib.Path(tmp) / "index"
     env = {"GIT_INDEX_FILE": str(idx)}
