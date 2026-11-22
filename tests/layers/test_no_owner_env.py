@@ -34,6 +34,15 @@ class NoOwnerEnvTest(unittest.TestCase):
             got = scan.problems("E14", root)
         self.assertEqual([line.partition(":")[0] for line in got], ["bin/z"], got)
 
+    def test_tree_inside_an_outer_git_worktree_that_ignores_it_is_still_read(self):
+        """試験の木が外の git の作業木の中に作られ、外の無視の表が木を隠しても、柵は木を読む（何も読まずに通らない）"""
+        with tree({".gitignore": "inner/\n"}, git_init=True) as outer:
+            inner = outer / "inner"
+            (inner / "bin").mkdir(parents=True)
+            (inner / "bin" / "z").write_text("/Users/example/\n", encoding="utf-8")
+            got = scan.problems("E14", inner)
+        self.assertEqual([line.partition(":")[0] for line in got], ["bin/z"], got)
+
 
 if __name__ == "__main__":
     unittest.main()

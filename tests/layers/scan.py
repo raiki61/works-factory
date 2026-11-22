@@ -195,16 +195,20 @@ def _files(root: Path, *parts: str):
     base = root.joinpath(*parts)
     if not base.is_dir():
         return
-    known = _known(base)
+    known = _known(root, base)
     for path in sorted(base.rglob("*")):
         if path.is_file() and "__pycache__" not in path.parts and (known is None or path in known):
             yield path
 
 
-def _known(base: Path) -> set[Path] | None:
+def _known(root: Path, base: Path) -> set[Path] | None:
     """base の下で git が知るファイル（追跡中と、無視されない未追跡の物。`gitkit.known_files`）。git が無視する置き場（道具の控えの
-    .ruff_cache/ など）は工場の物でなく、柵は読まない。base が git のリポジトリの中に無い時（試験の小さな木）は None で、全部を読む"""
+    .ruff_cache/ など）は工場の物でなく、柵は読まない。root（柵が照らす根）が git の作業木の根そのものでない時は None で、全部を読む:
+    試験の小さな木が外の git の作業木の中に在ると、外の無視の表で木が丸ごと隠れ、柵が何も読まずに通るため"""
     try:
+        top = gitkit.git(root, "rev-parse", "--show-toplevel")
+        if Path(top).resolve() != root.resolve():
+            return None
         return {base / rel for rel in gitkit.known_files(base)}
     except subprocess.CalledProcessError:
         return None
@@ -456,7 +460,7 @@ def _no_timeouts(root: Path) -> list[str]:
 
 def _lang_neutral(root: Path) -> list[str]:
     """AI のノードへの指示の md（各 block の prompts/ と .shared/prompts/ の下の全部）と lib/"""
-    prompts = [p for folder in _blocks(root) for p in _files(folder, "prompts")]
+    prompts = [p for folder in _blocks(root) for p in _files(root, *folder.relative_to(root).parts, "prompts")]
     prompts += list(_files(root, "workflows", ".shared", "prompts"))
     return _grep(root, prompts + list(_files(root, "lib")), (LANG_WORD, lambda m: f"言語か実行器の名 {m[0]}"))
 
@@ -479,7 +483,7 @@ VIEWER_HOMES = (f"{VIEWER}/", f"tests/{VIEWER}/", "docs/")
 def _viewer_apart(root: Path) -> list[str]:
     """E25 の 1: 見る道具は工場の外の物で、見る道具とその試験と文書のほかから、パスでも import でも名指さない"""
     paths = []
-    known = _known(root)
+    known = _known(root, root)
     for top in sorted(p for p in root.iterdir() if p.name != ".git" and (p.is_dir() or known is None or p in known)):
         for path in ([top] if top.is_file() else _files(root, top.name)):
             rel = _rel(root, path)
@@ -1272,7 +1276,7 @@ def _port_reads(pack: "_Pack") -> list[str]:
                 forms |= pack.forms_in(shape, cfolder)
         names = {f[f.index("(") + 1:-1] for f in forms if f.startswith("json(")}
         for part in ("scripts", "src"):
-            for py in _files(folder, part):
+            for py in _files(pack.root, *folder.relative_to(pack.root).parts, part):
                 if py.suffix != ".py":
                     continue
                 try:
@@ -1469,7 +1473,7 @@ def _inputs_read(root: Path) -> list[str]:
             continue
         refs = {m[1] for node in _nodes(document) for _, text in _scalars(node, skip={("loop_group", "nodes")})
                 for m in INPUT_REF.finditer(text)}
-        codes = ["\n".join(_lines(root, p)[0]) for part in ("scripts", "src") for p in _files(folder, part) if p.suffix == ".py"]
+        codes = ["\n".join(_lines(root, p)[0]) for part in ("scripts", "src") for p in _files(root, *folder.relative_to(root).parts, part) if p.suffix == ".py"]
         shared = _imported_shared(root, codes)
         for key, value in _pairs(_top(document, "inputs")):
             if key not in refs and not any(script_reads(text, key, root / "lib") for text in codes) \
