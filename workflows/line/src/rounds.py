@@ -30,7 +30,8 @@ import shutil
 import cite
 from converge import (AGAIN, CLEAN, CLOSED, FACE_KEYS, HELD, HELD_MARK, ITEM_CITE, KEY_CHAR, MEANS_AND_PRESCRIPTION_ROWS, OPEN, ORIGIN_FLIP,
                       ORIGIN_INTRODUCED, ORIGIN_MISSED, ORIGIN_REPHRASED, ORIGIN_UNSPLIT, ORIGIN_WORDS, PERIPHERAL, PERSISTED, QUOTE, REACH,
-                      SETTLED, STUCK, UNSETTLED, block_faces, central, central_keys, flipped, sentence_diff, sentences, take_flips)
+                      SETTLED, STUCK, UNSETTLED, ItemState, PlanItem, block_faces, central, central_keys, flipped, sentence_diff, sentences,
+                      take_flips)
 
 LIMIT = 20
 PLAN_ROLE = "plan"   # 修正案の役の拒否の行の role（元の planfile の ROLE）
@@ -105,7 +106,7 @@ def _label(it: dict) -> str:
     return f"項目 {it['n']}（{'、'.join(str(k) for k in it.get('unit_keys') or [])}）"
 
 
-def _attributed(units: list, items: list) -> list[int]:
+def _attributed(units: list, items: list[ItemState]) -> list[int]:
     """face の unit_keys が重なる項目の位置（どの項目とも重ならなければ全部）"""
     hit = [i for i, it in enumerate(items) if set(units) & set(it["unit_keys"])]
     return hit or list(range(len(items)))
@@ -169,10 +170,12 @@ def _quoted(quote: str, mine: list, before: dict, changed: set) -> str:
     return {(True, False, False): ORIGIN_MISSED, (False, True, False): ORIGIN_INTRODUCED}.get(tuple(hit), ORIGIN_UNSPLIT)
 
 
-def _item_states(plan: list, faces: list, face_units: dict, prev: list, earlier: set, soft=()) -> list[dict]:
+def _item_states(plan: list[PlanItem], faces: list, face_units: dict, prev: list[ItemState], earlier: set,
+                 soft=()) -> list[ItemState]:
     before = {it["id"]: it for it in prev}
-    rows = [{"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
-             "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
+    rows: list[ItemState] = [
+        {"n": n, "id": it["id"], "unit_keys": list(it["unit_keys"]), "hash": it["hash"], "state": OPEN, "blocks": [],
+         "reopened": False, **({"row": copy.deepcopy(it["row"])} if "row" in it else {})} for n, it in enumerate(plan, 1)]
     hard = {f.get("key") for f in faces if central(f)} - set(soft)   # soft: 前の往復で採った裏返し（保留にしない。converge.flipped）
     for f in faces:
         for i in _attributed(face_units.get(f.get("key")) or [], rows):
