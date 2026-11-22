@@ -2858,6 +2858,49 @@ class FixAcceptSeamCase(SeamTemp):
             self.assertIn(want, got["reason"], "ほかの拒みの単位が保留の単位と足跡を共にする（どちらも stats.py）時は、分けて戻せないので"
                                                "戻さずに止め、訳にほかの拒みと一緒に止める訳を並べる")
 
+    def _accept_with_calls(self, calls: list, *, stop: str = "", frozen=("凍結の行",), returned=("返しの控えの凍結の行",)):
+        """確かめの部品を差し替え、呼ばれた順を calls に積んで最初の回の受け付けを通す（積む順・副作用の順の試験の足場）"""
+        def seen(name, ret):
+            def fake(*a, **k):
+                calls.append(name)
+                return ret
+            return fake
+
+        def tests_run(*a, **k):
+            calls.append("tests")
+            k["seen"]["cases"] = []
+            return ["赤の行"], ""
+        with mock.patch.object(self.m.facts, "check_frozen", seen("frozen", list(frozen))), \
+                mock.patch.object(self.m.duties, "frozen_by_returns", seen("frozen_by_returns", list(returned))), \
+                mock.patch.object(self.m.common, "selected_problems", tests_run), \
+                mock.patch.object(self.b, "no_suite_at_accept", seen("no_suite", stop)), \
+                mock.patch.object(self.b, "mark_no_suite", seen("mark_no_suite", None)), \
+                mock.patch.object(self.m.duties, "accept_problems", seen("duties", [])), \
+                mock.patch.object(self.b, "tests_trace", seen("tests_trace", None)), \
+                mock.patch.object(self.b, "plan_face_errors", seen("plan_faces", [])), \
+                mock.patch.object(self.m.gates, "problems", seen("gates", [])):
+            return self.b.accept_reply(_fix_ok(), self.place, self.repo, pass_="first", iteration=1, owed=[R_MEAN, R_CLAMP],
+                                       judged=R_JUDGED, base_rev=self.rev, skip=SKIP)
+
+    def test_checks_run_in_the_documented_order(self):
+        """確かめと副作用の順は受け付けの docstring の通り: 凍ったテスト → 返しの控えの凍結 → 変更に当たる試験 → 元の結末の止め → 型の義務 →
+        試験の trace → 直し方の面 → 事後の関門。同じ確かめの id（frozen）の行は積んだ順に出す（凍ったテストの行が先）"""
+        calls: list = []
+        got = self._accept_with_calls(calls)
+        self.assertEqual(calls, ["frozen", "frozen_by_returns", "tests", "no_suite", "duties", "tests_trace", "plan_faces", "gates"])
+        self.assertEqual([(r["check"], r["text"]) for r in got["rejects"] if r["check"] in ("frozen", "tests")],
+                         [("frozen", "凍結の行"), ("frozen", "返しの控えの凍結の行"), ("tests", "赤の行")])
+
+    def test_no_suite_stops_before_the_duties_and_everything_after(self):
+        """元の結末を引けない止め（no_suite_at_accept）は型の義務より前に事実 1 つで止める: 止めを記録し（mark_no_suite）、
+        型の義務・試験の trace・直し方の面・事後の関門は呼ばない"""
+        calls: list = []
+        got = self._accept_with_calls(calls, stop="止める訳")
+        self.assertTrue(got["stop"] and got["ok"] is False and got["reason"] == "止める訳", got)
+        self.assertEqual(calls[-1], "mark_no_suite")
+        for later in ("duties", "tests_trace", "plan_faces", "gates"):
+            self.assertNotIn(later, calls)
+
     HELD = "型 variant の単位 alpha-unit の義務: 名指しの試験の起点の木の結末を引けなかった（実行器の失敗）"
     OTHER = "型 variant の単位 beta-unit の義務: ほかの義務の行"
     UNBOUND = "どの単位の key もパスも名指さない拒みの行"
