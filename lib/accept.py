@@ -1,4 +1,4 @@
-"""受け付けの口。役の返答を、写した graphloops の規則（rules/review-loop.py）と検証器（scripts/review-record.py）に通す。
+"""受け付けの口。役の返答を、写した graphloops の小道具（lib/graphloops/engine の util・schema）で照らす。
 
 実行基盤を知らない関数だけを出す。ブロックの script の節がこれを呼び、結果をそのまま出口にする。
 - snapshot_tree: 作業ツリーの写し（git が無視するファイルも入れる。index の印に隠れた物も入れる。tree_state の土台）
@@ -25,7 +25,7 @@ import sys
 import tempfile
 import time
 
-# pack の中に __pycache__ を作らない。ここで立てて止まるのは下で import する engine・rules・検証器の分だけ。
+# pack の中に __pycache__ を作らない。ここで立てて止まるのは下で import する engine の分だけ。
 # accept.py 自身の .pyc は、この行が動く前に import の時点で書かれるので、止めるのは呼び手（import する前に立てる。
 # ブロックのスクリプトの前置きは script_io の docstring）
 sys.dont_write_bytecode = True
@@ -64,7 +64,7 @@ def _git(repo, *args, binary=False, env=None, stdin=None):
 
 @contextlib.contextmanager
 def in_repo(repo):
-    """rules に差し込まれた git（engine/util.py の git）を repo に向ける。呼び終えたら戻す"""
+    """engine/util.py の git を repo に向ける。呼び終えたら戻す"""
     old = _util.GIT_CWD
     _util.GIT_CWD = str(repo)
     try:
