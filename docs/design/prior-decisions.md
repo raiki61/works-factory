@@ -80,7 +80,7 @@ materials.md の 1.3 の雛形の `<観点>` を `prior-decisions` にした物�
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-prior-decisions`、`depends_on` は materials.md の 1.6。`with:` は `base: <line が始めの記録から引いた diff_base>`・`request: <依頼の pointer>`（world の `request` と同じ物）・`entry: <line が始めの記録から引いた出どころの文。判定から入る run でなければ空>`・`lang: <始めの記録の lang>`。
 - 読み手:
-  - diagnose の `materials`（11 本の `material` の配列の 1 つ）。
+  - diagnose の `materials`（10 本の `material` の配列の 1 つ）。
   - 記録された方針の読み手（今の判定の出力の欄 `decisions` を受けていた全部: diagnose の判定の材料と受け付け〔lib の `judge_accept.py:799-801`・`:2824`〕・plan・plan-review・fix・r3・r4）。判定のまとめが `$prior-decisions.output.material`（`material.json` を指す Archon の pointer。中身ではない）を返りの欄 `decisions` にして line（判定のまとめを include するメイングラフ `works-factory-line`）へ返し、line が今と同じ配線で配る。読み手は `policy.recorded(start, decisions_file)` に、その pointer を開いたパスを渡す。`policy._settled_rows` は `doc["reply"]["settled"]` を読むので、`material.json` の形（`reply` の欄）のまま読める。
 - 今の「run で 1 回」は、判定のまとめがこの block を 1 回だけ include し、再審の道（diagnose の `objection`）がこの block を通らないことで続く。
 
