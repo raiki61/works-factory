@@ -40,7 +40,7 @@
 - `routes`: `choice(auto|plan): 単位ごとの道の決め方。auto は振り分けの段の AI（`route-loop` の役 `route`。22.1）が、計画の語が `static`・`tidy`・`pin` の単位と、語が `tdd` でなく消す名の在る単位を除いた単位を tdd か direct に振る（承認済みの案が tdd の単位は tdd に縛る）。plan は振り分けの段の AI を起こさず、型は計画の語だけで 22.1 の表の AI の答え無しの行で引く（`static`・`tidy`・`pin` の語はその型、語が `tdd` なら tdd、消す名の在る単位は remove、ほかは variant。訳は行の route_why）。tdd の単位が 0 なら TDD のループを回さない`。既定 `auto`。値は `values.json` で組の子へ運ぶ。plan の時、`orders` が計画の語から型を引き（22.1・22.2）、tdd に引いた単位だけを輪の状態に並べて test の段から輪を始める。元の結末（組の頭で関わる試験を 1 回走らせて取る、直す前の結果。`base.json`。17 節・22.3）は、tdd の単位が無くても、計画の語が `static` でない単位が組に在れば取る（[spec-driven.md](spec-driven.md) の 7 章の 1 の「tdd の単位が無ければ取らない」は段 1 で替わった。持ち主の決め `group-head-base`）。
 - `judgment`: `json(shared:judgment.schema.json): 判定（units・questions・precedents・framing などを持つ object）。whole と、out_dir の無い group では必須。out_dir の在る group（子の run）は親の写しを読むので空でよい`。既定 `""`。
 - `plan`: `json(shared:plan-fields.schema.json): 承認済みの修正案の欄の控え {fields}（今の plan-fields.json。凍結の印〔置いた控えの sha256 を修正案の block が trace.jsonl に書いた行。控えが印と食い違えば壊れた控えとして止める〕も一緒に置く）。空は修正案の無い run`。既定 `""`。
-- `fix_plan`: `json(shared:fix-plan.schema.json): 承認済みの修正案の返り（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run`。既定 `""`。
+- `fix_plan`: `json(shared:fix-plan.schema.json): 承認済みの修正案（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run`。既定 `""`。
 - `answer_ties`: `json(shared:answer-ties.schema.json): 依頼の答えを判定の問い・単位に結んだ行。null は結びが無い（字の一致だけ）`。既定 `null`。
 - `materials`: `json(shared:materials-state.schema.json): 判定の素材の状態（素材の名 → {status, …}）。null は無い`。既定 `null`。
 - `ripple`: `json(shared:ripple.schema.json): 波及の一覧（承認済みの修正案の項目が変える名の呼び出し元と試験）。空は無い`。既定 `""`。
@@ -53,7 +53,7 @@
 - `notes`: `text: 機械の申し送りの文（案の直しの後の 2 回目の修正の段だけ。採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes に足す。空は無い`。既定 `""`。
 - `only_items`: `json(only-items.schema.json): 2 回目の修正の段で直す修正案の項目の番号の配列。空の配列は直す義務の単位の全部`。既定 `[]`。
 - `item_kinds`: `json(item-kinds.schema.json): 返した項目の種を修正案の項目の番号ごとに並べた配列 [{item, kind}]。独立の目から返した段だけが渡す。空の配列は元の案の route のまま`。既定 `[]`。`prior` の無い段に空でない値を渡したら入力の誤りとして拒む。種は独立の目のまとめが付け（R1 の指摘は trim・R2 の指摘は unfinished）、返す輪の周の頭が項目の番号へ結んで運ぶだけで、型の語は 22.1 の表がここで引く。
-- `baseline`: `json(lib:baseline.schema.json): 直す前の結末（試験の関門の base の出力 baseline の先）。空は実行器の無い run`。既定 `""`。
+- `baseline`: `json(lib:baseline.schema.json): 直す前の結末（baseline.json）。空は実行器の無い run`。既定 `""`。
 - `test_cmd`: `text: 人が渡したテストのコマンド（対象の根で走らせる 1 行）。空は無い`。既定 `""`。
 - `tdd_suite`: `text: TDD の実行器のパス（第 1 引数の書き先に JUnit XML を書く物）。空は TDD の loop を回さない`。既定 `""`。
 - `reuse_dir`: `text: 同じ run の中の試験の結果の控えの置き場の絶対パス。空は使い回さない`。既定 `""`。
@@ -66,7 +66,7 @@
 - `from_tree`: `text: 親の作業ツリーの姿の木の sha（group の時。並べる子だけ）。空は親の作業ツリーをそのまま使う`。既定 `""`。
 - `out_dir`: `text: 子が組の結果を書く、親の place の中の絶対パス（group の時）。空は自分の place の groups/ に書く（単独の run）`。既定 `""`。
 - `lang`: `text: 人に見せる欄（各役の md が名指す欄）の言語。空は依頼の言語`。既定 `""`。
-- `excluded`: `json(shared:excluded.schema.json): 並行 PR の確かめが外した hunk（parallel-pr の出力 excluded の先 {excluded: [{pr, file, start, end, why, text, sha256}]} か、その行の配列。行の範囲は並行 PR の確かめが走った時の作業ツリーの行で、`text`・`sha256` はその行の中身の錨）。修正の受け付けが、修正の段の始めの木からの変更がこの範囲に触れた返答を拒み、組の終わりと全体の変更の確かめが、始めの木から今への変更を 1 度照らす（8.1）。null は外した hunk が無い`。既定 `null`。line が 1 回目と 2 回目の修正の段に渡す（integration の設計書の 4.1-5・line の設計書の 8.2 の決め）。`values.json` の欄 `excluded` に置き、組の子は親の物を写す。
+- `excluded`: `json(shared:excluded.schema.json): 並行 PR の確かめが外した hunk（{excluded: [{pr, file, start, end, why, text, sha256}]} か、その行の配列。行の範囲は並行 PR の確かめが走った時の作業ツリーの行で、`text`・`sha256` はその行の中身の錨）。修正の受け付けが、修正の段の始めの木からの変更がこの範囲に触れた返答を拒み、組の終わりと全体の変更の確かめが、始めの木から今への変更を 1 度照らす（8.1）。null は外した hunk が無い`。既定 `null`。line が 1 回目と 2 回目の修正の段に渡す（integration の設計書の 4.1-5・line の設計書の 8.2 の決め）。`values.json` の欄 `excluded` に置き、組の子は親の物を写す。
 
 形（形の照らしが読む語 `lib/graphloops/engine/schema.py` の KNOWN_KEYWORDS だけで書き、中身を宣言する。object には properties か patternProperties、array には items を書く。中身を宣言しない形は口 `workflows/.shared/ports.py` の `open_shapes` が拒む。#851）: 2 つ以上の block と graph が読む形は `.shared/schemas/` の 1 つを名指す（judgment・plan-fields・fix-plan・answer-ties・materials-state・plan-review-reply・carry・excluded・ripple・request。D1 から、型の block が読み修正の block が組む `weapon-order`〔`workflows/fix/schemas/` から移した〕・`writer-slots`・`writer-reply` も。2 節・24 節）。直す前の結末は lib の住処の `lib:baseline.schema.json`。この block の `schemas/` に残すのは、この block だけが読む `skip-rerun`・`fix-answers` `{decision, text, asked}`・`fix-request-answers`（`{question, text}` の行）・`only-items`（整数の配列）・`group` の 5 本。形の崩れた excluded の行は黙って捨てずに入口で `ok: false`（`start` が `end` より大きい行も拒む）。空の字 `""` と `null` は `ports.json` に渡さず「渡されていない」と読む（intake の決まり）。
 

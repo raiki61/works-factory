@@ -42,10 +42,10 @@
 - `base`（判定）: `text: 対象差分の根の commit（この commit から作業ツリーの今の姿まで。未追跡の新しいファイルも入る）。空は HEAD`。既定 `""`。
 - `purpose`（両方）: `json(shared:purpose.schema.json): 固めた目的のファイル（purpose.json。{purpose_text, source, known_weaknesses, source_files}）。空は目的の文がこの run に無い`。既定 `""`。
 - `constraints`（判定）: `json(shared:constraints.schema.json): 前提の実測の行の配列か、それを constraints の欄に持つオブジェクト。空の配列は実測が無い`。既定 `[]`。
-- `materials`（判定）: `json(materials.schema.json): 素材の観点の block が返した material.json の pointer（かファイルのパス）の配列。空の配列は素材の観点が 1 つも回っていない`。既定 `[]`。
+- `materials`（判定）: `json(materials.schema.json): 素材の観点の material.json の pointer（かファイルのパス）の配列。空の配列は素材の観点が 1 つも回っていない`。既定 `[]`。
 - `reply_sources`（判定）: `json(shared:reply-sources.schema.json): 素材の観点の返答の引き方 {replies: [{key, role, field}], trail, decisions}。graph が渡す。null か空は引かない`。既定 `"null"`。材料の鍵ごとにどの素材（`material.json` の `role`）の返答のどの欄を写すか・材料の行に辿る素材・記録された方針を持つ素材を、graph が入口で渡す（観点の役の名と返答の欄の名をこの block に書かない。憲法の 3。#851。11 節の 2）。
 - `pr_material`（判定）: `json(pr-material.schema.json): 並行 PR の素材の札 {status, count?, detail?, checked?, reason?}。null か空は並行 PR の確かめが回っていない`。既定 `"null"`。
-- `baseline`（判定）: `json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする`。既定 `""`。
+- `baseline`（判定）: `json(lib:baseline.schema.json): 直す前の試験の結末（baseline.json）。素材 local_checks をここから写す。空は local_checks を not_run にする`。既定 `""`。
 - `world_rows`（両方）: `jsonl(lib:world-row.schema.json): 世界の解の行のファイル（world.jsonl。1 行が依頼の 1 行）。空は世界の解の行が無い`。既定 `""`。
 - `row_asks`（判定）: `json(row-asks.schema.json): 頭の深さが依頼の行ごとに返した未知の種類の行 [{item, unknown, cause_quote, where?, code_quote?}]。空の配列は種類が決まっていない`。既定 `[]`。
 - `depth_why`（判定）: `text: 頭の深さの根拠の文（行ごとの種類が決まっていない run で、その訳として役に見せる）。空は「run の頭の深さの控えが無い」`。既定 `""`。

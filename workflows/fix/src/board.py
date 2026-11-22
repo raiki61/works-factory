@@ -665,7 +665,7 @@ def with_ruled(units, ruled) -> list:
 
 
 def child_tdd(result) -> dict:
-    """組の子の結果 result の欄 tdd（tdd.exit_fields の形。dict でなければ空）"""
+    """組の子の結果 result の欄 tdd（module src.tdd の exit_fields の形。dict でなければ空）"""
     tdd = (result or {}).get("tdd")
     return tdd if isinstance(tdd, dict) else {}
 
@@ -684,7 +684,7 @@ def child_verified(result) -> list:
 
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, related, units}]（子の結果の欄 tdd。
-    tdd.exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
+    module src.tdd の exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
     読む。docs/design/fix.md の 19 節）。実行器が無い・走らないで止めた組は no_suite も載る（下書き 3.9）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
@@ -1169,7 +1169,7 @@ def marks_path(place) -> pathlib.Path:
 
 
 def verified_tests(tdd) -> list:
-    """TDD の輪の出口の欄 tdd（tdd.exit_fields の形）のうち、赤 → 緑を機械が確かめた名指し（route が tdd で green が ok の
+    """TDD の輪の出口の欄（引数 tdd は module src.tdd の exit_fields の形）のうち、赤 → 緑を機械が確かめた名指し（route が tdd で green が ok の
     単位の tests。重ねない・現れた順）。join が親の木で走らせ直す"""
     out: list = []
     for u in (tdd or {}).get("units") or []:
@@ -1202,7 +1202,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。finish.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の finish.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。place は子の run の置き場（読み手は 2 つ: 親の conflict-check がこの組の申し出の名指しに許す根と、join の
-    board.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tdd.exit_fields の形、
+    board.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、引数 tdd は module src.tdd の exit_fields の形、
     tdd_record は子の TDD の輪の記録のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の

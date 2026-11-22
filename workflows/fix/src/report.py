@@ -1,4 +1,4 @@
-"""出力 report と freeze_off の行（docs/design/fix.md の 11 節）。どれも今の lib が組む日本語の字のまま。"""
+"""出力 report と freeze_off の行（docs/design/fix.md の 11 節）。どれも元の lib が組む日本語の字のまま。"""
 from __future__ import annotations
 
 import pathlib
@@ -7,7 +7,7 @@ import oneline   # lib/
 import reads     # lib/
 import report    # lib/
 
-NO_TDD = "組の TDD の記録が無い。修正の出力の単位の行で出す:"   # 今の runreport._tdd_lines の代わりの行（成果物の名を持たない字）
+NO_TDD = "組の TDD の記録が無い。修正の出力の単位の行で出す:"   # 元の runreport._tdd_lines の代わりの行（成果物の名を持たない字）
 
 
 def stages(tdd_rows: list) -> list:
@@ -39,7 +39,7 @@ def _shown(path: str, repo) -> str:
 
 
 def evidence_lines(place, repo=None) -> list:
-    """読んだ証拠の索引と役ごとの証拠の 1 行（今の runreport._index_lines・_evidence_line と同じ字。rel は place からの相対）"""
+    """読んだ証拠の索引と役ごとの証拠の 1 行（元の runreport._index_lines・_evidence_line と同じ字。rel は place からの相対）"""
     place = pathlib.Path(place)
     out = []
     for p in sorted(place.glob(reads.EVIDENCE_GLOB)):

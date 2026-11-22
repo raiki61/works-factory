@@ -1,5 +1,5 @@
 {
-  "description": "素材の観点の block が返した material.json の pointer（かファイルのパス）の配列",
+  "description": "素材の観点の material.json の pointer（かファイルのパス）の配列",
   "type": "array",
   "items": {
     "type": ["object", "string"],

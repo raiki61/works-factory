@@ -15,7 +15,7 @@ inputs:
   verify_by_tier: {default: '{}', description: 'json(verify-by-tier.schema.json): 段ごとに判定の裏取りを回すか {軽量, 標準, 重厚}（真偽）。空の object はどの段でも回さない'}
   user_env_dir: {default: '', description: 'text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は place'}
   request_origin: {default: '', description: 'text: 依頼の行の出どころの名（判定役に見せる依頼のバッチの origin）。空は「人の依頼（依頼の行）」'}
-  baseline: {default: '', description: 'json(lib:baseline.schema.json): 直す前の試験の結末（試験の関門が直す前に書いた baseline.json の pointer）。空は local_checks を not_run にする'}
+  baseline: {default: '', description: 'json(lib:baseline.schema.json): 直す前の試験の結末（baseline.json の pointer）。空は local_checks を not_run にする'}
   policy: {default: '', description: 'file: 人の方針の文書を run の頭で固めた写し。空は方針が無い'}
   lang: {default: '', description: 'text: 人に見せる欄の言語（include する block のどれにも渡す）。空は依頼の行の言語'}
 returns: verdict
