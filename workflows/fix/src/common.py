@@ -33,7 +33,7 @@ import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・�
 from src import files as files_mod  # noqa: E402
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。gates・board が tddloop.test_functions の名で読む）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。gates・board が tdd.test_functions の名で読む）
 import tree_run  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402

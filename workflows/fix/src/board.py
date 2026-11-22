@@ -435,13 +435,13 @@ def rerun_problem(place, repo, suite: str, cases, named, *, name: str = "rerun",
        （呼び手が渡した並び）に足す。外した木の結果が取れなければ uncompared（在れば）に足して人に聞く。3 回とも赤の時だけ戻す理由。
     shared の在る組の赤は意味の食い違い（SEMANTIC_CLASH）と名指す。走らせ直しの仮の base.json・accept.json とログは置き場の <name>/ に置く"""
     import baseline_red
-    from src import common, tdd as tddloop
+    from src import common, tdd
     suite = (suite or "").strip()
     named = sorted({t for t in named or [] if isinstance(t, str) and t.strip()})
     shared = sorted({f for f in shared or () if isinstance(f, str) and f})
     if not suite:
         return ""
-    exe = tddloop.exe_path(repo, suite)
+    exe = tdd.exe_path(repo, suite)
     work = pathlib.Path(place) / name
     work.mkdir(parents=True, exist_ok=True)
     probs = []
@@ -664,7 +664,7 @@ def with_ruled(units, ruled) -> list:
 
 
 def child_tdd(result) -> dict:
-    """組の子の結果 result の欄 tdd（tddloop.exit_fields の形。dict でなければ空）"""
+    """組の子の結果 result の欄 tdd（tdd.exit_fields の形。dict でなければ空）"""
     tdd = (result or {}).get("tdd")
     return tdd if isinstance(tdd, dict) else {}
 
@@ -683,7 +683,7 @@ def child_verified(result) -> list:
 
 def tdd_units(groups, results) -> list:
     """型つきの成果物 tdd-unit の本文: 組ごとの TDD の輪の結果 [{group_id, ran, reason, suite, reused, related, units}]（子の結果の欄 tdd。
-    tddloop.exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
+    tdd.exit_fields の形）。起動スクリプトが書き直しても壊れたままで止めた組は suite_broken・runner_log・cmd_log も載る（報告の冒頭が
     読む。docs/design/fix.md の 19 節）。実行器が無い・走らないで止めた組は no_suite も載る（下書き 3.9）。結果の無い組・実行器の無い組は ran: false・units: []。results は {group_id: 子の結果の dict}"""
     out = []
     for g in groups:
@@ -1024,17 +1024,17 @@ def plan_face_errors(place, reply, units) -> list:
 
 
 def _bodies(text, rel: str) -> dict:
-    """ファイルの中身 text（None は無いファイル）の test 関数の id（common._id_base）→ 源（tddloop.test_functions）。
+    """ファイルの中身 text（None は無いファイル）の test 関数の id（common._id_base）→ 源（tdd.test_functions）。
     元 works/blk-fix/lib/tddlanes.py:641（単位の worktree のファイルを読んだ所を中身で受ける）"""
-    from src import common, tdd as tddloop
+    from src import common, tdd
     if text is None:
         return {}
-    return {common._id_base(i): body for i, body in tddloop.test_functions(text, rel).items()}
+    return {common._id_base(i): body for i, body in tdd.test_functions(text, rel).items()}
 
 
 def test_file(f) -> str | None:
     """TDD の輪の単位の test_files の要素の決まり: 空でない文字列を posixpath.normpath で整えたパス（ほかは None）。書き手
-    tddloop の確かめ（要素が 1 つでも外れれば並びごと拒む）と読み手 unit_test_files（外れた要素を落とす）がここから引く"""
+    tdd の確かめ（要素が 1 つでも外れれば並びごと拒む）と読み手 unit_test_files（外れた要素を落とす）がここから引く"""
     return posixpath.normpath(f.strip()) if isinstance(f, str) and f.strip() else None
 
 
@@ -1168,7 +1168,7 @@ def marks_path(place) -> pathlib.Path:
 
 
 def verified_tests(tdd) -> list:
-    """TDD の輪の出口の欄 tdd（tddloop.exit_fields の形）のうち、赤 → 緑を機械が確かめた名指し（route が tdd で green が ok の
+    """TDD の輪の出口の欄 tdd（tdd.exit_fields の形）のうち、赤 → 緑を機械が確かめた名指し（route が tdd で green が ok の
     単位の tests。重ねない・現れた順）。join が親の木で走らせ直す"""
     out: list = []
     for u in (tdd or {}).get("units") or []:
@@ -1201,7 +1201,7 @@ def group_result(group, *, start_tree: str, end_tree: str, tdd, tdd_record: str 
     diff の隣に集める）、closure は子の置き場の閉鎖の表の行（表を読めなければ None。finish.closure_rows）と claimed は reply の
     changes の単位（親の collect が diff の隣の finish.CLOSURE_FILE に合わせる）。worktree は子の作業ツリーの実パス（join がその書き込みの記録を親の記録へ写す。
     writes.carry_children）。place は子の run の置き場（読み手は 2 つ: 親の conflict-check がこの組の申し出の名指しに許す根と、join の
-    fixboard.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tddloop.exit_fields の形、
+    fixboard.adopt_returned（consult.carry_agreed）がここから範囲の相談の合意を親の置き場へ写す）。group は {group_id, unit_ids}、tdd は tdd.exit_fields の形、
     tdd_record は子の TDD の輪の記録のファイル（輪の無い組は空。join が親の置き場に写す。adopt_tdd_states）、fix_units は
     修正の輪の単位の結末 {unit_key: {status, reason}}、reply は最後に受け付けた修正役の返答（印 CHANGED_MARKS と rejudge_requested
     を持つ。無ければ None）、allowed_tests は reply の在る組（修正の輪の受け付けが通った組）だけ allowed_rows の行（無い組は []。join の和と親の collect の
@@ -1237,7 +1237,7 @@ def adopt_tdd_states(place, results, *, prior: bool = False) -> list:
     写し直さない。prior が真なら写した記録に印 PRIOR_LOOP を置く（1 回目の修正の段の輪。ruled_states が今の段の輪から外す）。
     輪の状態は写さない（受け付けの試験の選びは元の結末 base.json〔adopt_bases が写す〕と記録を読む）。写した記録のパスを返す。
     新しい（元は 1 つの盤面に輪の状態が在った）"""
-    from src import common, tdd as tddloop
+    from src import common, tdd
     place = pathlib.Path(place)
     have = {str(read_json(p, {}).get(ADOPTED_FROM) or "") for p in common.records(place)}
     out = []
@@ -1249,12 +1249,12 @@ def adopt_tdd_states(place, results, *, prior: bool = False) -> list:
         while (place / f"tdd-{k}").exists():
             k += 1
         dst = place / f"tdd-{k}"
-        write_json(dst / tddloop.RECORD, {**read_json(pathlib.Path(src)), "summary": str(dst / tddloop.SUMMARY),
+        write_json(dst / tdd.RECORD, {**read_json(pathlib.Path(src)), "summary": str(dst / tdd.SUMMARY),
                                           ADOPTED_FROM: src, **({PRIOR_LOOP: True} if prior else {})})
-        summary = pathlib.Path(src).parent / tddloop.SUMMARY
+        summary = pathlib.Path(src).parent / tdd.SUMMARY
         if summary.is_file():
-            write_text(dst / tddloop.SUMMARY, summary.read_text(encoding="utf-8"))
-        out.append(str(dst / tddloop.RECORD))
+            write_text(dst / tdd.SUMMARY, summary.read_text(encoding="utf-8"))
+        out.append(str(dst / tdd.RECORD))
     return out
 
 
@@ -1293,8 +1293,8 @@ def _copy_base(place, src_dir: pathlib.Path, mark: str, prior: bool, base: bool 
     dst = _next_slot(pathlib.Path(place) / files_mod.BASES_DIR, "{k}")
     doc = read_json(b, None) if base and b.is_file() and repo is not None else None
     if isinstance(doc, dict) and doc.get("suite"):
-        from src import tdd as tddloop
-        write_json(dst / files_mod.BASE_FILE, {**doc, "exe": str(tddloop.exe_path(repo, doc["suite"]))})
+        from src import tdd
+        write_json(dst / files_mod.BASE_FILE, {**doc, "exe": str(tdd.exe_path(repo, doc["suite"]))})
     elif base and b.is_file():
         write_text(dst / files_mod.BASE_FILE, b.read_text(encoding="utf-8"))
     acc = read_json(a, {}) if a.is_file() else {}
@@ -2294,7 +2294,7 @@ def before_cases(place) -> list:
     return baseline_red._unique([c for c in rows if all(isinstance(c.get(k), str) for k in ("classname", "name", "outcome"))])
 
 
-TDD_START_FILE = "tdd-start.json"   # TDD の輪の頭の返り（tddloop.start の {go, state_file, summary_file, …}。group-start が書く）
+TDD_START_FILE = "tdd-start.json"   # TDD の輪の頭の返り（tdd.start の {go, state_file, summary_file, …}。group-start が書く）
 JOIN_FILE = "join.json"             # 組を親の木へ戻した結果 {groups, units}（join が書く）
 
 
@@ -2458,7 +2458,7 @@ def _overflow_items(place) -> list:
 
 def gather_overflow(scope_note, frozen, gate_rows: list, place, rev: str, repo) -> list:
     """受け付けが見つけた、相談に回せるはみ出し [{line, item, paths, tests, new_tests, ref}]。入口は 3 つで、見分けは持ち主が持つ:
-    範囲の持ち主 scope の記録 overflow、凍結の持ち主 tddloop の頼み（check_frozen の asks）、事後の関門の持ち主 gates の
+    範囲の持ち主 scope の記録 overflow、凍結の持ち主 tdd の頼み（check_frozen の asks）、事後の関門の持ち主 gates の
     test_edits の行（gates.overflow_asks）。ここは束ねるだけ。rev は修正前の版。元 works/blk-fix/scripts/accept.py:505"""
     from src import gates
     import planrange

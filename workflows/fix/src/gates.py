@@ -31,7 +31,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   （planmarks.GUARD_KIND）なら今の木で緑だけを求め、base の結末（base で何か）は帳面の guards に残す（base で緑でも抜けの行に
   しない。受けた回の trace が名指す）
 - test_edits: base から今の木で変わったテストのファイル（impact.is_test_file: 修正案の受け入れのテスト・書き換えの名指しのパスか名の慣習）のうち、base に在ったテストの関数
-  （tddloop.test_functions）の源が変わった・消えた物（common.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
+  （tdd.test_functions）の源が変わった・消えた物（common.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
   行だけ: 承認済みの修正案の rewrite_tests の id（行の test）と、修正案の項目の files の change=remove の symbol（消す名。op=delete の path・op=rename の元のパス from の .py のモジュールの名も）を base の本体で名指す関数の id
   （行の test。消す仕組みを縛るテストは変えざるを得ない。関数の丸ごとの消しも許す）と、範囲の相談の合意・裁定 fix_test_scope の範囲
   （裁定は裁定の後の受け付けだけ）の中だけを変えた関数。案の直しの単位の行は見ない（前の輪が足したテストは base に無く、ここでは照らさない）。範囲の読みは輪の凍結の検査（common.frozen_problems）と同じ: 1 行の指しの .py はその行を
@@ -66,7 +66,7 @@ import impact  # noqa: E402  （lib/。受け付けの置き場の trace の行�
 import jsonfile  # noqa: E402
 import planmarks  # noqa: E402  （lib/。修正案の書き換えの名指し・テストの定義の行）
 import planrange  # noqa: E402  （lib/。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
-from src import common, tdd as tddloop  # noqa: E402  （同じ block の src。輪の関門の読み口をそのまま使う）
+from src import common, tdd  # noqa: E402  （同じ block の src。輪の関門の読み口をそのまま使う）
 from leftovers import Unreadable, git  # noqa: E402
 
 LEDGER = "fix-gates.json"
@@ -104,7 +104,7 @@ def problems(board_dir, repo, base_rev: str, suite: str, attempt: int, *, pass_:
     if tests and not suite:
         gaps.append(NO_SUITE)
     elif tests:
-        suite = str(tddloop.exe_path(repo, suite))   # 控えの鍵（exe_id）と worktree の中の写し（_inner_exe）を cwd でなく根に結ぶ
+        suite = str(tdd.exe_path(repo, suite))   # 控えの鍵（exe_id）と worktree の中の写し（_inner_exe）を cwd でなく根に結ぶ
         got, why, guards = _red_green(repo, rev, suite, tests, b / f"{RUN}-{pass_}-{attempt}", _base_cache(b),
                                       _red_units(b, repo))
         agreed = {t["id"] for t in tests if t.get("agreed")}
@@ -226,9 +226,9 @@ def _accept_tests(b, fields, repo=None, *, owed=None, withheld=(), returned=()) 
     out, why = {}, []
     for n, f in enumerate(seen, 1):
         n = f.get("item") or n
-        tdd = f.get("route") == "tdd"
+        by_tdd = f.get("route") == "tdd"
         rows = [t for t in f.get("tests") or [] if isinstance(t, dict) and (
-            present(repo, t.get("id")) if t.get("agreed") else tdd)]
+            present(repo, t.get("id")) if t.get("agreed") else by_tdd)]
         if not rows:
             continue
         keys = [k for k in f.get("unit_keys") or [] if isinstance(k, str)] if isinstance(f.get("unit_keys"), list) else []
@@ -301,7 +301,7 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
     ids = [t["id"] for t in tests]
     tree = common.snapshot(repo)
     try:
-        now, _, why = tddloop.run_suite(suite, repo, work, f"{RUN}-now", common.abs_ids(repo, ids))
+        now, _, why = tdd.run_suite(suite, repo, work, f"{RUN}-now", common.abs_ids(repo, ids))
     finally:
         common.restore_paths(repo, tree, common.touched(repo, tree, common.snapshot(repo)))   # 走らせて出来た物を消す
     if now is None:
@@ -386,7 +386,7 @@ def named_before(board_dir, repo: pathlib.Path, rev: str, suite: str, ids: list,
         return {}, []
     if not suite:
         return None, [NO_SUITE_WHY]
-    suite = str(tddloop.exe_path(repo, suite))
+    suite = str(tdd.exe_path(repo, suite))
     facts, gaps = named_facts(repo, rev, suite, ids, pathlib.Path(work), _base_cache(b), _red_units(b, repo), common.snapshot(repo))
     if facts is None:
         return None, gaps
@@ -466,7 +466,7 @@ def _base_run(repo: pathlib.Path, rev: str, suite: str, ids: list, copy: list, w
                 shutil.copyfile(src, dst)
             elif dst.is_file() or dst.is_symlink():
                 dst.unlink()
-        cases, _, why = tddloop.run_suite(_inner_exe(repo, wt, suite), wt, work, f"{RUN}-base", common.abs_ids(wt, ids))
+        cases, _, why = tdd.run_suite(_inner_exe(repo, wt, suite), wt, work, f"{RUN}-base", common.abs_ids(wt, ids))
         return cases, why
 
 
@@ -509,7 +509,7 @@ def _ruled_ids(repo, rev: str, files: list, limits: list) -> set:
             old = git(repo, "show", f"{rev}:{path}")
         except Unreadable:
             continue
-        ids = tddloop.test_functions(old, path)
+        ids = tdd.test_functions(old, path)
         if None in spans:
             out |= set(ids)
             continue

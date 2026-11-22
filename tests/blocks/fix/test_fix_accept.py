@@ -3,7 +3,7 @@
 
 写した元と、この中の 3 つの部分:
 1. 部品（_l_ の名）: test_fix_gates.py〔TestRedGreen は test_tdd.py〕・test_plan_scope.py・test_fix_units.py・
-   test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（unitrows・parking・fixboard・tddloop・ruling）は
+   test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（unitrows・parking・fixboard・ruling）は
    試験ごとに setUp で src の写しに結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
    - 事後の関門の束（src/gates.py）: base の木の結末の使い回し・輪の記録した赤の木・既存のテストの変更・テストのファイルの申告・帳面と文
    - 承認済みの修正案の項目と修正の差分の照らし（src/scope.py の problems・new_test_ids・added_removed・with_agreed・reject_head）
@@ -46,7 +46,7 @@ from tests.blocks.fix import support
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 _L_SRC = {"fixboard": "board", "gates": "gates", "scope": "scope", "unitrows": "unitrows", "parking": "parking",
-          "rules": "rules", "tddloop": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
+          "rules": "rules", "tdd": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
 
 
 def _l_bind() -> None:
@@ -199,14 +199,14 @@ class TestBaseCache(FixGatesCase):
     種類の赤）は変えない"""
 
     def counted(self):
-        """tddloop.run_suite を数える {"now": 今の木の回数, "base": それ以外の回数}"""
-        real = gates.tddloop.run_suite
+        """tdd.run_suite を数える {"now": 今の木の回数, "base": それ以外の回数}"""
+        real = gates.tdd.run_suite
         calls = {"now": 0, "base": 0}
 
         def run(exe, repo, *a, **k):
             calls["now" if pathlib.Path(repo).resolve() == self.repo.resolve() else "base"] += 1
             return real(exe, repo, *a, **k)
-        return calls, mock.patch.object(gates.tddloop, "run_suite", side_effect=run)
+        return calls, mock.patch.object(gates.tdd, "run_suite", side_effect=run)
 
     def test_base_runs_once_across_attempts(self):
         self.ready_with_fields()
@@ -268,7 +268,7 @@ class TestBaseCache(FixGatesCase):
         self.ready_with_fields()
         self.add_test_mean_of_two()
         self.edit_tree(_l_MEAN_FIX)
-        real = gates.tddloop.run_suite
+        real = gates.tdd.run_suite
         calls = {"base": 0}
 
         def run(exe, repo, *a, **k):
@@ -277,7 +277,7 @@ class TestBaseCache(FixGatesCase):
                 if calls["base"] == 1:
                     return None, None, ["base で JUnit を書かなかった"]
             return real(exe, repo, *a, **k)
-        with mock.patch.object(gates.tddloop, "run_suite", side_effect=run):
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=run):
             self.assertEqual(self.problems(attempt=1), [])
             self.assertTrue(gates.skipped(self.board, pass_="first", attempt=1))
             self.assertEqual(self.problems(attempt=2), [])
@@ -304,7 +304,7 @@ class TestLoopRedTree(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_TWO_ID))
         (self.repo / "test_two.py").write_text(_l_TWO_FILE, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
-        red = gates.tddloop.snapshot(self.repo)
+        red = gates.tdd.snapshot(self.repo)
         self.save_unit(red)
         self.edit_tree({"return 0  # 仮の実装": "return x / 2"})
         return red
@@ -313,7 +313,7 @@ class TestLoopRedTree(FixGatesCase):
         """置き場の輪の記録 tdd-1/record.json に、赤を確かめた単位の記録を置く（輪の _test が残す欄だけ。frozen は輪が終わった
         時のテストのファイルの hash で、今の姿）"""
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
-                "test_hashes": gates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red_tree, "stub_files": ["stats.py"],
+                "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": red_tree, "stub_files": ["stats.py"],
                 **over}
         self.save_units({_l_MEAN: unit})
 
@@ -321,7 +321,7 @@ class TestLoopRedTree(FixGatesCase):
         files = sorted({f for u in units.values() for f in u["test_files"]})
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / gates.tddloop.RECORD).write_text(json.dumps({"units": units, "frozen": gates.tddloop.hashes(self.repo, files)},
+        (d / gates.tdd.RECORD).write_text(json.dumps({"units": units, "frozen": gates.tdd.hashes(self.repo, files)},
                                                            ensure_ascii=False), encoding="utf-8")
 
     def test_stub_red_rechecked_on_loop_red_tree(self):
@@ -333,7 +333,7 @@ class TestLoopRedTree(FixGatesCase):
     def test_red_tree_that_passes_is_a_miss(self):
         """赤の木で名指しが通る（記録が赤を映していない）なら行。文は『輪の赤の木で 』と red_check の事実"""
         self.stub_red()
-        self.save_unit(gates.tddloop.snapshot(self.repo))   # 直した後の木を赤の木と書く
+        self.save_unit(gates.tdd.snapshot(self.repo))   # 直した後の木を赤の木と書く
         rows = self.problems()
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", _l_TWO_ID)])
         self.assertTrue(rows[0]["detail"].startswith(gates.RED_TREE_HEAD), rows[0]["detail"])
@@ -358,13 +358,13 @@ class TestLoopRedTree(FixGatesCase):
         path.write_text(_l_TWO_FILE, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
         a = {"unit_key": "a", "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
-             "test_hashes": gates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": gates.tddloop.snapshot(self.repo)}
+             "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": gates.tdd.snapshot(self.repo)}
         self.edit_tree({"return 0  # 仮の実装": "return x / 2"})   # 単位 a を直す
         path.write_text(path.read_text(encoding="utf-8").replace("from stats import halve", "from stats import halve, twice")
                         + "\n    def test_twice(self):\n        self.assertEqual(twice(2), 4)\n", encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": "def twice(x):\n    return 0  # 仮の実装\n\n\ndef clamp(x, lo, hi):"})
         b = {"unit_key": "b", "route": "tdd", "red": "ok", "tests": [_l_TWICE_ID], "test_files": ["test_two.py"],
-             "test_hashes": gates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": gates.tddloop.snapshot(self.repo)}
+             "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": gates.tdd.snapshot(self.repo)}
         self.edit_tree({"return 0  # 仮の実装": "return x * 2"})   # 単位 b を直す
         self.save_units({"a": a, "b": b})
         self.assertEqual(self.problems(), [])
@@ -375,8 +375,8 @@ class TestLoopRedTree(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_SAB_ID))
         (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": "def clamp(x, lo, hi):\n    return -1  # 壊す\n"})
-        self.save_unit(gates.tddloop.snapshot(self.repo), tests=[_l_SAB_ID], test_files=["test_sab.py"],
-                       test_hashes=gates.tddloop.hashes(self.repo, ["test_sab.py"]))
+        self.save_unit(gates.tdd.snapshot(self.repo), tests=[_l_SAB_ID], test_files=["test_sab.py"],
+                       test_hashes=gates.tdd.hashes(self.repo, ["test_sab.py"]))
         self.edit_tree({"    return -1  # 壊す\n": ""})
         rows = self.problems()
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", _l_SAB_ID)])
@@ -386,14 +386,14 @@ class TestLoopRedTree(FixGatesCase):
     def test_red_tree_result_is_cached(self):
         """赤の木は run の中で動かないので、結末を控えて回をまたいで使い回す"""
         self.stub_red()
-        real = gates.tddloop.run_suite
+        real = gates.tdd.run_suite
         calls = []
 
         def run(exe, repo, *a, **k):
             calls.append(pathlib.Path(repo).resolve() == self.repo.resolve())
             return real(exe, repo, *a, **k)
-        # 赤の木の走らせ直しは common.red_rerun の口（common.run_suite）、base の木は関門の口（tddloop.run_suite）
-        with mock.patch.object(gates.tddloop, "run_suite", side_effect=run), \
+        # 赤の木の走らせ直しは common.red_rerun の口（common.run_suite）、base の木は関門の口（tdd.run_suite）
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=run), \
                 mock.patch.object(common, "run_suite", side_effect=run):
             self.assertEqual(self.problems(attempt=1), [])
             self.assertEqual(self.problems(attempt=2), [])
@@ -458,7 +458,7 @@ class RedGreenKeptCase(FixGatesCase):
 
     def traced(self, **kw):
         """problems を呼び、実行器を起こした順 [(今の木か別の木か, 名前 n)] と、返った行・飛ばした理由・守りの結末を返す"""
-        real_gate, real_common = gates.tddloop.run_suite, common.run_suite
+        real_gate, real_common = gates.tdd.run_suite, common.run_suite
         calls = []
 
         def wrap(real):
@@ -466,7 +466,7 @@ class RedGreenKeptCase(FixGatesCase):
                 calls.append(("now" if pathlib.Path(repo).resolve() == self.repo.resolve() else "tree", n))
                 return real(exe, repo, work, n, *a, **k)
             return run
-        with mock.patch.object(gates.tddloop, "run_suite", side_effect=wrap(real_gate)), \
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=wrap(real_gate)), \
                 mock.patch.object(common, "run_suite", side_effect=wrap(real_common)):
             rows = self.problems(**kw)
         attempt = kw.get("attempt", 1)
@@ -480,15 +480,15 @@ class RedGreenKeptCase(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_TWO_ID))
         (self.repo / "test_two.py").write_text(_l_TWO_FILE, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
-        red = gates.tddloop.snapshot(self.repo)
+        red = gates.tdd.snapshot(self.repo)
         self.edit_tree({"return 0  # 仮の実装": "return x / 2"})
         if red_is_green:
-            red = gates.tddloop.snapshot(self.repo)
+            red = gates.tdd.snapshot(self.repo)
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
-                "test_hashes": gates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red, "stub_files": ["stats.py"]}
+                "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": red, "stub_files": ["stats.py"]}
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / gates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": gates.tddloop.hashes(self.repo, ["test_two.py"])},
+        (d / gates.tdd.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": gates.tdd.hashes(self.repo, ["test_two.py"])},
                                                            ensure_ascii=False), encoding="utf-8")
 
     def test_a_green_pass(self):
@@ -525,13 +525,13 @@ class RedGreenKeptCase(FixGatesCase):
         self.ready_with_fields()
         self.add_test_mean_of_two()
         self.edit_tree(_l_MEAN_FIX)
-        real = gates.tddloop.run_suite
+        real = gates.tdd.run_suite
 
         def run(exe, repo, *a, **k):
             if pathlib.Path(repo).resolve() != self.repo.resolve():
                 return None, None, ["base で JUnit を書かなかった"]
             return real(exe, repo, *a, **k)
-        with mock.patch.object(gates.tddloop, "run_suite", side_effect=run):
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=run):
             rows = self.problems()
         self.assertEqual((rows, gates.skipped(self.board, pass_="first", attempt=1)), GOLDEN["base_down"])
 
@@ -560,13 +560,13 @@ class RedGreenKeptCase(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_SAB_ID))
         (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": "def clamp(x, lo, hi):\n    return -1  # 壊す\n"})
-        red = gates.tddloop.snapshot(self.repo)
+        red = gates.tdd.snapshot(self.repo)
         self.edit_tree({"    return -1  # 壊す\n": ""})
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_SAB_ID], "test_files": ["test_sab.py"],
-                "test_hashes": gates.tddloop.hashes(self.repo, ["test_sab.py"]), "red_tree": red}
+                "test_hashes": gates.tdd.hashes(self.repo, ["test_sab.py"]), "red_tree": red}
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / gates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": unit["test_hashes"]}), encoding="utf-8")
+        (d / gates.tdd.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": unit["test_hashes"]}), encoding="utf-8")
         self.assertEqual(self.before([_l_SAB_ID]), {_l_SAB_ID: "passed"})
 
     def test_named_before_reads_the_base_tree_for_the_rest(self):
@@ -584,8 +584,8 @@ class RedGreenKeptCase(FixGatesCase):
         no_exe = gates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties")
         no_names = gates.named_before(self.board, self.repo, self.base, self.SUITE, [], self.board / "duties")
         no_both = gates.named_before(self.board, self.repo, self.base, "", [], self.board / "duties")
-        real = gates.tddloop.run_suite
-        with mock.patch.object(gates.tddloop, "run_suite", side_effect=lambda exe, repo, *a, **k:
+        real = gates.tdd.run_suite
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=lambda exe, repo, *a, **k:
                                (None, None, ["起動できない"]) if pathlib.Path(repo).resolve() != self.repo.resolve() else real(exe, repo, *a, **k)):
             cannot_run = gates.named_before(self.board, self.repo, self.base, self.SUITE, [_l_MEAN_ID], self.board / "duties")
         for got in (no_exe, no_names, no_both, cannot_run):
@@ -767,7 +767,7 @@ class TestTestFilesDeclared(FixGatesCase):
         self.ready_with_fields(_l_direct_fields())
         (self.repo / "checks.py").write_text("def test_x():\n    pass\n", encoding="utf-8")
         (self.repo / "calc_test.go").write_text("package calc\n", encoding="utf-8")
-        tree = gates.tddloop.snapshot(self.repo)
+        tree = gates.tdd.snapshot(self.repo)
         self.assertEqual(gates._test_files(self.repo, self.base, tree), ["calc_test.go"])
         self.assertEqual(sorted(gates._test_files(self.repo, self.base, tree, ["./checks.py::test_x"])),
                          ["calc_test.go", "checks.py"])
@@ -2181,8 +2181,8 @@ class DutySets(DutyCase):
         suite = self.tmp / "suite.py"
         suite.write_text("", encoding="utf-8")
         with mock.patch.object(basecase, "run_suite", return_value=([], 0, [])), \
-                mock.patch.object(tddloop, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
-            got = tddloop.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
+                mock.patch.object(tdd, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
+            got = tdd.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
                                 **self.kw())
         self.assertTrue(got["go"], got)
         st = json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8"))
