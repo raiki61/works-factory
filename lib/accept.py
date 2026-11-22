@@ -9,7 +9,7 @@
 - guard・in_repo・resolve_rev・read_board・write_board・type_errors: 受け付けの部品の公開の名（ブロックのモジュールの受け付けが使う）
 - touched_files: 修正が触ったファイル（テストのキャッシュは除く。index の印に隠れた物も入れる。protect が数える）
 - flag_free_env: 本物の index の assume-unchanged・skip-worktree の印を外して git に作業ツリーを見せる env（protect も使う。
-                 sparse checkout の範囲外の印は残す）。copy_flag_free_index はその写しの index を作る（judge_accept の版の固定も使う）
+                 sparse checkout の範囲外の印は残す）。copy_flag_free_index はその写しの index を作る（materialkit.worktree_tree も使う）
 
 git は全部 repo を cwd にして呼ぶ。HEAD をその場で読むのは base_rev が空のときだけ（空なら repo の HEAD を版にする）。
 """
