@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Protocol
 
 from bin._lib import launcher, place
+from bin._lib.launcher import CHAIN
 from bin._lib.specreviews import LINE   # メイングラフの名（RETURN_READS の鍵。表の読みの照らしは別のファイルの定数も字で解く）
 
 LIB = Path(__file__).resolve().parents[2] / "lib"
@@ -60,7 +61,6 @@ EVENTS_FLAGS, EVENTS = ("--verbose", "--events"), "events"
 OUTPUT_EVENTS, COMPLETED = ("node_completed", "node_skipped_prior_success"), "completed"
 OUTPUT_KEYS = STRUCTURED, TRUNCATED, RAW = ("structured_output", "node_output_truncated", "node_output")
 # メイングラフと周の鎖の result の値から読む欄の道（. で段を分ける）と、その形（モジュールの docstring）。返す値そのものを読むので欄は ""
-CHAIN = "works-factory-chain"
 RESULT_FORM = "json(shared:apply-result.schema.json)"
 PLACED_OK, PLACED_HASH, PLACED_POINTER = "apply.ok", "apply.hash", "apply.diff"
 SEALED_OK, SEALED_HASH, SEALED_POINTER = "sealed.ok", "sealed.hash", "sealed.diff"
