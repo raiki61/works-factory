@@ -171,18 +171,7 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         # 前に始めた run を続ける命令。#679 より前に始めた run は封じた層に ROOT_ENV を持たない。層を持つ run では層の値が勝つ
         child[ROOT_ENV] = str(ROOT)
     if executing:
-        archon_home = Path(child["ARCHON_HOME"])
-        refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
-                             for name in ARCHON_CWD_ENV_FILES] + [archon_home / ".env"])
-        try:
-            place.write_provider_cap(archon_home, place.provider_cap(user))
-        except ValueError as error:
-            raise Stop(str(error)) from None
-        # 上限は置き場の設定として残り、渡さない起動も同じ置き場の上限の下で走る（Archon はリクエストのたびに読み直す）
-        if (effective := place.read_provider_cap(archon_home)) is not None:
-            print(f"{NAME}: claude の同時数の上限 {effective} が効いている（{archon_home / place.CAP_FILE}）", file=sys.stderr)
-        elif place.flow_cap_unread(archon_home):
-            print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{archon_home / place.CAP_FILE}）", file=sys.stderr)
+        settle_provider_cap(child, user, flags, here, target)
     real = real_claude(user) if executing else None
     if executing and user.get(CLAUDE_BIN_ENV):   # 利用者が起動方法（ラッパー）を置いた時だけ、その認証を check・exec が確かめる（読むのは殻のまま）
         auth_user += ["--runtime", user[CLAUDE_BIN_ENV]]
@@ -247,6 +236,22 @@ def launch(argv: list[str], user: dict[str, str], here: Path) -> int:
         why = (lambda: startpoint.unreachable(target, child, tries=1, configured=remote)) if start else None
         return recordroot.run_and_say(command, child, place.archon(bun, source), str(target), NAME, why)
     os.execve(command[0], command, child)
+
+
+def settle_provider_cap(child: Mapping[str, str], user: Mapping[str, str], flags: list[str], here: Path, target: Path) -> None:
+    """Archon の置き場の .env が殻の決めを覆さないかを確かめ、claude の同時数の上限を置き場の設定へ書き、効いている値を告げる"""
+    archon_home = Path(child["ARCHON_HOME"])
+    refuse_bin_override([where / name for where in dict.fromkeys([here, here / (flag_value(flags, "--cwd") or "."), target])
+                         for name in ARCHON_CWD_ENV_FILES] + [archon_home / ".env"])
+    try:
+        place.write_provider_cap(archon_home, place.provider_cap(user))
+    except ValueError as error:
+        raise Stop(str(error)) from None
+    # 上限は置き場の設定として残り、渡さない起動も同じ置き場の上限の下で走る（Archon はリクエストのたびに読み直す）
+    if (effective := place.read_provider_cap(archon_home)) is not None:
+        print(f"{NAME}: claude の同時数の上限 {effective} が効いている（{archon_home / place.CAP_FILE}）", file=sys.stderr)
+    elif place.flow_cap_unread(archon_home):
+        print(f"{NAME}: 上限の設定が 1 行の形で在るかもしれず、殻は値を読めない（{archon_home / place.CAP_FILE}）", file=sys.stderr)
 
 
 def preflight(user: Mapping[str, str], here: Path, target: Path, source: Path, *, executing: bool, real: str | None,
