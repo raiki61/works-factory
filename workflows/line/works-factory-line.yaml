@@ -175,7 +175,7 @@ nodes:
   - id: theme-world
     include: works-factory-world
     depends_on: [answer-start]
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: &theme_run "$answer-start.output.go == true && $start.output.ports.theme != ''"
     with:
       request: "$start.output.ports.theme_request"
       purpose: "$start.output.ports.theme_text"
@@ -189,7 +189,7 @@ nodes:
       mutates_checkout: false
     depends_on: [answer-start, theme-world]
     trigger_rule: none_failed_min_one_success
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       got: {from: "$theme-world.output", if_skipped: null}
       field: "rows"
@@ -203,7 +203,7 @@ nodes:
   - id: theme-blind
     include: works-factory-independent-design
     depends_on: [answer-start]
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       purpose: "$start.output.ports.theme_text"
       answers: "$answer-start.output.answer"
@@ -216,7 +216,7 @@ nodes:
     <<: *relay
     depends_on: [answer-start, theme-blind]
     trigger_rule: none_failed_min_one_success
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       got: {from: "$theme-blind.output", if_skipped: null}
       field: "design reason"
@@ -369,7 +369,7 @@ nodes:
     runtime: uv
     mutates_checkout: false
     depends_on: [theme-rounds]
-    when: "$answer-start.output.go == true && $start.output.ports.theme != ''"
+    when: *theme_run
     with:
       rounds: "$theme-rounds.output"
       ports: "$start.output.ports"
