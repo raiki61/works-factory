@@ -1305,7 +1305,84 @@ RETURNED = (("test-gate-base", "test_gate_base"), ("judge", "judge"), ("structur
             ("merge-apply", "merge_apply"))
 
 
-def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> dict:
+class Waits(typing.TypedDict):
+    conflicts: list
+    conflicts_if_closed: list
+    others: list
+
+
+class Head(typing.TypedDict):
+    before: list
+    stopped: list
+    after: list
+    notices: list
+
+
+class Apply(typing.TypedDict):
+    sealed: bool
+    placed: bool
+    redesign: str
+    said: str
+    pr: dict | None
+    commits: list
+
+
+class Carry(typing.TypedDict):
+    findings: list
+    prior: list
+    drafts: list
+    constraints: list
+
+
+class StopLines(typing.TypedDict):
+    before: list
+    after: list
+
+
+class OutcomeParts(typing.TypedDict):
+    gate: str
+    eyes: str
+    data: str
+
+
+class Decisions(typing.TypedDict):
+    before: list
+    after: list
+    outside: list
+
+
+class Facts(typing.TypedDict):
+    """build の返り（欄と意味は docs/design/report.md の 1.2 の表）。型は読み手への注記で、実行時の値は dict のまま。欄は build がいつも全部
+    置く（無い欄を既定で読むのは report の側）ので、必須だけ。鍵の組は `__required_keys__` から取り、build の返りと照らす
+    （tests/blocks/line/test_collect.py。試験に鍵の一覧を写さない）"""
+    start_ok: bool
+    problems: list
+    notes: list
+    gates: list
+    stops: list
+    halts: list
+    waits: Waits
+    cut: dict | None
+    optional: list
+    returned: list
+    no_fix: bool
+    left: list
+    proved: bool
+    head: Head
+    asks: list
+    tallied: dict
+    counted_left: list
+    decisions: Decisions
+    apply: Apply
+    carry: Carry
+    stop_lines: StopLines
+    outcome_parts: OutcomeParts
+    round: int | None
+    line_rev: str
+    request_texts: list
+
+
+def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> Facts:
     """facts（docs/design/report.md の 1.2 の欄の全部）"""
     import oneline
     record = record or {}

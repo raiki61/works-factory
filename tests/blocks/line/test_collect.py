@@ -12,6 +12,7 @@ import pathlib
 import unittest
 from unittest import mock
 
+from tests.bin.itemshape import missing_required, undeclared
 from tests.blocks import kit
 
 BLOCK = "line"
@@ -128,6 +129,17 @@ class FactsCase(unittest.TestCase):
         self.assertEqual(got["head"]["notices"], [{"kind": "test_cmd_note", "slots": {}, "text": "注意（test_cmd）: x"}],
                          "試験のコマンドの注意の種の行 1 つ。本文は行の全文")
         self.assertEqual(got["left"], [])
+
+    def test_facts_type_keys_match_what_build_makes(self):
+        """Facts（TypedDict）の鍵が build の作る鍵と合う（鍵をずらす・落とすと赤）。入れ子の型も同じに照らす"""
+        for name, got in (("passing", self.build(passing())), ("empty", self.build({}, {}))):
+            with self.subTest(name):
+                self.assertEqual(missing_required(self.f.Facts, got), set())
+                self.assertEqual(undeclared(self.f.Facts, got), set())
+                for key, td in (("waits", self.f.Waits), ("head", self.f.Head), ("apply", self.f.Apply), ("carry", self.f.Carry),
+                                ("stop_lines", self.f.StopLines), ("outcome_parts", self.f.OutcomeParts), ("decisions", self.f.Decisions)):
+                    self.assertEqual(missing_required(td, got[key]), set(), key)
+                    self.assertEqual(undeclared(td, got[key]), set(), key)
 
     def with_request(self, doc=None, *, path="start/request.json", raw=None, other=None):
         """始めの節の ports.request に依頼の写し（doc を書いた path）の pointer を置いた collect の入力。other は request-in の返りの写し"""
