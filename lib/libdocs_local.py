@@ -441,25 +441,26 @@ def _types_entry(pkg_dir: pathlib.Path, doc: dict) -> pathlib.Path | None:
 
 
 def _dts_next(path: pathlib.Path, spec: str) -> pathlib.Path | None:
-    base = (path.parent / spec)
+    base = path.parent / spec
     stem = re.sub(r"\.(c|m)?js$", "", str(base))
     for p in (pathlib.Path(stem + ".d.ts"), pathlib.Path(stem + ".d.mts"), pathlib.Path(stem) / "index.d.ts",
-              pathlib.Path(str(base))):
+              base):
         if p.is_file() and p.name.endswith(".ts"):
             return p
     return None
 
 
 def _dts_files(entry: pathlib.Path, real: pathlib.Path) -> list:
-    out, todo = [], [entry]
+    out, todo, seen = [], [entry], set()
     while todo and len(out) < MAX_DTS:
         p = todo.pop(0)
-        if p in [x for x, _ in out]:
+        if p in seen:
             continue
         text = _read(p, real)
         if text is None:
             continue
         out.append((p, text))
+        seen.add(p)
         for m in DTS_FROM.finditer(text):
             nxt = _dts_next(p, m.group(1))
             if nxt is not None:
