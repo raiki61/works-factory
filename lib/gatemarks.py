@@ -471,10 +471,7 @@ def recommend_gaps(node: str, reply: dict) -> list:
     if node not in NODES:
         return []
     out = []
-    rows = _rows(node, reply)
-    pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
-             if node == "p2.fix_plan" else [(f"faces[{j}]", f) for j, f in enumerate(rows)])
-    for where, row in pairs:
+    for where, row in _pairs(node, reply):
         if isinstance(row, dict) and RECOMMEND in row:
             gap = _recommend_gap(row[RECOMMEND])
             if gap:
@@ -504,13 +501,18 @@ def plain_gaps(node: str, reply: dict) -> list:
     事前審査の返答は一番上の止まった時の推し（converge.STUCK_PUSH）も照らす（recommend_gaps と同じ行の並び）"""
     if node not in NODES:
         return []
-    rows = _rows(node, reply)
-    pairs = ([(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
-             if node == "p2.fix_plan" else [(f"faces[{j}]", f) for j, f in enumerate(rows)])
-    out = [g for where, row in pairs for g in _row_plain_gaps(where, row)]
+    out = [g for where, row in _pairs(node, reply) for g in _row_plain_gaps(where, row)]
     if node == "p2.plan_review" and isinstance(reply, dict) and isinstance(reply.get(converge.STUCK_PUSH), dict):
         out += [g for k in RECOMMEND_KEYS[1:] for g in plainask.gaps(f"{converge.STUCK_PUSH}.{k}", reply[converge.STUCK_PUSH].get(k))]
     return out
+
+
+def _pairs(node: str, reply: dict) -> list:
+    """行の (返答の中の場所, 行) の並び（plan は narrows の行、plan_review は faces の行。recommend_gaps と plain_gaps が照らす）"""
+    rows = _rows(node, reply)
+    if node == "p2.fix_plan":
+        return [(f"plan[{i}].narrows[{j}]", n) for i, narrows in enumerate(rows) for j, n in enumerate(narrows)]
+    return [(f"faces[{j}]", f) for j, f in enumerate(rows)]
 
 
 def _rows(node: str, reply: dict) -> list:
