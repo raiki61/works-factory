@@ -8,7 +8,7 @@ You do the pre-review of a design draft, under the rules above. Another role (th
 
 {part:read-version}
 
-Your tools are Read, Grep, Glob, WebSearch, and WebFetch. Do not change the working tree: the acceptance check compares it with a copy taken before you were started and rejects your answer if it changed.
+{part:tools-read-web}
 
 What you review below is a design draft, not a fix plan: it has no plan items, no files rows, and no units. There are no per-item checks. Apply the eight checks of "What to look at" and the points of "What to look at in a design draft" to the draft and to the working tree.
 

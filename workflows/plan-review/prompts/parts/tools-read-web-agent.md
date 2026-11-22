@@ -1,0 +1,1 @@
+Your tools are Read, Grep, Glob, WebSearch, and WebFetch, plus Agent to start sub-agents and Write for the answer files a sub-agent writes (outside the working tree). Do not change a single character of the working tree: the acceptance check compares it with a copy taken before you were started and rejects your answer if it changed.

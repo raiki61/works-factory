@@ -1,0 +1,1 @@
+Your tools are Read, Grep, Glob, WebSearch, and WebFetch. Do not change the working tree: the acceptance check compares it with a copy taken before you were started and rejects your answer if it changed.

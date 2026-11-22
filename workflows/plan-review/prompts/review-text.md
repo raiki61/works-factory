@@ -4,7 +4,7 @@
 
 {part:role}
 
-Your tools are Read, Grep, Glob, WebSearch, and WebFetch. Do not change the working tree: the acceptance check compares it with a copy taken before you were started and rejects your answer if it changed.
+{part:tools-read-web}
 
 What you review below is a policy statement only: it has no plan structure (no items, no files, no units). There are no per-item checks, no comparison with an independent design, and no requests from earlier passes. Apply the eight checks of "What to look at" to the policy statement and to the working tree.
 
