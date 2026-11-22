@@ -4,6 +4,7 @@
 fixboard から）・始めの記録の読み（values.json。src/runvals.py）・深さ（port skip_rerun）・指示の文（md へ出し、行と値だけを返す）。
 置き場の名の定数は src/files.py に在る。
 """
+import dataclasses
 import functools
 import hashlib
 import json
@@ -12,6 +13,7 @@ import pathlib
 import posixpath
 import re
 import types
+from typing import Any
 
 import answer
 import fixboard as libboard   # lib/。overflow_trace は値で受ける形（integration.md 4.3-1）なので、値は下の overflow_trace が組む
@@ -1884,6 +1886,93 @@ def _without_units(reply: dict, drop: set) -> dict:
     return out
 
 
+@dataclasses.dataclass
+class _Accept:
+    """accept_reply の 2 つの段（_pile_problems・_settle_last_attempt）が共に持つ状態。段の間で張り替わる値（reply・found・
+    over・rest・absorbed）は、どちらの段からも今の値を読ませるためにここに置く（found は最後の回に張り替わり、写しの照らしの
+    nothing_found はその後の値を読む）。上の引数の欄は呼び手の値のまま（頭から通し直す時にそのまま渡す）、下の欄は段が埋める"""
+    place: Any
+    repo: Any
+    pass_: str
+    iteration: int
+    owed: Any
+    judged: Any
+    suite: str
+    record: str
+    tests_record: str
+    base_rev: str
+    head: str
+    skip: Any
+    parked: dict
+    reverted: Any
+    trail: dict
+    log: Any
+    rev: str
+    last: bool
+    reply: Any
+    whole: Any = None   # 相談の欄を外した、受け取ったままの返答（はみ出しの戻しと最後の回の結びが読む）
+    found: list = dataclasses.field(default_factory=list)   # 積んだ行 (確かめの id, 文)
+    declared: dict = dataclasses.field(default_factory=dict)   # 文 → その文を宣言した単位の鍵
+    duty: Any = None
+    excused: Any = None
+    picked: Any = None
+    precedents: list = dataclasses.field(default_factory=list)
+    held: Any = None   # 型の義務が保留にした行（duties の seen の no_before）
+    held_keys: set = dataclasses.field(default_factory=set)
+    others: list = dataclasses.field(default_factory=list)   # 保留の行を除いた積んだ行
+    asks: list = dataclasses.field(default_factory=list)
+    over: list = dataclasses.field(default_factory=list)   # はみ出しの行
+    rest: list = dataclasses.field(default_factory=list)   # はみ出しでない行
+    absorbed: Any = None   # 最後の回に数えなかった物 {dropped: 外した行の単位, absorbed: 数えなかった文}（受けた時に trace へ）
+
+    def note(self, check, texts):
+        for t in [texts] if isinstance(texts, str) else texts:
+            if t and t.strip():
+                self.found.append((check, t))
+
+    def units(self, reply=None, **kw) -> list:
+        return unit_outcomes([k for k in self.owed if k not in self.parked], {} if reply is None else reply, **kw)
+
+    def stopped(self, why):
+        return {"ok": False, "stop": True, "reason": why, "rejects": [], "reply": self.reply,
+                "units": self.units(excused=self.excused, parked=self.parked),
+                "parked": self.parked, "conflicted": False}
+
+    def accepted(self, reply):
+        from src import duties
+        units = self.units(reply, excused=self.excused, parked=self.parked)
+        overflow_trace(self.place, self.trail, self.repo, pass_=self.pass_, attempt=self.iteration)
+        gates_trace(self.place, pass_=self.pass_, attempt=self.iteration)
+        if self.absorbed:
+            trace(self.place, ABSORBED_OP, node=FIX_ACCEPT_BY, **self.absorbed)
+        duties.write_returns(self.place, self.repo, self.rev, reply, record=self.record, owed=self.owed)   # 返しの控え returns/<k>.json（下書き 2.1）
+        return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": self.parked,
+                "conflicted": False}
+
+    def rejected(self, head_text=""):
+        return {"ok": False, "reason": head_text + fix_reject_text(self.found),
+                "rejects": [{"check": c, "text": t} for c, t in fix_reject_rows(self.found)], "reply": self.reply,
+                "units": self.units(excused=self.excused, parked=self.parked),
+                "parked": self.parked, "conflicted": False}
+
+    def stop_held(self, *shared):
+        rows = ([fix_reject_text(self.others)] if self.others else []) + [f"{k}: {v}" for k, v in self.parked.items()] + list(shared)
+        why = NO_SUITE_BEFORE.format(why="；".join(self.held["texts"]), base=self.picked or "（無い）", log=self.held["log"]) \
+            + (NO_SUITE_OTHERS.format(rows="\n".join(rows)) if rows else "")
+        mark_no_suite(self.place, why)
+        return self.stopped(why)
+
+    def check_copy(self, reply):
+        _check_copy(reply, self.place, self.repo, self.rev, self.judged, self.duty, self.precedents, note=self.note,
+                    declared=self.declared, nothing_found=lambda: not self.found)   # found は後で張り替わるので、呼ぶ時の値を読ませる
+
+    def again(self, r, gone):
+        return accept_reply(r, self.place, self.repo, pass_=self.pass_, iteration=self.iteration, owed=self.owed,
+                            judged=self.judged, suite=self.suite, record=self.record, tests_record=self.tests_record,
+                            base_rev=self.base_rev, head=self.head, skip=self.skip, parked=self.parked, log=self.log,
+                            reverted=gone, trail=self.trail)
+
+
 def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, judged=None, suite: str = "",
                  record: str = "", tests_record: str = "", base_rev: str = "", head: str = "", skip=(), parked=None,
                  reverted=frozenset(), trail=None, log=None) -> dict:
@@ -1914,188 +2003,159 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     無い回か、最後の回でほかの拒みの単位を諦めて戻した後は止め（訳に引けない訳・使った元の結末のファイル・実行器の出力の置き場と、
     ほかの拒み・諦めた単位の理由を並べる）、途中の回にほかの拒みが在れば先に出し直させる。
     元 works/blk-fix/scripts/accept.py:611（盤面の代わりに置き場と値）"""
+    st = _Accept(place, repo, pass_, iteration, owed, judged, suite, record, tests_record, base_rev, head, skip,
+                 dict(parked or {}), reverted, {"reverted": []} if trail is None else trail, log,
+                 base_rev_of(place, base_rev), rolekit.is_last_attempt(iteration), reply)
+    done = _pile_problems(st)
+    return done if done is not None else _settle_last_attempt(st)
+
+
+def _pile_problems(st: _Accept):
+    """accept_reply の前半: 確かめを順に積んで（st.note）、受けるか拒むか止めるかが決まれば結果の dict を返す。最後の回の拒否で
+    決まらず後半（_settle_last_attempt）へ渡す時は None（積んだ行・はみ出しの振り分けは st に残る）。順は accept_reply の docstring の通り"""
     import conflict
     from src import basecase, consult, duties, orders
     from src import facts
     from src import gates
-    from src import parking
     from src import common
     import writes
-    parked = dict(parked or {})
-    trail = {"reverted": []} if trail is None else trail
-    rev = base_rev_of(place, base_rev)
-    last = rolekit.is_last_attempt(iteration)
-    found, declared = [], {}
-
-    def note(check, texts):
-        for t in [texts] if isinstance(texts, str) else texts:
-            if t and t.strip():
-                found.append((check, t))
-    if isinstance(reply, dict) and conflict.CONSULT_FIELD in reply:
+    place, repo, rev, pass_, owed, record, head, skip = st.place, st.repo, st.rev, st.pass_, st.owed, st.record, st.head, st.skip
+    note, declared = st.note, st.declared
+    if isinstance(st.reply, dict) and conflict.CONSULT_FIELD in st.reply:
         note("consult", CONSULT_SPENT.format(n=consult.BUDGET))
-        reply = {k: v for k, v in reply.items() if k != conflict.CONSULT_FIELD}
-    whole = reply
+        st.reply = {k: v for k, v in st.reply.items() if k != conflict.CONSULT_FIELD}
+    st.whole = st.reply
     frozen_over = []   # 相談に回せる凍ったファイルの頼み（check_frozen が足す）
     note("frozen", facts.check_frozen(pathlib.Path(place), record, repo, pass_, asks=frozen_over, base_rev=rev))
     note("frozen", duties.frozen_by_returns(place, repo))   # 返しの控えの凍結を注文の許しで（今の照らしと両方を通る物だけを通す）
     made = set(common.suite_made(record)) | basecase.suite_made_all(place)
-    wrote = facts.check_writes(reply, pathlib.Path(place), rev, repo, record, log=log, since=head or None,
+    wrote = facts.check_writes(st.reply, pathlib.Path(place), rev, repo, record, log=st.log, since=head or None,
                                     skip=tuple(skip))
     note("writes", wrote["problems"])
     if not wrote["problems"] and wrote["note"] == writes.NO_RECORD:
-        note("writes", undeclared_writes(reply, repo, head or rev, made=made, skip=skip))
-    reply = wrote["reply"]
-    reply, done = take_conflicts(reply, place, repo, pass_, owed)
+        note("writes", undeclared_writes(st.reply, repo, head or rev, made=made, skip=skip))
+    st.reply = wrote["reply"]
+    st.reply, done = take_conflicts(st.reply, place, repo, pass_, owed)
     if done is not None:
         if done.get("ok") is True:   # 1 回目に裁かれていない申し出: 積んだ誤りが在っても輪を抜ける（裁定の後の受け付けが当て直す）
-            units = unit_outcomes(owed, {}, parked=parked, conflicted=parked_reasons(place, [k for k in owed if k not in parked]))
-            return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
+            units = unit_outcomes(owed, {}, parked=st.parked, conflicted=parked_reasons(place, [k for k in owed if k not in st.parked]))
+            return {"ok": True, "reason": "", "rejects": [], "reply": st.reply, "units": units, "parked": st.parked,
                     "conflicted": True}
         for key, text in done.get("lines") or [(None, done["reason"])]:
             note("conflict", text)
             if key:
                 declared.setdefault(text, set()).add(key)
     scope_note = None   # 承認済みの修正案の項目と差分を照らした記録（はみ出しの行 overflow を持つ）
-    got = facts.fix_unit_keys(reply, pathlib.Path(place), owed)
+    got = facts.fix_unit_keys(st.reply, pathlib.Path(place), owed)
     if got is not None:
-        note("pack", check_pack_copy(reply, place, repo, skip))
+        note("pack", check_pack_copy(st.reply, place, repo, skip))
         note("excluded", check_excluded(place, repo))
-        keys, duty, excused = got
+        keys, st.duty, st.excused = got
         note("duplicate", [DUPLICATE + k for k in check_unique_units(keys)])
-        note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, duty | set(excused))])
-        note("excused", [f"{EXCUSED}{k}（{why}）" for k, why in check_excused_units(keys, duty, excused).items()])
-        scope, scope_note = facts.check_plan_scope(reply, keys, pathlib.Path(place), rev, repo, record, pass_, since=head or None,
+        note("not_opened", [NOT_OPENED + k for k in check_opened_units(keys, st.duty | set(st.excused))])
+        note("excused", [f"{EXCUSED}{k}（{why}）" for k, why in check_excused_units(keys, st.duty, st.excused).items()])
+        scope, scope_note = facts.check_plan_scope(st.reply, keys, pathlib.Path(place), rev, repo, record, pass_, since=head or None,
                                                items=functools.partial(place_items, place), consult_place=place)
         note("scope", scope)
     else:
-        duty, excused = fix_duty(place, owed)
-    picked = accept_base(place)   # 元の結末 base.json で選んで走らせる（下書き 2.1）。輪が名指した試験だけ輪の記録から足す
-    base = basecase.read_file(picked)   # 型の義務へ同じ元の結末を渡す
+        st.duty, st.excused = fix_duty(place, owed)
+    st.picked = accept_base(place)   # 元の結末 base.json で選んで走らせる（下書き 2.1）。輪が名指した試験だけ輪の記録から足す
+    base = basecase.read_file(st.picked)   # 型の義務へ同じ元の結末を渡す
     seen: dict = {}
-    red, tests_note = common.selected_problems(picked, repo, rev, named=[*orders.named_tests(place), *duties.reply_named(place, repo, rev, reply)],
-                                               record=record or tests_record, accept=place, seen=seen)
-
-    def stopped(why):
-        return {"ok": False, "stop": True, "reason": why, "rejects": [], "reply": reply,
-                "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
-                "parked": parked, "conflicted": False}
+    red, tests_note = common.selected_problems(st.picked, repo, rev, named=[*orders.named_tests(place), *duties.reply_named(place, repo, rev, st.reply)],
+                                               record=record or st.tests_record, accept=place, seen=seen)
     stop = no_suite_at_accept(place, seen)   # 型の義務より前に、事実 1 つで止める（下書き 3.9 の止め方の 2・3）
     if stop:
         mark_no_suite(place, stop)
-        return stopped(stop)
+        return st.stopped(stop)
     note("tests", red)
     duty_seen: dict = {}
-    for key, text in duties.accept_problems(place, repo, rev, reply, base=base, cases=seen.get("cases"), record=record or tests_record,
+    for key, text in duties.accept_problems(place, repo, rev, st.reply, base=base, cases=seen.get("cases"), record=record or st.tests_record,
                                             seen=duty_seen):   # 型の義務の表（下書き 2.4）
         note("duties", text)
         declared.setdefault(text, set()).add(key)
-    tests_trace(place, picked, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
-    note("plan_faces", plan_face_errors(place, reply, face_units(pass_, duty)))
-    gate_rows = gates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
+    tests_trace(place, st.picked, tests_note, pass_=pass_, attempt=st.iteration)   # 0 件の知らせも捨てない（F014）
+    note("plan_faces", plan_face_errors(place, st.reply, face_units(pass_, st.duty)))
+    gate_rows = gates.problems(place, repo, rev, st.suite, st.iteration, pass_=pass_, owed=set(st.duty))
     note("gates", gates.reject_lines(gate_rows) if gate_rows else [])
-    precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
-
-    def check_copy(reply):
-        _check_copy(reply, place, repo, rev, judged, duty, precedents, note=note, declared=declared,
-                    nothing_found=lambda: not found)   # found は後で張り替わるので、呼ぶ時の値を読ませる
-    check_copy(reply)
-    kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, record=record,
-              tests_record=tests_record, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
-
-    def again(r, gone):
-        return accept_reply(r, place, repo, **kw, reverted=gone, trail=trail)
-    held = duty_seen.get("no_before")
-    held_keys: set = set()
-    others = found
-    if held:
-        held_keys = {k for t in held["texts"] for k in declared.get(t, ()) if k}
-        others = [(c, t) for c, t in found if t not in held["texts"]]
-        if others and last:
-            found = list(others)   # 最後の回は保留の行を除いた残りを諦めの道へ。保留の単位は諦めに巻き込まない
-    asks = gather_overflow(scope_note, frozen_over, gate_rows, place, rev, repo)
-    over, rest = split_rows(found, asks)
-    if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
-        got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
-                              pass_=pass_, ask=not parked and not held, again=again)
+    st.precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
+    st.check_copy(st.reply)
+    st.held = duty_seen.get("no_before")
+    st.others = st.found
+    if st.held:
+        st.held_keys = {k for t in st.held["texts"] for k in declared.get(t, ()) if k}
+        st.others = [(c, t) for c, t in st.found if t not in st.held["texts"]]
+        if st.others and st.last:
+            st.found = list(st.others)   # 最後の回は保留の行を除いた残りを諦めの道へ。保留の単位は諦めに巻き込まない
+    st.asks = gather_overflow(scope_note, frozen_over, gate_rows, place, rev, repo)
+    st.over, st.rest = split_rows(st.found, st.asks)
+    if st.over and not st.rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
+        got = settle_overflow(st.asks, st.found, st.whole, place, repo, head=head or rev, reverted=st.reverted, trail=st.trail,
+                              pass_=pass_, ask=not st.parked and not st.held, again=st.again)
         if got is not None and got.get("queued"):   # 積んだ回: 拒否の形に単位の結末を足す（盤面の結末は前の拒否と同じ）
-            return {**got, "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
-                    "parked": parked}
+            return {**got, "units": st.units(excused=st.excused, parked=st.parked),
+                    "parked": st.parked}
         if got is not None:
             return got
-        over, rest = split_rows(found, asks)
-    absorbed = None   # 最後の回に数えなかった物 {dropped: 外した行の単位, absorbed: 数えなかった文}（受けた時に trace へ）
+        st.over, st.rest = split_rows(st.found, st.asks)
+    if st.held:
+        if not st.others:
+            return st.stop_held()
+        if not st.last:
+            return st.rejected()
+    if not st.found:
+        return st.accepted(st.reply)
+    if not st.last:
+        return st.rejected()
+    return None
 
-    def accepted(reply):
-        units = unit_outcomes([k for k in owed if k not in parked], reply, excused=excused, parked=parked)
-        overflow_trace(place, trail, repo, pass_=pass_, attempt=iteration)
-        gates_trace(place, pass_=pass_, attempt=iteration)
-        if absorbed:
-            trace(place, ABSORBED_OP, node=FIX_ACCEPT_BY, **absorbed)
-        duties.write_returns(place, repo, rev, reply, record=record, owed=owed)   # 返しの控え returns/<k>.json（下書き 2.1）
-        return {"ok": True, "reason": "", "rejects": [], "reply": reply, "units": units, "parked": parked,
-                "conflicted": False}
 
-    def rejected(head_text=""):
-        return {"ok": False, "reason": head_text + fix_reject_text(found),
-                "rejects": [{"check": c, "text": t} for c, t in fix_reject_rows(found)], "reply": reply,
-                "units": unit_outcomes([k for k in owed if k not in parked], {}, excused=excused, parked=parked),
-                "parked": parked, "conflicted": False}
-
-    def stop_held(*shared):
-        rows = ([fix_reject_text(others)] if others else []) + [f"{k}: {v}" for k, v in parked.items()] + list(shared)
-        why = NO_SUITE_BEFORE.format(why="；".join(held["texts"]), base=picked or "（無い）", log=held["log"]) \
-            + (NO_SUITE_OTHERS.format(rows="\n".join(rows)) if rows else "")
-        mark_no_suite(place, why)
-        return stopped(why)
-    if held:
-        if not others:
-            return stop_held()
-        if not last:
-            return rejected()
-    if not found:
-        return accepted(reply)
-    if not last:
-        return rejected()
-    # 最後の回の止めは成り立たない行にだけ当てる（はみ出しは止めた後の通し直しが聞かずに戻す）。写しでない行を先に結び、写しの
-    # 拒否は義務の外の単位の行を外した返答に当て直してから結ぶ（元 accept.py:687-697・:725-740）
-    rows = [c for c in whole.get("changes") or [] if isinstance(c, dict)]
-    plain = [t for c, t in rest if c != "copy"]
+def _settle_last_attempt(st: _Accept) -> dict:
+    """accept_reply の後半（最後の回の拒否）: 写しでない行を単位に結んで（last_settle）結んだ単位だけを head に戻して諦め
+    （park_units）、残りの単位で頭から通し直す。義務の外の単位にだけ結んだ行は数えず外して当て直す。止める単位が残らなければ
+    写しの拒否で義務の残りを全部止める（parking.park_owed）。それでも残れば受けずに諦める（NOT_SETTLED）。
+    最後の回の止めは成り立たない行にだけ当てる（はみ出しは止めた後の通し直しが聞かずに戻す）。写しでない行を先に結び、写しの
+    拒否は義務の外の単位の行を外した返答に当て直してから結ぶ（元 accept.py:687-697・:725-740）"""
+    from src import parking
+    place, repo, rev, owed, record, head, skip = st.place, st.repo, st.rev, st.owed, st.record, st.head, st.skip
+    rows = [c for c in st.whole.get("changes") or [] if isinstance(c, dict)]
+    plain = [t for c, t in st.rest if c != "copy"]
     settled = None
-    owed_left = set(owed) - held_keys   # 保留の単位は、結べない行が義務の全部に結ぶ先にも、写しの拒否の残りの全部止めにも入れない
+    owed_left = set(owed) - st.held_keys   # 保留の単位は、結べない行が義務の全部に結ぶ先にも、写しの拒否の残りの全部止めにも入れない
     if plain:
-        settled, out_of_duty, feet = last_settle(plain, rows, place, repo, rev, record, owed_left, excused, set(parked),
-                                                 declared=declared, skip=skip)
+        settled, out_of_duty, feet = last_settle(plain, rows, place, repo, rev, record, owed_left, st.excused, set(st.parked),
+                                                 declared=st.declared, skip=skip)
         if not settled.park:   # 義務の外の単位にだけ結んだ行: 数えず、その単位の行を外して残りで先へ（直しは作業ツリーに残す。元 :636-645）
-            absorbed = {"dropped": [c.get("unit_key") for c in reply.get("changes") or []
-                                    if isinstance(c, dict) and c.get("unit_key") in out_of_duty],
-                        "absorbed": settled.absorbed}
-            reply = _without_units(reply, out_of_duty)
-            found = list(over)
-            check_copy(reply)
-            over, rest = split_rows(found, asks)
-            if over and not rest:   # 残ったはみ出しは聞かずに戻して通し直す（元 :693-697）
-                got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
-                                      pass_=pass_, ask=False, again=again)
+            st.absorbed = {"dropped": [c.get("unit_key") for c in st.reply.get("changes") or []
+                                       if isinstance(c, dict) and c.get("unit_key") in out_of_duty],
+                           "absorbed": settled.absorbed}
+            st.reply = _without_units(st.reply, out_of_duty)
+            st.found = list(st.over)
+            st.check_copy(st.reply)
+            st.over, st.rest = split_rows(st.found, st.asks)
+            if st.over and not st.rest:   # 残ったはみ出しは聞かずに戻して通し直す（元 :693-697）
+                got = settle_overflow(st.asks, st.found, st.whole, place, repo, head=head or rev, reverted=st.reverted,
+                                      trail=st.trail, pass_=st.pass_, ask=False, again=st.again)
                 if got is not None:
                     return got
-                over, rest = split_rows(found, asks)
-            if not found:
-                return stop_held() if held else accepted(reply)
+                st.over, st.rest = split_rows(st.found, st.asks)
+            if not st.found:
+                return st.stop_held() if st.held else st.accepted(st.reply)
     if settled is None or not settled.park:   # 写しの拒否（by_copy）: 止める単位が残らなければ義務の残りを全部止める（元 :738-740）
-        texts = [t for c, t in rest if c == "copy"]
-        settled, out_of_duty, feet = last_settle(texts, rows, place, repo, rev, record, owed_left, excused, set(parked),
-                                                 declared=declared, skip=skip)
-        if not settled.park and texts and set(duty) - held_keys - out_of_duty:
-            settled = parking.park_owed(texts, feet=feet, owed=set(duty) - held_keys, out_of_duty=out_of_duty, skip=tuple(skip))
+        texts = [t for c, t in st.rest if c == "copy"]
+        settled, out_of_duty, feet = last_settle(texts, rows, place, repo, rev, record, owed_left, st.excused, set(st.parked),
+                                                 declared=st.declared, skip=skip)
+        if not settled.park and texts and set(st.duty) - st.held_keys - out_of_duty:
+            settled = parking.park_owed(texts, feet=feet, owed=set(st.duty) - st.held_keys, out_of_duty=out_of_duty, skip=tuple(skip))
     if not settled.park:
-        return stop_held() if held else rejected(NOT_SETTLED)
-    dragged = held_keys & set(settled.park)   # 足跡を共にするだけで巻き込まれた保留の単位が 1 つでも在れば: ファイルは単位ごとに分けて戻せないので戻さずに止める
+        return st.stop_held() if st.held else st.rejected(NOT_SETTLED)
+    dragged = st.held_keys & set(settled.park)   # 足跡を共にするだけで巻き込まれた保留の単位が 1 つでも在れば: ファイルは単位ごとに分けて戻せないので戻さずに止める
     if any(parking.only_shared(settled.park[k]) for k in dragged):
-        return stop_held(*(r for k in sorted(dragged) for r in settled.park[k]))
-    now, _ = park_units(place, repo, settled, head or rev, iteration=iteration, pass_=pass_)
-    return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
-                        judged=judged, suite=suite, record=record, tests_record=tests_record, base_rev=base_rev, head=head,
-                        skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail, log=log)
+        return st.stop_held(*(r for k in sorted(dragged) for r in settled.park[k]))
+    now, _ = park_units(place, repo, settled, head or rev, iteration=st.iteration, pass_=st.pass_)
+    return accept_reply(_without_units(st.whole, set(now)), place, repo, pass_=st.pass_, iteration=st.iteration, owed=owed,
+                        judged=st.judged, suite=st.suite, record=record, tests_record=st.tests_record, base_rev=st.base_rev,
+                        head=head, skip=skip, parked={**st.parked, **now}, reverted=st.reverted, trail=st.trail, log=st.log)
 
 
 def _check_copy(reply: dict, place, repo, rev: str, judged, duty, precedents, *, note, declared: dict, nothing_found) -> None:
