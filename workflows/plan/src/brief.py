@@ -348,6 +348,51 @@ def replan_rows(folder, ctx: dict, judgment, repo) -> str:
 
 
 # ---------------------------------------------------------------- 値の全体
+def _plan_values(v: dict, w: dict, ctx: dict, folder, prior, record) -> None:
+    """形 plan だけの段落の値と真偽（構造・世界の行・波及・検証・固めた仕様・前の周の案と審査・方針）を v・w に足す"""
+    values, marks = structure_parts(ctx.get("structure") or None)
+    v.update(values)
+    w.update(marks)
+    rows = worldmark.rows(ctx["world_rows"]) if ctx.get("world_rows") else []
+    v["world_rows"], w["world"] = world_lines(rows), bool(rows)
+    doc = jsonfile.read_or(folder / files.RIPPLE_UNITS)
+    if isinstance(doc, dict):
+        v["ripple_units_error"], w["ripple_units_error"] = str(doc.get("error") or ""), bool(doc.get("error"))
+        v["ripple_units"], w["ripple_units"] = ripple.units_rows(doc), not doc.get("error")
+    verify = ctx.get("verify") or ""
+    if verify:
+        got_verify = jsonfile.read_or(verify)
+        if isinstance(got_verify, dict) and isinstance(got_verify.get("units"), list):
+            v["verify_rows"], w["verify"] = verify_rows(got_verify), True
+        else:
+            v["verify_file"], w["verify_unreadable"] = verify, True
+    texts = []
+    if ctx.get("spec"):   # 固めた仕様（spec.json。入口が形で照らした JSON）
+        texts.append("\n".join(_json_block(json.loads(pathlib.Path(ctx["spec"]).read_text(encoding="utf-8")))))
+    if ctx.get("spec_doc"):   # 人と固めた仕様の本文（字のまま貼る）
+        texts.append(pathlib.Path(ctx["spec_doc"]).read_text(encoding="utf-8", errors="replace"))
+    if texts:
+        v["spec"], w["spec"] = "\n\n".join(texts), True
+    w["routes_spec"] = ctx.get("routes") == "spec"
+    if prior:
+        w["prior"] = True
+        v["prior_fix_plan"], v["prior_fields"] = prior.get("fix_plan") or "", prior["fields"]
+        w["prior_fix_plan"], w["prior_fields_only"] = bool(prior.get("fix_plan")), not prior.get("fix_plan")
+        v["prior_review"] = prior.get("review") or ""
+        w["prior_review"], w["no_prior_review"] = bool(prior.get("review")), not prior.get("review")
+        extra = revise_values(record) if prior.get("review") else revise_values({"passes": []})
+        for name, on in extra.items():
+            if name != "values":
+                w[name] = on
+        v.update(extra["values"])
+        rip = jsonfile.read_or(prior.get("ripple")) if prior.get("ripple") else None
+        if isinstance(rip, dict):
+            v["prior_ripple_error"], w["prior_ripple_error"] = str(rip.get("error") or ""), bool(rip.get("error"))
+            v["prior_ripple"], w["prior_ripple"] = ripple.rows(rip), not rip.get("error")
+    copy = policy.brief({"policy_md": ctx["policy"]}) if ctx.get("policy") else {"paste": ""}
+    v["policy_body"], w["policy"] = copy["paste"], bool(copy["paste"])
+
+
 def values(place, repo) -> tuple:
     """修正案の役の指示の (値, 段落の真偽)。いつも同じ組（入らない段落の口には空の字）"""
     place = pathlib.Path(place)
@@ -411,47 +456,7 @@ def values(place, repo) -> tuple:
         v["unknown_rows"], v["unknown_why"] = unknown_rows(ctx.get("depth_record") or "")
         w["unknown_rows"], w["unknown_none"] = bool(v["unknown_rows"]), not v["unknown_rows"]
     if plan_form:
-        values, marks = structure_parts(ctx.get("structure") or None)
-        v.update(values)
-        w.update(marks)
-        rows = worldmark.rows(ctx["world_rows"]) if ctx.get("world_rows") else []
-        v["world_rows"], w["world"] = world_lines(rows), bool(rows)
-        doc = jsonfile.read_or(folder / files.RIPPLE_UNITS)
-        if isinstance(doc, dict):
-            v["ripple_units_error"], w["ripple_units_error"] = str(doc.get("error") or ""), bool(doc.get("error"))
-            v["ripple_units"], w["ripple_units"] = ripple.units_rows(doc), not doc.get("error")
-        verify = ctx.get("verify") or ""
-        if verify:
-            got_verify = jsonfile.read_or(verify)
-            if isinstance(got_verify, dict) and isinstance(got_verify.get("units"), list):
-                v["verify_rows"], w["verify"] = verify_rows(got_verify), True
-            else:
-                v["verify_file"], w["verify_unreadable"] = verify, True
-        texts = []
-        if ctx.get("spec"):   # 固めた仕様（spec.json。入口が形で照らした JSON）
-            texts.append("\n".join(_json_block(json.loads(pathlib.Path(ctx["spec"]).read_text(encoding="utf-8")))))
-        if ctx.get("spec_doc"):   # 人と固めた仕様の本文（字のまま貼る）
-            texts.append(pathlib.Path(ctx["spec_doc"]).read_text(encoding="utf-8", errors="replace"))
-        if texts:
-            v["spec"], w["spec"] = "\n\n".join(texts), True
-        w["routes_spec"] = ctx.get("routes") == "spec"
-        if prior:
-            w["prior"] = True
-            v["prior_fix_plan"], v["prior_fields"] = prior.get("fix_plan") or "", prior["fields"]
-            w["prior_fix_plan"], w["prior_fields_only"] = bool(prior.get("fix_plan")), not prior.get("fix_plan")
-            v["prior_review"] = prior.get("review") or ""
-            w["prior_review"], w["no_prior_review"] = bool(prior.get("review")), not prior.get("review")
-            extra = revise_values(record) if prior.get("review") else revise_values({"passes": []})
-            for name, on in extra.items():
-                if name != "values":
-                    w[name] = on
-            v.update(extra["values"])
-            rip = jsonfile.read_or(prior.get("ripple")) if prior.get("ripple") else None
-            if isinstance(rip, dict):
-                v["prior_ripple_error"], w["prior_ripple_error"] = str(rip.get("error") or ""), bool(rip.get("error"))
-                v["prior_ripple"], w["prior_ripple"] = ripple.rows(rip), not rip.get("error")
-        copy = policy.brief({"policy_md": ctx["policy"]}) if ctx.get("policy") else {"paste": ""}
-        v["policy_body"], w["policy"] = copy["paste"], bool(copy["paste"])
+        _plan_values(v, w, ctx, folder, prior, record)
     else:
         v["replan_items"] = replan_rows(folder, ctx, judgment, repo)
     v["unread"], w["unread"] = "\n".join(f"- {u}" for u in ctx.get("unread") or []), bool(ctx.get("unread"))
