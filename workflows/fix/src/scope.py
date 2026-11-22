@@ -64,6 +64,7 @@ import pathlib
 import posixpath
 import re
 import sys
+from typing import TypedDict
 
 sys.dont_write_bytecode = True
 
@@ -82,6 +83,15 @@ REJECT_ASK = ("承認済みの修正案の項目から外れた（同じ brief �
               "範囲に入り、同じ会話の続きで直しを続ける。out_of_scope に当たる物が要る時も同じに相談せよ——修正案を書いた役が外した"
               "理由を考え直して決める。相談が聞けない・許されずに仕様として意見が割れる時だけ、変えずに食い違いの申し出で返せ）: ")
 DOC = "__doc__"   # docstring の属性の名。字は自分の名を書かないので、add は語でなく ast でも見る（_doc_added）
+
+
+class Overflow(TypedDict):
+    """problems の記録 overflow の 1 行（範囲の外のはみ出し）。鍵の束はこの 1 か所（読み手は consult・board・stages）"""
+    line: str
+    item: object
+    unit_key: str | None
+    paths: list[str]
+    new_tests: list[str]
 
 
 def reject_head(ask: bool) -> str:
@@ -328,7 +338,8 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
     if untouched is None:
         untouched = {p for p in loop if loop[p] is not None and p in changes and changes[p][1] == loop[p]}
     untouched = set(untouched)
-    out, unchecked, overflow = [], [], []   # overflow: 1・2・6 の行（範囲の外のはみ出し）。受け付けが相談に回す物の見分けは範囲の持ち主のここ
+    out, unchecked = [], []
+    overflow: list[Overflow] = []   # overflow: 1・2・6 の行（範囲の外のはみ出し）。受け付けが相談に回す物の見分けは範囲の持ち主のここ
     row_keys = {r.get("unit_key") for r in rows if isinstance(r.get("unit_key"), str)}
     diffs = {p: added_removed(*pair) for p, pair in changes.items()}
     # 修正役に問う側の差分: 凍ったファイルは凍った時の中身から今まで
@@ -357,15 +368,15 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
                 line = f"{key}: {f} は項目 {nums} の allowed_paths の外"
             if line:
                 out.append(line)
-                overflow.append({"line": line, "item": mine[0].get("item"), "unit_key": key, "paths": [f], "new_tests": []})
+                overflow.append(Overflow(line=line, item=mine[0].get("item"), unit_key=key, paths=[f], new_tests=[]))
     # 2. 変わったパスの全部（単位に結べないパスの照らしは planrange.outside の 1 か所。手直しの受け付けも同じ）
     seen_items = [it for it in items if set(_keys(it)) & row_keys]
     for p in [p for p in sorted(changes) if p not in seen and p not in untouched]:
         for line in planrange.outside(items, [p], permits):
             owner = planrange.owner(p, seen_items)
             out.append(line)
-            overflow.append({"line": line, "item": owner.get("item") if owner else None, "unit_key": None, "paths": [p],
-                             "new_tests": []})
+            overflow.append(Overflow(line=line, item=owner.get("item") if owner else None, unit_key=None, paths=[p],
+                                     new_tests=[]))
     # 3〜6. 見る項目（Missing 側は生きた項目だけ）
     looked = []
     named = {_test_key(t) for it in items for t in planrange.test_ids(it)}
@@ -429,8 +440,8 @@ def problems(items: list[dict], rows: list[dict], changes: dict, *,
             owner = mine[0] if mine else planrange.owner(p, seen_items)
             line = f"{tid} は修正案のどの項目の tests にも無いテストを足した"
             out.append(line)
-            overflow.append({"line": line, "item": owner.get("item") if owner else None, "unit_key": keys[0] if keys else None,
-                             "paths": [], "new_tests": [tid]})
+            overflow.append(Overflow(line=line, item=owner.get("item") if owner else None, unit_key=keys[0] if keys else None,
+                                     paths=[], new_tests=[tid]))
     return out, {"checked": True, "unchecked": unchecked, "items": looked, "overflow": overflow}
 
 

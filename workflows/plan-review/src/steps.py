@@ -333,6 +333,17 @@ def _texts(d: pathlib.Path, raw: dict) -> dict:
             "lang": ports.text(raw.get("lang")).strip()}
 
 
+def _replan_inputs(ruling: list, rows: list, prior: dict | None) -> tuple[list, list]:
+    """形 replan の裁かれた項目 ruled と承認済みの案 approved。裁きの行が案の行に合わない（入力 ruling）か、承認済みの案が無い（入力 prior）なら ValueError"""
+    ruled, why = planmarks.handed(ruling, len(rows))
+    if why:
+        raise ValueError(f"入力 ruling: {why}")
+    approved = _approved(prior)
+    if approved is None:
+        raise ValueError(f"入力 prior: {NO_APPROVED}")
+    return ruled, approved
+
+
 def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, common: dict) -> dict:
     """形 plan と replan の材料を写して intake.json の中身を組む（8 節の intake の 4〜13）"""
     ruling = _port("ruling", lambda: _ruling(raw.get("ruling")))
@@ -369,14 +380,7 @@ def _plan_doc(d: pathlib.Path, repo, raw: dict, proposal: dict, defaults: list, 
     rows = [r for r in bare.get("plan") or [] if isinstance(r, dict)]
     row_marks = [m for r, m in zip(bare.get("plan") or [], plan_marks) if isinstance(r, dict)]
     # 6. 形 replan: 裁かれた項目と承認済みの案
-    ruled, approved = [], None
-    if form == "replan":
-        ruled, why = planmarks.handed(ruling, len(rows))
-        if why:
-            raise ValueError(f"入力 ruling: {why}")
-        approved = _approved(prior)
-        if approved is None:
-            raise ValueError(f"入力 prior: {NO_APPROVED}")
+    ruled, approved = _replan_inputs(ruling, rows, prior) if form == "replan" else ([], None)
     # 7. 欄の控えと凍結の印・案の行と欄の数
     out = view.place(d)
     planmarks.save(d, 1, fields["fields"], {int(n): v for n, v in (fields.get("amended") or {}).items()} or None, trace=out.trace)
