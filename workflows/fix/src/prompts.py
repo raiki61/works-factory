@@ -1,7 +1,7 @@
 """9 つの AI の node の指示に渡す値と段落の真偽（docs/design/fix.md の 2.3・3.3・4.3・5.3・6.3 の差し込み口の一覧）。
 
 指示の文は prompts/ の md が持ち、ここは値を集めて prompt.emit に渡すだけ（書き手の指示と下請けのファイルは型の block が組む。ここは writer_slots で slots を渡す）。材料の行（brief・穴・範囲・
-テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は今の lib が組む日本語の字のまま入る（13.2 の 5）。組んだ指示は place の
+テスト・ライブラリ・相談の頼み・単位・引き継ぎ）は元の lib が組む日本語の字のまま入る（13.2 の 5）。組んだ指示は place の
 <node-id>-prompt-<n>.md に書く。
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ from src.rulings import write as write_rulings
 
 EMPTY = "(empty)"
 BLOCK = pathlib.Path(__file__).resolve().parents[1]
-OVERLAY_FILE = str(spseam.BORROW_DIR / spseam.OVERLAY_FILE)   # 下請けに Read させる無人の読み替え（今の seat.OVERLAY_HEAD の後半）
+OVERLAY_FILE = str(spseam.BORROW_DIR / spseam.OVERLAY_FILE)   # 下請けに Read させる無人の読み替え（元の seat.OVERLAY_HEAD の後半）
 FACTS = BLOCK / "src" / "facts.py"   # 事前の確かめのコマンド（1.5.5）
 CLASH = {"first": "clash-fix", "ruled": "clash-ruled"}
 CONSULT = {"first": "consult-answer", "ruled": "ruled-consult-answer"}
@@ -126,7 +126,7 @@ def subagents_slot(values: dict, repo, briefs: list, owed_keys: list[str], green
 def _slots(place, repo, pass_: str, weapon: str, values: dict, *, owed, items=None, sources=None, frozen=None, shared=None,
            saved_reply: str = "", green=frozenset(), **_unused) -> tuple[dict, dict, dict]:
     """型 weapon の書き手の slots {values, when, subagents, summary_file} と周の控え {iteration, kinds, ledger}、writer の続きが要る物
-    {briefs, config, owed_keys, values, continuing}。今の修正役の組み立ての順のまま（fixrules.prep）。型が持つ値と段落は組まない。
+    {briefs, config, owed_keys, values, continuing}。元の修正役の組み立ての順のまま（fixrules.prep）。型が持つ値と段落は組まない。
     範囲の相談の答えの後・はみ出しを相談に積んだ周は続きの段落だけ（回の数え直しをしない）。brief の控えが壊れていれば Broken"""
     from src import writers
     place = pathlib.Path(place)

@@ -34,7 +34,7 @@
 入力（YAML の `inputs:`）。README の 8.2 の行（`proposal`・`purpose`・`design`・`world_rows`・`structure`・`policy`・`tree`・`prior`）を、今の役が読んでいる物に合わせて広げた（14 節の 1）:
 
 - `proposal`: `text: 審査する方針の文（字）。修正案を審査する時は入力 plan に渡す（ここに修正案の JSON の値・pointer・パスを渡しても、plan と同じ形 shared:fix-plan.schema.json で照らして修正案として読む）。plan・proposal_file と一緒には名指さない。どれも空なら入口が止める`。既定 `""`。
-- `plan`: `json(shared:fix-plan.schema.json): 審査する修正案（項目の行の plan と、前の往復の穴への答え block_answers を持つ。修正案の block の出力 fix_plan の先）。pointer・パス・値のどれか。空の字は方針の文を審査する`。既定 `""`（#851: 修正案と方針の文の 2 つの形を 1 つの text の入力で運ばないよう分けた。修正案の形は口が照らし、PROPOSAL_SHAPE の写しは消した）。
+- `plan`: `json(shared:fix-plan.schema.json): 審査する修正案（項目の行の plan と、前の往復の穴への答え block_answers を持つ）。pointer・パス・値のどれか。空の字は方針の文を審査する`。既定 `""`（#851: 修正案と方針の文の 2 つの形を 1 つの text の入力で運ばないよう分けた。修正案の形は口が照らし、PROPOSAL_SHAPE の写しは消した）。
 - `proposal_file`: `file: 方針の文のファイル。在れば中身を形 text の方針の文として読む（JSON の形でも方針の文）。proposal と一緒には名指さない。空は proposal を読む`。既定 `""`。仕様を固める会話が設計書と表から組んだ方針の文を渡す口（[spec-driven.md](spec-driven.md) の 2.5 の詰まった所の 2。`proposal` の「在るファイルは JSON として読む」読みは変えず、入力を分けた）。
 - `fields`: `json(shared:plan-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
 - `judgment`: `json(shared:judgment.schema.json): 判定（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
