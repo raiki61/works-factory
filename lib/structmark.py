@@ -19,7 +19,7 @@
 - COPY_FILE: 事前審査が自分の置き場へ控えを写す名（写しの design_file は写した行を指す）
 
 直しの後の実測の控え（盤面の根の structure-after.json。計画 2026-10-09-clean-whole の Task 2.5）: 線の直しの後の境の節が 1 回書き、
-報告・最後の関所・独立の目の頭・結末の残りの数え（report.rest_outside_validator）がこの 1 つのファイルだけを読む。
+報告・最後の関所・独立の目の頭・結末の残りの数え（line の src/facts.py の _after_rows）がこの 1 つのファイルだけを読む。
 形: {status: ok|failed, reason, after: <構造のブロックの after.json の中身か {}>, deviations: [修正案の外れの訳]}。
 - write_after(board_dir, …)・read_after(board_dir): 控えを書く・読む（無い・読めない・形が違うなら None）
 - after_rows(board_dir): 結末を fixed にしない残りの行 [{where, text}]（柵の表を持つ対象で、住処の外の知る場所が増えた所。
