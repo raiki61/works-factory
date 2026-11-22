@@ -86,7 +86,7 @@ DOC = "__doc__"   # docstring の属性の名。字は自分の名を書かな�
 
 
 class Overflow(TypedDict):
-    """problems の記録 overflow の 1 行（範囲の外のはみ出し）。鍵の束はこの 1 か所（読み手は consult・board・stages）"""
+    """problems の記録 overflow の 1 行（範囲の外のはみ出し）。鍵の束はこの 1 か所（読み手は board.gather_overflow だけ）"""
     line: str
     item: object
     unit_key: str | None
