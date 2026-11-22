@@ -16,7 +16,7 @@ from tests.blocks import kit
 
 testcmd_check = kit.load("line", "testcmd_check")
 
-SEED = pathlib.Path(__file__).resolve().parents[3] / "tests" / "e2e" / "target-seed"
+SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 
 
 class TestCmdCheck(unittest.TestCase):

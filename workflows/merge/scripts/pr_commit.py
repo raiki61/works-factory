@@ -148,7 +148,7 @@ def request_path(raw) -> str:
 def item_record(raw):
     """修正の段の記録。空と null は無し。読めない記録は字のまま渡し、itemcommits.split が 1 つの commit に倒す"""
     try:
-        return ports.json(raw, "items.schema.json") if ports.text(raw).strip() not in ("", "null") else None
+        return ports.json(raw, "shared:item-claims.schema.json") if ports.text(raw).strip() not in ("", "null") else None
     except ports.ShapeError:
         raise   # 機械が組んだ記録の形の外れは工場の不具合（読めない記録の 1 つの commit の道に倒さない）
     except ValueError:

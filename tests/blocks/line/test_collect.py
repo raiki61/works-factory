@@ -15,7 +15,7 @@ from unittest import mock
 from tests.blocks import kit
 
 BLOCK = "line"
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = kit.ROOT
 FACTS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "facts.schema.json"
 SECTIONS_SCHEMA = kit.BLOCKS / ".shared" / "schemas" / "sections.schema.json"
 INPUTS = ("notices", "start", "answer_start", "test_gate_base", "judge", "tiers", "owed", "structure", "structure_in", "independent_design",

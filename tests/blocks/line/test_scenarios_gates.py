@@ -10,7 +10,7 @@ Archon の源か bun が無ければ tests/archon.py の見送り。
 """
 import unittest
 
-from tests.blocks.line.test_scenarios import line_traces, out, ran
+from tests.blocks.line.test_scenarios import assert_no_write, line_traces, out, ran
 
 class GateCase(unittest.TestCase):
     """承認ノードの止めの答え（policy-stop・final-stop・replan-stop）。通す答えで修正へ進み差分を当てる結末は筋書き standard（test_scenarios.py の
@@ -60,7 +60,8 @@ class ReplanCase(unittest.TestCase):
         trace = self.t["refix-handoff"]
         got = out(trace, "ask-final")
         self.assertTrue(got["open"], got)
-        self.assertEqual(len(out(trace, "fixed")["stages"]), 2, "1 回目と 2 度目の修正の段")
+        # 段の表は置き場のファイルで、dry-run の後は読めない。2 つの段が読まれたことは下の文の「段 1」「段 2」が見る
+        self.assertEqual(out(trace, "fixed")["stages"]["type"], "archon_artifact", "1 回目と 2 度目の修正の段の表")
         self.assertIn("直しの途中で AI が自分で決めずに人に回した物が在る（2 件）", got["text"].splitlines()[0])
         self.assertIn("- u1: 壊すと分かって通した——段 1 で既定が変わる\n- u1: 壊すと分かって通した——段 2 で既定が変わる", got["text"])
 
@@ -150,16 +151,7 @@ class NoApplyCase(unittest.TestCase):
     NEVER_SEAL = ("policy-stop", "replan-stop", "eyes-failed", "unattended-push-stop")
 
     def test_no_write_after_a_stop(self):
-        traces = line_traces(self.NEVER_APPLY)
-        for name in self.NEVER_APPLY:
-            with self.subTest(scenario=name):
-                trace = traces[name]
-                for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
-                    self.assertFalse(ran(trace, node), node)
-                self.assertIsNone(out(trace, "result")["apply"])
-                if name in self.NEVER_SEAL:
-                    self.assertFalse(ran(trace, "merge-seal__merge"))
-                    self.assertIsNone(out(trace, "result")["sealed"])
+        assert_no_write(self, self.NEVER_APPLY, self.NEVER_SEAL)
 
 
 if __name__ == "__main__":

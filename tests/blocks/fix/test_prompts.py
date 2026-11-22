@@ -7,7 +7,6 @@ md の決まった文。tests/layers/test_block_shape.py の 7.1 の 3 の照ら
 """
 import functools
 import json
-import pathlib
 import sys
 import unittest
 
@@ -17,7 +16,7 @@ from tests.bin.gitkit import git
 from tests.blocks import kit
 from tests.blocks.fix import support
 
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+ROOT = kit.ROOT
 BLOCK = kit.BLOCKS / "fix"
 if str(ROOT / "lib") not in sys.path:
     sys.path.append(str(ROOT / "lib"))

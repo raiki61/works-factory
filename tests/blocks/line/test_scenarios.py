@@ -107,6 +107,20 @@ def bound(trace: dict, value):
     return json.loads(trace[_traced(trace, node)]["output"]).get(field)
 
 
+def assert_no_write(case, never_apply, never_seal):
+    """筋書き never_apply のどれも差分を当てる段を走らせず、result の apply が null。never_seal のものは封じもしない"""
+    traces = line_traces(never_apply)
+    for name in never_apply:
+        with case.subTest(scenario=name):
+            trace = traces[name]
+            for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
+                case.assertFalse(ran(trace, node), node)
+            case.assertIsNone(out(trace, "result")["apply"])
+            if name in never_seal:
+                case.assertFalse(ran(trace, "merge-seal__merge"))
+                case.assertIsNone(out(trace, "result")["sealed"])
+
+
 class LineReturnsTest(unittest.TestCase):
     """line の返り（result）の欄 apply・sealed・r2_status・final_answer・spec_questions（bin/apply と段 1 が読む）を、筋書きの道で照らす"""
 
@@ -323,8 +337,9 @@ class EyesBackTest(unittest.TestCase):
         for node in ("back-3", "back-4"):   # 頭は毎周走り、返さなかった周は前の記録を運ぶ
             self.assertEqual({k: out(trace, node)[k] for k in ("go", "exit", "rows")}, {k: second[k] for k in ("go", "exit", "rows")}, node)
         fixed = out(trace, "back-1-fixed")
-        self.assertEqual([s["stage"] for s in fixed["stages"]], [1, 2], "返した段が最初の修正の段の次に積まれる")
-        self.assertEqual(len(fixed["more"]), 1)
+        # 段の表は置き場のファイルで、dry-run の後は読めない。返した後の記録は fixed/<返した回数> に置く（段が積まれたことは ask-final の文が見る）
+        self.assertEqual(fixed["stages"]["path"], "fixed/1/stages.json", "返した段が最初の修正の段の次の記録に積まれる")
+        self.assertEqual(fixed["more"]["path"], "fixed/1/more.json", "返した段の修正の返りの並びも置き場のファイル")
         last = out(trace, "eyes-back")
         self.assertEqual(last["exit"], self.settled_one)
         self.assertEqual((last["sealable"], last["eyes_ok"], last["green_ok"]), (True, True, True))
@@ -359,16 +374,7 @@ class NoApplyTest(unittest.TestCase):
     NEVER_SEAL = ("block-failed", "no-fix", "spec-direction", "start-refused")
 
     def test_no_write_after_a_stop(self):
-        traces = line_traces(self.NEVER_APPLY)
-        for name in self.NEVER_APPLY:
-            with self.subTest(scenario=name):
-                trace = traces[name]
-                for node in ("merge-apply__place", "merge-apply__merge", "merge-apply__pr-commit", "merge-apply__pr-open"):
-                    self.assertFalse(ran(trace, node), node)
-                self.assertIsNone(out(trace, "result")["apply"])
-                if name in self.NEVER_SEAL:
-                    self.assertFalse(ran(trace, "merge-seal__merge"))
-                    self.assertIsNone(out(trace, "result")["sealed"])
+        assert_no_write(self, self.NEVER_APPLY, self.NEVER_SEAL)
 
 
 ROUND_NODE = re.compile(r"back-\d+(?:-.+)?|eyes-back")

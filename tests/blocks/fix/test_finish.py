@@ -21,7 +21,7 @@ import yaml
 from tests.bin import hermetic
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-from tests.blocks.fix.support import MARKS, result, write
+from tests.blocks.fix.support import MARKS, GroupsPlace, result, write
 
 ROOT = kit.ROOT
 SEED = ROOT / "tests" / "e2e" / "target-seed"
@@ -49,7 +49,7 @@ TDD_ROW = {"unit_key": "A", "route": "tdd", "why": "", "tests": ["test_stats.py:
            "quote_unchecked": [], "stub_files": [], "test_cmd": "", "refactor_why": ""}
 
 
-class FinishPlace(unittest.TestCase):
+class FinishPlace(GroupsPlace, unittest.TestCase):
     """全体の形の place（intake を mode whole で回した後）と、組の子の結果・join の控えを置く助け"""
 
     @classmethod
@@ -95,12 +95,6 @@ class FinishPlace(unittest.TestCase):
         tree = self.snapshot(self.repo)
         self.restore()
         return tree
-
-    def groups_file(self, groups, start_tree, par=True):
-        out_dir = self.place / "groups"
-        write(self.place / "groups.json", {"groups": groups, "count": len(groups), "par": par, "start_tree": start_tree,
-                                           "out_dir": str(out_dir)})
-        return out_dir
 
     def collect_place(self, *, ok=True, result_extra=None, conflicts=None):
         start = self.snapshot(self.repo)
