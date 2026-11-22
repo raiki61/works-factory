@@ -1288,13 +1288,13 @@ def duty(b) -> set:
 class Ledger(types.SimpleNamespace):
     """盤面の代わりに値で引く問いの台帳の見え方（ledger が作る。asks・answered・pending・withheld_by・withheld・returned・duty・
     returned_lines・held_lines・answered_lines・unmatched_answer_lines・answer_key・answer_tie_lines が読む物だけを持つ。takes_push は
-    無人の run か＝判定の推しを答えに採るか。run_push が読む。design_only は設計だけの run か）"""
+    無人の run か＝判定の推しを答えに採るか。run_push が読む）"""
 
 
-def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False, design_only=False) -> Ledger:
+def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_push=False) -> Ledger:
     """問いの台帳の値の見え方: judgment は判定の dict（units・questions）、answers は依頼の answers（始めの記録の欄）、gate は修正前の
     関所の答え {decision, text, asked}（か、その並び。無ければ None）、ties は判定の結びの行（判定の出力の欄 answer_ties の先の最後の周）、materials は
-    素材の状態（判定の出力の欄 materials の先）、takes_push は無人の run か（判定の推しを答えに採る。run_push）、design_only は設計だけの run か。
+    素材の状態（判定の出力の欄 materials の先）、takes_push は無人の run か（判定の推しを答えに採る。run_push）。
     人に聞く状態の語は ASKING、測れていない素材の状態は UNMEASURED。始めの記録は読まず、値は呼び手（line）が渡す（integration.md 4.3-追加-6）"""
     doc = judgment if isinstance(judgment, dict) else {}
     status = {k: types.SimpleNamespace(blocks=True) for k in UNMEASURED}
@@ -1305,7 +1305,7 @@ def ledger(judgment, *, answers=(), gate=None, ties=(), materials=None, takes_pu
               "process": {"human_items": [h for a in (gate if isinstance(gate, list) else [gate]) for h in gate_items(a)]}}
     return Ledger(dir=None, round=1, record=record, answers=[a for a in answers or [] if isinstance(a, dict)],
                   ties=[r for r in ties or [] if isinstance(r, dict)], rules=types.SimpleNamespace(validator_module=lambda b: validator),
-                  takes_push=bool(takes_push), design_only=bool(design_only))
+                  takes_push=bool(takes_push))
 
 
 def ledger_files(judgment, *, ties_file=None, materials_file=None, answers=(), gate=None, takes_push=False) -> Ledger:
