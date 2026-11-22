@@ -6,7 +6,7 @@
 置き場（board_dir・board。fix の run の作業のファイルを置くフォルダ。呼び手の script が渡す）のファイルで回す。
 （元の check(b)——節 conflict-check——は外した。呼び手の script が conflict.unruled(置き場) を読む）
 
-- prep(board_dir, repo, values): 節 rule-prep の材料。作業ツリーの姿を控え（fixboard.snapshot。読むだけの役の見張り）、裁定役の指示に
+- prep(board_dir, repo, values): 節 rule-prep の材料。作業ツリーの姿を控え（board_mod.snapshot。読むだけの役の見張り）、裁定役の指示に
   入れる run の値と回の数えを返す（指示は prompts/ruler.md で、src/prompts.py の ruler_values が組む）
 - accept_rule(reply, board, base_rev, repo): 節 rule-accept の中身（呼び手の script が回す）。作業ツリーが変わっていない・裁く申し出の id に
   ちょうど 1 件ずつ・fix_test_scope の範囲が現物に在る・replace_query の問いが例（hits・misses・申し出の correct_lines）で
@@ -28,7 +28,7 @@ sys.dont_write_bytecode = True
 from accept import TREE_KEYS, tree_moved  # noqa: E402   共通の作業ツリーの比べ（R47）
 import cite  # noqa: E402
 import conflict  # noqa: E402
-from src import board as fixboard  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
+from src import board as board_mod  # noqa: E402   置き場への作業ツリーの姿の控え（元 entry.snapshot）
 from src.rulings import write as write_rulings  # noqa: E402   裁定の文のファイル
 from src import runvals  # noqa: E402   依頼のファイル（values.json）
 import jsonfile  # noqa: E402
@@ -61,7 +61,7 @@ def prep(board_dir, repo, values: dict) -> dict:
     if not todo:
         raise ValueError("裁く申し出が無い（conflict-check の go が偽なのに裁定のループを回した）")
     n = rolekit.attempt(b, ROLE)
-    fixboard.snapshot(board_dir, TREE, pathlib.Path(repo))
+    board_mod.snapshot(board_dir, TREE, pathlib.Path(repo))
     vals = {**values, "conflicts_file": str(pathlib.Path(b) / conflict.FILE), "ids": ", ".join(i["id"] for i in todo),
             "request_file": runvals.read(board_dir)["request_file"]}
     return {"values": vals, "iteration": n}

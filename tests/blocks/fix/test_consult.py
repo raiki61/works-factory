@@ -345,7 +345,7 @@ class FlowCase(Base):
     def test_carry_agreed_copies_returned_childrens_agreed_rows_once(self):
         """戻せた組の子の置き場の allow の行だけを、group_id つきで親の trace に足す（deny の行・置き場の無い結果・親と同じ置き場は
         写さない）。2 度呼んでも増えない。その後に親で起こす相談の id は、写した行の最大の次から振る"""
-        fixboard = consult.fixboard
+        board = consult.board
         child = self.b.parent / "child"
         child.mkdir()
         _, _q = put_asked(child, consult.requests(reply(
@@ -364,7 +364,7 @@ class FlowCase(Base):
         self.assertEqual((row["op"], row["group_id"]), (conflict.ASKED_OP, "g1"))
         consult.carry_agreed(self.b, results)
         self.assertEqual(len(conflict.plan_asks(self.b, carried=True)), 1, "2 度呼んでも行は増えない")
-        self.assertEqual(len(fixboard.trace_rows(self.b, lambda r: r.get("op") == conflict.ASKED_OP)), 1)
+        self.assertEqual(len(board.trace_rows(self.b, lambda r: r.get("op") == conflict.ASKED_OP)), 1)
         self.assertEqual(len(conflict.plan_asks(child)), 3, "子の置き場は変えない")
         self.ask(reply(ask_row()))
         consult.settle(self.b, {"answers": [{"ask": 1, "decision": "deny", "paths": [], "tests": [], "spec": "",
@@ -376,7 +376,7 @@ class FlowCase(Base):
         一方、agreed と with_agreed には入る（agreed(carried=False) には入らない）"""
         note = "既存の集計を壊さないことを確かめるテストを足してから直せ"
         human = [{"round": 1, "node": GATE, "kinds": ["final"], "answer": "continue", "note": note}]
-        consult.fixboard.trace(self.b, conflict.ASKED_OP, id=1, item="3", status="answered", decision="allow",
+        consult.board.trace(self.b, conflict.ASKED_OP, id=1, item="3", status="answered", decision="allow",
                                origin=consult.ORIGIN_GATE, round=1, granted_paths=["works/CHANGELOG.md"], granted_tests=[],
                                granted_new_tests=[], reason="子で許した", group_id="g1")
         self.assertEqual(conflict.plan_asks(self.b), [])
@@ -395,7 +395,7 @@ class FlowCase(Base):
         """子が許した新しいテスト（写した行の granted_new_tests）は、親の事後の関門の受け入れのテストに印 agreed で入る（今の木に
         在る物だけ。許しで義務でない）。親が自分で聞いていない行でも、写した行は既定の読み口 conflict.agreed に入るため"""
         gates = kit.load("fix", "gates")
-        consult.fixboard.trace(self.b, conflict.ASKED_OP, id=1, item="1", status="answered", decision="allow", origin="",
+        consult.board.trace(self.b, conflict.ASKED_OP, id=1, item="1", status="answered", decision="allow", origin="",
                                granted_paths=[], granted_tests=[], reason="子が足した",
                                granted_new_tests=[{"id": "test_new.py::T::test_a", "red_kind": "assertion"}], group_id="g1")
         fields = [{"unit_keys": ["u"], "route": "direct", "tests": [], "allowed_paths": ["a.py"]}]

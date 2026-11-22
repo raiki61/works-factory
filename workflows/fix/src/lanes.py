@@ -1,5 +1,5 @@
 """組の部品（fix の組の並べ。元 works/blk-fix/lib/lanekit.py の、段に依らない部分のうち fix の組が使う物）。
-組ごとの子の run（fan_out）が直し、締めの節 join（fixboard.join_group）が子の差分を親の作業ツリーへ組の順に当てる。
+組ごとの子の run（fan_out）が直し、締めの節 join（board.join_group）が子の差分を親の作業ツリーへ組の順に当てる。
 
 口:
 - groups(rows, after=()): [(id, タグの並び)] をタグを共にする物どうしの組に（つながりは推移的。組の並びは rows の順）。

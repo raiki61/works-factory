@@ -117,7 +117,7 @@ def kinds_now(values: dict, repo, before=()) -> dict:
 
 
 def owed_values(b, values: dict, *, owed, withheld_by=None, returned=()) -> dict:
-    """指示書に埋める値の open_units を、受け付けと同じ fixboard.fix_duty の owed に替えた物（判定の出口の is_open の並びを
+    """指示書に埋める値の open_units を、受け付けと同じ board.fix_duty の owed に替えた物（判定の出口の is_open の並びを
     保ち、関所で答えて直す義務に戻った単位を後ろに足す）。出口の値が読めなければ owed の並べ替えだけ。
     b は置き場、owed は写しの規則の直す義務の単位（元は盤面の _owed_units）、withheld_by・returned は問いの台帳の値（元は
     gatemarks の盤面の読み）。どれも呼び手が渡す"""
@@ -206,8 +206,8 @@ def tests_rows(got, edits: dict, frozen=None) -> str:
 
 
 def dispatched(owed: list[str], green=frozenset()) -> list[str]:
-    """修正役が下請けを起こす単位（owed の順）: TDD の輪が緑にした単位 green（支度の script が tddloop.green_units で引く。tddloop が
-    fixrules を import するので、ここでは引かない）を除いた物（依頼 243 の 2）"""
+    """修正役が下請けを起こす単位（owed の順）: TDD の輪が緑にした単位 green（支度の script が tdd.green_units で引く。tdd が
+    rules を import するので、ここでは引かない）を除いた物（依頼 243 の 2）"""
     return [k for k in owed if k not in green]
 
 
