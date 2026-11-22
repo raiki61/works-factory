@@ -1,8 +1,8 @@
 """line の試験の助け（試験のモジュールではない）。line の試験が共に使う物を 1 か所に置き、試験のモジュールどうしで import しない
-（tests/blocks/diagnose/support.py・tests/blocks/report/base.py と同じ形）。
+（tests/blocks/diagnose/support.py と同じ形。report の tests/blocks/report/base.py は src の部品を 1 組で読み込む助け）。
 
 - 段の返りの材料: handed（request-in の返りの欄）・rounds・ask_row・NARROW（計画の往復の返り）・fix・lens・delta・values（修正の段）・
-  passing・seed・record・COLLECT_INPUTS・ptr・check（collect の入力）
+  passing・seed_closure・base_record・COLLECT_INPUTS・ptr・check（collect の入力）
 - script と start: script（scripts/<名>.py を名で読む）・start と、run directory を一時にする Artifacts・種の対象を組む Seeded・raw・INPUTS
 - 筋書き（workflows/line/fixtures/*.stubs.yaml）の dry-run: nodes・line_traces・ran・out・got・bound・assert_no_write・LINE_YAML・TOP
 - 設計の相談: written_record・no_materials・TalkBase・APPROACH
@@ -18,9 +18,9 @@ from unittest import mock
 
 import yaml
 
+from tests.bin.archonwait import would_run  # noqa: F401  （Archon の待ち方の模型。line の試験はここから読む）
 from tests.bin.gitkit import committed_copy, git
 from tests.blocks import kit
-from tests.workflows.test_returns_never_fail import would_run  # noqa: F401  （Archon の待ち方の模型。line の試験はここから読む）
 
 BLOCK = "line"
 LINE_YAML = kit.BLOCKS / BLOCK / f"works-factory-{BLOCK}.yaml"

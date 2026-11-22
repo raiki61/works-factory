@@ -283,7 +283,7 @@ ROUND_NODE = re.compile(r"back-\d+(?:-.+)?|eyes-back")
 
 
 def settle(seed: dict, failing: set, go: dict) -> dict:
-    """返す輪の節（周の節と集め eyes-back）の結末を、depends_on と trigger_rule（待ち方の模型は test_wiring.would_run の 1 か所）と when で
+    """返す輪の節（周の節と集め eyes-back）の結末を、depends_on と trigger_rule（待ち方の模型は tests/bin/archonwait.would_run の 1 か所）と when で
     求める。結末は would_run の状態の語。seed は輪の外の節（eyes など）の結末、failing は走って誤りで落ちる節（include なら中の節が落ち、
     返す節は落ちずに返る。待ち方の上では落ちた節に見える）、go は when の `.go == true` が読む節の値"""
     top = nodes()

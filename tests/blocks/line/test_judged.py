@@ -90,7 +90,7 @@ class JudgedCase(unittest.TestCase):
 
 class StoppedJudgmentWiringCase(unittest.TestCase):
     """judged が止めの語を返した run（再審が止まった・返らなかった）は、最後の試験の関門の when で飛び、待ち方だけで封じ・当て・最後の
-    承認ノードまで飛ぶ（L-D48。止まった run で差分を書かない）。待ち方の模型は tests/blocks/line/test_wiring.py の would_run の 1 か所。
+    承認ノードまで飛ぶ（L-D48。止まった run で差分を書かない）。待ち方の模型は tests/bin/archonwait.py の would_run の 1 か所。
     後ろの節の when: は読まず、走りうる節は走ったと見る（それでも封じと当てが飛ぶことを見る）"""
 
     def test_a_stopped_judgment_reaches_neither_the_seal_nor_the_apply(self):
