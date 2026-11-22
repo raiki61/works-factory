@@ -921,11 +921,12 @@ class SeedCase(unittest.TestCase):
 
     def test_git_ignored_files_are_not_read(self):
         """git が無視する置き場（道具の控え .ruff_cache/ など）は工場の物でなく、block の形の柵も E5 の照らしも読まない（scan の `_files` を通る）。
-        block の下の無視される prompts/・scripts/・src/ の字（指示の md の here-document・差し込み口・ARTIFACTS_DIR・名の重なり・
-        INPUTS_ の読み）が赤にも緑にも効かない。無視されない未追跡の物は今までどおり照らす"""
+        block の下の無視される prompts/・scripts/・src/ の字（指示の md の here-document・差し込み口・ARTIFACTS_DIR・名の重なり〔scripts/ の src.py〕・
+        INPUTS_ の読み・pointer の札の手組み）が赤にも緑にも効かない。無視されない未追跡の物は今までどおり照らす"""
         ignored = {"workflows/demo/prompts/.ruff_cache/x.md": "{shared:absent}\ncat <<'EOF'\n",
-                   "workflows/demo/src/.ruff_cache/y.py": "ARTIFACTS_DIR = 1\nPATH = 'blocks/other'\nINPUTS_UNREAD = 1\n",
-                   "workflows/demo/scripts/.ruff_cache/steps.py": "INPUTS_UNREAD = 1\n"}
+                   "workflows/demo/src/.ruff_cache/y.py": "ARTIFACTS_DIR = 1\nPATH = 'blocks/other'\nINPUTS_UNREAD = 1\n"
+                                                       "POINTER = {\"type\": \"archon_artifact\"}\n",
+                   "workflows/demo/scripts/.ruff_cache/src.py": "INPUTS_UNREAD = 1\n"}   # src.py は scripts/ の名が src と重なる形
         files = {f"workflows/{k}": v for k, v in self.GOOD.items() if k.startswith(("demo/", "other/"))}
         files["workflows/.shared/prompts/rejected.md"] = "rejected\n"
         files["workflows/demo/works-factory-demo.yaml"] = yaml.safe_dump({

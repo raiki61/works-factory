@@ -22,7 +22,8 @@ TEMPLATE = ASSETS / "page.tpl.html"
 
 
 def _build_tree(graphs: dict, top_graph: str | None, table: list, root_name: str) -> tuple[dict, list, dict, set]:
-    """木（key = tokens の組 → 物）と、一番上のノードの key の並び・ノード → 段の番号・段の配線のノードの集合"""
+    """木（key = tokens の組 → 物）と、一番上のノードの key の並び・ノード → 段の番号・段の配線のノードの集合。root_name は根のノードの名で、
+    引けた graph のフォルダの名（line）。引けない時だけ run の graph の名"""
     tree = {}
 
     def add(key, name, kind, item=None, kids=()):
@@ -76,7 +77,7 @@ def render(data: dict, target: Path, pack_name: str) -> str:
         return tuple(toks[:len(key)]) == key
 
 
-    tree, top_keys, stage_of, wiring = _build_tree(graphs, top_graph, table, run["graph"])
+    tree, top_keys, stage_of, wiring = _build_tree(graphs, top_graph, table, top_graph or run["graph"])
 
 
     def leaf_events(key):
