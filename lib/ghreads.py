@@ -1,7 +1,7 @@
 """依頼が名指した PR・issue を run の中で読む 1 か所（設計書 2.8）。層 L1（works の物を何も知らない）。
 標準ライブラリと、同じ置き場の forge・oneline（1 行に畳む葉）だけ（Python 3.9 で動く）。依頼のファイルの形（欄 pr・issue を含む容器）は持ち越しの住処 carry が解く。
 
-名指した PR・issue は、線の入口（entry.start）が run の中で gh を対象の根で呼んで読む。run の中の gh は起動の殻
+名指した PR・issue は、線の入口（line の scripts/start.py の start）が run の中で gh を対象の根で呼んで読む。run の中の gh は起動の殻
 （bin/_lib/hostgh.py の口）が利用者の gh のログインを継がせる（2026-10-08 から。それより前は隔離した実行基盤の中から利用者の
 ログインが見えず、殻が隔離の前に読んでファイルで渡していた）。名指しは依頼の欄 pr・issue と入力 pr に限る（本文の中の URL は
 拾わない）。トークンの値は読まない（gh 自身の設定に任せる）。殻の口は持たない（前の carry-ci は carry.py へ移った）。

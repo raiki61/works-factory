@@ -6,8 +6,8 @@ gh は偽物（fake_gh）。偽の gh は、利用者のログイン（GH_CONFIG
 
 - read_named: 名指した PR の本文・コメント・レビュー・行コメントと issue の本文・コメントを、cwd＝対象の根で 1 回だけ読む。
   読めない項は status unreadable で残す
-- 線の入口: entry.check_inputs は gh を呼ばず、渡された読み出しの base・head を読む。entry.start は名指しを run の中で読んで
-  盤面の根の github.json に置き、再開では盤面の写しを使う。WORKS_FACTORY_NO_AUTH=1 の run（利用者の gh を継がない）は 1 行で拒む
+- 線の入口（line の scripts/start.py の start）が名指しを run の中で読んで盤面の根の github.json に置く側は、
+  line の block の試験（tests/blocks/line/test_start.py）が見る
 - ラインは読み出しのファイルを受けない（入力 github_reads は無い）
 """
 import contextlib
