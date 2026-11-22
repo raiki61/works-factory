@@ -5,7 +5,7 @@
 縛る事:
 - lens の控えは置き場の lens.json。summary は差分の審査の出力をファイルのパスで受ける
 - conflict: 食い違いの申し出の読みと裁定の控え
-- planrange: 範囲の外の手直しを check_paths の行で拒む
+- planrange: 範囲の外の手直しを scope の値の outside の行で拒む
 - recount: 数え直しは置き場のファイルと引数の値で回る
 """
 import json
@@ -154,12 +154,15 @@ class PlanrangeSeamCase(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.place = pathlib.Path(tmp.name)
 
+    def check(self, paths, items, ruled=True):
+        """受け付けの照らしの道（scope の値を outside に渡す。結ぶ単位を申告する欄の無い役なので hint なし）の外れの行"""
+        got, why = self.planrange.scope(self.place, items=items, ruled=ruled)
+        self.assertIsNotNone(got, why)
+        return self.planrange.outside(got["items"], sorted(paths), got["permits"], hint=False)
+
     def test_outside_the_items_range_is_rejected_inside_passes(self):
-        pr = self.planrange
-        lines, rec = pr.check_paths(self.place, ["stats.py"], items=self.ITEMS)
-        self.assertEqual((lines, rec), ([], {"checked": True, "items": [1]}))
-        lines, rec = pr.check_paths(self.place, ["stats.py", "other.py", "vendored/x.py"], items=self.ITEMS)
-        self.assertTrue(rec["checked"])
+        self.assertEqual(self.check(["stats.py"], self.ITEMS), [])
+        lines = self.check(["stats.py", "other.py", "vendored/x.py"], self.ITEMS)
         self.assertEqual(len(lines), 2, lines)
         self.assertTrue(any("other.py" in x and "allowed_paths" in x for x in lines), lines)
         self.assertTrue(any("vendored/x.py" in x and "out_of_scope" in x for x in lines), lines)
@@ -168,8 +171,7 @@ class PlanrangeSeamCase(unittest.TestCase):
         """末尾 / の allowed_paths・out_of_scope の glob は、その下の全部に効く（前は何にも当たらず、範囲が空・柵が空だった）"""
         items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["lib/"], "tests": [], "rewrite_tests": [],
                   "out_of_scope": [{"glob": "lib/vendored/", "why": "外の写し"}]}]
-        lines, rec = self.planrange.check_paths(self.place, ["lib/x.py", "docs/x.md", "lib/vendored/y.py"], items=items)
-        self.assertTrue(rec["checked"])
+        lines = self.check(["lib/x.py", "docs/x.md", "lib/vendored/y.py"], items)
         self.assertEqual(len(lines), 2, lines)
         self.assertFalse(any("lib/x.py" in x for x in lines), lines)
         self.assertTrue(any("docs/x.md" in x and "allowed_paths" in x for x in lines), lines)
@@ -177,9 +179,8 @@ class PlanrangeSeamCase(unittest.TestCase):
 
     def test_unchecked_without_a_scoped_plan(self):
         pr = self.planrange
-        self.assertEqual(pr.check_paths(self.place, ["x.py"], items=None), ([], {"checked": False, "why": pr.NO_PLAN}))
-        self.assertEqual(pr.check_paths(self.place, ["x.py"], items=[{"item": 1}]),
-                         ([], {"checked": False, "why": pr.NO_SCOPE}))
+        self.assertEqual(pr.scope(self.place, items=None, ruled=True), (None, pr.NO_PLAN))
+        self.assertEqual(pr.scope(self.place, items=[{"item": 1}], ruled=True), (None, pr.NO_SCOPE))
         self.assertEqual(pr.approved(self.ITEMS), (self.ITEMS, ""))
 
     def test_agreed_and_ruled_paths_widen_from_the_place(self):
@@ -190,8 +191,8 @@ class PlanrangeSeamCase(unittest.TestCase):
         c.park(self.place, [CLAIM], source=c.FIX_SOURCE)
         c.apply_rulings(self.place, {"c1-1": {"decision": "fix_code_as", "text": "設定のファイルも直してよい",
                                               "limits": ["conf.ini"]}}, by="t")
-        self.assertEqual(pr.check_paths(self.place, ["docs/x.md", "conf.ini"], items=self.ITEMS)[0], [])
-        lines, _ = pr.check_paths(self.place, ["conf.ini"], items=self.ITEMS, ruled=False)
+        self.assertEqual(self.check(["docs/x.md", "conf.ini"], self.ITEMS), [])
+        lines = self.check(["conf.ini"], self.ITEMS, ruled=False)
         self.assertTrue(any("conf.ini" in x for x in lines), lines)
         self.assertEqual(pr.permit_paths(self.place, ruled=True), ["conf.ini"])
 

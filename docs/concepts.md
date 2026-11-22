@@ -168,7 +168,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 ### `plan-scope` 修正案の項目の範囲の照らし
 
 - 状態: 住処あり
-- 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・共有ボードで照らす `check_paths`）
+- 住処: `lib/planrange.py`（項目の範囲の glob の並び `item_globs`・項目の範囲 `inside`・`out_of_scope` の当たり `oos_hit`・`oos_hit_for`・範囲の相談の合意 `with_agreed`・パスを結ぶ項目 `owner`・許しのパス `permit_paths`・単位に結べないパスの外れ `outside`・受け付けが照らす値 `scope`）
 - 約束: 修正案の項目の欄 `allowed_paths`・`out_of_scope`・`files`（ファイル構成の行。行の型 `FILES_SCHEMA`）・`depends_on`（欄の型と読みは `lib/planmarks.py`）
 - 知ってよい所: 住処と、glob の当て方の下回り `lib/globs.py`（`glob_match`・`glob_problem`・`globs_meet`）と、項目の欄の読みを持つ `lib/planmarks.py`（`glob_match` を呼ぶ `gaps`・`test_paths`・`file_symbols`・`file_paths`）。使う所は修正の受け付けの照らし `workflows/fix/src/scope.py`・手直しの受け付け `workflows/delta-review/src/touchup.py`・波及の照らし `workflows/plan/src/ripple.py` の `_covered`・穴の名札の path の規則 `workflows/delta-review/src/holeties.py`（`inside`）・修正の組分け `workflows/fix/src/board.py` の `fix_groups`（`item_globs`）・役の brief の範囲の欄を組む `lib/fixboard.py` の `scope_brief` で、どれも住処を呼ぶ
 - 今: 同じ当て方を手で書く所が残る（範囲の相談の `workflows/fix/src/consult.py`。`out_of_scope` に当たるパスを範囲から除く別の決まりで、`inside` に寄せると振る舞いが変わる。柵の表の既知の漏れ）。`lib/protect.py` は守りのファイルの型を同じ下回りで当てる別の考え
