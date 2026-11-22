@@ -1132,7 +1132,7 @@ def adopt_prior_pass(place, prior, items, repo) -> dict:
     """2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）の置き場 place に、1 回目の段の置き場 prior（入力
     prior_conflicts の指し札の先のフォルダ）の申し出と裁定（conflict.adopt_prior。直す項目 items の待つ行は AMENDED）と TDD の輪の
     状態（印 PRIOR_LOOP つき。実行器は作業ツリー repo で解き直す）を写す。元は 1 つの盤面に両方の段が在り、conflict.second_pass・
-    輪をまたぐ凍結（facts.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（fixgates）が 1 回目の段を見た
+    輪をまたぐ凍結（facts.check_frozen）・2 回目の機械の諦め（conflict.park_claims）・事後の関門（gates）が 1 回目の段を見た
     （元 works/.shared/core/conflict.py:411・works/blk-fix/lib/fixgates.py:103・works/blk-fix/lib/tddloop.py:1816）。
     返り {rows: 写した行の id, loops: 写した記録のパス, bases: 写した元の結末の bases/<k>/, returns: 写した返しの控え}。新しい"""
     import conflict
@@ -1893,7 +1893,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     記録の無い run は undeclared_writes で段の頭の木 head からの変更を申告に縛る）→ 食い違いの申し出（take_conflicts。first で
     裁かれていない申し出が在れば輪を抜ける {ok: True, conflicted: True}）→ 除くパスの頭の下の変更（check_pack_copy）→
     単位の行（check_unique_units・check_opened_units・check_excused_units）→ 承認済みの修正案の範囲（facts.check_plan_scope）→ 変更に当たる試験（common.selected_problems）→ 直し方の型の義務（duties.accept_problems）→
-    事後の関門の束（fixgates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
+    事後の関門の束（gates.problems）→ 閉鎖の数え直し（closure_reply。defects の問いが閉じない単位は申し出が無ければ
     戻す。通れば表を querytest.save_closure）→ 数え直し（recount.accept_fix）。積んだ行が範囲の外のはみ出し（gather_overflow）だけなら
     拒まずに settle_overflow を通す（相談に積んだ回は {ok: False, queued: True, count: false}。戻した回は戻した返答で頭から通し直す。reverted・
     trail はその通し直しが渡す）。最後の回の単位への結びは、はみ出しでない行にだけ当てる（止めた後の通し直しのはみ出しは聞かずに戻す）。
@@ -1918,7 +1918,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     import conflict
     from src import basecase, consult, duties, orders
     from src import facts
-    from src import gates as fixgates
+    from src import gates
     from src import parking
     import recount
     from src import common
@@ -1994,8 +1994,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         declared.setdefault(text, set()).add(key)
     tests_trace(place, picked, tests_note, pass_=pass_, attempt=iteration)   # 0 件の知らせも捨てない（F014）
     note("plan_faces", plan_face_errors(place, reply, face_units(pass_, duty)))
-    gates = fixgates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
-    note("gates", fixgates.reject_lines(gates) if gates else [])
+    gate_rows = gates.problems(place, repo, rev, suite, iteration, pass_=pass_, owed=set(duty))
+    note("gates", gates.reject_lines(gate_rows) if gate_rows else [])
     precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
 
     def check_copy(reply):
@@ -2035,7 +2035,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
         others = [(c, t) for c, t in found if t not in held["texts"]]
         if others and last:
             found = list(others)   # 最後の回は保留の行を除いた残りを諦めの道へ。保留の単位は諦めに巻き込まない
-    asks = gather_overflow(scope_note, frozen_over, gates, place, rev, repo)
+    asks = gather_overflow(scope_note, frozen_over, gate_rows, place, rev, repo)
     over, rest = split_rows(found, asks)
     if over and not rest:   # はみ出しの行だけ（写しの照らしは上で乾いた形に当ててある）: 拒まずに相談に積むか、戻して通し直す
         got = settle_overflow(asks, found, whole, place, repo, head=head or rev, reverted=reverted, trail=trail,
@@ -2125,19 +2125,19 @@ def traced_ops() -> tuple:
     """accept_trace_rows が trace.jsonl から ACCEPT_TRACE_FILE へ運ぶ受け付けの行の op（事後の関門の束が赤緑を確かめずに受けた回・
     はみ出しの決着・範囲の相談）"""
     import conflict
-    from src import gates as fixgates
+    from src import gates
     import impact
-    return fixgates.SKIPPED_OP, impact.ACCEPT_OVERFLOW_OP, conflict.ASKED_OP
+    return gates.SKIPPED_OP, impact.ACCEPT_OVERFLOW_OP, conflict.ASKED_OP
 
 
 def gates_trace(place, *, pass_: str, attempt: int) -> None:
-    """受けた回に、事後の関門の束が受け入れのテストの赤緑を確かめずに受けた理由（fixgates.unchecked。義務の外を除く）が在れば
-    置き場の trace に fixgates.SKIPPED_OP の行を積む（元 works/blk-fix/scripts/accept.py:708-714 の traced の 2 行目。読み手は
+    """受けた回に、事後の関門の束が受け入れのテストの赤緑を確かめずに受けた理由（gates.unchecked。義務の外を除く）が在れば
+    置き場の trace に gates.SKIPPED_OP の行を積む（元 works/blk-fix/scripts/accept.py:708-714 の traced の 2 行目。読み手は
     accept_trace_rows を通した最後の関所と報告）"""
-    from src import gates as fixgates
-    gaps = fixgates.unchecked(place, pass_=pass_, attempt=attempt)
+    from src import gates
+    gaps = gates.unchecked(place, pass_=pass_, attempt=attempt)
     if gaps:
-        trace(place, fixgates.SKIPPED_OP, node=FIX_ACCEPT_BY, pass_=pass_, attempt=attempt, why=gaps)
+        trace(place, gates.SKIPPED_OP, node=FIX_ACCEPT_BY, pass_=pass_, attempt=attempt, why=gaps)
 
 
 def closure_reply(reply: dict, place, repo, rev: str, judged) -> tuple:
@@ -2456,21 +2456,21 @@ def _overflow_items(place) -> list:
     return planrange.with_agreed(items, conflict.agreed(place)) if items else []
 
 
-def gather_overflow(scope_note, frozen, gates: list, place, rev: str, repo) -> list:
+def gather_overflow(scope_note, frozen, gate_rows: list, place, rev: str, repo) -> list:
     """受け付けが見つけた、相談に回せるはみ出し [{line, item, paths, tests, new_tests, ref}]。入口は 3 つで、見分けは持ち主が持つ:
-    範囲の持ち主 scope の記録 overflow、凍結の持ち主 tddloop の頼み（check_frozen の asks）、事後の関門の持ち主 fixgates の
-    test_edits の行（fixgates.overflow_asks）。ここは束ねるだけ。rev は修正前の版。元 works/blk-fix/scripts/accept.py:505"""
-    from src import gates as fixgates
+    範囲の持ち主 scope の記録 overflow、凍結の持ち主 tddloop の頼み（check_frozen の asks）、事後の関門の持ち主 gates の
+    test_edits の行（gates.overflow_asks）。ここは束ねるだけ。rev は修正前の版。元 works/blk-fix/scripts/accept.py:505"""
+    from src import gates
     import planrange
     out = [{"line": o["line"], "item": o.get("item"), "paths": list(o.get("paths") or []), "tests": [],
             "new_tests": list(o.get("new_tests") or []), "ref": None}
            for o in (scope_note or {}).get("overflow") or [] if isinstance(o, dict) and o.get("line")]
-    items = _overflow_items(place) if frozen or gates else []
+    items = _overflow_items(place) if frozen or gate_rows else []
     out += [{"line": a["line"], "item": (planrange.owner(a["path"], items) or {}).get("item"), "paths": [],
              "tests": list(a["tests"]), "new_tests": [], "ref": a.get("ref")} for a in frozen]
     out += [{"line": a["line"], "item": a["item"], "paths": [], "tests": list(a["tests"]), "new_tests": list(a["new_tests"]),
              "ref": rev, **({"revert": True} if a.get("revert") else {})}
-            for a in fixgates.overflow_asks(gates or [], repo, rev, items)]
+            for a in gates.overflow_asks(gate_rows or [], repo, rev, items)]
     return out
 
 
@@ -2530,7 +2530,7 @@ def overflow_trace(place, trail: dict, repo, *, pass_: str, attempt: int) -> Non
 def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: str, reverted, trail: dict, pass_: str,
                     again, ask: bool = True):
     """はみ出しの行だけの回の道筋の選び。返りは出口の dict（積んだ {ok: False, queued: True, count: false, …}・戻して通し直した返り）か、拒む時は
-    None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（scope の overflow・fixgates.overflow_asks・
+    None（戻しきれない物を成り立たない行にして found に足してある）。見分けは持ち主（scope の overflow・gates.overflow_asks・
     common.frozen_asks）、聞いた答えは conflict.plan_asks、積みは consult.queue、戻しは keep_patch・common.restore_paths・
     common.restore_tests・_without_rows が持ち、ここは選ぶだけ:
     - 戻したのにまだ行が残る物（reverted に在る）は『はみ出しを戻せない』

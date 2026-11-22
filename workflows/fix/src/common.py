@@ -33,7 +33,7 @@ import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・�
 from src import files as files_mod  # noqa: E402
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。gates・board が tddloop.test_functions の名で読む）
 import tree_run  # noqa: E402
 import jsonfile  # noqa: E402
 import leftovers  # noqa: E402
@@ -233,7 +233,7 @@ RED_TREE_MOVED = "赤の木の中のテストのファイルが赤の記録と�
 
 
 def red_rerun(tree, u: dict, exe: str, work: pathlib.Path, n, baseline=None) -> tuple:
-    """単位の記録 u の赤を、記録の赤の木（red_tree。仮の実装を含む）で確かめ直す唯一の口（事後の関門 fixgates._red_green が
+    """単位の記録 u の赤を、記録の赤の木（red_tree。仮の実装を含む）で確かめ直す唯一の口（事後の関門 gates._red_green が
     呼ぶ）——（問題の文の並びか None, 実行器が走らない理由）。作業ツリー tree を赤の木の姿にし、
     その中のテストのファイルが記録（test_hashes）と同じかを照らしてから（違えば [RED_TREE_MOVED]）名指しだけを回し、red_check の
     事実（名指しが failure で落ちる）で照らす。引用は赤の回に照らし済みで、回ごとに変わる文（番地・秒・一時のパス）で誤って
@@ -1187,7 +1187,7 @@ def _base_reds(st, repo, rev, cases) -> tuple:
     return got, []
 
 
-# 事後の関門の束（同じブロックの fixgates。計画 220 Task 4）が輪と同じ決まりで読む口の公開の別名（輪の中の名は変えない。
+# 事後の関門の束（同じブロックの gates。計画 220 Task 4）が輪と同じ決まりで読む口の公開の別名（輪の中の名は変えない。
 # 名指しの外の既存のテストの書き換え・名指しの node id・関数の幅・範囲の外の差分の塊。preflight F11・F13）
 unnamed_edits = _unnamed_edits
 

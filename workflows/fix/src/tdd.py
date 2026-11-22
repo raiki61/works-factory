@@ -93,7 +93,7 @@ import time
 
 sys.dont_write_bytecode = True
 
-from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates・fixboard が tddloop の名で読む）
+from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。gates・board が tddloop の名で読む）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import board as fixboard  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as files_mod  # noqa: E402
@@ -101,7 +101,7 @@ from src import rules as rules_mod  # noqa: E402  （同じ block の src。指�
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （lib/。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。gates・board が tddloop.test_functions の名で読む）
 import writelog  # noqa: E402
 import writes  # noqa: E402  （lib/。書き込みの出どころの突き合わせ）
 import oneline  # noqa: E402
@@ -139,7 +139,7 @@ class _CmdDown(_RunnerDown):
 
 # ---------------------------------------------------------------- 一式を走らせる（run_suite・_failure_attrs は baseline_red の物）
 # 走る前の失敗（読み込み・組み立ての失敗で名指しが一式の結末に居ない・error）の拒否に _test だけが足す 1 行。red_check と写しの
-# red_problems の文は事実だけで、事後の関門（fixgates）の行にもこの言い足しは入らない
+# red_problems の文は事実だけで、事後の関門（gates）の行にもこの言い足しは入らない
 NOT_RAN = ("赤に数えない。テストの中の検査で落ちる形に書き直せるならそうし、これから足す名前の欠けで書き直せないなら最小の仮の実装を"
            "足し、テスト自身の誤りならテストを直して、走らせ直せ")
 
