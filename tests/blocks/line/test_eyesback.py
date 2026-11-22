@@ -727,18 +727,32 @@ class ReportCase(_Case):
         self.assertFalse(any(pick["text"] in line and self.e.OUTCOMES["choose"] in line for line in out), out)
 
     def test_lines_and_questions_agree_when_the_record_has_no_fixed(self):
-        """記録の fixed が null（状態が欠けた記録）の時、current は問いを運ばない。結末の行も前の周・最後の目の choose を『人が選ぶ』の行に出さない
-        （行と問いは carried の 1 か所の結果から作る）"""
-        pick = {"eye": "r2", "where": "docs/a.md:3", "text": "色を当てるか", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
-        rows = [self.e.row(1, eyes(items=[self.A]), [self.A]), self.e.row(2, eyes(items=[self.B, pick]), [self.B])]
-        last_eyes = {**self.PASSED, "findings": [], "questions": []}
+        """記録の fixed が null（状態が欠けた記録）の時、current は渡された最初の目の questions をそのまま使う。行の『人が選ぶ』は全部その最初の目が
+        人が選ぶ物とした指摘（周の行 1 の asked）から作る: 1 周目に返す前の目の choose は行に出し（a）、最後の目の choose は返した項目と同じ
+        ファイルでも、前の周の目の choose でも、問いが持たないので行に出さない（b）"""
+        first_pick = {"eye": "r2", "where": "docs/x.md:1", "text": "一周目の選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        last_pick = {"eye": "r1", "where": "src/a.py:40", "text": "最後の目の選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        second_pick = {"eye": "r2", "where": "docs/a.md:3", "text": "二周目の選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        rows = [self.e.row(1, eyes(items=[self.A, first_pick]), [self.A]), self.e.row(2, eyes(items=[self.B, second_pick]), [self.B])]
+        last_eyes = {**self.PASSED, "findings": [last_pick], "questions": []}
         record = self._record(rows, last_eyes, fixed=None)
-        first = ("f", "t", "e")
+        first = ("f", "t", {"questions": [{"text": self.e.eyekit.choose_question(first_pick)}]})
         self.assertEqual(self.e.current(record, *first), first)
-        out = self.e.record_lines(record)
-        self.assertFalse(any(self.e.OUTCOMES["choose"] in line and "選ぶ" in line and self.e.ASKED_BEFORE.format(round=2) in line for line in out), out)
+        self.assertEqual([(k, i["text"]) for k, i in self.e.carried(record)], [(1, "一周目の選ぶ")], "問いの源は最初の目の物だけ")
+        chose = [line for line in self.e.record_lines(record) if "選ぶ" in line and self.e.OUTCOMES["choose"] in line]
+        self.assertEqual(chose, [f"{self.e.ASKED_BEFORE.format(round=1)} {self.e.item_text(first_pick)}——{self.e.OUTCOMES['choose']}"])
         with_fixed = self.e.record_lines({**record, "fixed": {"go": True}})
         self.assertTrue(any(self.e.ASKED_BEFORE.format(round=2) in line for line in with_fixed), "fixed が在れば同じ行が出る（試験の対照）")
+
+    def test_one_file_two_different_choose_lines_match_the_questions(self):
+        """返した項目と同じファイルに字の違う choose が 2 件ある時、問いが 2 件なら『人が選ぶ』の行も 2 行（同じ指摘かは _same で決める）"""
+        mk = lambda text: {"eye": "r1", "where": "src/a.py:40", "text": text, "needs": "choose", "options": ["a", "b"], "recommend": "a"}   # noqa: E731
+        p1, p2 = mk("写しを残すか"), mk("名を変えるか")
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A])]
+        record = self._record(rows, {**self.PASSED, "findings": [p1, p2], "questions": []})
+        self.assertEqual(len(self.e.carried(record)), 2)
+        chose = [line for line in self.e.record_lines(record) if self.e.OUTCOMES["choose"] in line and "選ぶ" in line]
+        self.assertEqual(len(chose), 2, chose)
 
     def test_cap_word_matches_the_head(self):
         """結末の上限の字は、頭の文の『上限 LIMIT 回』と同じ字で言う"""
