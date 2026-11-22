@@ -1921,9 +1921,7 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     from src import facts
     from src import gates
     from src import parking
-    import recount
     from src import common
-    from src import unitrows
     import writes
     parked = dict(parked or {})
     trail = {"reverted": []} if trail is None else trail
@@ -2000,28 +1998,8 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     precedents = (read_json(pathlib.Path(place) / JUDGMENT_FILE, {}) or {}).get("precedents") or []
 
     def check_copy(reply):
-        """閉鎖の数え直し（closure_reply）で閉じない欠陥の数え（unitrows.unclosed_defects）を closure に単位へ結んで積み、
-        それを当てた返答の写しの照らし（recount.accept_fix）の誤りを copy に積む。それまでに積んだ行が無ければ写しの照らしを
-        置き場に刻み、通れば表を querytest.save_closure で置き場に置く"""
-        shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
-        for row in unitrows.unclosed_defects(closure):
-            text = UNCOUNTED_DEFECTS.format(key=row["unit_key"], why=" / ".join(row["discrepancies"])) if row["closed"] is None \
-                else UNCLOSED_DEFECTS.format(key=row["unit_key"], total=row["total"], after=row["after"],
-                                             kind=conflict.KIND_FIELD, hits=conflict.QUERY_HITS_FIXED, which=conflict.WHICH_FIELD,
-                                             query=conflict.QUERY, correct=conflict.CORRECT, scope=conflict.SCOPE_NEEDED)
-            note("closure", text)
-            declared.setdefault(text, set()).add(row["unit_key"])
-        commit = not found
-        out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
-                                 precedents=precedents, commit=commit, red_units=red_units(place), merge=True)
-        if out.get("ok") is not True:
-            note("copy", out.get("problems") or [str(out.get("reason") or "")])
-        elif closure and commit:
-            import querytest
-            keys = {r.get("unit_key") for r in closure}
-            kept = [r for r in querytest.closure_rows(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
-                    if r.get("unit_key") not in keys]   # 前の型の行を残す（型は 1 つずつ順に回り、単位は重ならない）
-            querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), kept + closure)
+        _check_copy(reply, place, repo, rev, judged, duty, precedents, note=note, declared=declared,
+                    nothing_found=lambda: not found)   # found は後で張り替わるので、呼ぶ時の値を読ませる
     check_copy(reply)
     kw = dict(pass_=pass_, iteration=iteration, owed=owed, judged=judged, suite=suite, record=record,
               tests_record=tests_record, base_rev=base_rev, head=head, skip=skip, parked=parked, log=log)
@@ -2120,6 +2098,35 @@ def accept_reply(reply: dict, place, repo, *, pass_: str, iteration: int, owed, 
     return accept_reply(_without_units(whole, set(now)), place, repo, pass_=pass_, iteration=iteration, owed=owed,
                         judged=judged, suite=suite, record=record, tests_record=tests_record, base_rev=base_rev, head=head,
                         skip=skip, parked={**parked, **now}, reverted=reverted, trail=trail, log=log)
+
+
+def _check_copy(reply: dict, place, repo, rev: str, judged, duty, precedents, *, note, declared: dict, nothing_found) -> None:
+    """閉鎖の数え直し（closure_reply）で閉じない欠陥の数え（unitrows.unclosed_defects）を closure に単位へ結んで積み（note・declared。
+    accept_reply の積み先）、それを当てた返答の写しの照らし（recount.accept_fix）の誤りを copy に積む。それまでに積んだ行が無ければ
+    （nothing_found が真を返す。closure の行を積んだ後に読む）写しの照らしを置き場に刻み、通れば表を querytest.save_closure で置き場に置く。
+    accept_reply の中から呼ぶ 1 か所だけ"""
+    import conflict
+    import recount
+    from src import unitrows
+    shaped, closure, zero = closure_reply(reply, place, repo, rev, judged)
+    for row in unitrows.unclosed_defects(closure):
+        text = UNCOUNTED_DEFECTS.format(key=row["unit_key"], why=" / ".join(row["discrepancies"])) if row["closed"] is None \
+            else UNCLOSED_DEFECTS.format(key=row["unit_key"], total=row["total"], after=row["after"],
+                                         kind=conflict.KIND_FIELD, hits=conflict.QUERY_HITS_FIXED, which=conflict.WHICH_FIELD,
+                                         query=conflict.QUERY, correct=conflict.CORRECT, scope=conflict.SCOPE_NEEDED)
+        note("closure", text)
+        declared.setdefault(text, set()).add(row["unit_key"])
+    commit = nothing_found()
+    out = recount.accept_fix(shaped, place, rev, repo, judged=judged, owed=set(duty), zero_keys=zero,
+                             precedents=precedents, commit=commit, red_units=red_units(place), merge=True)
+    if out.get("ok") is not True:
+        note("copy", out.get("problems") or [str(out.get("reason") or "")])
+    elif closure and commit:
+        import querytest
+        keys = {r.get("unit_key") for r in closure}
+        kept = [r for r in querytest.closure_rows(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1))
+                if r.get("unit_key") not in keys]   # 前の型の行を残す（型は 1 つずつ順に回り、単位は重ならない）
+        querytest.save_closure(types.SimpleNamespace(scope_root=pathlib.Path(place), round=1), kept + closure)
 
 
 def traced_ops() -> tuple:
