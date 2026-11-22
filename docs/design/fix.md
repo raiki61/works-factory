@@ -40,7 +40,7 @@
 - `routes`: `choice(auto|plan): 単位ごとの道の決め方。auto は振り分けの段の AI（`route-loop` の役 `route`。22.1）が、計画の語が `static`・`tidy`・`pin` の単位と、語が `tdd` でなく消す名の在る単位を除いた単位を tdd か direct に振る（承認済みの案が tdd の単位は tdd に縛る）。plan は振り分けの段の AI を起こさず、型は計画の語だけで 22.1 の表の AI の答え無しの行で引く（`static`・`tidy`・`pin` の語はその型、語が `tdd` なら tdd、消す名の在る単位は remove、ほかは variant。訳は行の route_why）。tdd の単位が 0 なら TDD のループを回さない`。既定 `auto`。値は `values.json` で組の子へ運ぶ。plan の時、`orders` が計画の語から型を引き（22.1・22.2）、tdd に引いた単位だけを輪の状態に並べて test の段から輪を始める。元の結末（組の頭で関わる試験を 1 回走らせて取る、直す前の結果。`base.json`。17 節・22.3）は、tdd の単位が無くても、計画の語が `static` でない単位が組に在れば取る（[spec-driven.md](spec-driven.md) の 7 章の 1 の「tdd の単位が無ければ取らない」は段 1 で替わった。持ち主の決め `group-head-base`）。
 - `judgment`: `json(shared:judgment.schema.json): 判定（units・questions・precedents・framing などを持つ object）。whole と、out_dir の無い group では必須。out_dir の在る group（子の run）は親の写しを読むので空でよい`。既定 `""`。
 - `plan`: `json(shared:plan-fields.schema.json): 承認済みの修正案の欄の控え {fields}（今の plan-fields.json。凍結の印〔置いた控えの sha256 を修正案の block が trace.jsonl に書いた行。控えが印と食い違えば壊れた控えとして止める〕も一緒に置く）。空は修正案の無い run`。既定 `""`。
-- `fix_plan`: `json(shared:fix-plan.schema.json): 承認済みの修正案の返り（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run`。既定 `""`。
+- `fix_plan`: `json(shared:fix-plan.schema.json): 承認済みの修正案（項目の並びを持つ object。項目の unit_keys が承認済みの項目の出どころ）。空は修正案の無い run`。既定 `""`。
 - `answer_ties`: `json(shared:answer-ties.schema.json): 依頼の答えを判定の問い・単位に結んだ行。null は結びが無い（字の一致だけ）`。既定 `null`。
 - `materials`: `json(shared:materials-state.schema.json): 判定の素材の状態（素材の名 → {status, …}）。null は無い`。既定 `null`。
 - `ripple`: `json(shared:ripple.schema.json): 波及の一覧（承認済みの修正案の項目が変える名の呼び出し元と試験）。空は無い`。既定 `""`。
@@ -53,7 +53,7 @@
 - `notes`: `text: 機械の申し送りの文（案の直しの後の 2 回目の修正の段だけ。採った項目の事前審査の穴のうち人に聞く種類でない物）。修正役と TDD の役の notes に足す。空は無い`。既定 `""`。
 - `only_items`: `json(only-items.schema.json): 2 回目の修正の段で直す修正案の項目の番号の配列。空の配列は直す義務の単位の全部`。既定 `[]`。
 - `item_kinds`: `json(item-kinds.schema.json): 返した項目の種を修正案の項目の番号ごとに並べた配列 [{item, kind}]。独立の目から返した段だけが渡す。空の配列は元の案の route のまま`。既定 `[]`。`prior` の無い段に空でない値を渡したら入力の誤りとして拒む。種は独立の目のまとめが付け（R1 の指摘は trim・R2 の指摘は unfinished）、返す輪の周の頭が項目の番号へ結んで運ぶだけで、型の語は 22.1 の表がここで引く。
-- `baseline`: `json(lib:baseline.schema.json): 直す前の結末（試験の関門の base の出力 baseline の先）。空は実行器の無い run`。既定 `""`。
+- `baseline`: `json(lib:baseline.schema.json): 直す前の結末（baseline.json）。空は実行器の無い run`。既定 `""`。
 - `test_cmd`: `text: 人が渡したテストのコマンド（対象の根で走らせる 1 行）。空は無い`。既定 `""`。
 - `tdd_suite`: `text: TDD の実行器のパス（第 1 引数の書き先に JUnit XML を書く物）。空は TDD の loop を回さない`。既定 `""`。
 - `reuse_dir`: `text: 同じ run の中の試験の結果の控えの置き場の絶対パス。空は使い回さない`。既定 `""`。

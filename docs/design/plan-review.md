@@ -37,10 +37,10 @@
 - `plan`: `json(shared:fix-plan.schema.json): 審査する修正案（項目の行の plan と、前の往復の穴への答え block_answers を持つ。修正案の block の出力 fix_plan の先）。pointer・パス・値のどれか。空の字は方針の文を審査する`。既定 `""`（#851: 修正案と方針の文の 2 つの形を 1 つの text の入力で運ばないよう分けた。修正案の形は口が照らし、PROPOSAL_SHAPE の写しは消した）。
 - `proposal_file`: `file: 方針の文のファイル。在れば中身を形 text の方針の文として読む（JSON の形でも方針の文）。proposal と一緒には名指さない。空は proposal を読む`。既定 `""`。仕様を固める会話が設計書と表から組んだ方針の文を渡す口（[spec-driven.md](spec-driven.md) の 2.5 の詰まった所の 2。`proposal` の「在るファイルは JSON として読む」読みは変えず、入力を分けた）。
 - `fields`: `json(shared:plan-fields.schema.json): 修正案の項目ごとの works の欄（{round, fields, amended?}）。pointer・パス・値のどれか。proposal が修正案の時は要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
-- `judgment`: `json(shared:judgment.schema.json): 判定の返り（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
+- `judgment`: `json(shared:judgment.schema.json): 判定（units・questions・precedents・framing・one_shot を読む）。pointer・パス・値のどれか。形 plan と replan では要る。空の字は渡されていない（形 text では読まない）`。既定 `""`。
 - `purpose`: `text: 元の目的の 1 文。空は渡されていない`。既定 `""`。
 - `design`: `json(shared:design.schema.json): 独立設計の返答 {question_stands, reason, premise_invalid_reason?, design, elements?}。pointer・パス・値のどれか。空の字は設計が無い`。既定 `""`。
-- `design_why`: `text: 設計が無い訳の 1 行（設計を作る側が返した訳）。空で設計も無ければ「独立設計の返りが渡されていない」と読む`。既定 `""`。
+- `design_why`: `text: 設計が無い訳の 1 行。空で設計も無ければ「独立設計の返りが渡されていない」と読む`。既定 `""`。
 - `world_rows`: `jsonl(lib:world-row.schema.json): 世界の解の行（world.jsonl）。空は世界の解の行が無い run（人に回しうる行の世界の軸は今どおりの決まり）`。既定 `""`。
 - `means`: `json(shared:stated-means.schema.json): 依頼が示した解き方の文の配列（世界の解からの外れの決め手にならない物）。空の配列は示していない`。既定 `[]`。
 - `structure`: `json(shared:structure-state.schema.json): 構造の目の控え（{status, reason, design_file, …}。design_file が設計の行の jsonl を指す）。空は構造の目が走っていない（控えを failed として写す）`。既定 `""`。
