@@ -649,7 +649,7 @@ class AskFinalCase(unittest.TestCase):
         costs = {"by_round": {1: 1.25, 2: 0.5}, "why": ""}
         record = {"rows": self.BACK_ROWS, "exit": "返す物が無い（どの目も通った）", "left": [],
                   "eyes": {"r1": {"status": "pass"}, "r2": {"status": "pass"}, "findings": []}}
-        text = self.ask(final_got(self.f, eyes_back=record, back_costs=costs))["text"]
+        text = self.ask(final_got(eyes_back=record, back_costs=costs))["text"]
         self.assertIn(eb.head_text(self.BACK_ROWS, costs), text.splitlines()[0])
         self.assertIn(f"上限 {eb.LIMIT} 回。費用: 1 周目 $1.2500・2 周目 $0.5000", text.splitlines()[0])
         for line in eb.record_lines(record, None, costs):
