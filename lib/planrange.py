@@ -1,5 +1,5 @@
 """承認済みの修正案の項目の範囲で、変わったパスを照らす決まりの 1 か所（修正案の範囲の照らし。依頼 218）。修正の受け付け
-（fix の scope。単位に結べる行の照らしと欠けの照らしはそちら）と、手直しの受け付け（delta-review の touchup.accept_fix）が同じ決まりで使う。
+（fix の scope。単位に結べる行の照らしと欠けの照らしはそちら）と、手直しの受け付け（delta-review の touchup.take）が同じ決まりで使う。
 
 語:
 - 項目の範囲: allowed_paths の glob と、tests・rewrite_tests の id のファイル（planmarks.test_paths）。glob の並びで言えば item_globs
