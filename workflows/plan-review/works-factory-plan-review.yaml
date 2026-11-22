@@ -74,7 +74,7 @@ nodes:
               prompt: {type: string}   # 1 回目の役の指示（出し直しの周は ""。出し直しの役の指示は review-fix-prep が組む）
               resubmit: {type: boolean}
               tree: {type: boolean}
-        # output_format は src/files.py の node_schema が読むので JSON の流れの書き方で書く。根の欄は要ると書かない（出し直しの役と同じ形にして、
+        # output_format は src/files.py の node_schema が YAML として読む（出し直しの役は anchor で同じ形を使う）。根の欄は要ると書かない（出し直しの役と同じ形にして、
         # 会話の続きの最初の要求でキャッシュを効かせる。#832）。要る欄は受け付けが確かめる（src/files.py の REVIEW_REQUIRED）
         - id: review
           prompt: "$review-prep.output.prompt"
@@ -89,7 +89,7 @@ nodes:
             mutates_checkout: false
             idle_timeout: 1728000000
             retry: {max_attempts: 2, on_error: all}
-          output_format: {
+          output_format: &review_format {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [],
@@ -294,189 +294,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           when: "$review-prep.output.resubmit == true && $review-prep.output.tree != true"
           <<: *review_launch
-          output_format: {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [],
-                "properties": {
-                  "faces": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["key", "unit_keys", "kind", "where", "why", "severity", "reach"],
-                      "properties": {
-                        "key": {"type": "string", "minLength": 8, "pattern": "\\S[\\s\\S]{6,}\\S"},
-                        "unit_keys": {
-                          "type": "array",
-                          "minItems": 1,
-                          "items": {"type": ["integer", "string"], "minLength": 1, "pattern": "\\S", "minimum": 1}
-                        },
-                        "kind": {
-                          "type": "string",
-                          "enum": ["copy", "entrance", "contract_drift", "dead_path", "scope_creep", "regression", "policy", "precedent"]
-                        },
-                        "where": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                        "why": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
-                        "severity": {"type": "string", "enum": ["block", "suggest"]},
-                        "reach": {"type": "string", "enum": ["breaks_fix", "loses_behavior", "against_policy", "forces_redesign", "peripheral"]},
-                        "no_add": {"type": "string"},
-                        "decided_by": {"type": "string"},
-                        "undecided_because": {"type": "string"},
-                        "fences": {
-                          "type": "array",
-                          "items": {"type": "string", "enum": ["external_write", "irreversible", "policy_doc", "widen_protection", "web_doubt"]}
-                        },
-                        "world": {"type": "string"},
-                        "recommend": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": ["answer", "note", "why"],
-                          "properties": {
-                            "answer": {"type": "string", "enum": ["continue", "stop"]},
-                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
-                          }
-                        },
-                        "no_narrow": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
-                        "guard": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"}
-                      }
-                    }
-                  },
-                  "shrink": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["key", "unit_keys", "alternative", "why"],
-                      "properties": {
-                        "key": {"type": "string", "minLength": 8, "pattern": "\\S[\\s\\S]{6,}\\S"},
-                        "unit_keys": {
-                          "type": "array",
-                          "minItems": 1,
-                          "items": {"type": ["integer", "string"], "minLength": 1, "pattern": "\\S", "minimum": 1}
-                        },
-                        "alternative": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
-                        "why": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"}
-                      }
-                    }
-                  },
-                  "faces_none": {"type": "string"},
-                  "reason": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
-                  "resolved": {"type": "array", "items": {"type": "string"}},
-                  "stuck_recommend": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["answer", "note", "why"],
-                    "properties": {
-                      "answer": {"type": "string", "enum": ["continue", "stop"]},
-                      "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                      "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
-                    }
-                  },
-                  "design_map": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["item", "path", "symbol", "design_ref", "design_quote", "why"],
-                      "properties": {
-                        "item": {"type": ["integer", "null"], "minimum": 1},
-                        "path": {"type": ["string", "null"]},
-                        "symbol": {"type": ["string", "null"]},
-                        "design_ref": {"type": ["string", "null"], "pattern": "^D[0-9]+$"},
-                        "design_quote": {"type": ["string", "null"]},
-                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"}
-                      }
-                    }
-                  },
-                  "means_drifts": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["item", "means", "design_quote", "plan_quote", "why", "recommend"],
-                      "properties": {
-                        "item": {"type": "integer", "minimum": 1},
-                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
-                        "design_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                        "plan_quote": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
-                        "recommend": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": ["answer", "note", "why"],
-                          "properties": {
-                            "answer": {"type": "string", "enum": ["continue", "stop"]},
-                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "means_departs": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["item", "means", "why", "recommend"],
-                      "properties": {
-                        "item": {"type": "integer", "minimum": 1},
-                        "means": {"type": "string", "pattern": "^M[1-9][0-9]*$"},
-                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
-                        "recommend": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": ["answer", "note", "why"],
-                          "properties": {
-                            "answer": {"type": "string", "enum": ["continue", "stop"]},
-                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "prescription_departs": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["item", "prescription", "why", "recommend"],
-                      "properties": {
-                        "item": {"type": "integer", "minimum": 1},
-                        "prescription": {"type": "string", "minLength": 1, "pattern": "\\S"},
-                        "why": {"type": "string", "minLength": 10, "pattern": "\\S[\\s\\S]{8,}\\S"},
-                        "recommend": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": ["answer", "note", "why"],
-                          "properties": {
-                            "answer": {"type": "string", "enum": ["continue", "stop"]},
-                            "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                            "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "origins": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["key", "origin"],
-                      "properties": {
-                        "key": {"type": "string"},
-                        "origin": {"type": "string", "enum": ["missed", "introduced", "rephrased", "flip"]},
-                        "of": {"type": "string"},
-                        "quote": {"type": "string"}
-                      }
-                    }
-                  }
-                }
-              }
+          output_format: *review_format
         # 束ね役（intake の tree が真の往復）。型は束ね役が書く欄だけ（faces・shrink・origins は受け付けが下請けの答えのファイルから組む）。
         # review と同じく根の欄は要ると書かず、受け付けが確かめる（src/files.py の TREE_REQUIRED）。review-tree-fix の型はこれと同じ
         - id: review-tree
@@ -486,7 +304,7 @@ nodes:
           when: "$review-prep.output.resubmit != true && $review-prep.output.tree == true"
           context: fresh
           <<: *review_launch
-          output_format: {
+          output_format: &review_tree_format {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [],
@@ -531,45 +349,7 @@ nodes:
           trigger_rule: none_failed_min_one_success
           when: "$review-prep.output.resubmit == true && $review-prep.output.tree == true"
           <<: *review_launch
-          output_format: {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [],
-                "properties": {
-                  "reason": {"type": "string", "minLength": 20, "pattern": "\\S[\\s\\S]{18,}\\S"},
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": ["item", "verdict", "blocks"],
-                      "properties": {
-                        "item": {"type": "integer", "minimum": 1},
-                        "verdict": {"type": "string", "enum": ["clean", "block"]},
-                        "blocks": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "required": ["key", "why"],
-                            "properties": {"key": {"type": "string"}, "why": {"type": "string"}}
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "stuck_recommend": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["answer", "note", "why"],
-                    "properties": {
-                      "answer": {"type": "string", "enum": ["continue", "stop"]},
-                      "note": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"},
-                      "why": {"type": "string", "minLength": 4, "pattern": "\\S[\\s\\S]{2,}\\S"}
-                    }
-                  }
-                }
-              }
+          output_format: *review_tree_format
         - id: review-accept
           script: review_accept
           runtime: uv

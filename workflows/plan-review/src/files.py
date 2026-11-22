@@ -5,9 +5,9 @@ place は ports.place()（単独の run では run の置き場の直下、line 
 """
 from __future__ import annotations
 
-import json
 import pathlib
-import re
+
+import yaml    # PyYAML（node_schema を呼ぶ script は uv で PyYAML を宣言する）
 
 import ports
 
@@ -88,20 +88,18 @@ YAML = pathlib.Path(__file__).resolve().parents[1] / "works-factory-plan-review.
 
 
 def node_schema(node_id: str) -> dict:
-    """YAML の node の output_format（JSON の流れの書き方 {…} で書いてある物）。node の行の後の最初の output_format: の値を読む。
-    下請けの答えのファイルの型が、その faces・shrink を使う"""
-    text = YAML.read_text(encoding="utf-8")
-    head = re.search(rf"^\s*- id: {re.escape(node_id)}\s*$", text, re.M)
-    if head is None:
-        raise ValueError(f"YAML に node {node_id} が無い")
-    key = re.compile(r"^\s*output_format:\s*", re.M).search(text, head.end())
-    nxt = re.compile(r"^\s*- id: ", re.M).search(text, head.end())
-    if key is None or (nxt is not None and nxt.start() < key.start()):
-        raise ValueError(f"node {node_id} に output_format が無い")
-    try:
-        got, _ = json.JSONDecoder().raw_decode(text, key.end())
-    except ValueError as error:
-        raise ValueError(f"node {node_id} の output_format が JSON の形でない: {error}") from None
-    if not isinstance(got, dict):
-        raise ValueError(f"node {node_id} の output_format が object でない")
-    return got
+    """YAML の node の output_format（YAML として読んだ物。anchor で同じ形を 1 か所にしてよい）。node は YAML の中の入れ子（loop の nodes など）
+    も含めて id で引く。下請けの答えのファイルの型が、その faces・shrink を使う"""
+    stack = [yaml.safe_load(YAML.read_text(encoding="utf-8"))]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            if item.get("id") == node_id and ("script" in item or "prompt" in item or "output_format" in item):
+                got = item.get("output_format")
+                if not isinstance(got, dict):
+                    raise ValueError(f"node {node_id} に output_format が無いか object でない")
+                return got
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    raise ValueError(f"YAML に node {node_id} が無い")
