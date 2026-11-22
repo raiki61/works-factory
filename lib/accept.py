@@ -63,7 +63,7 @@ def _git(repo, *args, binary=False, env=None, stdin=None):
 
 
 @contextlib.contextmanager
-def _in_repo(repo):
+def in_repo(repo):
     """rules に差し込まれた git（engine/util.py の git）を repo に向ける。呼び終えたら戻す"""
     old = _util.GIT_CWD
     _util.GIT_CWD = str(repo)
@@ -73,7 +73,7 @@ def _in_repo(repo):
         _util.GIT_CWD = old
 
 
-def _rev(repo, base_rev):
+def resolve_rev(repo, base_rev):
     """数える・差分を取る版。空なら repo の HEAD（Ruling R2）。版として引けなければ拒む"""
     name = base_rev or "HEAD"
     if name.startswith("-"):
@@ -84,7 +84,7 @@ def _rev(repo, base_rev):
         raise Reject(f"base_rev {base_rev!r} が repo {repo} の版として引けない")
 
 
-def _read_board(board, name):
+def read_board(board, name):
     p = pathlib.Path(board) / name
     if not p.is_file():
         return None
@@ -94,7 +94,7 @@ def _read_board(board, name):
         raise Reject(f"共有ボードの {name} が読めない（{e}）")
 
 
-def _write_board(board, name, obj):
+def write_board(board, name, obj):
     p = pathlib.Path(board) / name
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
@@ -102,13 +102,13 @@ def _write_board(board, name, obj):
     return p
 
 
-def _type_errors(value, schema, what):
+def type_errors(value, schema, what):
     errs = validate_schema(value, schema)
     if errs:
         raise Reject(f"{what}の型が合わない: " + "; ".join(errs[:10]) + (f"（ほか {len(errs) - 10} 件）" if len(errs) > 10 else ""))
 
 
-def _guard(fn, **on_reject):
+def guard(fn, **on_reject):
     """rules の Reject を ok: False に写す。規則の中の想定外の例外（die の SystemExit を含む）も拒否として返す"""
     try:
         return fn()
@@ -118,15 +118,6 @@ def _guard(fn, **on_reject):
         return {"ok": False, "reason": str(e), **on_reject}
     except BaseException as e:
         return {"ok": False, "reason": f"受け付けの中で例外（{type(e).__name__}: {e}）", **on_reject}
-
-
-# 受け付けの部品の公開の名（ブロックのモジュールの受け付け——premises など——が私的な名前を借りずに使う。層の決まり private）
-guard = _guard
-in_repo = _in_repo
-resolve_rev = _rev
-read_board = _read_board
-write_board = _write_board
-type_errors = _type_errors
 
 
 def _entry_digest(p: pathlib.Path, racy_after=None, marks=None) -> bytes:
