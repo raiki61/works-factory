@@ -6,13 +6,12 @@ fix_test_scope の範囲（src/common.frozen_problems の allowed）の検査と
 st["handoff"] は frozen_tree の無い古い状態の時だけの控え。輪で足した未追跡のテストのファイルも同じに見る。
 .py の `<パス>:<行>` 1 つは、その行を含む関数の全体に広がる（`<行>-<行>` は書いたとおり）。この試験の「範囲の外の行」は
 その広がりの外を指す（広がりの試験は test_tdd.py の FunctionSpanCase）。
-種の git は gitkit の型の写し（盤面・子の実行器なし）。元 test_tdd_frozen.py の FrozenRuledScopeCase と
-lib/tests/test_conflict_kinds.py の TestReplanState.test_permit_sources_are_read_in_one_place を workflows/fix に向けた物。
+種の git は gitkit の型の写し（盤面・子の実行器なし）。元 test_tdd_frozen.py の FrozenRuledScopeCase を workflows/fix に向けた物。
+許す元を直に読む呼びが lib と block の src・scripts に無いことは tests/layers/test_keep_essence.py の PermitSourcesCase が照らす。
 """
 import ast
 import json
 import pathlib
-import re
 import sys
 import tempfile
 import unittest
@@ -174,17 +173,11 @@ class FrozenRuledScopeCase(Case):
 
 
 class PermitPathCase(unittest.TestCase):
-    """許す元（修正案の rewrite_tests・範囲の相談の合意・裁定 fix_test_scope・案の直しで直した項目）を読むのは lib の
-    conflict.test_permits の 1 か所。fix の block（src と scripts）は凍結の検査・事後の関門・範囲の照らしでその行を読み、元を直に読まない"""
+    """許しを読む道は lib の conflict.test_permits の 1 つ。fix の block（src と scripts）はその写しを持たない（許す元を直に読まない
+    ことは tests/layers/test_keep_essence.py の PermitSourcesCase）"""
 
     def py_files(self):
         return sorted(p for p in FIX.rglob("*.py") if "__pycache__" not in p.parts)
-
-    def test_permit_sources_are_read_in_one_place(self):
-        direct = re.compile(r"\b(?:planmarks\.rewrites|amended_rows_by_unit|agreed_permits|ruled_limits)\(")
-        found = [f"{p.relative_to(FIX)}:{i}" for p in self.py_files()
-                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line)]
-        self.assertEqual(found, [])
 
     def test_permit_path_is_one(self):
         """src は test_permits・edit_permits を定義せず、呼ぶ時はいつも lib の conflict（`import conflict`）の属性として呼ぶ

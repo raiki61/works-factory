@@ -279,16 +279,6 @@ class TestReplanState(unittest.TestCase):
         self.assertIsNone(conflict.ruled_test_doc(b))
         self.assertEqual(conflict.permitted_units(b), {MEAN, CLAMP})
 
-    def test_permit_sources_are_read_in_one_place(self):
-        """keep-essence の 3: 許す元（修正案の rewrite_tests・範囲の相談の合意・裁定 fix_test_scope・案の直しで直した項目）を読むのは
-        conflict.test_permits の 1 か所。凍結の検査・事後の関門・範囲の照らしはその行を読み、元を直に読まない"""
-        root = LIB
-        direct = re.compile(r"\b(?:planmarks\.rewrites|amended_rows_by_unit|agreed_permits|ruled_limits)\(")
-        found = [f"{p.relative_to(root)}:{i}" for p in sorted(root.rglob("*.py"))
-                 if p.relative_to(root).parts[0] != "tests" and p.name not in ("conflict.py", "planmarks.py")
-                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line)]
-        self.assertEqual(found, [])
-
     def test_gave_up_rows_join_ask_human_verbatim(self):
         text = "受け入れのテストの id を\nクラス付きにする（test_tiers.py:136-143）"
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting", text=text),
