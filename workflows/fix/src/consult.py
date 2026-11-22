@@ -51,6 +51,7 @@ import json
 import pathlib
 import posixpath
 import sys
+from typing import TypedDict
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように（必ず import より前）
 
@@ -103,6 +104,18 @@ ASK_GATE_TEXT = """\
 ORIGIN_ACCEPT = "accept"   # 頼みと確かめの行の origin: 受け付けが見つけて積んだ頼み（無い＝修正役が返答の consult に書いた頼み）
 ORIGIN_GATE = "gate"       # 同じ欄: 人の関所の continue の条件を機械が相談にした頼み（頼む物は無く、役が条件で要る物を決める）
 CONTINUE = "continue"
+
+
+class Ask(TypedDict, total=False):
+    """範囲の相談の頼み 1 件（gate_asks の返りと queue の入り。鍵の束はこの 1 か所）。origin は ORIGIN_ACCEPT・ORIGIN_GATE"""
+    item: object
+    paths: list[str]
+    tests: list[str]
+    new_tests: list[str]
+    why: str
+    origin: str
+
+
 KINDS = planmarks.AGREED_KINDS   # 合意の新しいテストの赤の種類（赤か守りか）
 
 
@@ -413,7 +426,7 @@ def _pushed_only(human_items, round_: int) -> bool:
     return bool(rows) and all(answer.by_push(h) for h in rows)
 
 
-def gate_asks(b, items: dict, human_items=(), round_: int = 1) -> list:
+def gate_asks(b, items: dict, human_items=(), round_: int = 1) -> list[Ask]:
     """人の関所の条件（gate_notes）の頼み。今の周の条件がまだ相談に出ていなければ（置き場 b の trace.jsonl の確かめの行を見る）、
     承認済みの項目ごとに 1 件 {item, paths, tests, new_tests, why, origin: gate}。条件が無い・出し済み（この置き場の役が聞いた確かめの行が
     1 件でも在る。戻せた組の子から写した行（group_id つき）は数えない）・項目が無ければ []。条件が全部無人の run の推しなら、今の周に許しの
@@ -422,10 +435,10 @@ def gate_asks(b, items: dict, human_items=(), round_: int = 1) -> list:
     if not notes or not items or any(r.get("origin") == ORIGIN_GATE and r.get("round") == round_ for r in conflict.plan_asks(b)):
         return []
     granted = {str(r.get("item")) for r in conflict.agreed(b) if r.get("round") == round_} if _pushed_only(human_items, round_) else set()
-    return [{"item": n, "paths": [], "tests": [], "new_tests": [], "why": notes, "origin": ORIGIN_GATE} for n in items if n not in granted]
+    return [Ask(item=n, paths=[], tests=[], new_tests=[], why=notes, origin=ORIGIN_GATE) for n in items if n not in granted]
 
 
-def queue(b, pass_: str, asks: list) -> bool:
+def queue(b, pass_: str, asks: list[Ask]) -> bool:
     """受け付けが見つけたはみ出しの頼み asks [{item, paths, tests, new_tests, why}] を、相談の状態の queued に積む（次の ask が
     返答の consult が無くても頼みにする。origin は accept）。積む周の分の turns に 1 を足す。残りの周が 2 に満たなければ（積む周と
     相談の周の 2 周が要る）積まずに False。積めば True"""
