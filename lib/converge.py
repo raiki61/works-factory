@@ -762,12 +762,13 @@ def add_pass(doc: dict, review: dict, *, answers: list, resolved: list, synergy:
             if it["n"] in (refs or {}):
                 it["refs"] = list(refs[it["n"]])
         row["synergy"] = list(synergy or [])
+    new = [key for key in blocks if key not in earlier] if passes else []   # この往復で初めて挙がった block の key
     row["origins"], row["origins_claimed"] = _origins(
-        [key for key in blocks if key not in earlier] if passes else [], origins if isinstance(origins, list) else [],
+        new, origins if isinstance(origins, list) else [],
         rows=row.get("items") or [], prev=list(_last_items(doc).values()), face_units=row.get("face_units") or {},
         earlier=earlier, earlier_units={key: units for p in passes for key, units in (p.get("face_units") or {}).items()},
         resolved=list(resolved))
-    take_flips(row, passes, origins, [key for key in blocks if key not in earlier] if passes else [])
+    take_flips(row, passes, origins, new)
     passes.append(row)
     row["outcome"] = decide(passes)
     if at_cap and row["outcome"] == AGAIN:   # 輪がもう 1 周回せない: 抜けないと輪が尽きて節が落ちるので、ここで止める
