@@ -196,10 +196,15 @@ def _unit(key: str, units: dict) -> str:
     return head + (f"- prescriptions:\n\n```json\n{_json(rx)}\n```" if rx else f"- prescriptions: {NONE}")
 
 
+def _unit_keys(item: dict) -> list:
+    """修正案の項目の単位の key の並び（字でない物は落とす）"""
+    return [k for k in item.get("unit_keys") or [] if isinstance(k, str)]
+
+
 def render(n: int, item: dict, fields: dict, units: dict, purpose: str, structure: str) -> str:
     """修正案の項目 n（1 始まり）の brief の文。item は修正案の項目、fields はその項目の works の欄（planmarks の控えの行）、
     units は判定の単位の key → 単位、purpose は凍結した目的の文、structure は構造の目の節（呼び手が組む。空なら無し）"""
-    keys = [k for k in item.get("unit_keys") or [] if isinstance(k, str)]
+    keys = _unit_keys(item)
     checked = planmarks.scoped([fields])   # 決まりは受け付け（planrange.approved）と同じ planmarks.scoped。ただし受け付けは項目の全部で 1 つに決め（1 つでも欄が無ければ全部を照らさない）、brief はこの項目だけで決める
     parts = [
         TITLE.format(n=n),
@@ -251,7 +256,7 @@ def _drawn(b, src: dict) -> list[tuple[list, str]] | None:
     purpose = src["purpose"] or ""
     out = []
     for n, (item, f) in enumerate(pairs, 1):
-        out.append(([k for k in item.get("unit_keys") or [] if isinstance(k, str)],
+        out.append((_unit_keys(item),
                     render(n, item, f, units, purpose, "")))
     return out
 
