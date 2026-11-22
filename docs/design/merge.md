@@ -35,7 +35,7 @@ seal は、今の作業ツリーと差分の根の間の差分を封じ、守り
 - `r2`: `json(r2.schema.json): 独立設計との比べ（R2）の {status, reason}。null は省いた・走らなかった（apply だけ）`。既定 `null`。
 - `deliver`: `text: 出口の語。空は差分を place に置くだけ、pr は照らした差分を run の枝に積んで PR を作る（apply と check だけ）。ほかの語は ok: false`。既定 `""`。
 - `request`: `json(shared:request.schema.json): 依頼のファイル（pr の時に、依頼が名指した issue を commit の文に閉じない参照で書く）。空は無い`。既定 `""`。
-- `items`: `json(items.schema.json): 差分のパスを修正案の項目に決める記録 {items, claims, unread}（lib/itemcommits.py の merged の形）。null は無い（pr の時に 1 つの commit に倒す）`。既定 `null`。
+- `items`: `json(shared:item-claims.schema.json): 差分のパスを修正案の項目に決める記録 {items, claims, unread}（lib/itemcommits.py の merged の形）。null は無い（pr の時に 1 つの commit に倒す）`。既定 `null`。
 - `user_env_dir`: `text: 利用者の HOME・XDG に戻して起こした印を置く置き場の絶対パス。空は置き場が無い（戻す run では pr の commit を積まずに止める）。pr の commit の hooks だけが読む`。既定 `""`。起動の殻は Archon を隔離した HOME で起こすが、対象のコマンド（ここでは commit の hooks）だけは利用者の HOME・XDG に戻して走らせ、戻した事の印のファイル `user-env-ran` をこの置き場に置く（`lib/userenv.py`・`tree_run.split_mark`）。報告がその印で「利用者の環境で走らせた」と言う。
 
 出力（`returns: merge`、`outcome_field: ok`）。今の `merge` の 9 欄を字のまま保ち、`report` を足す:
@@ -88,7 +88,7 @@ apply と check は始めに前の `apply.diff` を消し、置くと決めた�
 - `workflows/merge/schemas/fingerprint.schema.json`: `{"type": ["object", "null"], "required": ["head", "diff_hash"], "properties": {"head": {"type": "string"}, "diff_hash": {"type": "string"}}}`。
 - `workflows/merge/schemas/answer.schema.json`: `{"type": ["object", "null"], "required": ["decision"], "properties": {"decision": {"type": "string"}, "text": {"type": "string"}}}`。
 - `workflows/merge/schemas/r2.schema.json`: `{"type": ["object", "null"], "required": ["status"], "properties": {"status": {"type": "string"}, "reason": {"type": "string"}}}`。
-- `workflows/merge/schemas/items.schema.json`: `{"type": ["object", "null"]}`（中の形は `itemcommits.split` が読み、読めない記録は 1 つの commit に倒す。今のまま）。
+- `workflows/.shared/schemas/item-claims.schema.json`（pack の共通の形の置き場 `.shared/schemas/` の物。port の form では `shared:item-claims.schema.json` と書く）: 差分のパスを修正案の項目に決める記録 `{items, claims, unread}` か null。line の修正の段の合わせの返り `item_claims` が同じ形を使うので、merge の `schemas/items.schema.json` から中身を変えずにここへ移した。中の形は `itemcommits.split` が読み、読めない記録は 1 つの commit に倒す。
 - `workflows/merge/fixtures/` の 7 本（11 節）。
 - `tests/blocks/merge/__init__.py`・`test_merge.py`（11 節）。
 

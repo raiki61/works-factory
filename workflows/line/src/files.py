@@ -27,6 +27,8 @@ carry の prior-failures-in.json・answer の gates/<承認ノード>.json・pol
 - BACK_KEPT: 返した段の書き換え（返す前の作業ツリーから、返した段が書いた作業ツリーへの差分）の控え（節 eyes-back-restore が、作業ツリーを返す前の姿へ戻す前に書く。
   git apply で作業ツリーへ戻せる。最後の承認ノードと報告がこの在りかを名指す）
 - SECTIONS・FACTS: report に pointer で渡す 2 つの形（collect が書く。docs/design/line.md の 7 節）
+- FIXED_FILES: 修正の段の合わせの返りの伸びる欄（段の返り・単位・止めの訳・差分のパスを項目に決める記録・返した段の修正の返りの並び）の置き場（fixed と back-k-fixed が
+  src/fixedfiles.py の stored で書き、返りの欄がそのファイルを指す。k は返した段の数で、fixed は 0）
 """
 START = "r1/start.json"
 CARRIED = "carried.json"
@@ -56,3 +58,4 @@ FINAL_GATE_MD = "gates/final-gate.md"
 SECTIONS = "report-in/sections.json"
 FACTS = "report-in/facts.json"
 BACK_KEPT = "eyes-back-kept.patch"
+FIXED_FILES = "fixed/{k}"

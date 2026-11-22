@@ -37,12 +37,10 @@ def compute():
 
 
 def fixed_units(raw) -> list:
-    """修正の段が受けた単位の行（fixed の units。配列でなければ ValueError）"""
-    got = ports.parsed(raw)
-    if got is None:
+    """修正の段が受けた単位の行（fixed の units。place のファイルを指す pointer で、null は無し。配列でなければ ValueError）"""
+    if ports.parsed(raw) is None:
         return []
-    if not isinstance(got, list):
-        raise ValueError(f"fixed_units が配列でない（{type(got).__name__}）")
+    got = ports.json(raw, "shared:fixes.schema.json")
     return [u for u in got if isinstance(u, dict)]
 
 

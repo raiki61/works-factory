@@ -8,7 +8,9 @@ node fixed（docs/design/line.md の 4.3。決まりは src/stages.py の fixed�
 入力（with:）: from_spec（start の from_spec。仕様駆動の run は異議を止めにする）・fix_in（fix-in の出力まるごと）と、block の返り（fix・lens・delta・replan・refix・lens_2・delta_2）・after_fix・raise の出力。
 走らなかった物は `{from, if_skipped: null}` で null。独立の目から返した修正の段を合わせる周の節（back-k-fixed）だけが more（前の周までに返した段の
 fix の got の並び）と add（この周の返しの修正の返り。飛んでいれば null）を足し、出力の more は more の後ろに add を足した並びになる。block の返りと出力は要る欄を全部名指して読む（欄の欠けた前の版の返りを resume で
-受けたら空と読まずに止める。integration.md 4.3-12）。例外の時は止めの語 works:line-script を返し、試験の関門から先へ進めない
+受けたら空と読まずに止める。integration.md 4.3-12）。例外の時は止めの語 works:line-script を返し、試験の関門から先へ進めない。
+出力の伸びる欄（stages・units・stop_why・item_claims・more）は place のファイルに書き、欄はそのファイルを指す（src/fixedfiles.py の stored）。
+入力の more も前の周の合わせが書いたファイルを指す
 """
 import os
 import sys
@@ -36,7 +38,7 @@ def dicted(got):
 
 
 def compute():
-    from src import stages
+    from src import fixedfiles, stages
     values = {
         "fix_in": dicted(ports.picked(os.environ.get("INPUTS_FIX_IN"), FIX_IN)),
         "fix": dicted(ports.picked(os.environ.get("INPUTS_FIX"), FIX)),
@@ -51,18 +53,18 @@ def compute():
         "from_spec": ports.text(os.environ.get("INPUTS_FROM_SPEC")).strip() == "true",
     }
     earlier, added = ports.parsed(os.environ.get("INPUTS_MORE")), dicted(ports.picked(os.environ.get("INPUTS_ADD"), FIX))
-    if earlier is not None:   # 返しの周の節だけが more を持つ（元の fixed は持たず、鍵が無い）
-        values[stages.MORE] = [*earlier, added]
-    return stages.fixed(values)
+    if earlier is not None:   # 返しの周の節だけが more（前の周の合わせが書いた並びの指し先）を持つ（元の fixed は持たず、鍵が無い）
+        values[stages.MORE] = [*fixedfiles.value({stages.MORE: earlier}, stages.MORE), added]
+    return fixedfiles.stored(stages.fixed(values), ports.place())
 
 
 def fallback(reason: str) -> dict:
     from src import guard
     return {"go": False, "done": False, "held": True, "no_fix": False, "diffed": False, "checks": False, "eyes_due": False,
-            "skip_why": "", "rejudge": False, "refixed": False, "stages": [], "carry": [], "tdd": [], "units": [], "groups": [],
+            "skip_why": "", "rejudge": False, "refixed": False, "stages": None, "carry": [], "tdd": [], "units": None, "groups": [],
             "conflicts": [], "replan_items": [], "objection": "", "diff": None, "item_claims": None, "allowed_test_changes": [],
             "changed": None, "x_scalars": {}, "handoffs": [], "handoff_titles": {}, "mismatched": [], "plan_declared": [], "plan": None, "ripple": None,
-            "more": [], "left": [], "stop_reason": guard.LINE_SCRIPT, "stop_why": ""}
+            "more": None, "left": [], "stop_reason": guard.LINE_SCRIPT, "stop_why": None}
 
 
 ports.run(compute, fallback)
