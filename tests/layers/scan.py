@@ -10,6 +10,7 @@ import ast
 import functools
 import json
 import re
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -18,6 +19,7 @@ import yaml
 
 from bin._lib import isolate
 from lib import answer
+from tests.bin import gitkit
 
 
 def word(pattern: str) -> re.Pattern:
@@ -193,9 +195,19 @@ def _files(root: Path, *parts: str):
     base = root.joinpath(*parts)
     if not base.is_dir():
         return
+    known = _known(base)
     for path in sorted(base.rglob("*")):
-        if path.is_file() and "__pycache__" not in path.parts:
+        if path.is_file() and "__pycache__" not in path.parts and (known is None or path in known):
             yield path
+
+
+def _known(base: Path) -> set[Path] | None:
+    """base の下で git が知るファイル（追跡中と、無視されない未追跡の物。`gitkit.known_files`）。git が無視する置き場（道具の控えの
+    .ruff_cache/ など）は工場の物でなく、柵は読まない。base が git のリポジトリの中に無い時（試験の小さな木）は None で、全部を読む"""
+    try:
+        return {base / rel for rel in gitkit.known_files(base)}
+    except subprocess.CalledProcessError:
+        return None
 
 
 def _rel(root: Path, path: Path) -> str:
@@ -467,7 +479,8 @@ VIEWER_HOMES = (f"{VIEWER}/", f"tests/{VIEWER}/", "docs/")
 def _viewer_apart(root: Path) -> list[str]:
     """E25 の 1: 見る道具は工場の外の物で、見る道具とその試験と文書のほかから、パスでも import でも名指さない"""
     paths = []
-    for top in sorted(p for p in root.iterdir() if p.name != ".git"):
+    known = _known(root)
+    for top in sorted(p for p in root.iterdir() if p.name != ".git" and (p.is_dir() or known is None or p in known)):
         for path in ([top] if top.is_file() else _files(root, top.name)):
             rel = _rel(root, path)
             if rel.startswith(VIEWER_HOMES) or path.name == "AGENTS.md" or (top.is_file() and path.suffix == ".md"):
