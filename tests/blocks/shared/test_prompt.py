@@ -43,6 +43,14 @@ class SlotCase(Base):
         got = self.render({"name": "x{y}", "count": 3})
         self.assertEqual(got, 'Hello x{y}, 3 items.\nJSON {"a": 1} and {id, url} stay; {name} is literal.\n')
 
+    def test_slot_whose_close_is_eaten_by_a_literal_brace_is_refused(self):
+        """差し込み口の直後に字の } を }} で書くと、口の閉じが }} に呑まれて口が字のまま AI に渡る（plan-review の means-ask などで
+        {recommend_shape}} が {recommend_shape の字を渡していた）。組む時に落とし、口と字の } を分けて書かせる"""
+        self.md("row {a: {shape}}\n")
+        self.refused(r"\{shape\} の閉じ", {"shape": "s"})
+        self.md("upstream @{{u}} and {{shape}}\n")
+        self.assertEqual(self.render(), "upstream @{u} and {shape}\n")
+
     def test_missing_and_unused_values_are_named(self):
         self.md("A {one} B {two}\n")
         self.refused(r"\['two'\] に値が無い", {"one": "1"})

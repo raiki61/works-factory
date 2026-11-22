@@ -31,8 +31,8 @@ md の書き方:
 - 入れた値の中の字（{…}・$…）は読み直さない。Archon も prompt: の $<id>.output.prompt に入れた字を読み直さない（止めた版の
   executor-shared.ts の substituteWorkflowVariables が 1 回の走査で、入れた値を字のまま置く）
 
-落ちる時（PromptError。ValueError の子）: md か断片が無い・断片が自分を差し込む・値の無い差し込み口が在る（選ばれない段落の中も、
-system の md の中も数える）・使われない値を渡された・when の名がどの md の if にも無い・md の if の名が when に無い・if と end が
+落ちる時（PromptError。ValueError の子）: md か断片が無い・断片が自分を差し込む・差し込み口の閉じが直後の字の } の書き方 }} に
+呑まれる（{name}} の形）・値の無い差し込み口が在る（選ばれない段落の中も、system の md の中も数える）・使われない値を渡された・when の名がどの md の if にも無い・md の if の名が when に無い・if と end が
 組にならない・値が字と整数の外。
 """
 import hashlib
@@ -48,6 +48,7 @@ MARK = re.compile(r"^<!-- (if|if not|end) ([a-z0-9_]+) -->$")
 REQUIRED_FOR = re.compile(r"\A<!-- required-for-(?:tools|fields): [A-Za-z_.]+(?: [A-Za-z_.]+)* -->\n")   # 共通の断片の頭の印（道具か返す欄。形の検査が読む。指示には出さない）
 NODE_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 OPEN, CLOSE = "\x00", "\x01"
+EATEN = re.compile(r"\{([a-z0-9_]+)" + CLOSE)   # 口の閉じを、直後の字の } の書き方 }} が呑んだ形（{name}} → {name と字の }）
 LANG_DEFAULT = "lang-default"   # 共通の断片の名（lang が空の時の既定の英語の文）
 SYSTEM = ".system"
 RUNNER_WRITER = "runner-writer"   # 共通の断片の名（実行器の契約と書き方。test-gate の書き手と fix の書き直し役が取り込む）
@@ -136,6 +137,10 @@ def _compose(block: Path, node_id: str, values: dict, when: dict | None, *, part
         return _unmarked(text) if shared else text
     texts = {key: _expand(read(path), block, (f"shared:{node_id}",) if shared else (), shared).replace("{{", OPEN).replace("}}", CLOSE)
              for key, path in files.items()}
+    for text in texts.values():
+        if eaten := EATEN.search(text):
+            raise PromptError(f"{node_id} の md の置き換えの印 {{{eaten.group(1)}}} の閉じが、直後の字の }} の書き方 }}}} に呑まれる"
+                              "（口が字のまま渡る。口と字の } を分けて書く）")
     slots = {name for text in texts.values() for name in SLOT.findall(text)}
     missing, unused = sorted(slots - set(values)), sorted(set(values) - slots)
     if missing:
