@@ -45,7 +45,7 @@ def open_files(sections: list) -> tuple[list, list]:
             try:
                 path = ports.carried_file(item)
                 if path is None:
-                    raise ValueError("ref が空")
+                    raise ValueError("ref が空（この控えの在りかを作り手が書いていない）")
                 opened.append({"label": item["label"], "path": str(path), "why": ""})
             except (ValueError, OSError) as e:
                 why = oneline.one_line(e)
