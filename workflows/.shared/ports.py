@@ -389,8 +389,8 @@ def shape_errors(value, schema: str, block_folder=None) -> list[str]:
     return validate_schema(value, _expanded(shape, block_folder))
 
 
-def _check(value, schema: str, block_folder=None) -> None:
-    errors = shape_errors(value, schema, block_folder)
+def _check(value, schema: str) -> None:
+    errors = shape_errors(value, schema)
     if errors:
         raise ShapeError(f"入力が {schema} の形に合わない: {' / '.join(errors[:5])}", value)
 
