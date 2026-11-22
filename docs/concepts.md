@@ -200,7 +200,7 @@ works-factory 自身の木に地図と表の全部を当てる試験は置かな
 ### `world` 世界の解（問題の類ごとの定石と、依頼の解き方との比べ）
 
 - 状態: 住処あり
-- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・先例の出どころの照らし `ref_problems`・依頼の解き方の足し欄 `MEANS` と `split_means`・`write_means`・`means_of`）
+- 住処: `lib/worldmark.py`（行の欄の名 `FIELDS`・行のファイルの名 `WORLD_FILE`・控えの名 `STATE_FILE`・語 `VERDICTS`・`BASES`・名指しの句 `NOT_WEB`・先例の出どころの頭の字 `SOURCE_PREFIX`・読み書き `rows`・`read`・`write`・`stage_rows`・頭のセクション `section`・答えの要る行 `needs`・`need`・`unanswered`・依頼の解き方との比べの文 `challenges`・承認ノードの軸 `world_ok`・承認ノードの行 `gate_line`・報告の行 `report_lines`・依頼の解き方の足し欄 `MEANS` と写しの読み `means_of`）
 - 約束: 行の欄と語は住処の定数 `FIELDS`・`VERDICTS`・`BASES`（試験 `lib/tests/test_worldmark.py` が縛る）。行の型は `lib/world-row.schema.json`
 - 知ってよい所: 住処と、世界の解の block `workflows/world/`（行と段の控えを書く出口 `workflows/world/scripts/finish.py` を含む）。読み手（`lib/planmarks.py`・`lib/gatemarks.py`・診断の `workflows/diagnose/src/judge.py`・計画の `workflows/plan/src/brief.py`・事前審査の `workflows/plan-review/src/material.py` ほか）は住処の口を引く
 - 今: 柵は行のファイルと控えの名の字。表の既知の漏れは、2026-11-05 の数え直しで載せた行の形の名指し（`lib/world-row.schema.json` と、世界の解を受ける block の YAML 3 本）の 4 ファイル 4 行

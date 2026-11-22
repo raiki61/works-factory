@@ -115,7 +115,7 @@ script の名は `lib/` のモジュールの名と重ねない（README 7.1 の
 - `intake-error.json`: 入口が落ちた時の `{why, form}`（今の `open-error.txt`。`form` は落ちる前に決めた形か空）。
 - `judgment.json`: port `judgment` の写し（ライブラリの文書の節が単位のファイルを引く元。`libdocs.unit_files`）。
 - `excluded.json`: port `excluded` の写し。
-- `world/world.jsonl` と `judge-world-state.json`（`worldmark.COPY_STATE`）・`judge-purpose-means.json`（`worldmark.COPY_MEANS`）: 世界の解の行と段の控えと依頼の解き方の写し（今の `_copy_world`・`_copy_means`（`src/steps.py`。`worldmark.copy_means` の写しの名と形））。
+- `world/world.jsonl` と `judge-world-state.json`（`worldmark.COPY_STATE`）・`judge-purpose-means.json`（`worldmark.COPY_MEANS`）: 世界の解の行と段の控えと依頼の解き方の写し（今の `_copy_world`・`_copy_means`（`src/steps.py`。写しの名 `worldmark.COPY_MEANS` と形 `{means: [...]}`））。
 - `structure/design-rows.jsonl` と `structmark.COPY_FILE`: 構造の目の設計の行と控えの写し（今の `_copy_structure`）。
 - `design.json`（`design.DESIGN_FILE`）: port `design` の写し（空なら置かない）。
 - `ripple.json`: port `ripple` の写し（今の `ripple/pass-<k>.json`。place が include ごとに分かれるので往復の番号を名に持たない）。
@@ -640,7 +640,7 @@ Return only JSON that matches the output schema.
   6. 形 replan: 裁かれた項目を `planmarks.handed(ruling, <案の項目の数>)` で読む（番号でない行・案の外の番号は訳つきで failed）。承認済みの案を `prior` の `plan` の行から組む（`[{"item": n, **r["row"]} for n, r in enumerate(prior.plan, 1)]`。`prior` が空か `plan` が無ければ `NO_APPROVED` の訳で failed）。
   7. `planmarks.save(place, 1, <fields の fields>, <fields の amended>)`（凍結の印を `trace.jsonl` に）・`planmarks.paired(rows, <fields の fields>, <fields の在りか>)`（数が違えば `FieldsBroken` の訳で failed）。
   8. 往復の記録の作業の写し: `prior` の `passes`・`outcome`（と在れば `plan`）を `{"round": 1, "passes": …, "outcome": …, "open": {}}` にして `plan-converge.json` に書き、`converge.note_plan(view, [planmarks.joined(r, f) for r, f in pairs], marks=<5 で外した決め手の欄の、行と同じ並び>)`（行 `row` は 5 で決め手の欄〔頭の「人に回しうる行」の `decided_by`・`no_narrow` ほか 6 つ〕を外した審査の形のまま残し、外した欄は項目ごとに別の欄 `converge.PLAN_MARKS`〔名は `marks`〕に添える。理由: 次の周の修正案の受け付け〔plan の block の `src/take.py` の `bare_record`〕は、閉じた項目〔事前審査で直す所が無くなった項目。次の周の修正案の役は書かない〕をこの記録の行から案へ差し込む。行が決め手の欄を欠いたままだと、差し込んだ項目の `narrows` の行が `no_narrow` の欠けで拒まれ続ける〔#849〕。受け付けは `marks` を `narrows` の行に戻し、修正案の役が返した時の形〔決め手の欄つき〕にしてから差し込む）、形 plan で `block_answers` が在れば `converge.note_answers(view, answers)`。`precedent-checks.json` に `prior.precedent_checks`（無ければ `{}`）。`k = converge.pass_no(view)`（形 plan。形 replan は 0）。
-  9. 写し: `world/`（`_copy_world`。空なら `worldmark.COPY_STATE` を消す）・`_copy_means`（`src/steps.py`。`worldmark.copy_means` の写しの名と形）・`structure/`（`_copy_structure`。空なら status failed・reason「構造の目の控えが渡されていない」で `structmark.write`）・`design.json`（空でなければ）・`ripple.json`（空なら `{"items": [], "overlaps": [], "error": "波及の一覧が渡されていない"}`）。
+  9. 写し: `world/`（`_copy_world`。空なら `worldmark.COPY_STATE` を消す）・`_copy_means`（`src/steps.py`。写しの名 `worldmark.COPY_MEANS` と形 `{means: [...]}`）・`structure/`（`_copy_structure`。空なら status failed・reason「構造の目の控えが渡されていない」で `structmark.write`）・`design.json`（空でなければ）・`ripple.json`（空なら `{"items": [], "overlaps": [], "error": "波及の一覧が渡されていない"}`）。
   10. 記録された方針の行: port `recorded` が空でなければそれ、空で `policy` が在れば `[{"source": "doc", "name": <policy のパス>, "text": "", "lines": <行数>, "alias": ""}]`（`src/steps.recorded_rows`。今の `policy.recorded` の文書の行と同じ形）。
   11. 形 replan: `replan_items(view, approved, <決め手つきの行>, ruled, <conflicts の items>)`（今の写し）。
   12. 木: 形 plan で port `tree` が `on` なら真・`off` なら偽・`auto` なら `len(src.material._opened(view, src.material._item_rows(view))) >= TREE_AUTO_MIN`（2。今の `planblk.TREE_AUTO_MIN`）。形 replan は偽。
@@ -769,7 +769,7 @@ Return only JSON that matches the output schema.
 9. 並行 PR の外した範囲の写しと役の頭の名指し → `excluded.json` と 3.3 の 5。
 10. 修正案の欄の控えと凍結の印（`planmarks.save`）・審査の前の欄の食い違い（`design_section` の `FieldsBroken` → `PREP_ERROR`）→ intake の 7 と review_prep の `crash.json`。
 11. 世界の解の写し・null で段の控えを消す（`_copy_world`）→ intake の 9。
-12. 依頼の解き方の写し（`copy_means`）→ intake の 9。
+12. 依頼の解き方の写し（`_copy_means`）→ intake の 9。
 13. 構造の目の写し・落ちた控えは failed のまま（`_copy_structure`）→ intake の 9（空の port も failed として写す）。
 14. 波及の一覧の往復ごとの写し → `ripple.json`（place は往復ごとの include で分かれ、入口が前の往復の物を消す）。
 15. 修正案の役の答えと決め手の欄を外す（`converge.split`・`gatemarks.split`/`save`）→ intake の 5（`src/marks.py`。住処 `marks` を使わない）。

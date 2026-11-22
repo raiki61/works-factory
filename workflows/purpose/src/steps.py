@@ -1,5 +1,5 @@
 """目的の固定の block の中身（docs/design/purpose.md。元の judge_accept の目的の部分〔refuse_if_frozen・check_purpose・
-purpose_prep・作業ツリーの見張り〕と lib/worldmark.py の split_means を、port の値で受ける形に写した物）。
+purpose_prep・作業ツリーの見張り〕と、元の worldmark の split_means〔今は消した〕を、port の値で受ける形に写した物）。
 
 依頼・PR の説明・前提の実測を port で受け、依頼から前の run の判断（prior_failures）を機械で外した写しを材料にして、目的の役に
 この run の元の目的を 1 文にさせる。役は読むだけで、受け付けは役を起こす前に取った作業ツリーの写しと今を比べる。依頼の解き方
