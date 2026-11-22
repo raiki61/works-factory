@@ -5,6 +5,7 @@
 - i 本目の git が落ちれば、積み始める前の HEAD に戻して何本目かを載せた PartFailed を投げる
 - git の誤りでない例外でも、積み始める前の HEAD に戻してから投げ直す。作業ツリーの変更は残す
 """
+import os
 import pathlib
 import sys
 import tempfile
@@ -87,6 +88,76 @@ class CommitParts(unittest.TestCase):
         self.assertEqual(git(self.repo, "rev-parse", "HEAD"), self.start)
         self.assertEqual(git(self.repo, "diff", "--cached", "--name-only"), "", "index も戻す")
         self.assertEqual((self.repo / "a.txt").read_text(encoding="utf-8"), "two\n", "作業ツリーは触らない")
+
+
+class Branches(unittest.TestCase):
+    """refusal・commit・branch・default_branch・pr_branches・git の口（実際の git の木で見る）"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        self.main = root / "main"
+        self.main.mkdir()
+        git(self.main, "init", "-q", "-b", "trunk")
+        (self.main / "a.txt").write_text("one\n", encoding="utf-8")
+        git(self.main, "add", "a.txt")
+        git(self.main, "commit", "-q", "-m", "seed")
+        self.tree = root / "tree"
+        git(self.main, "worktree", "add", "-q", "-b", "run/x", str(self.tree))
+        (root / "plain").mkdir()
+        self.remote = root / "remote.git"
+        git(root, "clone", "-q", "--bare", str(self.main), str(self.remote))
+
+    def test_refusal_names_why_a_tree_cannot_take_commits(self):
+        self.assertEqual(runbranch.refusal(self.main), runbranch.MAIN_TREE)
+        self.assertEqual(runbranch.refusal(self.tree), "")
+        git(self.tree, "checkout", "-q", "--detach")
+        self.assertEqual(runbranch.refusal(self.tree), runbranch.DETACHED)
+
+    def test_commit_stacks_only_real_changes_and_skips_the_excluded_path(self):
+        before = git(self.tree, "rev-parse", "HEAD")
+        self.assertEqual(runbranch.commit(self.tree, "none\n", "copy"), (False, before))
+        (self.tree / "a.txt").write_text("two\n", encoding="utf-8")
+        (self.tree / "copy").mkdir()
+        (self.tree / "copy" / "c.txt").write_text("x\n", encoding="utf-8")
+        changed, head = runbranch.commit(self.tree, "round\n", "copy")
+        self.assertTrue(changed)
+        self.assertNotEqual(head, before)
+        self.assertEqual(head, git(self.tree, "rev-parse", "HEAD"))
+        self.assertEqual(git(self.tree, "diff-tree", "--no-commit-id", "--name-only", "-r", head), "a.txt")
+        self.assertEqual(git(self.tree, "log", "-1", "--format=%an|%ae|%s"), "works-factory|works-factory@localhost|round")
+
+    def test_branch_names_and_pr_branches(self):
+        self.assertEqual(runbranch.branch(self.tree), "run/x")
+        self.assertEqual(runbranch.default_branch(self.tree, str(self.remote)), "trunk")
+        self.assertEqual(runbranch.pr_branches(self.tree, str(self.remote)), ("run/x", "trunk", ""))
+
+    def test_pr_branches_gives_a_reason_and_no_branch_when_it_cannot_push(self):
+        name, base, reason = runbranch.pr_branches(self.main, str(self.remote))
+        self.assertEqual((name, base, reason), ("", "", runbranch.MAIN_TREE))
+        name, base, reason = runbranch.pr_branches(self.tree, str(self.remote.parent / "no-such"))
+        self.assertEqual((name, base), ("", ""))
+        self.assertIn("既定の枝を読めない", reason)
+        git(self.tree, "checkout", "-q", "-B", "trunk")
+        name, base, reason = runbranch.pr_branches(self.tree, str(self.remote))
+        self.assertEqual((name, base), ("", ""))
+        self.assertIn("同じ名", reason)
+        with self.assertRaises(runbranch.GitFailed):
+            runbranch.default_branch(self.tree, str(self.remote.parent / "no-such"))
+        name, base, reason = runbranch.pr_branches(self.remote.parent / "plain", str(self.remote))
+        self.assertEqual((name, base), ("", ""))
+        self.assertIn("run の枝を読めない", reason)
+
+    def test_git_never_prompts_and_keeps_a_given_ssh_command(self):
+        probe = ("-c", "alias.e=!env")
+        out = runbranch.git(self.main, *probe, "e", environ={"PATH": os.environ["PATH"]})
+        self.assertIn("GIT_TERMINAL_PROMPT=0", out)
+        self.assertIn("GIT_SSH_COMMAND=ssh -o BatchMode=yes", out)
+        for given in ({"GIT_SSH_COMMAND": "mine"}, {"GIT_SSH": "mine"}):
+            out = runbranch.git(self.main, *probe, "e", environ={"PATH": os.environ["PATH"], **given})
+            self.assertNotIn("BatchMode", out)
+        self.assertIn("GIT_SSH_COMMAND=mine", runbranch.git(self.main, *probe, "e", environ={"PATH": os.environ["PATH"], "GIT_SSH_COMMAND": "mine"}))
 
 
 if __name__ == "__main__":
