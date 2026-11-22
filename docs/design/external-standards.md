@@ -77,7 +77,7 @@ materials.md の 1.4 の名だけ: `intake.json`・`view.json`・`diff.patch`・
 ### 1.6 つなぎ方（graph の側。block には書かない）
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-external-standards`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` を materials.md の 1.6 のとおり、`purpose: $purpose.output.purpose`（目的の block の `purpose.json` の pointer。目的の block が `failed` の run は、目的の block の設計書のとおり graph が判定の前で止めるので、ここに null が来るのは単独の run と目的の block を外した run だけ）。
-- 読み手: diagnose の `materials`（11 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。lib の `judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
+- 読み手: diagnose の `materials`（10 本の `material` の配列の 1 つ。素材 `external_standards` の欄）。判定役の材料の「外部標準」の所見の行（今の `record.process.external_findings`。lib の `judge_accept.py:2770`・`:2776`）は、`role` が `external-standards` の doc の `reply.findings` から取る（diagnose の設計書の決め）。
 - `rankings` は今どの役の材料にも入っていない（graphloops の `writes` の `process.external_rankings` を工場は写したが、`_diagnose_ctx` は読まない）。新しい形も `reply` に残し、報告の行（1.5 の `report_lines`）だけが読む。
 
 ## 2 node の設計シート: external-standards（外部標準照合の役）
