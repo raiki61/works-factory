@@ -1439,6 +1439,15 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
     requests = part("依頼の字", lambda: request_texts(ports_, record), [], outcome=False)
     notices = [head_notice("test_cmd_note", line) for line in str(values.get("notices") or "").splitlines() if line.strip()]
     head_at = _head_at(returns)
+    # 返りの dict の中で part を呼ぶと、problems・notes を写した後に訳が積まれて落ちる。part は全部ここで呼び終えてから詰める
+    no_fix_ = part("直す物が無い周", lambda: no_fix(returns), False)
+    stopped = part("止まった訳", lambda: stopped_why(returns, stops, _list(as_dict(values.get("ask_final")).get("reasons"))), [], outcome=False)
+    apply_ = part("封じと置き", lambda: apply_of(returns, gates),
+                  {"sealed": False, "placed": False, "redesign": "", "said": "", "pr": None, "commits": []})
+    stop_lines_ = part("止めたかの行", lambda: stop_lines(returns, gates, stops), {"before": [], "after": []}, outcome=False)
+    outcome_parts_ = part("模型の結末の句", lambda: outcome_parts(returns, gates, fixed.get("eyes_due") if fixed else None, head_at),
+                          {"gate": "", "eyes": "", "data": ""}, outcome=False)
+    line_rev = part("メイングラフの版", lambda: _line_rev(record), "", outcome=False)
     return {
         "start_ok": bool(record) and not record_why,
         "problems": [str(p) for p in problems],
@@ -1450,24 +1459,20 @@ def build(values: dict, record: dict | None, record_why: str = "", cwd=None) -> 
         "cut": cut,
         "optional": optional_of(values),
         "returned": [rid for rid, name in RETURNED if isinstance(values.get(name), dict)],
-        "no_fix": part("直す物が無い周", lambda: no_fix(returns), False),
+        "no_fix": no_fix_,
         "left": left,
         "proved": proved(returns),
-        "head": {"before": before, "stopped": part("止まった訳", lambda: stopped_why(returns, stops, _list(as_dict(values.get("ask_final")).get("reasons"))),
-                                                   [], outcome=False),
-                 "after": after, "notices": notices},
+        "head": {"before": before, "stopped": stopped, "after": after, "notices": notices},
         "asks": asks,
         "tallied": tallied,
         "counted_left": counted_left,
         "decisions": dec,
-        "apply": part("封じと置き", lambda: apply_of(returns, gates),
-                      {"sealed": False, "placed": False, "redesign": "", "said": "", "pr": None, "commits": []}),
+        "apply": apply_,
         "carry": {"findings": findings, "prior": prior, "drafts": drafts, "constraints": constraints},
-        "stop_lines": part("止めたかの行", lambda: stop_lines(returns, gates, stops), {"before": [], "after": []}, outcome=False),
-        "outcome_parts": part("模型の結末の句", lambda: outcome_parts(returns, gates, fixed.get("eyes_due") if fixed else None, head_at),
-                              {"gate": "", "eyes": "", "data": ""}, outcome=False),
+        "stop_lines": stop_lines_,
+        "outcome_parts": outcome_parts_,
         "round": as_dict(returns.get("plan")).get("round") if isinstance(as_dict(returns.get("plan")).get("round"), int) else None,
-        "line_rev": part("メイングラフの版", lambda: _line_rev(record), "", outcome=False),
+        "line_rev": line_rev,
         "request_texts": requests,
     }
 
