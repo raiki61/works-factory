@@ -10,13 +10,8 @@
 """
 import pathlib
 import re
-import sys
-
-sys.dont_write_bytecode = True
 
 _CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
 
 CANON = _CORE / "writerules" / "common.md"
 EMPTY = "（空）"

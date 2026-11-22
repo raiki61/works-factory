@@ -14,6 +14,7 @@ import sys
 
 sys.dont_write_bytecode = True
 
+from src import rulebook  # noqa: E402  （決まりの正本のフォルダの名。変更の種類の見分けが読む）
 from src import board  # noqa: E402  （直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from leftovers import Unreadable, git_names  # noqa: E402
 from src import consult  # noqa: E402  （同じ block。範囲の相談の控え・置き場・答え）
@@ -23,7 +24,6 @@ import oneline  # noqa: E402
 import planbrief  # noqa: E402  （承認済みの修正案の項目ごとの brief の凍結・単位ごとの引き）
 import planmarks  # noqa: E402  （項目の範囲: allowed_paths と受け入れのテストのファイル。並べる項目の分け方）
 import planrange  # noqa: E402  （範囲の値 fix_scope・項目の glob と tests の id。行の文は下の scope_rows・tests_rows）
-import rulebook  # noqa: E402  （決まりの正本のフォルダの名。変更の種類の見分けが読む）
 
 PASSES = ("first", "ruled")   # 修正役の 1 回目と、裁定の後の 2 回目（印 continue=fix の会話の続き）
 HEAD_FILES = dict(zip(PASSES, (board.FIX_HEAD_FILE, board.RULED_HEAD_FILE), strict=True))   # 段 → 段の頭の木の控え

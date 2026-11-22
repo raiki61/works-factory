@@ -194,6 +194,7 @@ D1・D2 の後の違い（node）: 書き手の node のうち `tdd-close`・`pi
 | `lanekit.py` | `lanes.py` | 全部 |
 | `planscope.py` | `scope.py` | 全部 |
 | `unitrows.py` | `unitrows.py` | 全部 |
+| `rulebook.py` | `rulebook.py` | 全部（使い手が fix だけなので lib から移した。憲法の 4） |
 
 `src/` の新しいモジュール: `files.py`（place の名。1.4）・`runvals.py`（`values.json` の読み書き `write(place, ports)`・`read(place)`・`adopt(parent_place, place)`）・`intake.py`（port の読みと形ごとの必須）・`prompts.py`（AI の node の値と真偽を組む関数。2〜6 節の差し込み口の一覧と同じ名を返す。D1 から、書き手の分は `writer_slots`〔2.3〕で、型の block が組む指示の値は返さない）・`carry.py`（`carry.json` の書きと、`prior` から `prior/<k>/` に置く読み）・`finish.py`（出力の組み立て。今の `collect.py` の中身）・`report.py`（11 節）。
 
@@ -437,7 +438,7 @@ fix-ruled の 2 周目は、頭の 1 の後に 3（`<place>/fix-reply.json`）�
 
 ### 2.6 今の指示との差
 
-作り直しの時の、古い指示との差の記録。今の指示は workflows/fix の `commands/fix-rules/direct.md`（103 行）・`common.md`（73 行）・`brief.md`（46 行）と、lib の `fixrules.py`（`start_lines`・`RULINGS_LINE`・`fix_parts`・`resume`・`overflow_queued`）・`lib/fixboard.py`（`RULED_REPLY_LINE`・`FACES_HEAD`・`TESTS_HOW_HEAD`・`plan_faces_text`・`tests_how_text`）・`lib/planbrief.py`（`head_text`）・`lib/planrange.py`（`SCOPE_HEAD`・`TESTS_HEAD`・`OOS_MINE`・`scope_text`・`tests_text`）・`lib/libdocs.py`（`section`）・`lib/seat.py`（`section`・`g1_section` と `G1_*`・`DIVERGENCE_HINT`）・`lib/rolekit.py`（`REJECT_LINE`・`LANG_RULE`）・`lib/rulebook.py`（`HEADER` の行）に割れている。
+作り直しの時の、古い指示との差の記録。今の指示は workflows/fix の `commands/fix-rules/direct.md`（103 行）・`common.md`（73 行）・`brief.md`（46 行）と、lib の `fixrules.py`（`start_lines`・`RULINGS_LINE`・`fix_parts`・`resume`・`overflow_queued`）・`lib/fixboard.py`（`RULED_REPLY_LINE`・`FACES_HEAD`・`TESTS_HOW_HEAD`・`plan_faces_text`・`tests_how_text`）・`lib/planbrief.py`（`head_text`）・`lib/planrange.py`（`SCOPE_HEAD`・`TESTS_HEAD`・`OOS_MINE`・`scope_text`・`tests_text`）・`lib/libdocs.py`（`section`）・`lib/seat.py`（`section`・`g1_section` と `G1_*`・`DIVERGENCE_HINT`）・`lib/rolekit.py`（`REJECT_LINE`・`LANG_RULE`）・当時の lib の `rulebook`（`HEADER` の行）に割れている。
 
 - 移した: Python の定数に在った決まった文（上の全部の見出しと頭の文、`G1_STEPS`・`G1_OVERRIDES`・`DIVERGENCE_HINT`、`RULED_REPLY_LINE`・`RULINGS_LINE`、`resume`・`overflow_queued` の本文）を md へ。Python に残るのは材料の行（brief の行・穴の行・範囲の行・テストの行・ライブラリの行・項目ごとの下請けの行）と値。
 - まとめた: 却下の 1 行（今の `REJECT_LINE`。役に却下のファイルを Read させていた）を `{shared:rejected}` の 1 か所に。却下の理由は今と同じ控えから全部（古い順）を値で入れる。
