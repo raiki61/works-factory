@@ -68,10 +68,10 @@ def refusal(repo: Path) -> str:
 
 def commit(repo: Path, message: str, exclude: str, hook_env: Mapping[str, str] | None = None) -> tuple:
     """refusal が空の木でだけ呼ぶ（呼び手が訳を返すため、ここでは照らし直さない）"""
-    if not staged(repo, exclude):
-        return False, git(repo, "rev-parse", "HEAD")
-    _commit(repo, message, hook_env)
-    return True, git(repo, "rev-parse", "HEAD")
+    changed = bool(staged(repo, exclude))
+    if changed:
+        _commit(repo, message, hook_env)
+    return changed, git(repo, "rev-parse", "HEAD")
 
 
 def staged(repo: Path, exclude: str) -> list:
@@ -115,7 +115,7 @@ def default_branch(repo: Path, remote: str) -> str:
     for line in git(repo, "ls-remote", "--symref", remote, "HEAD").splitlines():
         ref, _, name = line.partition("\t")
         if name == "HEAD" and ref.startswith("ref: " + HEADS):
-            return ref[len("ref: " + HEADS):]
+            return ref.removeprefix("ref: " + HEADS)
     raise GitFailed(f"{remote} の HEAD が枝を指していない（git ls-remote --symref {remote} HEAD）")
 
 

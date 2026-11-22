@@ -79,8 +79,8 @@ def plan_stuck_reason(judgment) -> str:
     if not stuck:
         return ""
     names = slots(judgment)
-    items = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
-    return f"{PLAN_STUCK}: {items}。{STUCK_WHY}"
+    stuck_text = "・".join(f"no {names.index(k) + 1}（{k}）" if k in names else f"no の一覧に無い単位（{k}）" for k in stuck)
+    return f"{PLAN_STUCK}: {stuck_text}。{STUCK_WHY}"
 
 
 def held_why(judgment) -> str:

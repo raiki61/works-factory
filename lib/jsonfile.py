@@ -1,6 +1,6 @@
 """JSON のファイルの読み書きの口。前は lib の多くのモジュールが同じ中身の写しを持っていた。振る舞いが同じ写しだけをここに寄せ、
-振る舞いの違う読み書き（無い時は既定の値で壊れた時は拒む fixboard.read_json・judge_accept.read_json・rolekit・factchecks、
-型も見る tddloop.load_json、詰めて書く impact）は持ち主のモジュールに名で残す。返答の足し欄の控えの読み書きと、欄の道を辿って外す口
+振る舞いの違う読み書き（無い時は既定の値で壊れた時は拒む fixboard.read_json・rolekit と、block の src へ移った同じ形の読み、
+詰めて書く impact）は持ち主のモジュールに名で残す。返答の足し欄の控えの読み書きと、欄の道を辿って外す口
 （前の marks。integration.md 4.3-追加-2）もここに置く。控えのファイルの名と欄の道は使い手が自分の定数で持つ。
 
 - read_or(path, default=None): JSON の値。無い・読めない・JSON でない時は default（拒まない）

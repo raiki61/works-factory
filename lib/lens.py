@@ -106,7 +106,7 @@ def summary(b, review_file=None) -> dict:
         return {**out, "adopted": 0, "not_adopted": 0, "unmatched": 0}
     try:
         review = None if review_file is None else json.loads(pathlib.Path(review_file).read_text(encoding="utf-8"))
-    except (OSError, ValueError, KeyError) as e:
+    except (OSError, ValueError) as e:
         return {**out, "ran": True, "readable": False, "reason": f"差分の審査の出力が読めない: {e}"}
     faces = [f for f in (review.get("faces") or []) if isinstance(f, dict)] if isinstance(review, dict) else None
     ran = [r for r in rows if r["state"] == "ran"]

@@ -216,10 +216,11 @@ def detect(repo, files) -> dict:
             if rel != name:           # 根の宣言だけを読む（deps も根の物だけ）
                 unreadable.append({"path": rel, "reason": "根でない依存の宣言は読まない"})
             else:
+                lang = "js" if name == "package.json" else "python"
                 for d in deps.values():
-                    if d["manifest"] == name and d["name"] not in own["js" if name == "package.json" else "python"]:
+                    if d["manifest"] == name and d["name"] not in own[lang]:
                         counts["manifest"] += 1
-                        add(d["name"], "js" if name == "package.json" else "python", rel, dist=d["name"], via="manifest")
+                        add(d["name"], lang, rel, dist=d["name"], via="manifest")
             continue
         if suffix in PY_SUFFIXES:
             imports = impact.py_imports(text)
@@ -242,12 +243,13 @@ def detect(repo, files) -> dict:
         uses = libdocs_local.js_uses(text)
         for spec in dict.fromkeys(m.group(1) for m in JS_IMPORT.finditer(text)):
             counts["imports"] += 1
-            if spec.startswith((".", "/", "~/", "@/")) or libdocs_local.js_package(spec) in own["js"]:
+            pkg = libdocs_local.js_package(spec)
+            if spec.startswith((".", "/", "~/", "@/")) or pkg in own["js"]:
                 counts["local"] += 1
             elif spec.startswith("node:") or spec.split("/")[0] in NODE_BUILTINS:
                 counts["stdlib"] += 1
             else:
-                add(libdocs_local.js_package(spec), "js", rel, uses=uses.get(libdocs_local.js_package(spec), ()))
+                add(pkg, "js", rel, uses=uses.get(pkg, ()))
     return {"libs": libs, "counts": counts, "unreadable": unreadable}
 
 

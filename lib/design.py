@@ -28,16 +28,16 @@
   means_drifts の行の引用の誤り（計画 means-answers）
 - quote_gaps(board_dir, schema, faces, rows, design_map=None, kept=()): 2 つの頭の穴の引用と、項目の答えの design_map の誤りの行（設計が立たなければ空）。
                  design_map の行の形は converge.DESIGN_MAP_SCHEMA、案→設計で要る行は _wanted から kept を除いた物。coverage_gaps は独立設計の要素の網羅
-                 （呼び手が全部の項目の答えの design_ref を合わせて当てる。planblk.coverage_gaps）
+                 （呼び手が全部の項目の答えの design_ref を合わせて当てる。plan-review の take.coverage_gaps）
 - wanted_lines(rows, kept=())・kept_keys(before, rows): design_map に案→設計の行が 1 行ずつ要る鍵（_wanted から kept を除いた物。受け付けが照らすのと
-                 同じ集合）を、指示書に貼る行 {item, path, symbol} の JSON にした並び（planblk.map_items_section が貼る）と、前の往復の行 before にも
-                 在った鍵（2 往復目からの審査は変わっていない鍵の行を書き直さない。呼び手 planblk が kept に渡す）
+                 同じ集合）を、指示書に貼る行 {item, path, symbol} の JSON にした並び（plan-review の material.map_items_section が貼る）と、前の往復の行 before にも
+                 在った鍵（2 往復目からの審査は変わっていない鍵の行を書き直さない。呼び手 plan-review の material が kept に渡す）
 - rebound(rows, design_map): 対応表の写しで、要る鍵に無い案→設計の行のうち (path, symbol) が要る鍵のちょうど 1 つと同じ行を、その鍵の
-                 項目の番号に結び直し、結び直せない余りの行を落とした物（受け付けが照らしと refs と網羅の数えの前に当てる。planblk.bound_map）
-- element_gaps(reply)・element_lines(got): 立つ設計の elements（{id, adds, removes}）の空と id の重なりの誤り（boardview.check_design が呼ぶ）と、
-                 要素を 1 行ずつ描く文（planblk.design_only が貼る）
+                 項目の番号に結び直し、結び直せない余りの行を落とした物（受け付けが照らしと refs と網羅の数えの前に当てる。plan-review の take.bound_map）
+- element_gaps(reply)・element_lines(got): 立つ設計の elements（{id, adds, removes}）の空と id の重なりの誤り（independent-design の steps.check_design が呼ぶ）と、
+                 要素を 1 行ずつ描く文（plan-review の material.design_only が貼る）
 - BODY_OPEN・BODY_CLOSE・QUOTE_FROM・QUOTE_FROM_ELEMENTS・QUOTE_NONE: 役の材料で独立設計の本文を挟む印と、design_quote の引き元と
-                 対が無い時の句（planblk.DESIGN_ASK と design_map の拒みの行が同じ句を読む。拒みの行は、本文に無い字が要素の一覧の行か
+                 対が無い時の句（plan-review の md の部品 design-ask と design_map の拒みの行が同じ句を読む。拒みの行は、本文に無い字が要素の一覧の行か
                  案の行に在れば、どちらを貼ったかを言う）
 """
 import json
@@ -107,7 +107,7 @@ CLAIM_WORDS = {"human_answer": ("人の答え", "承認ノード"), "repo_map": 
 # （graph の reads が縛る）
 PREMISE_KINDS = ("human_answer", "named_section", "repo_map")
 # 対象のリポジトリの地図として根から読む名（関所の決め: 根の 2 つだけ。docs/ の下や README は読まない）。中身は分類せず丸ごと貼る。
-# AGENTS.md は blk-fix の fixrules.PROMPT_NAMES（役の指示書として読む名）とも重なる（core から blk-fix へは依らないので別に置く）
+# AGENTS.md は fix の block の rules.PROMPT_NAMES（役の指示書として読む名）とも重なる（lib から block へは依らないので別に置く）
 MAP_NAMES = ("ARCHITECTURE.md", "AGENTS.md")
 MAP_FILE_HEAD = "#### {name}:1-{total}"
 NAMED_BODY_HEAD = "#### {name}（{src}）"
@@ -218,7 +218,9 @@ def head_file(repo, path) -> str:
 def _marks(line) -> tuple:
     """(記号 1 文字, 並びの長さ, 並びの後の残り)。行頭の空白 3 つまでを除いた後が英数字でも空白でもない同じ文字の連なりで
     なければ ("", 0, "")"""
-    s = line[len(line) - len(line.lstrip(" ")):] if len(line) - len(line.lstrip(" ")) <= 3 else ""
+    s = line.lstrip(" ")
+    if len(line) - len(s) > 3:
+        s = ""
     if not s or s[0].isalnum() or s[0].isspace():
         return "", 0, ""
     n = len(s) - len(s.lstrip(s[0]))
@@ -495,7 +497,7 @@ def anchor_note(text) -> str:
 
 
 # design_quote の引き元（受け付けが照らすのは独立設計の本文 design だけ。要素の一覧の行は機械が本文の後ろに描いた別の字）
-BODY_OPEN, BODY_CLOSE = "=====独立設計ここから=====", "=====独立設計ここまで====="   # 役の材料で独立設計の本文を挟む印（planblk.design_only）
+BODY_OPEN, BODY_CLOSE = "=====独立設計ここから=====", "=====独立設計ここまで====="   # 役の材料で独立設計の本文を挟む印（plan-review の material.design_only）
 QUOTE_FROM = f"独立設計の本文（{BODY_OPEN} と {BODY_CLOSE} の間）の文を字のまま引け"
 QUOTE_FROM_ELEMENTS = "本文の後ろの要素の一覧の行（`D1: 足す: …／消す: …`）の字"
 QUOTE_NONE = "対が無ければ null"
@@ -505,7 +507,7 @@ ELEMENTS_HEAD = "### 独立設計の要素（design_map の design_ref が指す
 def element_gaps(reply) -> list:
     """立つ設計の返答 reply（question_stands が真）の elements の誤りの行: 空・id の重なり（立たない返答は空。id の形 ^D[0-9]+$ と
     adds・removes の型は役の型が先に照らす）。design_ref の実在（_map_gaps）と設計→案の網羅（coverage_gaps）は要素の一覧が
-    要るので、立つ設計は必ず要素を持つ。design.json を書くのは boardview.check_design だけで、そこが呼ぶ"""
+    要るので、立つ設計は必ず要素を持つ。design.json を書くのは independent-design の steps.check_design だけで、そこが呼ぶ"""
     if not (isinstance(reply, dict) and reply.get("question_stands") is True):
         return []
     elements = reply.get("elements")
@@ -520,7 +522,7 @@ def element_gaps(reply) -> list:
 
 def element_lines(got) -> str:
     """立つ設計の返答 got の要素を 1 行ずつ描いた文（`- D1: 足す: …／消す: …`。先頭に ELEMENTS_HEAD）。要素が無ければ空
-    （planblk.design_only が独立設計の本文の後に貼る。審査役が id で指せる）"""
+    （plan-review の material.design_only が独立設計の本文の後に貼る。審査役が id で指せる）"""
     rows = [e for e in (got or {}).get("elements") or [] if isinstance(e, dict) and isinstance(e.get("id"), str)]
     if not rows:
         return ""
@@ -636,7 +638,7 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
     ids = set(element_ids(elements))
     every = _wanted(rows)
     wanted = [k for k in every if k not in kept]
-    count = {}
+    counts = {}
     out = []
     for e in entries:
         key = (e.get("item"), e.get("path"), e.get("symbol"))
@@ -646,13 +648,13 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
             elif not isinstance(_ref_of(e), str):
                 out.append("design_map の設計→案の行（item・path・symbol が null）には design_ref が要る（案に対の無い要素の id）")
             else:
-                count[("design", _ref_of(e))] = count.get(("design", _ref_of(e)), 0) + 1
+                counts[("design", _ref_of(e))] = counts.get(("design", _ref_of(e)), 0) + 1
             continue
-        count[key] = count.get(key, 0) + 1
+        counts[key] = counts.get(key, 0) + 1
     out += [f"design_map に{_label(*k)}の行が無い（files の add・remove の symbol と op が create・delete・rename の行ごとにちょうど 1 行）"
-            for k in wanted if not count.get(k)]
-    out += [f"design_map に{_label(*k)}の行が {count[k]} 行ある（ちょうど 1 行）" for k in every if count.get(k, 0) > 1]
-    out += [f"design_map の設計→案の行の design_ref {k[1]} が {n} 行ある（1 行にまとめよ）" for k, n in count.items()
+            for k in wanted if not counts.get(k)]
+    out += [f"design_map に{_label(*k)}の行が {counts[k]} 行ある（ちょうど 1 行）" for k in every if counts.get(k, 0) > 1]
+    out += [f"design_map の設計→案の行の design_ref {k[1]} が {n} 行ある（1 行にまとめよ）" for k, n in counts.items()
             if k[0] == "design" and n > 1]
     for e in entries:
         ref = _ref_of(e)

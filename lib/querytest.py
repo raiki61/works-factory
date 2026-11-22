@@ -17,7 +17,6 @@
 - closure_rows(b): 今の周の閉鎖の表の行（save_closure が置いた表。読めなければ空）
 - closure_lines(rows, *, mismatched_only, stuck_only, claimed): 表の行から最後の関所と報告に並べる閉鎖の数え直しの行
 """
-import json
 import pathlib
 import sys
 import tempfile
@@ -100,7 +99,7 @@ def run_examples(how, lines) -> tuple:
 def judge_hits(units, replaced=None):
     """食い違いの申し出の確かめ（conflict.problems）の try_query: which_is_right: query の申し出の correct_lines に、判定者の
     class_query の how を run_examples で当てる（どれかに当たれば空。問いの無い単位は見ない）。修正役の受け付けと TDD の輪が使う。
-    裁定 replace_query が置き換えた単位（replaced。conflict.replaced_queries）は、閉鎖の数え直し（unitrows.build）と同じく
+    裁定 replace_query が置き換えた単位（replaced。conflict.replaced_queries）は、閉鎖の数え直し（fix の unitrows.build）と同じく
     置き換えた問いを当てる"""
     hows = {u.get("key"): u["class_query"].get("how") for u in units
             if isinstance(u, dict) and isinstance(u.get("class_query"), dict)}
@@ -220,22 +219,14 @@ def save_closure(b, rows: list) -> pathlib.Path:
     名指したが修正で変わっていない当たりのファイルのパス（覆いに数えない）、out_of_query は当たりの外の
     site のパス、bound は site を当たりのファイルに結べたか。結べなければ covered は機械が数えた覆い（ファイルごとの数が引ければ単位の files で覆った当たりの件数、引けなければ修正で変わったファイルを path が指す site の件数））。（受けた返答の分で上書きする。読む側は今の周の表だけを読む）。
     置き場は盤面の今の scope の根（b.scope_root。修正のブロックの include ごとに分かれ、2 回目の修正の段が 1 回目の表を上書きしない）"""
-    p = pathlib.Path(b.scope_root) / CLOSURE_FILE
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps({"round": b.round, "rows": rows}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    tmp.replace(p)
-    return p
+    return jsonfile.write(pathlib.Path(b.scope_root) / CLOSURE_FILE, {"round": b.round, "rows": rows}, parents=True)
 
 
 def closure_rows(b) -> list:
     """今の周の閉鎖の表の行（表が無い・読めない・前の周の物なら空）。表は save_closure が置いた b.scope_root の物（元
     works/.shared/core/querytest.py:239 は盤面の根と登録した scope の根の表から今の周の最後の物を読んだ。置き場は include ごとに
     分かれるので、渡された置き場の 1 つだけを読む）"""
-    try:
-        doc = json.loads((pathlib.Path(b.scope_root) / CLOSURE_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+    doc = jsonfile.read_or(pathlib.Path(b.scope_root) / CLOSURE_FILE)
     if not isinstance(doc, dict) or doc.get("round") != getattr(b, "round", None):
         return []
     return [r for r in doc.get("rows") or [] if isinstance(r, dict)]

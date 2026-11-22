@@ -1,4 +1,4 @@
-"""作業ツリーの書き込みの出どころの突き合わせ（書く役の受け付け: blk-fix の fix-accept・tdd-step、blk-refix の手直しの受け付け）。
+"""作業ツリーの書き込みの出どころの突き合わせ（書く役の受け付け: fix の block の受け付けと TDD の段、delta-review の手直しの受け付け）。
 
 隔離した設定の PostToolUse:Edit|Write|NotebookEdit のフック（bin/_lib/record-write.py）が、書いた後の中身の sha を
 作業の場ごとの writes.jsonl（writelog.log_path）に 1 行ずつ残す。ここは版からの変更を、その記録と役の申告
@@ -70,7 +70,7 @@ def shape_problems(items) -> list:
 
 def _rel(p: str):
     n = posixpath.normpath(p.strip())
-    return None if n.startswith("/") or n == ".." or n.startswith("../") else n
+    return None if n == ".." or n.startswith(("/", "../")) else n
 
 
 def changed(repo, rev: str) -> list:

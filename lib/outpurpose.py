@@ -164,16 +164,15 @@ def _carried(board_dir) -> list:
     doc = _read(board_dir)
     seen, out = set(), []
     last = max(doc["rounds"], key=lambda k: int(k) if str(k).isdigit() else 0, default=None)
-    for rnd in [] if last is None else [last]:
-        for r in doc["rounds"][rnd] or []:
-            if not isinstance(r, dict):
-                continue
-            for m in r.get("found") or []:
-                ok = isinstance(m, dict) and isinstance(m.get("where"), str) and isinstance(m.get("text"), str)
-                key = (m["where"], m["text"]) if ok else None
-                if key is not None and key not in seen:
-                    seen.add(key)
-                    out.append((r, m))
+    for r in (doc["rounds"][last] if last is not None else None) or []:
+        if not isinstance(r, dict):
+            continue
+        for m in r.get("found") or []:
+            ok = isinstance(m, dict) and isinstance(m.get("where"), str) and isinstance(m.get("text"), str)
+            key = (m["where"], m["text"]) if ok else None
+            if key is not None and key not in seen:
+                seen.add(key)
+                out.append((r, m))
     return out
 
 

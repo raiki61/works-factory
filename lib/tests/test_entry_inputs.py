@@ -1,4 +1,4 @@
-"""線 A の入口の入力（.shared/core/entry.py の check_inputs・build_input と board.diff_of）の検査。
+"""線 A の入口の入力（lib/entryshape.py の diff_of と named）の検査。
 
 どの入口（依頼のファイル・base の版・PR）も 1 つの入力の形（差分の根・差分・依頼の行・PR の添え物）に揃える。差分の根は
 base と HEAD の merge-base（GitHub の PR の three-dot と同じ）、名指しが無ければ HEAD。差分が空で依頼の行も空なら拒む

@@ -345,7 +345,7 @@ class TestStart(LoopCase):
         """TDD が振り分ける義務は受け付けと同じ conflict.fix_duty の owed。渡された open_units（is_open）に無くても、関所で答えて
         直す義務に戻った単位は載り、外れた単位は載らない"""
         back = "stats.py returned: 関所で答えて直す義務に戻った単位"
-        with mock.patch.object(tdd.fixboard, "fix_duty", return_value=({MEAN, back}, {CLAMP: "答え待ちの問い q1"})) as duty:
+        with mock.patch.object(tdd.board, "fix_duty", return_value=({MEAN, back}, {CLAMP: "答え待ちの問い q1"})) as duty:
             got = tdd.start(self.board, self.repo, str(self.suite), OPEN, owed={MEAN, CLAMP, back},
                                 withheld_by={CLAMP: "q1"})
         self.assertEqual(duty.call_args.args, (self.board, {MEAN, CLAMP, back}), "直す義務の値は呼び手が渡す（元は盤面）")
@@ -3696,7 +3696,7 @@ class TestRedGreen(FixGatesCase):
             self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", MEAN_ID)])
             self.assertTrue(rows[0]["detail"].startswith("base で "), rows[0]["detail"])
             self.assertIn("error で落ちた", rows[0]["detail"])
-            self.assertNotIn(gates.tddloop.NOT_RAN, rows[0]["detail"], "言い足しは輪の呼び手だけで、事後の関門の行には入らない")
+            self.assertNotIn(gates.tdd.NOT_RAN, rows[0]["detail"], "言い足しは輪の呼び手だけで、事後の関門の行には入らない")
 
     def test_base_row_carries_loop_red_check_text(self):
         """base の木の行の detail は『base で 』と、輪と同じ red_check が同じ JUnit の行に返す事実の文で出来ている（NOT_RAN を含まない）"""
@@ -3708,10 +3708,10 @@ class TestRedGreen(FixGatesCase):
         rows = self.problems()
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", MEAN_ID)])
         row = {"classname": "test_stats.TestStats", "name": "test_mean_of_two", "outcome": "error", "fail_message": "", "fail_text": ""}
-        probs, _ = gates.tddloop.red_check([MEAN_ID], [row], None, None)
+        probs, _ = gates.tdd.red_check([MEAN_ID], [row], None, None)
         self.assertEqual(rows[0]["detail"], "base で " + "；".join(probs))
         self.assertIn("error で落ちた", rows[0]["detail"])
-        self.assertNotIn(gates.tddloop.NOT_RAN, rows[0]["detail"])
+        self.assertNotIn(gates.tdd.NOT_RAN, rows[0]["detail"])
 
     def test_runner_inside_repo_runs_its_base_copy(self):
         """実行器が対象のリポジトリの中に在れば、base の木では worktree の中の base の版を走らせる"""
@@ -3809,13 +3809,13 @@ class TestRedGreen(FixGatesCase):
         """base の木で実行器を走らせる所が落ちても、一時の worktree は消す"""
         self.ready_with_fields()
         self.add_test_that_passes_on_base("test_mean_of_two")
-        real = gates.tddloop.run_suite
+        real = gates.tdd.run_suite
 
         def broken(exe, repo, *a, **k):
             if pathlib.Path(repo).resolve() != self.repo.resolve():
                 raise RuntimeError("base の木で落ちた")
             return real(exe, repo, *a, **k)
-        with mock.patch.object(gates.tddloop, "run_suite", side_effect=broken):
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=broken):
             with self.assertRaises(RuntimeError):
                 self.problems()
         self.assertEqual(len(self.worktrees()), 1, self.worktrees())

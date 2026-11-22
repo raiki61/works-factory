@@ -1,8 +1,8 @@
-"""食い違いの申し出の種類の欄 kind（conflict.DIV_KINDS の 6 つ）と、which_is_right との対の確かめ（依頼 211）。
+"""食い違いの申し出の種類の欄 kind（conflict.DIV_KINDS の 7 つ）と、which_is_right との対の確かめ（依頼 211）。
 
 - kind は申し出の必須の欄（conflict.FIELDS の末尾）。語の外の値は拒み、文に種類の名を並べる
 - 対: kind query_hits_fixed ⇔ which_is_right query、kind needs_context なら which_is_right unknown。外れは両方の欄を名指して拒む
-- 語の定数 conflict.WORD（216 の seams.json の words と同じ綴り）・TDD の輪の申し出の見本と決まりの節が種類を全部言う
+- 語の定数 conflict.WORD（216 の seams.json の words と同じ綴り）
 - 控えの行と trace の行に kind が載り、種類の内訳（kind_counts）が数える。kind の無い前の形の行も読めて「無し」と出る
 - brief_vs_judgment は、その単位の brief の行（planbrief.by_unit_at の形）を between に名指す時だけ通す。brief の無い run・
   ほかの項目の brief だけの名指しは拒む。brief の控えが壊れていれば brief は無い側（通さない側）に倒す
@@ -32,11 +32,6 @@ if str(LIB) not in sys.path:
 
 import conflict  # noqa: E402
 import fixboard  # noqa: E402
-import rulebook  # noqa: E402
-
-# 決まりの文の本体の置き場（scripts が import の後にする置き替えと同じ。lib/ の字にパスを書かない）
-FR = LIB.parent / "workflows" / "fix" / "commands" / "fix-rules"
-rulebook.CANON = FR / "common.md"
 
 KEY = "stats.py clamp: 上限を超えた値に lo を返す"
 ITEM = {"unit_key": KEY, "between": ["stats.py:3", "test_stats.py:2"],

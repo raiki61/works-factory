@@ -59,9 +59,7 @@ Run = Callable[..., subprocess.CompletedProcess]
 def select(run_id: str, listing: object) -> tuple[list[dict], list[dict]]:
     """workflow runs --json の出力から、この run の作業ツリーを持つ子と、metadata が読めず作業ツリーを持つか分からない子を、
     （消す物, 理由つきで残す物）に分ける。一覧が読めなければ ValueError"""
-    runs = listing.get("runs") if isinstance(listing, dict) and listing.get("ok") is not False else None
-    if not isinstance(runs, list):
-        raise ValueError(f"workflow runs の出力に runs の一覧が無い: {_clip(json.dumps(listing, ensure_ascii=False))}")
+    runs = _listed(listing, "runs", "workflow runs")
     if not any(r.get("id") == run_id for r in runs):
         raise ValueError(f"一覧にこの run が無い（新しい順の {LIST_LIMIT} 件を越えた）")
     remove, left = [], []
@@ -102,9 +100,7 @@ def waits_on(node: str, states: Mapping[str, object]) -> list[str]:
 
 def unread(remove: list[dict], got: object) -> tuple[list[dict], list[dict]]:
     """workflow get --json --verbose の出力のノードの状態から、消す物を（消す物, 理由つきで残す物）に分け直す。読めなければ ValueError"""
-    nodes = got.get(NODES) if isinstance(got, dict) and got.get("ok") is not False else None
-    if not isinstance(nodes, list):
-        raise ValueError(f"workflow get の出力に {NODES} の一覧が無い: {_clip(json.dumps(got, ensure_ascii=False))}")
+    nodes = _listed(got, NODES, "workflow get")
     states = {n.get(NODE_ID): n.get(STATE) for n in nodes if isinstance(n, dict)}
     keep, left = [], []
     for found in remove:
@@ -205,6 +201,14 @@ def read_metadata(value: object) -> tuple[dict, str]:
 def run_metadata(value: object) -> dict:
     """run の行の metadata（JSON の字か object）を dict に読む。読めなければ空"""
     return read_metadata(value)[0]
+
+
+def _listed(doc: object, key: str, command: str) -> list:
+    """Archon の --json の出力 doc の key の一覧。ok が偽か一覧が無ければ ValueError"""
+    rows = doc.get(key) if isinstance(doc, dict) and doc.get("ok") is not False else None
+    if not isinstance(rows, list):
+        raise ValueError(f"{command} の出力に {key} の一覧が無い: {_clip(json.dumps(doc, ensure_ascii=False))}")
+    return rows
 
 
 def _clip(text: str) -> str:

@@ -67,7 +67,7 @@ def _item_rows(items) -> list:
     owner = {k: it["item"] for it in items for k in it.get("unit_keys") or [] if isinstance(k, str)}
     after: dict = {it["item"]: set() for it in items}
     for a, b in planmarks.depends_pairs(items):
-        if owner.get(a) is not None and owner.get(b) is not None and owner[a] != owner[b]:
+        if a in owner and b in owner and owner[a] != owner[b]:
             after[owner[b]].add(owner[a])
     return [{"item": it["item"], "unit_keys": [k for k in it.get("unit_keys") or [] if isinstance(k, str)],
              "approach": str(it.get("approach") or ""), "after": sorted(after[it["item"]])} for it in items]
@@ -99,7 +99,7 @@ def split(record, paths) -> tuple[list[Part], str]:
         for f in c["files"]:
             owners.setdefault(f, set()).update(of_unit.get(c["unit_key"]) or {None})
     unclaimed = [p for p in paths if not owners.get(p)]
-    shared = [p for p in paths if len(owners.get(p) or ()) > 1 or None in (owners.get(p) or ())]
+    shared = [p for p in paths if len(o := owners.get(p) or ()) > 1 or None in o]
     if unclaimed or shared:
         return [], "差分のパスを 1 つの項目に決められない（" + "／".join(
             [*([f"どの項目も申告していない: {_named(unclaimed)}"] if unclaimed else []),

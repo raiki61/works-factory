@@ -112,10 +112,7 @@ def read(board_dir, name: str = STATE_FILE) -> dict | None:
 
 def read_file(path) -> dict | None:
     """段の控えのファイル path（判定の外の読み手は判定の出力の欄 world_state のパス）。無い・読めない・形が違えば None"""
-    try:
-        doc = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        return None
+    doc = jsonfile.read_or(path)
     return doc if isinstance(doc, dict) and doc.get("status") in STATES else None
 
 
@@ -156,17 +153,22 @@ def _means_path(board_dir) -> pathlib.Path:
     return pathlib.Path(getattr(board_dir, "dir", board_dir)) / MEANS_FILE
 
 
+def _texts(xs) -> list:
+    """空でない字だけを残した並び"""
+    return [m for m in xs or [] if isinstance(m, str) and m.strip()]
+
+
 def split_means(reply) -> tuple:
     """（欄を外した返答の写し, 手段の並び。欄が無ければ []）。dict でない返答はそのまま"""
     if not isinstance(reply, dict):
         return reply, []
     out, got = jsonfile.split(reply, (), (MEANS,))
-    return out, [m for m in got.get(MEANS) or [] if isinstance(m, str) and m.strip()]
+    return out, _texts(got.get(MEANS))
 
 
 def write_means(board_dir, means) -> None:
     """手段の並びを盤面の根の控えに置く（空なら置かない）"""
-    got = [m for m in means or [] if isinstance(m, str) and m.strip()]
+    got = _texts(means)
     if got:
         jsonfile.dump(_means_path(board_dir), {MEANS: got})
 
@@ -184,7 +186,7 @@ def copy_means(src_file, board_dir) -> None:
 def means_of(board_dir, name: str | None = None) -> list:
     doc = jsonfile.read_or(pathlib.Path(board_dir) / name if name else _means_path(board_dir))
     got = doc.get(MEANS) if isinstance(doc, dict) else None
-    return [m for m in got if isinstance(m, str) and m.strip()] if isinstance(got, list) else []
+    return _texts(got) if isinstance(got, list) else []
 
 
 # ---------------------------------------------------------------- 文
@@ -213,7 +215,7 @@ def need(rows) -> planmarks.Need:
 
 def means_hints(means) -> dict:
     """{M<n>: 頼みの解き方の文}（n は並びの順の 1 始まり。空の文は数えない。split_means と同じ読み）"""
-    got = [m for m in means or [] if isinstance(m, str) and m.strip()]
+    got = _texts(means)
     return {f"{MEANS_KEY_HEAD}{n}": m for n, m in enumerate(got, 1)}
 
 

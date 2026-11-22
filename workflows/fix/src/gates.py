@@ -1,6 +1,6 @@
 """事後の関門の束（計画 220 Task 4。修正の受け付け fix-accept・fix-ruled-accept の最後の段）。
 
-TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。fixboard.base_rev）から今の作業ツリーまでを相手にもう 1 度当てる。
+TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。board.base_rev）から今の作業ツリーまでを相手にもう 1 度当てる。
 輪で direct に回った単位・輪の後の修正役が通した物も、ここで同じ決まりで見る。
 束が見つけた行は抜け（腕の中の流れが通したのに外側の関門で落ちた物）として帳面に積み、受け付けは行を全部並べて拒む。
 
@@ -14,7 +14,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   テストのファイルだけを写すと組み立てで落ちる正しい赤を拒むため（持ち主の直す前の関所の答え (3) A）。その名指しも base の木では
   今どおり走らせ、passed（直す前から通る）の時だけ拒む（仮の実装の名目で既存の実装を壊して作った偽の赤を拒む。error・一式の
   結末に居ないは仮の実装が無いだけなので拒まない）。赤の木を読めない時は base の木で見る。欄の無い run は
-  見ない。直す義務の単位（fixboard.owed_units_but_asked。値は呼び手が渡す）を 1 つも名指さない項目も見ない（最後の回に ask_human に止めて直しを
+  見ない。直す義務の単位（board.owed_units_but_asked。値は呼び手が渡す）を 1 つも名指さない項目も見ない（最後の回に ask_human に止めて直しを
   戻した単位のテストを、通し直しで抜けに数えない。見なかった項目と単位は skipped に OUT_OF_DUTY で残す）。行には項目の単位
   （unit_keys）を載せ、拒否の文にも書く（最後の回の受け付けが行を unit_key で単位に結んで止められる）。base の木は一時の git worktree（--detach。フックは切る）に作り、今の木で
   base から変わったテストのファイル（impact.is_test_file: 名指しのパスか名の慣習）と名指しのファイルだけを写して走らせる。今の木で走らせて出来た
@@ -31,7 +31,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
   （planmarks.GUARD_KIND）なら今の木で緑だけを求め、base の結末（base で何か）は帳面の guards に残す（base で緑でも抜けの行に
   しない。受けた回の trace が名指す）
 - test_edits: base から今の木で変わったテストのファイル（impact.is_test_file: 修正案の受け入れのテスト・書き換えの名指しのパスか名の慣習）のうち、base に在ったテストの関数
-  （tddloop.test_functions）の源が変わった・消えた物（common.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
+  （tdd.test_functions）の源が変わった・消えた物（common.unnamed_edits）。許すのはテストの変更の許し（conflict.test_permits）の
   行だけ: 承認済みの修正案の rewrite_tests の id（行の test）と、修正案の項目の files の change=remove の symbol（消す名。op=delete の path・op=rename の元のパス from の .py のモジュールの名も）を base の本体で名指す関数の id
   （行の test。消す仕組みを縛るテストは変えざるを得ない。関数の丸ごとの消しも許す）と、範囲の相談の合意・裁定 fix_test_scope の範囲
   （裁定は裁定の後の受け付けだけ）の中だけを変えた関数。案の直しの単位の行は見ない（前の輪が足したテストは base に無く、ここでは照らさない）。範囲の読みは輪の凍結の検査（common.frozen_problems）と同じ: 1 行の指しの .py はその行を
@@ -47,7 +47,7 @@ TDD の輪の中にだけ在った 2 つの関門を、base（修正前の版。
 束が同じ回に 2 度走っても、同じ行・同じ skipped は 1 度だけ積む（preflight F23）。積む物が無ければ書かない。
 飛ばした理由は拒まない（受け付けの回数を使わない）が、見えなくしない: 受け付けが受けた時に unchecked(…)（skipped から
 OUT_OF_DUTY を除いた物。義務の外の項目は確かめる物でなく、ほかの項目は確かめた）を置き場の trace の SKIPPED_OP の行に載せ
-（呼び手が fixboard.trace で書く）、報告と最後の人の関所の文が「確かめずに通した」回を数える。OUT_OF_DUTY は帳面にだけ残る。
+（呼び手が board.trace で書く）、報告と最後の人の関所の文が「確かめずに通した」回を数える。OUT_OF_DUTY は帳面にだけ残る。
 期限は持たない（実行器は baseline_red.run_suite が nice -n 19 の頭で tree_run.run で走らせる。元の枠は外れた）。
 """
 from __future__ import annotations
@@ -61,12 +61,12 @@ import shutil
 
 import cite  # noqa: E402  （lib/。名指しの形）
 import conflict  # noqa: E402  （lib/。修正案の欄の控え・テストの変更の許し）
-from src import board as fixboard  # noqa: E402  （同じ block の src。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
+from src import board  # noqa: E402  （同じ block の src。修正前の版 base_rev・直す義務 owed_units_but_asked（元 writes・conflict の盤面の読みを値で受ける形））
 import impact  # noqa: E402  （lib/。受け付けの置き場の trace の行の名・テストのファイルの見分け）
 import jsonfile  # noqa: E402
 import planmarks  # noqa: E402  （lib/。修正案の書き換えの名指し・テストの定義の行）
 import planrange  # noqa: E402  （lib/。範囲の相談の合意を項目の写しに重ねる with_agreed・パスを結ぶ項目 owner）
-from src import common, tdd as tddloop  # noqa: E402  （同じ block の src。輪の関門の読み口をそのまま使う）
+from src import common, tdd  # noqa: E402  （同じ block の src。輪の関門の読み口をそのまま使う）
 from leftovers import Unreadable, git  # noqa: E402
 
 LEDGER = "fix-gates.json"
@@ -92,19 +92,19 @@ def problems(board_dir, repo, base_rev: str, suite: str, attempt: int, *, pass_:
     """束の行 [{gate, id, detail, unit_keys（red_green は項目の単位・test_edits は空）}]（GATES の順）。行と飛ばした理由を
     帳面（LEDGER）に積む（飛ばした理由は skipped で読み直す）。置き場の欄の控えが凍結の印と食い違えば conflict.frozen_fields の
     ValueError（止めるのは呼び手。受け付けの入口が 2 にする）。
-    board_dir は fix の run の置き場（元の盤面の代わり）。修正前の版は fixboard.base_rev(state, base_rev)（state は run の状態の
-    dict。inputs.review_rev が先）。owed・withheld・returned は直す義務の値（fixboard.owed_units_but_asked。owed が None なら
+    board_dir は fix の run の置き場（元の盤面の代わり）。修正前の版は board.base_rev(state, base_rev)（state は run の状態の
+    dict。inputs.review_rev が先）。owed・withheld・returned は直す義務の値（board.owed_units_but_asked。owed が None なら
     凍結した欄の項目が名指す単位の全部）、round_ は凍結した欄の周"""
     b = pathlib.Path(board_dir)
     repo = pathlib.Path(repo)
-    rev = fixboard.base_rev(state, base_rev)
+    rev = board.base_rev(state, base_rev)
     fields = conflict.frozen_fields(b, round_)   # 先に読む（食い違いは ValueError。下の conflict.test_permits はもう投げない）
     tests, gaps = _accept_tests(b, fields, repo, owed=owed, withheld=withheld, returned=returned)
     rows, guards = [], []
     if tests and not suite:
         gaps.append(NO_SUITE)
     elif tests:
-        suite = str(tddloop.exe_path(repo, suite))   # 控えの鍵（exe_id）と worktree の中の写し（_inner_exe）を cwd でなく根に結ぶ
+        suite = str(tdd.exe_path(repo, suite))   # 控えの鍵（exe_id）と worktree の中の写し（_inner_exe）を cwd でなく根に結ぶ
         got, why, guards = _red_green(repo, rev, suite, tests, b / f"{RUN}-{pass_}-{attempt}", _base_cache(b),
                                       _red_units(b, repo))
         agreed = {t["id"] for t in tests if t.get("agreed")}
@@ -212,23 +212,23 @@ def _accept_tests(b, fields, repo=None, *, owed=None, withheld=(), returned=()) 
     tdd の項目の tests と、範囲の相談の合意で項目に入った新しいテスト（planrange.with_agreed。項目の route を問わない。戻せた組の
     子から写した合意も）のうち、直す義務の単位を名指す項目（unit_keys の無い項目も）の物。合意のテストは許しで義務でないので、今の木
     （repo）に定義が在る物だけ。
-    凍結した欄は番号（item）を付けて with_agreed に通して読む。直す義務は fixboard.owed_units_but_asked(b, owed, withheld=,
+    凍結した欄は番号（item）を付けて with_agreed に通して読む。直す義務は board.owed_units_but_asked(b, owed, withheld=,
     returned=)（owed が None なら欄の項目が名指す単位の全部から引く）。返した段で前の段の人に回した裁定から直しへ戻した単位の、裁定が
-    名指した試験（fixboard.stopped_tests）は、項目の義務の単位の全部で止めた物だけ見ない（理由は STOPPED_BY_RULING）"""
+    名指した試験（board.stopped_tests）は、項目の義務の単位の全部で止めた物だけ見ない（理由は STOPPED_BY_RULING）"""
     if owed is None:
         owed = {k for f in fields or [] if isinstance(f, dict) and isinstance(f.get("unit_keys"), list)
                 for k in f["unit_keys"] if isinstance(k, str)}
-    back = fixboard.returned_units(b) if fields else {}   # 直す義務と止める試験を 1 回の読みから引く
-    owed = fixboard.owed_units_but_asked(b, owed, withheld=withheld, returned=returned, back=back) if fields else set()
-    stops = fixboard.stopped_tests(b, back)
+    back = board.returned_units(b) if fields else {}   # 直す義務と止める試験を 1 回の読みから引く
+    owed = board.owed_units_but_asked(b, owed, withheld=withheld, returned=returned, back=back) if fields else set()
+    stops = board.stopped_tests(b, back)
     numbered = [{**f, "item": n} if isinstance(f, dict) else f for n, f in enumerate(fields or [], 1)]
     seen = planrange.with_agreed([f for f in numbered if isinstance(f, dict)], conflict.agreed(b)) if fields else []
     out, why = {}, []
     for n, f in enumerate(seen, 1):
         n = f.get("item") or n
-        tdd = f.get("route") == "tdd"
+        by_tdd = f.get("route") == "tdd"
         rows = [t for t in f.get("tests") or [] if isinstance(t, dict) and (
-            present(repo, t.get("id")) if t.get("agreed") else tdd)]
+            present(repo, t.get("id")) if t.get("agreed") else by_tdd)]
         if not rows:
             continue
         keys = [k for k in f.get("unit_keys") or [] if isinstance(k, str)] if isinstance(f.get("unit_keys"), list) else []
@@ -301,7 +301,7 @@ def _red_green(repo: pathlib.Path, rev: str, suite: str, tests: list, work: path
     ids = [t["id"] for t in tests]
     tree = common.snapshot(repo)
     try:
-        now, _, why = tddloop.run_suite(suite, repo, work, f"{RUN}-now", common.abs_ids(repo, ids))
+        now, _, why = tdd.run_suite(suite, repo, work, f"{RUN}-now", common.abs_ids(repo, ids))
     finally:
         common.restore_paths(repo, tree, common.touched(repo, tree, common.snapshot(repo)))   # 走らせて出来た物を消す
     if now is None:
@@ -386,7 +386,7 @@ def named_before(board_dir, repo: pathlib.Path, rev: str, suite: str, ids: list,
         return {}, []
     if not suite:
         return None, [NO_SUITE_WHY]
-    suite = str(tddloop.exe_path(repo, suite))
+    suite = str(tdd.exe_path(repo, suite))
     facts, gaps = named_facts(repo, rev, suite, ids, pathlib.Path(work), _base_cache(b), _red_units(b, repo), common.snapshot(repo))
     if facts is None:
         return None, gaps
@@ -466,7 +466,7 @@ def _base_run(repo: pathlib.Path, rev: str, suite: str, ids: list, copy: list, w
                 shutil.copyfile(src, dst)
             elif dst.is_file() or dst.is_symlink():
                 dst.unlink()
-        cases, _, why = tddloop.run_suite(_inner_exe(repo, wt, suite), wt, work, f"{RUN}-base", common.abs_ids(wt, ids))
+        cases, _, why = tdd.run_suite(_inner_exe(repo, wt, suite), wt, work, f"{RUN}-base", common.abs_ids(wt, ids))
         return cases, why
 
 
@@ -509,7 +509,7 @@ def _ruled_ids(repo, rev: str, files: list, limits: list) -> set:
             old = git(repo, "show", f"{rev}:{path}")
         except Unreadable:
             continue
-        ids = tddloop.test_functions(old, path)
+        ids = tdd.test_functions(old, path)
         if None in spans:
             out |= set(ids)
             continue

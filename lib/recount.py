@@ -14,7 +14,7 @@
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
 - ref_problems(reply, place, base_rev, repo): 修正が書いた指し（wrote_refs）と差分が足した Markdown のリンクの照らし（受け付けと
-  修正役の事前の確かめ factchecks.precheck が同じ口で回す）
+  修正役の事前の確かめ fix の facts.precheck が同じ口で回す）
 - 修正の返答を読む口（fix_reply・_fix_output）は、盤面を読んだ所を置き場のファイルのパスで受ける形にして lib/fixboard.py に置いた
 """
 import json
@@ -148,17 +148,17 @@ def _after_problems(reply: dict, place, base_rev: str, repo, red_units=None) -> 
     errs = []
     changes = [c for c in reply.get("changes") or [] if isinstance(c, dict)
                and (red_units is None or c.get("unit_key") in red_units)]
-    if changes and (reply.get("fix_closure") or {}).get("status") == "clean":
-        if not any(s.get("red_seen") for c in changes for s in (c.get("closure") or {}).get("sites") or []):
-            errs.append("閉鎖の実証で赤を一度も見ていないのに fix_closure=clean——found にして赤を見ていない site を書くか、"
-                        "退行を注入して赤を見てから出せ")
+    if (changes and (reply.get("fix_closure") or {}).get("status") == "clean"
+            and not any(s.get("red_seen") for c in changes for s in (c.get("closure") or {}).get("sites") or [])):
+        errs.append("閉鎖の実証で赤を一度も見ていないのに fix_closure=clean——found にして赤を見ていない site を書くか、"
+                    "退行を注入して赤を見てから出せ")
     return errs + ref_problems(reply, place, base_rev, repo)
 
 
 def ref_problems(reply: dict, place, base_rev: str, repo) -> list:
     """修正が新しく書いた指し（wrote_refs。cite._cite_errors で作業ツリーの指し先を数え直す。申告が空でも通す）と、差分が
     足した Markdown のリンク（md_link_errors。申告に依らず差分から拾う）の照らしの文。受け付け（_after_problems）と修正役の事前の
-    確かめ（factchecks.precheck）が同じ口で回す。置き場は読むだけ"""
+    確かめ（fix の facts.precheck）が同じ口で回す。置き場は読むだけ"""
     import accept
     errs = []
     with accept.in_repo(repo):
@@ -239,8 +239,8 @@ def md_link_errors(base, root) -> list:
         path = tgt.partition("#")[0]
         base_dir = rootp if path.startswith("/") else (rootp / rel).parent
         return _walk_as_written(base_dir, unquote(path.lstrip("/"))) if path else _walk_as_written(rootp, rel)
-    inside = {dest_of(r, g).relative_to(rootp).as_posix() for r, _, g, u in links
-              if not u and rootp in dest_of(r, g).parents}
+    inside = {d.relative_to(rootp).as_posix() for r, _, g, u in links
+              if not u and rootp in (d := dest_of(r, g)).parents}
     dirs = {x for x in inside if (rootp / x).is_dir()}
     with_files = {x for x in dirs if (git("ls-files", "--full-name", "--cached", "--others", "--exclude-standard", "--",
                                           f":(top,literal){x}") or "").strip()}
@@ -316,7 +316,7 @@ def recount_problems(reply: dict, place, base_rev: str, repo, *, judged=None, ow
         if why:
             errs.append(why)
             continue
-        cap = total if total else after   # 修正前が 0 件の問いは、修正で生まれた数まで site を書ける
+        cap = total or after   # 修正前が 0 件の問いは、修正で生まれた数まで site を書ける
         if closed > cap:
             errs.append(f"{head}: closure.sites が {closed} 件なのに、engine が how を修正前の版で数えた母数は {total}"
                         f"（修正前が 0 件なら修正後の {after}）——母数を超えて塞げない"
