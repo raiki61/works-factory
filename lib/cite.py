@@ -93,7 +93,7 @@ def file_problem(path, repo, roots=(), *, label=None) -> str:
     repo = pathlib.Path(repo).resolve()
     p = resolved(path, repo)
     allowed = [repo] + [pathlib.Path(r).resolve() for r in roots if r]
-    if not any(p == r or inside(p, r) for r in allowed) or inside(p, repo / ".git"):
+    if not any(inside(p, r) for r in allowed) or inside(p, repo / ".git"):
         return f"名指し {label!r} のパスが作業ツリー・依頼のファイル・共有ボードの外"
     if not p.is_file():
         return f"名指し {label!r} のファイルが無い"
