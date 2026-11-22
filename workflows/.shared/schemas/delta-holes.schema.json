@@ -2,7 +2,7 @@
  "type": "object",
  "properties": {
   "ties": {"type": "object", "patternProperties": {"^.+$": {"type": ["array", "string"],
-   "description": "穴の名札の並び（lib/holeties.py の tie の行）か、組めなかった訳の字",
+   "description": "穴の名札の並び（workflows/delta-review/src/holeties.py の tie の行）か、組めなかった訳の字",
    "items": {"type": "object", "properties": {
     "key": {"type": "string"},
     "from": {"type": "string", "description": "穴を出した役の名（.checks で終われば塞いだと言われた穴）"},

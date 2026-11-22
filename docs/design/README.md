@@ -475,7 +475,7 @@ form（入出力の値の形）は 4.1 の 6 つ: `text` は字、`json` は JSO
 - `design`（independent-design・r2・plan-review）・`eye` の時間の欄 `stamp`・`wall`・`WALL` だけ（structure・`structmark`。4.3-8・4.4-J）・`structmark`（structure・plan・plan-review・eyes・line・report）
 - `forge`（merge・parallel-pr・line）・`ghreads`（line・purpose）
 - `globs`（fix・plan・eyes・merge）・`protect`・`protected.json`（eyes・merge・line）・`seal`（merge・eyes・line・chain・`bin/`）・`listcut`（eyes・fix・merge・structure・`bin/`。`FILE_CAP`・`cap_bytes` もここ。4.3-6）
-- `groups`・`holeties`・`planrange`（fix・delta-review）・`itemcommits`（fix・merge・line。`declared_files` もここ。4.3-2）・`planbrief`（fix・plan）・`planmarks`（plan・plan-review・fix・eyes・line）・`recount`・`querytest`（diagnose・fix・delta-review・plan-review・line）
+- `groups`・`planrange`（fix・delta-review）・`itemcommits`（fix・merge・line。`declared_files` もここ。4.3-2）・`planbrief`（fix・plan）・`planmarks`（plan・plan-review・fix・eyes・line）・`recount`・`querytest`（diagnose・fix・delta-review・plan-review・line）
 - `handoff`（plan・report）・`outpurpose`（diagnose・line・report）・`policy`（fix・delta-review・plan・structure・r1・r3・r4・line。文は md へ。ファイルの名の字（例 `depth-head.json` の名の文字列そのもの）は、`judgebeside` の import を外してモジュールに直に書く。4.3-5）
 - `lens`（lens・delta-review）・`libdocs`・`libdocs_local`・`libdocs_web`（plan・plan-review・fix）・`webget`（world・libdocs の使い手）
 - `leftovers`（fix・delta-review・lens・`checkscope`・line〔封じる前に作業ツリーを返す前の木へ戻す `eyesback.restore_before_seal`〕。4.3-11・4.4-C）

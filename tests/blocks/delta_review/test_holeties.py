@@ -2,15 +2,11 @@
 
 holeties の純粋な関数（tie・groups・spread・earlier・lines）を見本の入力で、refix.hole_ties を偽の盤面（state・dir・work と
 output_of_round だけ。盤面を開かない）で直に呼ぶ（FAST。git・子のプロセスなし）"""
-import pathlib
-import sys
 import unittest
 
-LIB = pathlib.Path(__file__).resolve().parents[1]
-sys.dont_write_bytecode = True
-if str(LIB) not in sys.path:
-    sys.path.append(str(LIB))
-import holeties  # noqa: E402
+from tests.blocks import kit
+
+holeties = kit.load("delta-review", "holeties")
 
 U1 = "works/a.py+f: 一つ目"
 U2 = "works/b.py+g: 二つ目"

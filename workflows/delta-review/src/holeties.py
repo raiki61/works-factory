@@ -24,14 +24,9 @@
 """
 from __future__ import annotations
 
-import pathlib
-import sys
+import ports  # noqa: F401  （lib/ を sys.path に足す）
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
-
-import planrange  # noqa: E402
+import planrange  # lib/
 
 VIA = ("compliance", "check", "path", "change", "unit", "earlier")
 NOWHERE = "どの枝にも結べない"
