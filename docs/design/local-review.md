@@ -100,7 +100,7 @@ materials.md の 1.4 の名（`intake.json`・`view.json`・`diff.patch`・`chan
 
 - 判定のまとめ（`workflows/judge/`）: `include: works-factory-local-review`、`depends_on` は materials.md の 1.6。`with:` は `base`・`entry`・`lang` の共通の 3 つだけ（作り手は materials.md の 1.6）。
 - 読み手:
-  - diagnose の `materials`（11 本の `material` の配列の 1 つ）。素材 `local_review` は `materialkit.assemble` が 15 欄にそろえる。判定役の材料の「局所の findings」（今の `_diagnose_ctx` の `process.local_findings ← reply.findings`、lib の `judge_accept.py:2769-2773`）は、diagnose が同じ配列の `role == "local-review"` の `materialkit.read` の返りの `reply["findings"]` から取る（読み方は diagnose の設計書が決める）。
+  - diagnose の `materials`（10 本の `material` の配列の 1 つ）。素材 `local_review` は `materialkit.assemble` が 15 欄にそろえる。判定役の材料の「局所の findings」（今の `_diagnose_ctx` の `process.local_findings ← reply.findings`、lib の `judge_accept.py:2769-2773`）は、diagnose が同じ配列の `role == "local-review"` の `materialkit.read` の返りの `reply["findings"]` から取る（読み方は diagnose の設計書が決める）。
   - 報告の「未確認のレンズ」の節（今の `runreport._unseen_lens_lines` が `review_lenses` の先を `diverted.report_lines` で読んだ物）: この block の `report` の欄の、素材の 1 行の後ろの行。report.md の 1.6 は「未確認のレンズ → local-review」とする。修正の後のレンズの行（今の `fixbeside.lens_lines`）を同じ節に並べるかは、block をつないで run 全体を回すメイングラフ line（`works-factory-line`）が決める。
 - 判定の出力の欄 `review_lenses`（今の line の YAML の `:190`・`:801`）は、組み込みで要らなくなる（読み手は報告だけで、行で届くため）。
 
