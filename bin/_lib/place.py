@@ -58,11 +58,12 @@ FORGE_ENTRY = "packages/adapters/src/forge/github/plugin.ts"
 Fetch = Callable[[str, str, Path], None]
 Install = Callable[[Path], None]
 Build = Callable[[Path, Path], None]
+NAME = "works-factory"   # 殻の名（取り置きの置き場の名・殻の言づての頭・認証の呼び名）。launcher と runstop が同じ字を持たない
 
 
 def cache_dir(env: Mapping[str, str]) -> Path:
     """取り置きの置き場 ${XDG_CACHE_HOME:-$HOME/.cache}/works-factory"""
-    return Path(env.get("XDG_CACHE_HOME") or Path(env["HOME"]) / ".cache") / "works-factory"
+    return Path(env.get("XDG_CACHE_HOME") or Path(env["HOME"]) / ".cache") / NAME
 
 
 def archon_folder(cache: Path, commit: str) -> Path:

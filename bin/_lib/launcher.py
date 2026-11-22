@@ -22,7 +22,7 @@ from lib import answer, launchgroups, reads, userenv, writelog
 
 ROOT = Path(__file__).resolve().parents[2]
 LIB = ROOT / "bin" / "_lib"
-NAME = "works-factory"
+NAME = place.NAME
 # 止めた Archon がグラフを走らせる命令（packages/cli/src/cli.ts の executesWorkflow の run と、run を続ける命令
 # packages/cli/src/dispatch-guards.ts の CONTINUE_SUBCOMMANDS と、その前で捌く続きの命令。tests/shared/test_archon_contract.py が照らす）
 RESUMING = frozenset({"resume", "approve", "reject", "respond", "answer"})
