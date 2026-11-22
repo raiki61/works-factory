@@ -68,7 +68,7 @@ import changemap
 SCHEMA = "works-impact/1"
 ACCEPT_TRACE_OP = "fix_tests_selected"   # 修正の受け付けが選んだ試験を走らせた盤面の trace の行（書くのは fix の block、読むのは最後の関所）
 ACCEPT_GATES_SKIPPED_OP = "fix_gates_skipped"   # 修正の受け付けの事後の関門の束が赤緑を確かめずに受けた回の盤面の trace の行（書くのは fix の block、読むのは報告）
-ACCEPT_OVERFLOW_OP = "fix_overflow_settled"   # 修正の受け付けが範囲の外のはみ出しを相談で認めた・機械が戻した回の盤面の trace の行（書くのは fix の block の受け付け。読み手はまだ無い）
+ACCEPT_OVERFLOW_OP = "fix_overflow_settled"   # 修正の受け付けが範囲の外のはみ出しを相談で認めた・機械が戻した回の盤面の trace の行（書くのは fix の block の受け付け、読むのは line の報告の段）
 
 
 class OverflowRow(typing.NamedTuple):
