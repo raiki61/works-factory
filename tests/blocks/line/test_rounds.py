@@ -17,7 +17,7 @@ rounds = kit.load(BLOCK, "rounds")
 files = kit.load(BLOCK, "files")
 import converge  # noqa: E402
 import judgmark  # noqa: E402
-from lib.tests.test_plan_item_shape import missing_required, undeclared  # noqa: E402
+from tests.bin.itemshape import dropped_row, missing_required, undeclared  # noqa: E402
 from tests.blocks.line.test_tiers import handed  # noqa: E402
 
 U1, U2 = "u1", "u2"
@@ -206,6 +206,7 @@ class ItemStateShapeCase(unittest.TestCase):
                 state = build(plan, [], {}, [], set())[0]
                 self.assertEqual(missing_required(converge.ItemState, state), set())
                 self.assertEqual(undeclared(converge.ItemState, state), set())
+                self.assertEqual(dropped_row(plan, [state]), [])
 
 
 if __name__ == "__main__":

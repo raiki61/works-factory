@@ -325,14 +325,14 @@ class _PlanItemAlways(TypedDict):
     id: str
     unit_keys: list[str]
     hash: str
+    row: dict[str, Any]
 
 
 class PlanItem(_PlanItemAlways, total=False):
     """控えの plan の行（plan_rows が作り、控えの json にそのまま書く dict。形の正本は plan-converge.schema.json の plan）。
-    型は読み手への注記で、実行時の値は dict のまま。常に在る鍵（id・unit_keys・hash）は上の型に、在れば置く鍵（row・PLAN_MARKS の鍵）は
+    型は読み手への注記で、実行時の値は dict のまま。常に在る鍵（id・unit_keys・hash・row）は上の型に、在れば置く鍵（PLAN_MARKS の鍵）は
     ここに置く（`from __future__ import annotations` の下では typing.Required が効かないので、必須は継ぎ元の型で分ける）。
     照らしの鍵の組は `__required_keys__` から取る（lib/tests/test_plan_item_shape.py）"""
-    row: dict[str, Any]
     marks: list[Any]
 
 
