@@ -122,15 +122,8 @@ def _brief(test_cmd: str, root: pathlib.Path) -> str:
 
 
 def fence(text: str) -> str:
-    return "`" * max(3, _longest_tick_run(text) + 1)
-
-
-def _longest_tick_run(text: str) -> int:
-    longest = run = 0
-    for ch in text:
-        run = run + 1 if ch == "`" else 0
-        longest = max(longest, run)
-    return longest
+    """text を囲む Markdown のコードの柵（text の中の一番長い ` の並びより 1 つ長く、3 つ以上）"""
+    return "`" * max(3, max((len(m) for m in re.findall("`+", text)), default=0) + 1)
 
 
 def place(start_file, folder, reply) -> dict:
