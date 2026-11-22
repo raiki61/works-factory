@@ -155,20 +155,26 @@ def _is_pointer(value) -> bool:
 
 def located(raw: str) -> Path | None:
     """raw がこの run の pointer かファイルのパスなら、そのパス。値そのものなら None。形を照らさない在りかの読み"""
+    return _locate(raw)[0]
+
+
+def _locate(raw: str) -> tuple[Path | None, object]:
+    """(located の答え, raw が値そのものならその値。パスなら None)。raw の JSON の読みは 1 度だけ"""
     try:
         value = _json.loads(raw)
     except ValueError:
         path = Path(raw.strip())
-        return path if path.is_absolute() else Path.cwd() / path
-    return _pointer_path(value) if _is_pointer(value) else None
+        return (path if path.is_absolute() else Path.cwd() / path), None
+    return (_pointer_path(value), None) if _is_pointer(value) else (None, value)
 
 
 def json(raw, schema: str):
     raw = text(raw)
     if not raw.strip():
         raise ValueError("json の入力が空（値そのもの・ファイルのパス・pointer のどれかを渡す）")
-    path = located(raw)
-    value = _json.loads(raw) if path is None else _read_json(path)
+    path, value = _locate(raw)
+    if path is not None:
+        value = _read_json(path)
     _check(value, schema)
     return value
 
