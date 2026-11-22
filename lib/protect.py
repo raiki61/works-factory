@@ -34,15 +34,15 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import accept  # noqa: E402
 import globs  # noqa: E402   glob の当て方の正本
 import listcut  # noqa: E402
 
-MANIFEST = _CORE / "protected.json"
+MANIFEST = _HERE / "protected.json"
 TARGET_FILE = ".works-protected.json"
 TARGET_ID = "target:"   # 宣言の行の id の頭（自分の一覧の id と混ざらない）
 TARGET_SELF = {"id": TARGET_ID + TARGET_FILE, "glob": TARGET_FILE,

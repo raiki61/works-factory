@@ -23,9 +23,9 @@ import sys
 
 sys.dont_write_bytecode = True   # 下の import が pack の中に __pycache__ を作らないように
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 import cite  # noqa: E402
 import jsonfile  # noqa: E402

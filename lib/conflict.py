@@ -83,12 +83,12 @@ import sys
 
 sys.dont_write_bytecode = True
 
-_CORE = pathlib.Path(__file__).resolve().parent
-if str(_CORE) not in sys.path:
-    sys.path.insert(0, str(_CORE))
+_HERE = pathlib.Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
-if str(_CORE / "graphloops") not in sys.path:   # 写しの engine（engine.util の Reject）
-    sys.path.insert(0, str(_CORE / "graphloops"))
+if str(_HERE / "graphloops") not in sys.path:   # 写しの engine（engine.util の Reject）
+    sys.path.insert(0, str(_HERE / "graphloops"))
 
 import cite  # noqa: E402
 import fixboard  # noqa: E402  （置き場の trace.jsonl への 1 行）
@@ -107,7 +107,7 @@ RULINGS_FILE = "conflict-rulings.md"    # 裁定の文（修正役が 2 回目�
 PARKED_REPLY = "fix-parked-reply.json"  # 申し出を返した回の修正役の返答（裁定の後の出し直しで読む）。同じく今の scope の周の置き場
 # 控えの行の形の住処は lib/conflicts.schema.json（欄の名・型・語）。欄の名と語はそこから引く（写しを持たない）
 SCHEMA_FILE = "conflicts.schema.json"
-ROW = json.loads((_CORE / SCHEMA_FILE).read_text(encoding="utf-8"))["properties"][ITEMS]["items"]
+ROW = json.loads((_HERE / SCHEMA_FILE).read_text(encoding="utf-8"))["properties"][ITEMS]["items"]
 UNIT_FIELD, _, WHY_FIELD, WHICH_FIELD, KIND_FIELD, CORRECT = ROW["properties"]
 # 申し出の種類の欄 KIND_FIELD（食い違いの起きた場面。which_is_right とは別の軸）・理由の欄 WHY_FIELD（なぜ両方は同時に成り立たないか）・
 # 正しいと見た側の欄 WHICH_FIELD（WHICH のどれか）・which_is_right: query の時だけ要る欄 CORRECT（直した後の正しい行の写し）
