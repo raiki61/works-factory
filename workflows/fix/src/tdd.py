@@ -296,7 +296,7 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     （src/route.step が回す。輪の状態は振り分けの後に注文の node orders が置く）。
     narrow・reuse・suite_made・test_cmd は元の結末の取り方（basecase.take）へ。narrow は related.applies の代わりに渡す"""
     from src import basecase
-    from src import route as router
+    from src import route
     if routes not in ROUTES:
         raise Broken(f"入力 routes は {'・'.join(ROUTES)} のどれか（{routes!r}）")
     keys = _open_units(open_units)
@@ -314,13 +314,13 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
             return {**head, "go": False, "reason": PLAN_NO_TDD}
     light = _light_units(unit_depths)
     if routes != "plan":   # 振り分けの状態 route.json を置く（輪の状態は注文の node orders が振り分けの後に作る。試験の助けは steps.loop_step）
-        state_file = router.open_route(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by,
+        state_file = route.open_route(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by,
                                        returned=returned, round_=round_, light=light)
         return {**head, "go": True, "state_file": state_file, "summary_file": ""}
     state_file = open_state(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by, returned=returned,
                             round_=round_, light=light)
     st = _load(state_file)
-    whys = router.plan_whys(board_dir, keys, round_)
+    whys = route.plan_whys(board_dir, keys, round_)
     routed = {k: "tdd" if (_contract(st, k) or {}).get("route") == "tdd" else "direct" for k in _owed(st)}
     assign(state_file, repo, routed, {k: whys.get(k) or (PLAN_DIRECT if _contract(st, k) else PLAN_NO_ROW) for k in routed})
     return {**head, "go": True, "state_file": state_file, "summary_file": str(pathlib.Path(state_file).parent / SUMMARY)}
