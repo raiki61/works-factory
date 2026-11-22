@@ -43,7 +43,7 @@ import tree_run  # noqa: E402
 
 childsweep = place.shared("childsweep")
 
-NAME = "works-factory"
+NAME = place.NAME
 OWNER_KEY = "execution_owner"   # packages/workflows/src/schemas/workflow-run.ts の readExecutionOwner が読む鍵
 RUNNING = "running"
 RUN_ENV = "WORKFLOW_ID"

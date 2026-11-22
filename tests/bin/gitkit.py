@@ -44,6 +44,14 @@ def known_files(repo) -> list[str]:
     return list(dict.fromkeys(p for p in out.split("\0") if p))
 
 
+def known_under(repo, folder, suffix="") -> list[pathlib.Path]:
+    """repo の下のフォルダ folder（repo からの相対）で git が知る（known_files）、作業木に在る suffix のファイルの絶対パス（名の順）。
+    git が無視する置き場（道具の控え・仮想環境）の物は含まない。試験が木の全部の .py などを読む時は rglob でなくこれを使う"""
+    prefix = f"{str(folder).rstrip('/')}/"
+    return sorted(p for p in (pathlib.Path(repo) / rel for rel in known_files(repo) if rel.startswith(prefix) and rel.endswith(suffix))
+                  if p.is_file())
+
+
 def commit_absent(repo, paths) -> str:
     """paths を中身の同じ 1 つの blob で index に足して commit し、作業ツリーには書かない。作業ツリーから見ると全部が消えた物で、
     何万本の消えたファイルの差分を、ファイルを書かずに作る（書いて消すと、遅いファイルシステムでは 1 万本ごとに数秒かかる）。返りは commit の版"""

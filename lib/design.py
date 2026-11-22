@@ -211,7 +211,7 @@ def head_file(repo, path) -> str:
     tail = [n for n in names if n.endswith(f"/{rel}")]
     if len(tail) == 1:
         return tail[0]
-    raise ValueError("固めた版にファイルが無い" if not tail else f"同じ末尾の追跡ファイルが {len(tail)} 本あって決められない")
+    raise ValueError(f"固めた版 HEAD に {rel} が無い" if not tail else f"同じ末尾の追跡ファイルが {len(tail)} 本あって決められない")
 
 
 def _marks(line) -> tuple:
@@ -320,7 +320,7 @@ def _section_lines(text, *, num="", anchor="", slugs=None, md_lines=None) -> tup
         if not hits:
             hits = [h for h in heads if want and want in h["title"].lower()]
     if not hits:
-        raise ValueError("見出しが無い")
+        raise ValueError(f"{f'番号 {num} の' if num else f'アンカー {anchor!r} の'}見出しが文書に無い")
     if len(hits) > 1:
         raise ValueError(f"当たる見出しが {len(hits)} 個あって決められない（行 {', '.join(str(h['line']) for h in hits)}）")
     hit = hits[0]
@@ -352,7 +352,7 @@ def _section(b, repo, target) -> tuple:
     got = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
                          capture_output=True, text=True, encoding="utf-8")
     if got.returncode != 0:
-        raise ValueError("固めた版にファイルが無い")
+        raise ValueError(f"固めた版 HEAD から {rel} を読めない（git show: {got.stderr.strip() or got.returncode}）")
     md = b.rules._md_lines if pathlib.PurePosixPath(rel).suffix.lower() in MD_SUFFIXES else None
     start, end = _section_lines(got.stdout, num=num, anchor=anchor, slugs=b.rules._md_slugs, md_lines=md)
     body = "\n".join(got.stdout.splitlines()[start - 1:end])
@@ -479,7 +479,7 @@ def anchor_misses(text, repo) -> list:
             got = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
             if got.returncode != 0:
-                raise ValueError("固めた版にファイルが無い")
+                raise ValueError(f"固めた版 HEAD から {rel} を読めない（git show: {got.stderr.strip() or got.returncode}）")
             n = len(got.stdout.splitlines())
             if not 1 <= start <= end <= n:
                 raise ValueError(f"行の範囲の外（ファイルは {n} 行）")

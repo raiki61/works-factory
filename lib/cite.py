@@ -339,6 +339,42 @@ CITE_LABELS = {"findings": {"what": "指摘の根拠", "target": False},
                "wrote_refs": {"what": "修正が書いた指し", "target": True}}
 
 
+def _verify_pending(jdir, nid, what, label, pend, root, errs, reads):
+    """指し先を持つ行のうち形が通った物 pend（(行の番号, kind, cite, 指し先, 書いた場所)）を、版に在るか・作業ツリーで引けるか・
+    読了の記録が在るか・字列が指し先に在るかで数え直し、errs と reads に足す"""
+    seen = _in_version(sorted({p for _, _, _, rel, wrel in pend for p in (rel, wrel)}))
+    if seen is None:
+        raise Reject(f"{nid}: {what}を数え直せない（git が動かない）——確かめられないものを合格にはしない")
+    cache = {}
+    for i, rk, cite_, rel, wrel in pend:
+        full = pathlib.Path(root) / rel
+        if rel not in seen or not full.is_file():
+            errs.append((i, f"{label}[{i}]: 指し先 '{rel}' は{_not_in_version(full)}"))
+            continue
+        wfull = pathlib.Path(root) / wrel
+        if wrel not in seen or not wfull.is_file():
+            errs.append((i, f"{label}[{i}]: 書いた場所 '{wrel}' は{_not_in_version(wfull)}"))
+            continue
+        data = None
+        if rk == "text":
+            if seen[rel] == "binary":
+                errs.append((i, f"{label}[{i}]: 指し先 '{rel}' はバイナリなので中を数えられない"
+                                "——字列で確かめられる指し先（テキスト）を指すか、ファイルそのものの指しなら kind を file にせよ"))
+                continue
+            data, why = read_capped(full, READ_CAP)
+            if data is None:
+                errs.append((i, f"{label}[{i}]: 指し先 '{rel}' は版には在るが、作業ツリーで数えられない（{why}）"
+                                "——消した・置き換えた指し先なら、書いた指しの方を直せ"))
+                continue
+        state, hwhy = hook_evidence(pathlib.Path(jdir), str(full), cache=cache, data=data)
+        reads.append({"kind": rk, "cite": cite_[:60] or None, "target": rel, "where": wrel,
+                      "self": wrel == rel, "state": state, "why": hwhy})
+        if rk == "text" and cite_.encode("utf-8") not in data:
+            hint = "（このファイルをこの run で読んだ記録が無い——記憶で書いていないか）" if state == "absent" else ""
+            errs.append((i, f"{label}[{i}]: '{cite_[:40]}' は指し先 '{rel}' の中に無い{hint}"
+                            "——文書に書いた指しを指し先に在る綴りへ直し、その字列で申告し直せ（申告だけ差し替えても文書の誤りは残る）"))
+
+
 def _cite_errors(jdir, nid, rows, rev, label):
     """元 rules:3471。申告された字列を、現物で数え直す ——（errs, reads）。盤面の b.dir（読了の記録の置き場）は置き場 jdir に読み替えた。
     findings（指し先を持たない）は版 rev 全体を数えて件数の申告（hits）と突き合わせ、wrote_refs（指し先を持つ）は作業ツリーの
@@ -403,37 +439,7 @@ def _cite_errors(jdir, nid, rows, rev, label):
             continue
         pend.append((i, rk, cite_, rel, wrel))
     if pend:
-        seen = _in_version(sorted({p for _, _, _, rel, wrel in pend for p in (rel, wrel)}))
-        if seen is None:
-            raise Reject(f"{nid}: {what}を数え直せない（git が動かない）——確かめられないものを合格にはしない")
-        cache = {}
-        for i, rk, cite_, rel, wrel in pend:
-            full = pathlib.Path(probed["root"]) / rel
-            if rel not in seen or not full.is_file():
-                errs.append((i, f"{label}[{i}]: 指し先 '{rel}' は{_not_in_version(full)}"))
-                continue
-            wfull = pathlib.Path(probed["root"]) / wrel
-            if wrel not in seen or not wfull.is_file():
-                errs.append((i, f"{label}[{i}]: 書いた場所 '{wrel}' は{_not_in_version(wfull)}"))
-                continue
-            data = None
-            if rk == "text":
-                if seen[rel] == "binary":
-                    errs.append((i, f"{label}[{i}]: 指し先 '{rel}' はバイナリなので中を数えられない"
-                                    "——字列で確かめられる指し先（テキスト）を指すか、ファイルそのものの指しなら kind を file にせよ"))
-                    continue
-                data, why = read_capped(full, READ_CAP)
-                if data is None:
-                    errs.append((i, f"{label}[{i}]: 指し先 '{rel}' は版には在るが、作業ツリーで数えられない（{why}）"
-                                    "——消した・置き換えた指し先なら、書いた指しの方を直せ"))
-                    continue
-            state, hwhy = hook_evidence(pathlib.Path(jdir), str(full), cache=cache, data=data)
-            reads.append({"kind": rk, "cite": cite_[:60] or None, "target": rel, "where": wrel,
-                          "self": wrel == rel, "state": state, "why": hwhy})
-            if rk == "text" and cite_.encode("utf-8") not in data:
-                hint = "（このファイルをこの run で読んだ記録が無い——記憶で書いていないか）" if state == "absent" else ""
-                errs.append((i, f"{label}[{i}]: '{cite_[:40]}' は指し先 '{rel}' の中に無い{hint}"
-                                "——文書に書いた指しを指し先に在る綴りへ直し、その字列で申告し直せ（申告だけ差し替えても文書の誤りは残る）"))
+        _verify_pending(jdir, nid, what, label, pend, probed["root"], errs, reads)
     return [m for _, m in sorted(errs, key=lambda e: e[0])], reads
 
 

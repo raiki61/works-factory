@@ -147,8 +147,13 @@ def render_part_names(text: str) -> set[str]:
             and RENDER_PART_NAME.fullmatch(call.args[0].value)}
 
 
+def files_under(folder: pathlib.Path, *parts: str, suffix: str) -> list[pathlib.Path]:
+    """block のフォルダの下の、git が知る（無視されない）suffix のファイル（柵の読み口 scan._files を通す。pack は柵の根の直下に在る）"""
+    return [p for p in scan._files(folder.parent.parent, folder.parent.name, folder.name, *parts) if p.suffix == suffix]
+
+
 def py_files(folder: pathlib.Path) -> list[pathlib.Path]:
-    return sorted(p for sub in ("scripts", "src") for p in (folder / sub).rglob("*.py") if "__pycache__" not in p.parts)
+    return sorted(p for sub in ("scripts", "src") for p in files_under(folder, sub, suffix=".py"))
 
 
 # ---------------------------------------------------------------- 7.1 の 9 つ（pack のフォルダを受け、問題の行を返す）
@@ -184,7 +189,7 @@ def check_prompt_files(pack: pathlib.Path) -> list[str]:
         mds = {p.stem for p in prompts.glob("*.md")} if prompts.is_dir() else set()
         out += [f"{folder.name}: AI の node {i} の prompts/{i}.md が無い" for i in sorted(ids - mds)]
         out += [f"{folder.name}: prompts/{m}.md はどの AI の node の物でもない" for m in sorted(mds - ids - {f"{i}.system" for i in ids})]
-        texts = [p.read_text(encoding="utf-8") for p in prompts.rglob("*.md")] if prompts.is_dir() else []
+        texts = [p.read_text(encoding="utf-8") for p in files_under(folder, "prompts", suffix=".md")]
         refs = {m.groups() for text in texts for m in FRAGMENT.finditer(text)}
         parts = {p.stem for p in (prompts / "parts").glob("*.md")} if (prompts / "parts").is_dir() else set()
         called = {name for path in py_files(folder) for name in render_part_names(path.read_text(encoding="utf-8"))}
@@ -439,7 +444,7 @@ def check_module_names(pack: pathlib.Path, lib: pathlib.Path = LIB) -> list[str]
     for folder in folders(pack):
         if (folder / "src").is_dir() and not (folder / "src" / "__init__.py").is_file():
             out.append(f"{folder.name}: src/ に __init__.py が無い（src は package）")
-        scripts = {p.stem for p in (folder / "scripts").rglob("*.py")} if (folder / "scripts").is_dir() else set()
+        scripts = {p.stem for p in files_under(folder, "scripts", suffix=".py")}
         clash = sorted(scripts & (lib_names | shared | {"src"}))
         if clash:
             out.append(f"{folder.name}: scripts/ の名 {clash} が lib/・{SHARED}/ のモジュールか src と重なる")
@@ -604,6 +609,13 @@ def here_document_in(text: str) -> bool:
     return bool(HERE_WORDS.search(text) or HERE_SHAPES.search(text))
 
 
+def here_document_offenders(pack: pathlib.Path) -> list[str]:
+    """pack の下の指示の md（prompts/ の中。sandbox-shell.md を除く）のうち、here-document・here-string を書き方に挙げる物（pack からのパス）"""
+    return [str(path.relative_to(pack)) for path in scan._files(pack.parent, pack.name)
+            if path.suffix == ".md" and "prompts" in path.relative_to(pack).parts and path != pack / SHARED / "prompts" / "sandbox-shell.md"
+            and here_document_in(path.read_text(encoding="utf-8"))]
+
+
 class RealTreeCase(unittest.TestCase):
     def test_blocks_hold_every_shape(self):
         for check in CHECKS:
@@ -623,12 +635,7 @@ class RealTreeCase(unittest.TestCase):
                            ("a here-string", True), ("where documents", False), ("where strings", False), ("a << b", False)):
             with self.subTest(sample=text):
                 self.assertEqual(here_document_in(text), want)
-        offenders = []
-        for path in sorted(BLOCKS.rglob("*.md")):
-            if ("prompts" in path.relative_to(BLOCKS).parts and path != SANDBOX_SHELL
-                    and here_document_in(path.read_text(encoding="utf-8"))):
-                offenders.append(str(path.relative_to(BLOCKS)))
-        self.assertEqual(offenders, [], "指示の md が here-document・here-string を書き方に挙げている")
+        self.assertEqual(here_document_offenders(BLOCKS), [], "指示の md が here-document・here-string を書き方に挙げている")
 
     def test_uv_script_heads(self):
         for folder in folders(BLOCKS):
@@ -911,6 +918,32 @@ class SeedCase(unittest.TestCase):
         """AI の node（role）を持つ demo に node を足した変更"""
         demo = yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"])
         return {"demo/works-factory-demo.yaml": yaml.safe_dump({**demo, "nodes": [*demo["nodes"], *extra]})}
+
+    def test_git_ignored_files_are_not_read(self):
+        """git が無視する置き場（道具の控え .ruff_cache/ など）は工場の物でなく、block の形の柵も E5 の照らしも読まない（scan の `_files` を通る）。
+        block の下の無視される prompts/・scripts/・src/ の字（指示の md の here-document・差し込み口・ARTIFACTS_DIR・名の重なり〔scripts/ の src.py〕・
+        INPUTS_ の読み・pointer の札の手組み）が赤にも緑にも効かない。無視されない未追跡の物は今までどおり照らす"""
+        ignored = {"workflows/demo/prompts/.ruff_cache/x.md": "{shared:absent}\ncat <<'EOF'\n",
+                   "workflows/demo/src/.ruff_cache/y.py": "ARTIFACTS_DIR = 1\nPATH = 'blocks/other'\nINPUTS_UNREAD = 1\n"
+                                                       "POINTER = {\"type\": \"archon_artifact\"}\n",
+                   "workflows/demo/scripts/.ruff_cache/src.py": "INPUTS_UNREAD = 1\n"}   # src.py は scripts/ の名が src と重なる形
+        files = {f"workflows/{k}": v for k, v in self.GOOD.items() if k.startswith(("demo/", "other/"))}
+        files["workflows/.shared/prompts/rejected.md"] = "rejected\n"
+        files["workflows/demo/works-factory-demo.yaml"] = yaml.safe_dump({
+            **yaml.safe_load(self.GOOD["demo/works-factory-demo.yaml"]), "inputs": {"unread": {"description": "text: x"}}})
+        with tree({**files, **ignored, ".gitignore": ".ruff_cache/\n"}, git_init=True) as root:
+            pack = root / "workflows"
+            for check in (check_prompt_files, check_no_run_root_or_other_folders):
+                with self.subTest(check=check.__name__):
+                    self.assertEqual(check(pack), [])
+            (root / "lib").mkdir()
+            self.assertEqual(check_module_names(pack, root / "lib"), [])
+            self.assertEqual(here_document_offenders(pack), [])
+            self.assertEqual([line for line in scan.problems("E5", root) if "入力 unread" in line or "pointer" in line],
+                             ["workflows/demo/works-factory-demo.yaml:3: 入力 unread に読み手が無い（YAML の $INPUTS.unread も、"
+                              "scripts/・src/ の INPUTS_UNREAD も無い）"])
+            (root / "workflows/demo/prompts/stray.md").write_text("cat <<'EOF'\n", encoding="utf-8")   # 無視されない未追跡の物は照らす
+            self.assertEqual(here_document_offenders(pack), ["demo/prompts/stray.md"])
 
     def test_ai_block_includes_only_leaf_blocks(self):
         """7.1 の 6（憲法の 3 の外し）: AI の node を持つ block が include してよいのは葉の block（include: も外を指す workflow: も持たず、

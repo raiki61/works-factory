@@ -17,7 +17,6 @@ LIB = pathlib.Path(__file__).resolve().parents[1]
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
-import changemap  # noqa: E402
 import impact  # noqa: E402
 from tests.bin.gitkit import committed_copy, git  # noqa: E402
 

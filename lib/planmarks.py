@@ -728,6 +728,41 @@ def _added_test_gaps(plan: list) -> list[str]:
     return out
 
 
+def _route_gaps(i: int, it: dict) -> list[str]:
+    """項目 it（plan[i]）の route の訳の行: tdd は受け入れのテストを 1 本以上、direct と tdd でない route は選んだ訳 route_why を MIN_WHY 字以上"""
+    out = []
+    route, tests = it.get("route"), it.get("tests")
+    if route == "tdd" and isinstance(tests, list) and not tests:
+        out.append(f"plan[{i}].tests: route が tdd の項目は受け入れのテストを 1 本以上書く"
+                   "（先に書けないなら route を direct にし、route_why に理由を書く）")
+    why = it.get("route_why")
+    if route == "direct" and not (isinstance(why, str) and len(why.strip()) >= MIN_WHY):
+        out.append(f"plan[{i}].route_why: route が direct の項目は、テストを先に書かない理由を {MIN_WHY} 字以上で書く")
+    elif route in ROUTES and route not in ("tdd", "direct") and not (isinstance(why, str) and len(why.strip()) >= MIN_WHY):
+        out.append(f"plan[{i}].route_why: route が {route} の項目は、その語を選んだ訳を {MIN_WHY} 字以上で書く")
+    return out
+
+
+def _rewrite_gaps(plan: list, repo: pathlib.Path, new_ids: dict) -> list[str]:
+    """rewrite_tests の行の誤り: パスの形・作業ツリーに在るテストの定義として引けない・新しく足すテスト（new_ids: id → 書いた場所）との重なり"""
+    out = []
+    for i, it in enumerate(plan):
+        for j, row in enumerate(_rows(it, "rewrite_tests") if isinstance(it, dict) else []):
+            tid = _id_of(row)
+            if tid is None:
+                continue
+            if "\\" in tid:
+                out.append(f"plan[{i}].rewrite_tests[{j}].id（{tid}）: {_path_problem(repo, tid)}")
+                continue
+            if find_test(repo, tid) is None:
+                out.append(f"plan[{i}].rewrite_tests[{j}].id（{tid}）: 作業ツリーの根の中に在るテストの定義として引けない"
+                           "（<パス>::<クラス>::<名前> か <パス>::<名前>。パスは根からの相対）")
+            if tid in new_ids:
+                out.append(f"plan[{i}].rewrite_tests[{j}].id（{tid}）: 同じ id を {new_ids[tid]} にも書いた"
+                           "（新しく足すテストか書き換える既存のテストのどちらか 1 つにせよ）")
+    return out
+
+
 def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
     """修正案の返答の works の欄の欠けと誤りの行と、files の行の誤り（symbols の name がパスの形か行の path の拡張子で終わる・
     同じ (path, name, change) の重なり・considered の path の誤り（_considered_gaps。対象の根の名は repo の根を 1 度だけ引く）・
@@ -754,15 +789,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
         for k in KEYS:
             if k in it:
                 out += validate_schema(it[k], FIELD_SCHEMA[k], f"plan[{i}].{k}")
-        route, tests = it.get("route"), it.get("tests")
-        if route == "tdd" and isinstance(tests, list) and not tests:
-            out.append(f"plan[{i}].tests: route が tdd の項目は受け入れのテストを 1 本以上書く"
-                       "（先に書けないなら route を direct にし、route_why に理由を書く）")
-        why = it.get("route_why")
-        if route == "direct" and not (isinstance(why, str) and len(why.strip()) >= MIN_WHY):
-            out.append(f"plan[{i}].route_why: route が direct の項目は、テストを先に書かない理由を {MIN_WHY} 字以上で書く")
-        elif route in ROUTES and route not in ("tdd", "direct") and not (isinstance(why, str) and len(why.strip()) >= MIN_WHY):
-            out.append(f"plan[{i}].route_why: route が {route} の項目は、その語を選んだ訳を {MIN_WHY} 字以上で書く")
+        out += _route_gaps(i, it)
         for j, row in enumerate(_rows(it, "tests")):
             tid = _id_of(row)
             bad = _path_problem(repo, tid) if tid else None
@@ -797,20 +824,7 @@ def gaps(reply: dict, repo: pathlib.Path, *, exists=None) -> list[str]:
                 out.append(f"plan[{i}].refactor.why: declared が true なら、整えの理由を {MIN_WHY} 字以上で書く")
     out += _scope_overlaps(plan)
     out += _added_test_gaps(plan)
-    for i, it in enumerate(plan):
-        for j, row in enumerate(_rows(it, "rewrite_tests") if isinstance(it, dict) else []):
-            tid = _id_of(row)
-            if tid is None:
-                continue
-            if "\\" in tid:
-                out.append(f"plan[{i}].rewrite_tests[{j}].id（{tid}）: {_path_problem(repo, tid)}")
-                continue
-            if find_test(repo, tid) is None:
-                out.append(f"plan[{i}].rewrite_tests[{j}].id（{tid}）: 作業ツリーの根の中に在るテストの定義として引けない"
-                           "（<パス>::<クラス>::<名前> か <パス>::<名前>。パスは根からの相対）")
-            if tid in new_ids:
-                out.append(f"plan[{i}].rewrite_tests[{j}].id（{tid}）: 同じ id を {new_ids[tid]} にも書いた"
-                           "（新しく足すテストか書き換える既存のテストのどちらか 1 つにせよ）")
+    out += _rewrite_gaps(plan, repo, new_ids)
     return out
 
 

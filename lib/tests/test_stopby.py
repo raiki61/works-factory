@@ -14,6 +14,7 @@ sys.dont_write_bytecode = True
 if str(LIB) not in sys.path:
     sys.path.append(str(LIB))
 
+from tests.bin import gitkit  # noqa: E402
 from tests.blocks.kit import BLOCKS as WORKFLOWS  # noqa: E402  （pack のフォルダ。入れ替えの前も後も同じ口）
 
 SKIP = ("graphloops/",)
@@ -30,7 +31,7 @@ def stopby():
 
 def pack_py():
     """lib（試験と写しの外）の .py と、pack の block の src・scripts の .py（組み込みで止めの語の declare は block へ移った）"""
-    for p in sorted(LIB.rglob("*.py")):
+    for p in gitkit.known_under(ROOT, "lib", ".py"):
         rel = p.relative_to(LIB).as_posix()
         if rel.split("/")[0] in ("dev", "tests", "docs") or rel.startswith(SKIP):
             continue

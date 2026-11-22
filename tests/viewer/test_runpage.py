@@ -120,6 +120,14 @@ class EntryCase(unittest.TestCase):
         outputs = [e["output"] for o in data["objs"].values() for e in o["events"] if e.get("output")]
         self.assertIn(TRICKY, outputs)
 
+    def test_the_root_node_is_named_by_the_folder(self):
+        """根のノードの名は run の graph の名（works-factory-line）でなく、引いたフォルダの名（line）"""
+        done = self._entry()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        data = json.loads(DATA.search(done.stdout)[1])
+        names = [o.get("name") for o in data["objs"].values() if o.get("kind") == "root"]
+        self.assertEqual(names, ["line"], list(data["objs"].values())[:2])
+
 
 if __name__ == "__main__":
     unittest.main()
