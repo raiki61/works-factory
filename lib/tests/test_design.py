@@ -4,6 +4,7 @@ lib/tests/test_blk_eyes.py の 6 本（独立の目のブロックの試験の�
 - anchors: パス:行（範囲も）を名指しに拾い、host:port・URL・時刻・コードでない拡張子のドット付きの名は拾わない
 - anchor_note: 名指しの無い文に UNANCHORED の札
 - claims_given: 貼った設計書の節には、文がそのパスか節番号を含む時だけ当てる。地図の文は貼った地図に当てる
+- means_drift_gaps（MeansDriftQuoteCase。元の 6 本の後に足した 4 本）: 事前審査の means_drifts の引用は独立設計の文と案の行に字のまま要る
 """
 import pathlib
 import sys
