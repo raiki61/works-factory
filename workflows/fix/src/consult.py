@@ -110,6 +110,11 @@ def _now() -> str:
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def _listed(xs) -> str:
+    """文に載せる名の並び（「・」でつなぐ。空か無ければ「（無し）」）"""
+    return "・".join(xs) if xs else "（無し）"
+
+
 def _norm(p: str) -> str:
     return posixpath.normpath(str(p).strip())
 
@@ -327,7 +332,6 @@ def judge(answer, paths: list, tests: list, new_tests=(), open_ended: bool = Fal
 def asks_text(items: dict, asks: list) -> str:
     """答えの役の指示の差し込み口 {asks} の材料: 頼みごとの節（ASK_TEXT・ASK_GATE_TEXT）の並び。決まった文は md
     （prompts/parts/consult.md）が持つ"""
-    show = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
     parts = []
     for a in asks:
         it = items.get(a["item"]) or {}
@@ -337,14 +341,14 @@ def asks_text(items: dict, asks: list) -> str:
             if hits is None else hits
         why = "\n".join("  " + line for line in a["why"].splitlines())
         if a.get("origin") == ORIGIN_GATE:
-            text = ASK_GATE_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
-                                        allowed=show(it.get("allowed_paths") or []), oos=show(oos),
+            text = ASK_GATE_TEXT.format(n=a["n"], item=a["item"], units=_listed(it.get("unit_keys") or []),
+                                        allowed=_listed(it.get("allowed_paths") or []), oos=_listed(oos),
                                         oos_hits=_hits_text(hits, a["item"]), why=why)
             parts.append(text.rstrip("\n") + "\n")
             continue
-        parts.append(ASK_TEXT.format(n=a["n"], item=a["item"], units=show(it.get("unit_keys") or []),
-                                     allowed=show(it.get("allowed_paths") or []), oos=show(oos),
-                                     paths=show(a["paths"]), tests=show(a["tests"]), new_tests=show(a.get("new_tests") or []),
+        parts.append(ASK_TEXT.format(n=a["n"], item=a["item"], units=_listed(it.get("unit_keys") or []),
+                                     allowed=_listed(it.get("allowed_paths") or []), oos=_listed(oos),
+                                     paths=_listed(a["paths"]), tests=_listed(a["tests"]), new_tests=_listed(a.get("new_tests") or []),
                                      oos_hits=_hits_text(hits, a["item"]), why=why, summary=_summary_text(a)))
     return "\n".join(parts).rstrip("\n")
 
@@ -362,10 +366,9 @@ def _summary_text(a: dict) -> str:
 def history_text(b) -> str:
     """答えの役の指示の差し込み口 {history} の材料: 置き場 b の trace の範囲の相談の行（写した組の子の行も。古い順）を 1 行ずつ。
     答えの役は新しい会話なので、同じ run の前の相談と答えはここからだけ知る（#833）。行が無ければ空"""
-    show = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
     lines = []
     for r in conflict.plan_asks(b, carried=True):
-        asked = f"パス {show(r.get('paths') or [])}・テスト {show(r.get('tests') or [])}・新しいテスト {show(r.get('new_tests') or [])}"
+        asked = f"パス {_listed(r.get('paths') or [])}・テスト {_listed(r.get('tests') or [])}・新しいテスト {_listed(r.get('new_tests') or [])}"
         if r.get("status") == ANSWERED:
             got = f"{r.get('decision')}（理由: {r.get('reason') or ''}" + (f"・仕様の足し: {r['spec']}" if r.get("spec") else "") + "）"
         else:
@@ -521,7 +524,6 @@ def answer_text(turn: int, rows: list) -> str:
     accept = any(r.get("origin") == ORIGIN_ACCEPT for r in rows)
     gate = not accept and any(r.get("origin") == ORIGIN_GATE for r in rows)
     lines = [prompt.render_part("answer-file-head", {"turn": turn}, {"accept": accept, "gate": gate, "plain": not accept and not gate}).strip() + "\n"]
-    join = lambda xs: "・".join(xs) if xs else "（無し）"   # noqa: E731
     for r in rows:
         answered = r["status"] == ANSWERED
         decision = r.get("decision")
@@ -531,10 +533,10 @@ def answer_text(turn: int, rows: list) -> str:
                     and any(h.get("item") == r.get("item") for h in r.get("out_of_scope") or []))
         why = r.get("why_refused") or r.get("why_unavailable") or " / ".join(r.get("notes") or [])
         values = {
-            "item": r.get("item") or "（無し）", "paths": join(r.get("paths")), "tests": join(r.get("tests")),
+            "item": r.get("item") or "（無し）", "paths": _listed(r.get("paths")), "tests": _listed(r.get("tests")),
             "new_tests": f"・新しいテスト {'・'.join(r['new_tests'])}" if r.get("new_tests") else "",
             "decision": str(decision or ""), "status": str(r["status"]),
-            "granted_paths": join(r.get("granted_paths")), "granted_tests": join(r.get("granted_tests")),
+            "granted_paths": _listed(r.get("granted_paths")), "granted_tests": _listed(r.get("granted_tests")),
             "granted_new": "・".join(f"{g['id']}（{g['red_kind']}）" for g in r.get("granted_new_tests") or []),
             "overrode": "・".join(f"{h['path']}（{h['glob']}）" for h in r.get("overrode_out_of_scope") or []),
             "spec": str(r.get("spec") or ""),
