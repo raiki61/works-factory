@@ -154,6 +154,18 @@ class FactsCase(unittest.TestCase):
             with self.subTest(f"{fn} が落ちた"), mock.patch.object(self.f, fn, side_effect=RuntimeError("boom")):
                 self.assert_facts_keys(self.build(passing()))
 
+    # 返りの dict の中で呼ぶ part。関数の名 → (part の名, 訳が出る先: outcome の物は problems、そうでない物は notes)
+    IN_RETURN = (("no_fix", "直す物が無い周", "problems"), ("stopped_why", "止まった訳", "notes"),
+                 ("apply_of", "封じと置き", "problems"), ("stop_lines", "止めたかの行", "notes"),
+                 ("outcome_parts", "模型の結末の句", "notes"), ("_line_rev", "メイングラフの版", "notes"))
+
+    def test_fallen_part_in_the_return_is_named_in_problems_or_notes(self):
+        """返りの dict の中で呼ぶ part が落ちても、その訳は返りの problems（outcome の物）か notes に出る（返りの組み立てで先に写して落とさない）"""
+        for fn, name, where in self.IN_RETURN:
+            with self.subTest(fn), mock.patch.object(self.f, fn, side_effect=RuntimeError("boom")):
+                got = self.build(passing())
+                self.assertTrue([x for x in got[where] if x.startswith(f"{name}を組めない") and "boom" in x], got[where])
+
     def test_facts_type_keys_match_schema(self):
         """Facts（入れ子の TypedDict も）の鍵の組が facts.schema.json の properties（入れ子も）と同じ（schema にだけ在る欄・型にだけ在る欄が赤）"""
         schema = json.loads(FACTS_SCHEMA.read_text(encoding="utf-8"))
