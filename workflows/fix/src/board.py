@@ -2392,9 +2392,9 @@ def no_suite_stop(place) -> str:
 
 def fixer_head(place, pass_: str) -> str:
     """修正役が変え始めた木（段 pass_ の頭の木。stage_head）。受け付け（fix-accept・fix-ruled-accept）と修正役の事前の確かめ
-    （facts.precheck）が since に渡す木はここ 1 か所から読む。段の頭のファイルは fixrules.head_file（PASSES に無い段は ValueError）"""
-    from src import rules as fixrules
-    return stage_head(place, fixrules.head_file(pass_))
+    （facts.precheck）が since に渡す木はここ 1 か所から読む。段の頭のファイルは rules.head_file（PASSES に無い段は ValueError）"""
+    from src import rules
+    return stage_head(place, rules.head_file(pass_))
 
 
 def ruled_owed(place) -> list:
@@ -2434,7 +2434,7 @@ def fix_values(place, owed, *, start=None, record: str = "", summary: str = "", 
 
 
 def consult_skip(place, skip, log=None) -> None:
-    """置き場の範囲の相談の控え（consult.CONFIG。fixrules.ask_config が書く）に除くパスの頭 skip と書き込みの記録のファイル log
+    """置き場の範囲の相談の控え（consult.CONFIG。rules.ask_config が書く）に除くパスの頭 skip と書き込みの記録のファイル log
     （在れば。受け付けと同じ物）を足す（facts.main が書き込みの出どころで読む）。控えが無ければ何もしない"""
     from src import consult
     doc = read_json(pathlib.Path(place) / consult.CONFIG)
@@ -2541,7 +2541,7 @@ def settle_overflow(asks: list, found: list, whole: dict, place, repo, *, head: 
     戻した返答で受け付けを頭から通し直す呼び手の口（accept_reply）、found は積んだ行 (確かめの id, 文) の並び。
     元 works/blk-fix/scripts/accept.py:549（呼び手 :680〜:700）。今の輪の形との違い: 元は積んだ周の次の周の確かめの節が頼みを
     答えの節に回した。今の輪（fixer → consult-check → consult-answer → consult-accept → fix-accept）では、積んだ周の後に修正役が
-    もう 1 回走り（fixrules.prep が consult.queued を見て作業ツリーを変えずに前の返答と同じ JSON を返させる続きの指示書だけを書く。
+    もう 1 回走り（rules.prep が consult.queued を見て作業ツリーを変えずに前の返答と同じ JSON を返させる続きの指示書だけを書く。
     受け付けの回には数えない）、その周の consult-check（consult_ask）が積んだ頼みを答えの役に回し、その周の受け付けは相談の周として
     回らない。答えの後の周の受け付けが、ここで聞いた物を戻すか（allow なら範囲に入って行が消える）を選ぶ"""
     import conflict

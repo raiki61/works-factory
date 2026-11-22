@@ -3,7 +3,7 @@
 
 写した元と、この中の 3 つの部分:
 1. 部品（_l_ の名）: test_fix_gates.py〔TestRedGreen は test_tdd.py〕・test_plan_scope.py・test_fix_units.py・
-   test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（fixgates・planscope・unitrows・parking・fixboard・fixrules・tddloop・ruling）は
+   test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（fixgates・planscope・unitrows・parking・fixboard・tddloop・ruling）は
    試験ごとに setUp で src の写しに結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
    - 事後の関門の束（src/gates.py）: base の木の結末の使い回し・輪の記録した赤の木・既存のテストの変更・テストのファイルの申告・帳面と文
    - 承認済みの修正案の項目と修正の差分の照らし（src/scope.py の problems・new_test_ids・added_removed・with_agreed・reject_head）
@@ -46,7 +46,7 @@ from tests.blocks.fix import support
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
 _L_SRC = {"fixboard": "board", "fixgates": "gates", "planscope": "scope", "unitrows": "unitrows", "parking": "parking",
-          "fixrules": "rules", "tddloop": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
+          "rules": "rules", "tddloop": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
 
 
 def _l_bind() -> None:
@@ -715,8 +715,8 @@ class TestTestEdits(FixGatesCase):
         (self.board / conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
 
     def pasted(self, pass_: str, label: str) -> set:
-        """修正役の指示の行（fixrules.tests_rows）の label で始まる行のバッククオートの名"""
-        text = fixrules.tests_rows(None, conflict.edit_permits(self.board, pass_), None)
+        """修正役の指示の行（rules.tests_rows）の label で始まる行のバッククオートの名"""
+        text = rules.tests_rows(None, conflict.edit_permits(self.board, pass_), None)
         (line,) = [ln for ln in text.splitlines() if ln.startswith(f"- {label}")]
         return set(re.findall(r"`([^`]+)`", re.split(r"）?: ", line, maxsplit=1)[1]))
 
@@ -2170,7 +2170,7 @@ class DutySets(DutyCase):
 
     # ---- 集合を、消費する所の入口から作る
     def promised(self) -> set:
-        got = fixrules.owed_values(self.tmp, {"open_units": json.dumps(_l_IS_OPEN, ensure_ascii=False)}, owed=_l_OWED, **self.kw())
+        got = rules.owed_values(self.tmp, {"open_units": json.dumps(_l_IS_OPEN, ensure_ascii=False)}, owed=_l_OWED, **self.kw())
         return set(json.loads(got["open_units"]))
 
     def accepted(self) -> tuple:
@@ -2524,13 +2524,13 @@ class FactchecksSeamCase(SeamTemp):
                 (self.place / name).unlink()
 
     def test_fixer_head_rejects_a_pass_outside_the_passes(self):
-        """#357: 段の頭のファイルは fixrules.PASSES を鍵にした表から引く。表に無い段は 1 回目の段の頭に黙って落とさず例外"""
-        fixrules = self.m.rules
+        """#357: 段の頭のファイルは rules.PASSES を鍵にした表から引く。表に無い段は 1 回目の段の頭に黙って落とさず例外"""
+        rules = self.m.rules
         (self.place / self.b.FIX_HEAD_FILE).write_text(json.dumps({"tree": "1 回目の段の頭"}), encoding="utf-8")
         self.assertEqual(self.b.fixer_head(self.place, "first"), "1 回目の段の頭")
         with self.assertRaises(ValueError):
             self.b.fixer_head(self.place, "refix")
-        self.assertEqual(tuple(fixrules.HEAD_FILES), fixrules.PASSES)
+        self.assertEqual(tuple(rules.HEAD_FILES), rules.PASSES)
 
     def test_scope_head_follows_the_consult_place(self):
         consult = self.m.consult

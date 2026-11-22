@@ -10,7 +10,7 @@
   赤・走らないなら off にして理由を test_cmd_note に残す（元から赤の test_cmd で毎単位を拒まない）。test_cmd は baseline_red.run_suite と
   同じ起こし方（tree_run.reuse_run・優先度は baseline_red.lowered）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
   直し・整えの段の指示書にそのコマンドを書く。
-- tdd-loop の中: tdd-prep → prep（今の段の指示書を fixrules で組んで書く。頭に brief の節: 振り分けの段は
+- tdd-loop の中: tdd-prep → prep（今の段の指示書を rules_mod（src/rules.py）で組んで書く。頭に brief の節: 振り分けの段は
   直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し。単位が替わった周かを new_unit で返す）→
   役 tdd（修正役。同じ単位の段は前の周の会話を継ぎ、単位が替わる周だけ新しい会話で起きる。前の単位と今の単位のこれまで（段・
   前の段の結果）は引き継ぎの節（handoff_rows）も状態から書く。振り分け・テスト・直し・整えを返す）→
@@ -97,7 +97,7 @@ from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401 
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
 from src import board as fixboard  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
 from src import files as fixnames  # noqa: E402
-from src import rules as fixrules  # noqa: E402  （同じ block の src。指示書の組み立て）
+from src import rules as rules_mod  # noqa: E402  （同じ block の src。指示書の組み立て）
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （lib/。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
@@ -354,11 +354,11 @@ def _test_cmd_problems(st, repo) -> list[str]:
 # ---------------------------------------------------------------- 指示書（節 tdd-prep）
 def _briefs(board_dir: pathlib.Path, **sources) -> list:
     """置き場の brief（planbrief.cut_at。sources は cut の材料。控えが在ればそれを返す。置き場が無い・材料の無い run は []）。
-    控えが壊れていれば理由の Broken（fixrules.brief_halt の文。brief の無い指示書として続けない。止めるのは呼び手）"""
+    控えが壊れていれば理由の Broken（rules_mod.brief_halt の文。brief の無い指示書として続けない。止めるのは呼び手）"""
     try:
         return planbrief.cut_at(board_dir, **sources)
     except planbrief.LedgerBroken as e:
-        raise Broken(fixrules.brief_halt(e)) from None
+        raise Broken(rules_mod.brief_halt(e)) from None
 
 
 # 引き継ぎ（依頼 243 の 2）。輪の役は周ごとに新しい会話で起きる（同じ単位の段の間も会話を継がない）ので、前の単位が何を変えたかと、

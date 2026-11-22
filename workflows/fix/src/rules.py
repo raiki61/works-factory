@@ -206,8 +206,8 @@ def tests_rows(got, edits: dict, frozen=None) -> str:
 
 
 def dispatched(owed: list[str], green=frozenset()) -> list[str]:
-    """修正役が下請けを起こす単位（owed の順）: TDD の輪が緑にした単位 green（支度の script が tddloop.green_units で引く。tddloop が
-    fixrules を import するので、ここでは引かない）を除いた物（依頼 243 の 2）"""
+    """修正役が下請けを起こす単位（owed の順）: TDD の輪が緑にした単位 green（支度の script が tddloop.green_units で引く。tdd が
+    rules を import するので、ここでは引かない）を除いた物（依頼 243 の 2）"""
     return [k for k in owed if k not in green]
 
 
