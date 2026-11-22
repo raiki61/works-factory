@@ -38,7 +38,9 @@ AI に探させず、1 回作って使い回す（鍵 = rev・起点・作業ツ
 
 地図の JSON（schema works-impact/1）の欄:
 - key・rev（commit の sha）・rev_name・seeds {given, files, names, from_diff, missing}
-- reach {path: {depth, lang, test, candidate, parent {from, kind, key, line}}}: 起点から届いた file（起点は含まない）
+- reach {path: {depth, mention_hops, lang, test, candidate, parent {from, kind, key, line}, seed_edge?}}: 起点から届いた file
+  （起点は含まない）。depth・parent は辿りが選んだ 1 本の道（言及の段の少ない順、同じなら浅い順）。seed_edge は起点から辺 1 本の
+  道が別に在る印（選ばれた道が深さ 2 以上でも直に関わる。direct が読む）
 - edges [{path, dep, kind, key, candidate, count, hits [[行番号, 行]], resolution?}]: path が dep に依る
   （kind: import・reads（読む部品が一番上の RUNTIME_READS に宣言した、実行時に開く file への依り。宣言した module と、それを直に
   import する module が依る側。起点の file からだけ張る）・
@@ -922,6 +924,7 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
         return out
 
     reach = {}
+    seed_edge = set()   # 起点から辺 1 本で届いた file（辿りの道が起点を経ない別の道でも、直に関わるかはここで見る）
     seed_set = set(files)
     ambiguous = set()
 
@@ -956,6 +959,8 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
                 if f not in reach:
                     beyond.setdefault(f, {"from": node, "kind": kind, "key": key})
                 continue
+            if depth == 0:
+                seed_edge.add(f)
             parent_cand = reach.get(node, {}).get("candidate", False)
             info = {"depth": depth + 1, "mention_hops": h2, "lang": ix.lang.get(f, "unknown"), "test": is_test(f),
                     "candidate": bool(cand or parent_cand or h2),
@@ -969,6 +974,9 @@ def _build(repo, rev, rev_sha, changed, seeds, diff, ix):
                 if (ix.lang.get(f) in ("python", "pathref", "unknown") and (kind != "symbol" or is_name)
                         and not (is_test(f) == "support" and ix.lang.get(f) != "python")):
                     heapq.heappush(heap, (h2, depth + 1, 1, f))
+
+    for f in seed_edge & reach.keys():
+        reach[f]["seed_edge"] = True
 
     # 分類
     imp_any = {e["path"] for e in edges.values() if e["kind"] in STRUCTURAL}
@@ -1053,8 +1061,10 @@ def _mod(name):
 
 
 def direct(m, path) -> bool:
-    """path が変更に直に関わるか: 起点そのものか、起点から辺 1 本（import か言及。深さ 1）で届いた file"""
-    return path in m["seeds"]["files"] or m["reach"].get(path, {}).get("depth") == 1
+    """path が変更に直に関わるか: 起点そのものか、起点から辺 1 本（import か言及。深さ 1）で届いた file。辿りが選んだ道
+    （言及の段の少ない順）が別の道でも、起点から辺 1 本の道が在れば直に関わる（reach の seed_edge）"""
+    r = m["reach"].get(path, {})
+    return path in m["seeds"]["files"] or r.get("depth") == 1 or bool(r.get("seed_edge"))
 
 
 def select_tests(m, fast=(), scope=None, all_modules=None, direct_only=False, named=(), defer_all=False):

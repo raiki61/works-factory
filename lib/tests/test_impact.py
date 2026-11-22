@@ -125,6 +125,29 @@ class ReverseImportCase(RepoCase):
         seeded = impact.select_tests(self.map(["tests/test_mid.py"]), direct_only=True)
         self.assertEqual(seeded["selected"], ["tests/test_mid.py"], "起点のテストは直に関わる")
 
+    def test_test_naming_a_changed_function_stays_direct_when_an_import_path_is_shorter_in_mentions(self):
+        # PR #1065 の筋: 試験は起点（lib/conflict.py）の関数の名を本文で言及する（深さ 1・言及 1 段）一方、助け kit を経る
+        # import だけの道（深さ 2・言及 0 段）も在る。辿りは後者を道に選ぶが、直に関わるかは最短の深さで見る
+        self.write("lib/conflict.py", "def frozen_fields(place):\n    return place\n\n\ndef gone_name():\n    return 1\n")
+        self.write("tests/blocks/kit.py", "import sys\n\nsys.path.append('lib')\nimport conflict\n\n\ndef load(x):\n    return x\n")
+        self.write("tests/blocks/fix/test_ruling.py",
+                   "import unittest\n\nfrom tests.blocks import kit\n\n\nclass T(unittest.TestCase):\n    def test_a(self):\n"
+                   "        self.assertEqual(kit.load('frozen_fields'), 'frozen_fields')\n")
+        m = self.map(["lib/conflict.py"])
+        self.assertEqual(m["reach"]["tests/blocks/fix/test_ruling.py"]["depth"], 2, "辿りの道は kit 経由（深さ 2）")
+        self.assertTrue(impact.direct(m, "tests/blocks/fix/test_ruling.py"))
+        sel = impact.select_tests(m, direct_only=True)
+        self.assertIn("tests/blocks/fix/test_ruling.py", sel["selected"])
+        self.assertNotIn("tests/blocks/fix/test_ruling.py", sel["left"])
+
+    def test_a_test_only_reached_through_a_helper_stays_not_direct(self):
+        # 上の対の逆: 言及の道が無ければ、助け経由だけの試験は今までどおり直でない
+        self.write("lib/conflict.py", "def frozen_fields(place):\n    return place\n")
+        self.write("tests/blocks/kit.py", "import sys\n\nsys.path.append('lib')\nimport conflict\n")
+        self.write("tests/blocks/fix/test_ruling.py", "from tests.blocks import kit\n\nassert kit\n")
+        m = self.map(["lib/conflict.py"])
+        self.assertFalse(impact.direct(m, "tests/blocks/fix/test_ruling.py"))
+
     def test_direct_selection_still_runs_all_when_unanalysable_is_near(self):
         m = self.map(["web/widget.js"])
         sel = impact.select_tests(m, direct_only=True, all_modules=["test_a"])
