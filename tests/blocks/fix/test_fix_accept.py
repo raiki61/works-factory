@@ -3,8 +3,8 @@
 
 写した元と、この中の 3 つの部分:
 1. 部品（_l_ の名）: test_fix_gates.py〔TestRedGreen は test_tdd.py〕・test_plan_scope.py・test_fix_units.py・
-   test_fix_duty.py・test_duty_sets.py。元の試験の lib の名（fixgates・planscope・unitrows・parking・fixboard・fixrules・tddloop・ruling）は
-   試験ごとに setUp で src の写しに結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
+   test_fix_duty.py・test_duty_sets.py。src の写しのモジュール（board・gates・scope・unitrows・parking・rules・tdd・ruling
+   など）は、このモジュールの同じ名に試験ごとに setUp で結び直す（_l_bind。src の関数は呼ぶ時に `from src import …` で同じ block の写しを引く）
    - 事後の関門の束（src/gates.py）: base の木の結末の使い回し・輪の記録した赤の木・既存のテストの変更・テストのファイルの申告・帳面と文
    - 承認済みの修正案の項目と修正の差分の照らし（src/scope.py の problems・new_test_ids・added_removed・with_agreed・reject_head）
    - 単位ごとの閉鎖の表（src/unitrows.py の build）と裁定の出どころの縛り（src/ruling.py の problems の grounds）・git が期限を持たない
@@ -45,16 +45,15 @@ from tests.blocks import kit
 from tests.blocks.fix import support
 
 _l_SEED = kit.ROOT / "tests" / "e2e" / "target-seed"
-_L_SRC = {"fixboard": "board", "fixgates": "gates", "planscope": "scope", "unitrows": "unitrows", "parking": "parking",
-          "fixrules": "rules", "tddloop": "tdd", "ruling": "ruling", "common": "common", "basecase": "basecase"}
+_L_SRC = ("board", "gates", "scope", "unitrows", "parking", "rules", "tdd", "ruling", "common", "basecase")
 
 
 def _l_bind() -> None:
-    """block fix の src を読み直し、このモジュールの名（元の試験の lib の名）に結ぶ。lib のまま呼ぶ物も結ぶ"""
+    """block fix の src を読み直し、このモジュールの同じ名に結ぶ。lib のまま呼ぶ物も結ぶ"""
     kit.load("fix", "board")
     names = globals()
-    for name, module in _L_SRC.items():
-        names[name] = importlib.import_module(f"src.{module}")
+    for name in _L_SRC:
+        names[name] = importlib.import_module(f"src.{name}")
     for name in ("conflict", "planmarks", "planrange", "querytest"):
         names[name] = importlib.import_module(name)
 
@@ -181,11 +180,11 @@ class FixGatesCase(_LSrc):
         return [{**_l_FIELDS[0], "tests": [{**_l_TEST_ROW, "id": test_id}]}]
 
     def problems(self, suite=None, attempt=1, base=None, **kw):
-        return fixgates.problems(self.board, self.repo, self.base if base is None else base,
+        return gates.problems(self.board, self.repo, self.base if base is None else base,
                                  self.SUITE if suite is None else suite, attempt, **kw)
 
     def ledger(self):
-        return json.loads((self.board / fixgates.LEDGER).read_text(encoding="utf-8"))
+        return json.loads((self.board / gates.LEDGER).read_text(encoding="utf-8"))
 
     def worktrees(self):
         out = subprocess.run(["git", "worktree", "list"], cwd=self.repo, capture_output=True, text=True, encoding="utf-8", check=True,
@@ -199,14 +198,14 @@ class TestBaseCache(FixGatesCase):
     種類の赤）は変えない"""
 
     def counted(self):
-        """tddloop.run_suite を数える {"now": 今の木の回数, "base": それ以外の回数}"""
-        real = fixgates.tddloop.run_suite
+        """tdd.run_suite を数える {"now": 今の木の回数, "base": それ以外の回数}"""
+        real = gates.tdd.run_suite
         calls = {"now": 0, "base": 0}
 
         def run(exe, repo, *a, **k):
             calls["now" if pathlib.Path(repo).resolve() == self.repo.resolve() else "base"] += 1
             return real(exe, repo, *a, **k)
-        return calls, mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run)
+        return calls, mock.patch.object(gates.tdd, "run_suite", side_effect=run)
 
     def test_base_runs_once_across_attempts(self):
         self.ready_with_fields()
@@ -218,7 +217,7 @@ class TestBaseCache(FixGatesCase):
             self.assertEqual(self.problems(attempt=2), [])
             self.assertEqual(self.problems(attempt=1, pass_="ruled"), [])
         self.assertEqual(calls, {"now": 3, "base": 1}, "今の木は回ごと・base は 1 回")
-        self.assertTrue((self.board / fixgates.BASE_CACHE).is_file(), "控えは置き場に在る")
+        self.assertTrue((self.board / gates.BASE_CACHE).is_file(), "控えは置き場に在る")
 
     def test_cached_base_keeps_the_rule(self):
         """使い回した base の結末でも決まりは同じ: base で緑なら回をまたいでも行"""
@@ -268,7 +267,7 @@ class TestBaseCache(FixGatesCase):
         self.ready_with_fields()
         self.add_test_mean_of_two()
         self.edit_tree(_l_MEAN_FIX)
-        real = fixgates.tddloop.run_suite
+        real = gates.tdd.run_suite
         calls = {"base": 0}
 
         def run(exe, repo, *a, **k):
@@ -277,12 +276,12 @@ class TestBaseCache(FixGatesCase):
                 if calls["base"] == 1:
                     return None, None, ["base で JUnit を書かなかった"]
             return real(exe, repo, *a, **k)
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run):
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=run):
             self.assertEqual(self.problems(attempt=1), [])
-            self.assertTrue(fixgates.skipped(self.board, pass_="first", attempt=1))
+            self.assertTrue(gates.skipped(self.board, pass_="first", attempt=1))
             self.assertEqual(self.problems(attempt=2), [])
         self.assertEqual(calls["base"], 2)
-        self.assertEqual(fixgates.skipped(self.board, pass_="first", attempt=2), [])
+        self.assertEqual(gates.skipped(self.board, pass_="first", attempt=2), [])
 
 
 _l_STUB = "def halve(x):\n    return 0  # 仮の実装\n\n\ndef clamp(x, lo, hi):"   # test の段で赤を作るために足す最小の仮の実装
@@ -304,7 +303,7 @@ class TestLoopRedTree(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_TWO_ID))
         (self.repo / "test_two.py").write_text(_l_TWO_FILE, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
-        red = fixgates.tddloop.snapshot(self.repo)
+        red = gates.tdd.snapshot(self.repo)
         self.save_unit(red)
         self.edit_tree({"return 0  # 仮の実装": "return x / 2"})
         return red
@@ -313,7 +312,7 @@ class TestLoopRedTree(FixGatesCase):
         """置き場の輪の記録 tdd-1/record.json に、赤を確かめた単位の記録を置く（輪の _test が残す欄だけ。frozen は輪が終わった
         時のテストのファイルの hash で、今の姿）"""
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
-                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red_tree, "stub_files": ["stats.py"],
+                "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": red_tree, "stub_files": ["stats.py"],
                 **over}
         self.save_units({_l_MEAN: unit})
 
@@ -321,7 +320,7 @@ class TestLoopRedTree(FixGatesCase):
         files = sorted({f for u in units.values() for f in u["test_files"]})
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": units, "frozen": fixgates.tddloop.hashes(self.repo, files)},
+        (d / gates.tdd.RECORD).write_text(json.dumps({"units": units, "frozen": gates.tdd.hashes(self.repo, files)},
                                                            ensure_ascii=False), encoding="utf-8")
 
     def test_stub_red_rechecked_on_loop_red_tree(self):
@@ -333,10 +332,10 @@ class TestLoopRedTree(FixGatesCase):
     def test_red_tree_that_passes_is_a_miss(self):
         """赤の木で名指しが通る（記録が赤を映していない）なら行。文は『輪の赤の木で 』と red_check の事実"""
         self.stub_red()
-        self.save_unit(fixgates.tddloop.snapshot(self.repo))   # 直した後の木を赤の木と書く
+        self.save_unit(gates.tdd.snapshot(self.repo))   # 直した後の木を赤の木と書く
         rows = self.problems()
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", _l_TWO_ID)])
-        self.assertTrue(rows[0]["detail"].startswith(fixgates.RED_TREE_HEAD), rows[0]["detail"])
+        self.assertTrue(rows[0]["detail"].startswith(gates.RED_TREE_HEAD), rows[0]["detail"])
         self.assertIn("もう通る", rows[0]["detail"])
 
     def test_test_file_moved_after_loop_falls_back_to_base(self):
@@ -358,13 +357,13 @@ class TestLoopRedTree(FixGatesCase):
         path.write_text(_l_TWO_FILE, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
         a = {"unit_key": "a", "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
-             "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": fixgates.tddloop.snapshot(self.repo)}
+             "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": gates.tdd.snapshot(self.repo)}
         self.edit_tree({"return 0  # 仮の実装": "return x / 2"})   # 単位 a を直す
         path.write_text(path.read_text(encoding="utf-8").replace("from stats import halve", "from stats import halve, twice")
                         + "\n    def test_twice(self):\n        self.assertEqual(twice(2), 4)\n", encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": "def twice(x):\n    return 0  # 仮の実装\n\n\ndef clamp(x, lo, hi):"})
         b = {"unit_key": "b", "route": "tdd", "red": "ok", "tests": [_l_TWICE_ID], "test_files": ["test_two.py"],
-             "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": fixgates.tddloop.snapshot(self.repo)}
+             "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": gates.tdd.snapshot(self.repo)}
         self.edit_tree({"return 0  # 仮の実装": "return x * 2"})   # 単位 b を直す
         self.save_units({"a": a, "b": b})
         self.assertEqual(self.problems(), [])
@@ -375,8 +374,8 @@ class TestLoopRedTree(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_SAB_ID))
         (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": "def clamp(x, lo, hi):\n    return -1  # 壊す\n"})
-        self.save_unit(fixgates.tddloop.snapshot(self.repo), tests=[_l_SAB_ID], test_files=["test_sab.py"],
-                       test_hashes=fixgates.tddloop.hashes(self.repo, ["test_sab.py"]))
+        self.save_unit(gates.tdd.snapshot(self.repo), tests=[_l_SAB_ID], test_files=["test_sab.py"],
+                       test_hashes=gates.tdd.hashes(self.repo, ["test_sab.py"]))
         self.edit_tree({"    return -1  # 壊す\n": ""})
         rows = self.problems()
         self.assertEqual([(r["gate"], r["id"]) for r in rows], [("red_green", _l_SAB_ID)])
@@ -386,14 +385,14 @@ class TestLoopRedTree(FixGatesCase):
     def test_red_tree_result_is_cached(self):
         """赤の木は run の中で動かないので、結末を控えて回をまたいで使い回す"""
         self.stub_red()
-        real = fixgates.tddloop.run_suite
+        real = gates.tdd.run_suite
         calls = []
 
         def run(exe, repo, *a, **k):
             calls.append(pathlib.Path(repo).resolve() == self.repo.resolve())
             return real(exe, repo, *a, **k)
-        # 赤の木の走らせ直しは common.red_rerun の口（common.run_suite）、base の木は関門の口（tddloop.run_suite）
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run), \
+        # 赤の木の走らせ直しは common.red_rerun の口（common.run_suite）、base の木は関門の口（tdd.run_suite）
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=run), \
                 mock.patch.object(common, "run_suite", side_effect=run):
             self.assertEqual(self.problems(attempt=1), [])
             self.assertEqual(self.problems(attempt=2), [])
@@ -408,11 +407,11 @@ class TestNamedRowsTemplate(_LSrc):
         now = [{"classname": "src/select.test.ts", "name": "dark で選択肢の面が不透明", "outcome": "passed"},
                {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure"}]
         facts = {named: {"where": "base", "red": None, "base": None, "probs": []}}
-        rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], now, facts)
+        rows, _ = gates.named_rows([{"id": named, "unit_keys": ["k"]}], now, facts)
         self.assertEqual([(r["id"], r["detail"]) for r in rows if r["detail"].startswith("今の木")],
                          [(named, "今の木で failure（受け入れのテストが緑でない）")])
         green = [{**c, "outcome": "passed"} for c in now]
-        rows, _ = fixgates.named_rows([{"id": named, "unit_keys": ["k"]}], green, facts)
+        rows, _ = gates.named_rows([{"id": named, "unit_keys": ["k"]}], green, facts)
         self.assertEqual([r for r in rows if r["detail"].startswith("今の木")], [])
 
     def test_named_facts_reads_base_cache_rows_and_old_single_row(self):
@@ -423,14 +422,14 @@ class TestNamedRowsTemplate(_LSrc):
         light = {"classname": "src/select.test.ts", "name": "light で選択肢の面が不透明", "outcome": "failure", "fail_message": "m"}
         with tempfile.TemporaryDirectory() as d:
             cache, root = pathlib.Path(d) / "cache.json", pathlib.Path(d)
-            with mock.patch.object(fixgates, "_red_tree_probs", return_value=({}, [])), \
-                    mock.patch.object(fixgates, "_test_files", return_value=[]), \
-                    mock.patch.object(fixgates, "_base_keys", return_value={named: "k"}), \
-                    mock.patch.object(fixgates, "_base_run", side_effect=AssertionError("控えに在るので走らせない")):
+            with mock.patch.object(gates, "_red_tree_probs", return_value=({}, [])), \
+                    mock.patch.object(gates, "_test_files", return_value=[]), \
+                    mock.patch.object(gates, "_base_keys", return_value={named: "k"}), \
+                    mock.patch.object(gates, "_base_run", side_effect=AssertionError("控えに在るので走らせない")):
                 for label, kept, worst, red in (("行の並び", [dark, light], light, False), ("前の 1 行の形", light, light, True)):
                     with self.subTest(label):
                         cache.write_text(json.dumps({"k": kept}), encoding="utf-8")
-                        out, why = fixgates.named_facts(root, "HEAD", "run", [named], root / "w", cache, None, "t")
+                        out, why = gates.named_facts(root, "HEAD", "run", [named], root / "w", cache, None, "t")
                         self.assertEqual((why, out[named]["base"]), ([], worst))
                         self.assertEqual(out[named]["probs"] == [], red, out[named]["probs"])
 
@@ -458,7 +457,7 @@ class RedGreenKeptCase(FixGatesCase):
 
     def traced(self, **kw):
         """problems を呼び、実行器を起こした順 [(今の木か別の木か, 名前 n)] と、返った行・飛ばした理由・守りの結末を返す"""
-        real_gate, real_common = fixgates.tddloop.run_suite, common.run_suite
+        real_gate, real_common = gates.tdd.run_suite, common.run_suite
         calls = []
 
         def wrap(real):
@@ -466,29 +465,29 @@ class RedGreenKeptCase(FixGatesCase):
                 calls.append(("now" if pathlib.Path(repo).resolve() == self.repo.resolve() else "tree", n))
                 return real(exe, repo, work, n, *a, **k)
             return run
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=wrap(real_gate)), \
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=wrap(real_gate)), \
                 mock.patch.object(common, "run_suite", side_effect=wrap(real_common)):
             rows = self.problems(**kw)
         attempt = kw.get("attempt", 1)
-        ledger = self.ledger() if (self.board / fixgates.LEDGER).is_file() else {}
+        ledger = self.ledger() if (self.board / gates.LEDGER).is_file() else {}
         return {"calls": calls, "rows": [(r["gate"], r["id"], r["detail"], r["unit_keys"]) for r in rows],
-                "skipped": fixgates.skipped(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
-                "guards": fixgates.guards(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
+                "skipped": gates.skipped(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
+                "guards": gates.guards(self.board, pass_=kw.get("pass_", "first"), attempt=attempt),
                 "ledger_rows": len(ledger.get("rows") or [])}
 
     def stub_red(self, red_is_green=False):
         self.ready_with_fields(self.fields_for(_l_TWO_ID))
         (self.repo / "test_two.py").write_text(_l_TWO_FILE, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": _l_STUB})
-        red = fixgates.tddloop.snapshot(self.repo)
+        red = gates.tdd.snapshot(self.repo)
         self.edit_tree({"return 0  # 仮の実装": "return x / 2"})
         if red_is_green:
-            red = fixgates.tddloop.snapshot(self.repo)
+            red = gates.tdd.snapshot(self.repo)
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_TWO_ID], "test_files": ["test_two.py"],
-                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_two.py"]), "red_tree": red, "stub_files": ["stats.py"]}
+                "test_hashes": gates.tdd.hashes(self.repo, ["test_two.py"]), "red_tree": red, "stub_files": ["stats.py"]}
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": fixgates.tddloop.hashes(self.repo, ["test_two.py"])},
+        (d / gates.tdd.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": gates.tdd.hashes(self.repo, ["test_two.py"])},
                                                            ensure_ascii=False), encoding="utf-8")
 
     def test_a_green_pass(self):
@@ -525,15 +524,15 @@ class RedGreenKeptCase(FixGatesCase):
         self.ready_with_fields()
         self.add_test_mean_of_two()
         self.edit_tree(_l_MEAN_FIX)
-        real = fixgates.tddloop.run_suite
+        real = gates.tdd.run_suite
 
         def run(exe, repo, *a, **k):
             if pathlib.Path(repo).resolve() != self.repo.resolve():
                 return None, None, ["base で JUnit を書かなかった"]
             return real(exe, repo, *a, **k)
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=run):
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=run):
             rows = self.problems()
-        self.assertEqual((rows, fixgates.skipped(self.board, pass_="first", attempt=1)), GOLDEN["base_down"])
+        self.assertEqual((rows, gates.skipped(self.board, pass_="first", attempt=1)), GOLDEN["base_down"])
 
     def test_the_second_round_reads_the_cache(self):
         self.stub_red()
@@ -543,7 +542,7 @@ class RedGreenKeptCase(FixGatesCase):
 
     # ---- 受け付けが直す前の結末を引く口 named_before（F2 の作る物の 3）。事後の関門と同じ named_facts を同じ控えで呼ぶ
     def before(self, ids):
-        return fixgates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")[0]
+        return gates.named_before(self.board, self.repo, self.base, self.SUITE, ids, self.board / "duties")[0]
 
     def test_named_before_reads_the_loop_red_tree_for_a_name_the_loop_recorded_red(self):
         """輪が赤を記録した名指しは輪の赤の木で見る（起点の木では実装が無く一式の結末に居ないが、赤の木では failure）。赤の木が通る記録は
@@ -560,13 +559,13 @@ class RedGreenKeptCase(FixGatesCase):
         self.ready_with_fields(self.fields_for(_l_SAB_ID))
         (self.repo / "test_sab.py").write_text(_l_SAB, encoding="utf-8")
         self.edit_tree({"def clamp(x, lo, hi):": "def clamp(x, lo, hi):\n    return -1  # 壊す\n"})
-        red = fixgates.tddloop.snapshot(self.repo)
+        red = gates.tdd.snapshot(self.repo)
         self.edit_tree({"    return -1  # 壊す\n": ""})
         unit = {"unit_key": _l_MEAN, "route": "tdd", "red": "ok", "tests": [_l_SAB_ID], "test_files": ["test_sab.py"],
-                "test_hashes": fixgates.tddloop.hashes(self.repo, ["test_sab.py"]), "red_tree": red}
+                "test_hashes": gates.tdd.hashes(self.repo, ["test_sab.py"]), "red_tree": red}
         d = self.board / "tdd-1"
         d.mkdir(parents=True, exist_ok=True)
-        (d / fixgates.tddloop.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": unit["test_hashes"]}), encoding="utf-8")
+        (d / gates.tdd.RECORD).write_text(json.dumps({"units": {_l_MEAN: unit}, "frozen": unit["test_hashes"]}), encoding="utf-8")
         self.assertEqual(self.before([_l_SAB_ID]), {_l_SAB_ID: "passed"})
 
     def test_named_before_reads_the_base_tree_for_the_rest(self):
@@ -581,22 +580,22 @@ class RedGreenKeptCase(FixGatesCase):
         """名指しが空なら ({}, [])、実行器が空なら (None, [実行器が無い訳])、起点の木で実行器が走らなければ (None, [NO_RUN で始まる理由])"""
         self.ready_with_fields()
         self.add_test_mean_of_two()
-        no_exe = fixgates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties")
-        no_names = fixgates.named_before(self.board, self.repo, self.base, self.SUITE, [], self.board / "duties")
-        no_both = fixgates.named_before(self.board, self.repo, self.base, "", [], self.board / "duties")
-        real = fixgates.tddloop.run_suite
-        with mock.patch.object(fixgates.tddloop, "run_suite", side_effect=lambda exe, repo, *a, **k:
+        no_exe = gates.named_before(self.board, self.repo, self.base, "", [_l_MEAN_ID], self.board / "duties")
+        no_names = gates.named_before(self.board, self.repo, self.base, self.SUITE, [], self.board / "duties")
+        no_both = gates.named_before(self.board, self.repo, self.base, "", [], self.board / "duties")
+        real = gates.tdd.run_suite
+        with mock.patch.object(gates.tdd, "run_suite", side_effect=lambda exe, repo, *a, **k:
                                (None, None, ["起動できない"]) if pathlib.Path(repo).resolve() != self.repo.resolve() else real(exe, repo, *a, **k)):
-            cannot_run = fixgates.named_before(self.board, self.repo, self.base, self.SUITE, [_l_MEAN_ID], self.board / "duties")
+            cannot_run = gates.named_before(self.board, self.repo, self.base, self.SUITE, [_l_MEAN_ID], self.board / "duties")
         for got in (no_exe, no_names, no_both, cannot_run):
             self.assertIsInstance(got, tuple, "結末（か None）と引けない訳の並びの組を返す")
-        self.assertEqual(no_exe, (None, [fixgates.NO_SUITE_WHY]))
+        self.assertEqual(no_exe, (None, [gates.NO_SUITE_WHY]))
         self.assertEqual(no_names, ({}, []))
         self.assertEqual(no_both, ({}, []))
         got, why = cannot_run
         self.assertIsNone(got)
         self.assertEqual(len(why), 1)
-        self.assertTrue(why[0].startswith(fixgates.NO_RUN) and "起動できない" in why[0], why)
+        self.assertTrue(why[0].startswith(gates.NO_RUN) and "起動できない" in why[0], why)
 
     def test_the_gate_reads_the_base_tree_the_named_before_already_took(self):
         """受け付けの型の義務（named_before）が引いた起点の木の結末は控えに残り、後の事後の関門は同じ名指しの起点の木を走らせ直さない"""
@@ -715,8 +714,8 @@ class TestTestEdits(FixGatesCase):
         (self.board / conflict.FILE).write_text(json.dumps({"items": rows}, ensure_ascii=False), encoding="utf-8")
 
     def pasted(self, pass_: str, label: str) -> set:
-        """修正役の指示の行（fixrules.tests_rows）の label で始まる行のバッククオートの名"""
-        text = fixrules.tests_rows(None, conflict.edit_permits(self.board, pass_), None)
+        """修正役の指示の行（rules.tests_rows）の label で始まる行のバッククオートの名"""
+        text = rules.tests_rows(None, conflict.edit_permits(self.board, pass_), None)
         (line,) = [ln for ln in text.splitlines() if ln.startswith(f"- {label}")]
         return set(re.findall(r"`([^`]+)`", re.split(r"）?: ", line, maxsplit=1)[1]))
 
@@ -756,9 +755,9 @@ class TestTestEdits(FixGatesCase):
         self.ready_with_fields(_l_direct_fields())
         self.edit_tests(*_l_THREE_EDIT)
         rows = self.problems()
-        (ask,) = fixgates.overflow_asks(rows, self.repo, self.base, [{"item": 1, "allowed_paths": ["test_stats.py"]}])
+        (ask,) = gates.overflow_asks(rows, self.repo, self.base, [{"item": 1, "allowed_paths": ["test_stats.py"]}])
         self.assertEqual((ask["item"], ask["tests"], ask["new_tests"]), (1, ["test_stats.py:8"], []))
-        self.assertEqual(ask["line"], fixgates.reject_line(rows[0]))
+        self.assertEqual(ask["line"], gates.reject_line(rows[0]))
 
 
 class TestTestFilesDeclared(FixGatesCase):
@@ -767,9 +766,9 @@ class TestTestFilesDeclared(FixGatesCase):
         self.ready_with_fields(_l_direct_fields())
         (self.repo / "checks.py").write_text("def test_x():\n    pass\n", encoding="utf-8")
         (self.repo / "calc_test.go").write_text("package calc\n", encoding="utf-8")
-        tree = fixgates.tddloop.snapshot(self.repo)
-        self.assertEqual(fixgates._test_files(self.repo, self.base, tree), ["calc_test.go"])
-        self.assertEqual(sorted(fixgates._test_files(self.repo, self.base, tree, ["./checks.py::test_x"])),
+        tree = gates.tdd.snapshot(self.repo)
+        self.assertEqual(gates._test_files(self.repo, self.base, tree), ["calc_test.go"])
+        self.assertEqual(sorted(gates._test_files(self.repo, self.base, tree, ["./checks.py::test_x"])),
                          ["calc_test.go", "checks.py"])
 
 
@@ -793,30 +792,30 @@ class TestLedgerAndText(FixGatesCase):
     def test_reject_lines_list_every_row(self):
         rows = [{"gate": "red_green", "id": _l_MEAN_ID, "detail": "base で緑", "unit_keys": [_l_MEAN]},
                 {"gate": "test_edits", "id": _l_THREE_ID, "detail": "名指しの外", "unit_keys": []}]
-        lines = fixgates.reject_lines(rows)
+        lines = gates.reject_lines(rows)
         self.assertEqual(len(lines), 2, "行ごとに 1 つの文（最後の回に文ごとに単位に結ぶ）")
-        self.assertTrue(all(t.startswith(fixgates.REJECT) for t in lines), lines)
+        self.assertTrue(all(t.startswith(gates.REJECT) for t in lines), lines)
         self.assertIn(_l_MEAN, lines[0], "red_green の文は項目の単位を名指す")
-        self.assertTrue(lines[-1].endswith(fixgates.REDO) and fixgates.REDO not in lines[0], "出し直しの頼みは最後の文の末だけ")
+        self.assertTrue(lines[-1].endswith(gates.REDO) and gates.REDO not in lines[0], "出し直しの頼みは最後の文の末だけ")
         text = " / ".join(lines)
         for w in (f"red_green {_l_MEAN_ID}: base で緑", f"test_edits {_l_THREE_ID}: 名指しの外", "全部"):
             self.assertIn(w, text)
-        self.assertEqual(fixgates.GATES, ("red_green", "test_edits"))
+        self.assertEqual(gates.GATES, ("red_green", "test_edits"))
 
     def test_unchecked_whys_drop_out_of_duty(self):
         """確かめなかった理由は OUT_OF_DUTY を除いた物（呼び手が受けた回の trace の SKIPPED_OP に載せる）"""
-        whys = [f"{fixgates.OUT_OF_DUTY}: 修正案の項目 2（単位 u2）", fixgates.NO_SUITE, None]
-        self.assertEqual(fixgates.unchecked_whys(whys), [fixgates.NO_SUITE])
-        self.assertEqual(fixgates.skipped(self.board, pass_="first", attempt=1), [], "帳面が無ければ空")
-        self.assertEqual(fixgates.guards(self.board, pass_="first", attempt=1), [])
+        whys = [f"{gates.OUT_OF_DUTY}: 修正案の項目 2（単位 u2）", gates.NO_SUITE, None]
+        self.assertEqual(gates.unchecked_whys(whys), [gates.NO_SUITE])
+        self.assertEqual(gates.skipped(self.board, pass_="first", attempt=1), [], "帳面が無ければ空")
+        self.assertEqual(gates.guards(self.board, pass_="first", attempt=1), [])
 
     def test_every_section_is_kept_and_counted(self):
         """帳面の節は SECTIONS の 1 か所が持つ。節を足せば、前の行の読み込み・組み直し・積み増しの数えが全部その節も回る（#97 の落とし）"""
         self.board.mkdir(parents=True, exist_ok=True)
         old = {"pass": "first", "attempt": 1, "note": "前の回"}
-        (self.board / fixgates.LEDGER).write_text(json.dumps({"rows": [], "notes": [old]}), encoding="utf-8")
-        with mock.patch.object(fixgates, "SECTIONS", (*fixgates.SECTIONS, "notes")):
-            fixgates._record(self.board, {"pass": "first", "attempt": 2}, {"notes": [{"note": "この回"}]})
+        (self.board / gates.LEDGER).write_text(json.dumps({"rows": [], "notes": [old]}), encoding="utf-8")
+        with mock.patch.object(gates, "SECTIONS", (*gates.SECTIONS, "notes")):
+            gates._record(self.board, {"pass": "first", "attempt": 2}, {"notes": [{"note": "この回"}]})
         self.assertEqual(self.ledger()["notes"], [old, {"pass": "first", "attempt": 2, "note": "この回"}])
         self.assertEqual(self.ledger()["guards"], [])
 
@@ -879,30 +878,30 @@ def _l_frow(path, *symbols, op="modify", **extra):
 
 class ProblemsCase(_LSrc):
     def test_inside_allowed_passes(self):
-        self.assertEqual(planscope.problems([_l_ITEM], [_l_ROW], _l_STATS)[0], [])
+        self.assertEqual(scope.problems([_l_ITEM], [_l_ROW], _l_STATS)[0], [])
 
     def test_file_outside_allowed_names_unit_and_item(self):
-        got, _ = planscope.problems([_l_ITEM], [{"unit_key": _l_MEAN, "files": ["other.py"]}], {**_l_STATS, "other.py": (None, "x = 1\n")})
+        got, _ = scope.problems([_l_ITEM], [{"unit_key": _l_MEAN, "files": ["other.py"]}], {**_l_STATS, "other.py": (None, "x = 1\n")})
         self.assertTrue(any(_l_MEAN in p and "other.py" in p and "項目 1" in p for p in got), got)
 
     def test_out_of_scope_wins_over_allowed(self):
         it = _l_item(allowed_paths=["*.py"], out_of_scope=[{"glob": "test_*.py", "why": "既存の試験は触らない"}])
-        got, _ = planscope.problems([it], [{"unit_key": _l_MEAN, "files": ["test_stats.py"]}], {"test_stats.py": ("a\n", "b\n")})
+        got, _ = scope.problems([it], [{"unit_key": _l_MEAN, "files": ["test_stats.py"]}], {"test_stats.py": ("a\n", "b\n")})
         self.assertTrue(any("out_of_scope" in p and "test_*.py" in p for p in got), got)
 
     def test_undeclared_change_outside_every_item(self):
-        got, _ = planscope.problems([_l_ITEM], [_l_ROW], {**_l_STATS, "stray.py": (None, "x\n")})
+        got, _ = scope.problems([_l_ITEM], [_l_ROW], {**_l_STATS, "stray.py": (None, "x\n")})
         self.assertTrue(any("stray.py" in p for p in got), got)
 
     def test_item_without_footprint_is_missing(self):
-        got, _ = planscope.problems([_l_ITEM], [_l_ROW], {})
+        got, _ = scope.problems([_l_ITEM], [_l_ROW], {})
         self.assertTrue(any("範囲の中に変えたファイルが無い" in p and _l_MEAN in p for p in got), got)
 
     def test_adds_identifier_must_appear_in_added_lines(self):
         it = _l_item(files=[_l_frow("stats.py", _l_add("median"))])
-        self.assertTrue(any("median" in p for p in planscope.problems([it], [_l_ROW], _l_STATS)[0]))
+        self.assertTrue(any("median" in p for p in scope.problems([it], [_l_ROW], _l_STATS)[0]))
         ok = {"stats.py": ("", "def median(xs):\n    return xs[0]\n")}
-        self.assertEqual(planscope.problems([it], [_l_ROW], ok)[0], [])
+        self.assertEqual(scope.problems([it], [_l_ROW], ok)[0], [])
 
     def test_files_rows_check_same_name_per_path(self):
         """同じ名 median を stats.py と other.py の 2 行で足すと言い、差分が stats.py にだけ median を足した時、other.py の行だけが
@@ -911,13 +910,13 @@ class ProblemsCase(_LSrc):
         two = _l_item(allowed_paths=["*.py"], files=[_l_frow("stats.py", _l_add("median")), _l_frow("other.py", _l_add("median"))])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "other.py"]}]
         only_stats = {"stats.py": ("", "def median(xs):\n    return xs[0]\n"), "other.py": ("a\n", "b\n")}
-        got, _ = planscope.problems([two], rows, only_stats)
+        got, _ = scope.problems([two], rows, only_stats)
         self.assertEqual([p for p in got if "median" in p and "other.py" in p and "足した行に無い" in p].__len__(), 1, got)
         self.assertFalse(any("stats.py の add median" in p for p in got), got)
         both = {**only_stats, "other.py": ("a\n", "def median(xs):\n    return xs[-1]\n")}
-        self.assertEqual(planscope.problems([two], rows, both)[0], [])
+        self.assertEqual(scope.problems([two], rows, both)[0], [])
         pair = _l_item(files=[_l_frow("stats.py", _l_add("median"), _l_add("mode"))])
-        got, _ = planscope.problems([pair], [_l_ROW], {"stats.py": ("", "def median(xs):\n    return xs[0]\n")})
+        got, _ = scope.problems([pair], [_l_ROW], {"stats.py": ("", "def median(xs):\n    return xs[0]\n")})
         self.assertEqual([p for p in got if "足した行に無い" in p and "mode" in p].__len__(), 1, got)
         self.assertFalse(any("add median" in p for p in got), got)
 
@@ -927,19 +926,19 @@ class ProblemsCase(_LSrc):
         mk = _l_item(allowed_paths=["*.py"], files=[_l_frow("app.py", op="create")])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "app.py"]}]
         exists = {**_l_STATS, "app.py": ("x = 1\n", "x = 2\n")}
-        self.assertTrue(any("app.py" in p and "op=create" in p for p in planscope.problems([mk], rows, exists)[0]))
-        self.assertTrue(any("app.py" in p and "op=create" in p for p in planscope.problems([mk], rows, _l_STATS)[0]), "差分に無い")
-        self.assertEqual(planscope.problems([mk], rows, {**_l_STATS, "app.py": (None, "x = 1\n")})[0], [])
+        self.assertTrue(any("app.py" in p and "op=create" in p for p in scope.problems([mk], rows, exists)[0]))
+        self.assertTrue(any("app.py" in p and "op=create" in p for p in scope.problems([mk], rows, _l_STATS)[0]), "差分に無い")
+        self.assertEqual(scope.problems([mk], rows, {**_l_STATS, "app.py": (None, "x = 1\n")})[0], [])
         rm_ = _l_item(allowed_paths=["*.py"], files=[_l_frow("old.py", op="delete", why="呼び手は stats に寄せたので要らない")])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "old.py"]}]
         self.assertTrue(any("old.py" in p and "op=delete" in p
-                            for p in planscope.problems([rm_], rows, {**_l_STATS, "old.py": ("a\n", "b\n")})[0]))
-        self.assertEqual(planscope.problems([rm_], rows, {**_l_STATS, "old.py": ("a\n", None)})[0], [])
+                            for p in scope.problems([rm_], rows, {**_l_STATS, "old.py": ("a\n", "b\n")})[0]))
+        self.assertEqual(scope.problems([rm_], rows, {**_l_STATS, "old.py": ("a\n", None)})[0], [])
         mv = _l_item(allowed_paths=["*.py"], files=[_l_frow("new.py", op="rename", **{"from": "old.py"}, why="名を実体に合わせた")])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "old.py", "new.py"]}]
         moved = {**_l_STATS, "old.py": ("a\n", None), "new.py": (None, "a\n")}
-        self.assertEqual(planscope.problems([mv], rows, moved)[0], [])
-        got, _ = planscope.problems([mv], rows, {**_l_STATS, "old.py": ("a\n", "b\n"), "new.py": ("c\n", "d\n")})
+        self.assertEqual(scope.problems([mv], rows, moved)[0], [])
+        got, _ = scope.problems([mv], rows, {**_l_STATS, "old.py": ("a\n", "b\n"), "new.py": ("c\n", "d\n")})
         self.assertTrue(any("old.py" in p and "op=rename" in p for p in got), got)
         self.assertTrue(any("new.py" in p and "op=rename" in p for p in got), got)
 
@@ -948,30 +947,30 @@ class ProblemsCase(_LSrc):
         同じ照らし）。path を変えれば通る"""
         it = _l_item(allowed_paths=["*.py"], files=[_l_frow("foo.py")])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "foo.py"]}]
-        got, _ = planscope.problems([it], rows, _l_STATS)
+        got, _ = scope.problems([it], rows, _l_STATS)
         self.assertTrue(any("foo.py" in p and "op=modify" in p and _l_MEAN in p for p in got), got)
-        self.assertEqual(planscope.problems([it], rows, {**_l_STATS, "foo.py": ("a\n", "b\n")})[0], [])
+        self.assertEqual(scope.problems([it], rows, {**_l_STATS, "foo.py": ("a\n", "b\n")})[0], [])
 
     def test_definition_outside_add_paths_is_extra(self):
         """同名の定義が足す行の path の外に在れば余分に数える"""
         it = _l_item(allowed_paths=["*.py"], files=[_l_frow("stats.py", _l_add("median"))])
         ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "util.py": ("", "def median(xs):\n    pass\n")}
-        got, _ = planscope.problems([it], [{"unit_key": _l_MEAN, "files": ["stats.py", "util.py"]}], ch)
+        got, _ = scope.problems([it], [{"unit_key": _l_MEAN, "files": ["stats.py", "util.py"]}], ch)
         self.assertTrue(any("util.py" in p and "足す行の path" in p for p in got), got)
         both = _l_item(allowed_paths=["*.py"], files=[_l_frow("stats.py", _l_add("median")), _l_frow("util.py", _l_add("median"))])
-        self.assertEqual(planscope.problems([both], [{"unit_key": _l_MEAN, "files": ["stats.py", "util.py"]}], ch)[0], [],
+        self.assertEqual(scope.problems([both], [{"unit_key": _l_MEAN, "files": ["stats.py", "util.py"]}], ch)[0], [],
                          "同じ名を足すと言った行の path は、どれも足す先")
 
     def test_removes_identifier_must_be_gone(self):
         it = _l_item(files=[_l_frow("stats.py", _l_rm("old_mean"))])
         kept = {"stats.py": ("def old_mean():\n    pass\n", "def old_mean():\n    return 1\n")}
-        self.assertTrue(any("old_mean" in p for p in planscope.problems([it], [_l_ROW], kept)[0]))
+        self.assertTrue(any("old_mean" in p for p in scope.problems([it], [_l_ROW], kept)[0]))
         gone = {"stats.py": ("def old_mean():\n    pass\n", "def mean():\n    pass\n")}
-        self.assertEqual(planscope.problems([it], [_l_ROW], gone)[0], [])
+        self.assertEqual(scope.problems([it], [_l_ROW], gone)[0], [])
 
     def test_prose_names_not_checked(self):
         it = _l_item(files=[_l_frow("stats.py", _l_add("平均の定義の注記"), _l_rm("古い注記の文"))])
-        got, note = planscope.problems([it], [_l_ROW], _l_STATS)
+        got, note = scope.problems([it], [_l_ROW], _l_STATS)
         self.assertEqual(got, [])
         self.assertEqual(note["unchecked"], ["平均の定義の注記", "古い注記の文"])
 
@@ -981,12 +980,12 @@ class ProblemsCase(_LSrc):
         base = "class TestStats:\n    def test_a(self):\n        pass\n"
         ch = {**_l_STATS, "test_stats.py": (base, base + "    def test_extra(self):\n        pass\n")}
         it = _l_item(allowed_paths=["stats.py", "test_stats.py"])
-        got, note = planscope.problems([it], [_l_ROW], ch)
+        got, note = scope.problems([it], [_l_ROW], ch)
         self.assertTrue(any("test_stats.py::TestStats::test_extra" in p and "tests にも無い" in p for p in got), got)
         self.assertEqual([t for o in note.get("overflow") or [] for t in o["new_tests"]], ["test_stats.py::TestStats::test_extra"])
         named = _l_item(tests=[{"id": "test_stats.py::TestStats::test_extra"}])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "test_stats.py"]}]
-        got, note = planscope.problems([named], rows, ch)
+        got, note = scope.problems([named], rows, ch)
         self.assertEqual((got, note.get("overflow")), ([], []))
 
     def test_new_test_in_unit_files_is_recorded_not_rejected(self):
@@ -996,7 +995,7 @@ class ProblemsCase(_LSrc):
         ch = {**_l_STATS, "test_stats.py": (base, base + "    def test_extra(self):\n        pass\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "test_stats.py"]}]
         it = _l_item(allowed_paths=["stats.py", "test_stats.py"])
-        got, note = planscope.problems([it], rows, ch)
+        got, note = scope.problems([it], rows, ch)
         tid = "test_stats.py::TestStats::test_extra"
         self.assertTrue(any(tid in p for p in got), got)
         (over,) = note["overflow"]
@@ -1010,7 +1009,7 @@ class ProblemsCase(_LSrc):
         base = "class TestStats:\n    def test_a(self):\n        pass\n"
         ch = {**_l_STATS, "test_stats.py": (base, base + "    def test_extra(self):\n        pass\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "test_stats.py"]}]
-        got, note = planscope.problems([_l_item(allowed_paths=["stats.py", "test_stats.py"])], rows, ch)
+        got, note = scope.problems([_l_item(allowed_paths=["stats.py", "test_stats.py"])], rows, ch)
         tid = "test_stats.py::TestStats::test_extra"
         self.assertTrue(any(tid in p for p in got), got)
         over = note.get("overflow")
@@ -1021,7 +1020,7 @@ class ProblemsCase(_LSrc):
     def test_outside_path_is_overflow_with_item(self):
         """行の申告したパスが項目の allowed_paths の外なら、拒否の行と同じ文が overflow の line に入り、item はその単位の項目、
         paths はそのパス"""
-        got, note = planscope.problems([_l_ITEM], [{"unit_key": _l_MEAN, "files": ["other.py"]}], {**_l_STATS, "other.py": (None, "x = 1\n")})
+        got, note = scope.problems([_l_ITEM], [{"unit_key": _l_MEAN, "files": ["other.py"]}], {**_l_STATS, "other.py": (None, "x = 1\n")})
         line = next(p for p in got if _l_MEAN in p and "other.py" in p and "項目 1" in p)
         over = note.get("overflow")
         self.assertEqual([(o["line"], o["item"], o["unit_key"], o["paths"]) for o in over or []], [(line, 1, _l_MEAN, ["other.py"])], note)
@@ -1030,19 +1029,19 @@ class ProblemsCase(_LSrc):
         """項目 1 に、範囲の相談の合意で新しいテスト tid が入った写し（kinds の順に合意を重ねる）"""
         rows = [{"item": "1", "granted_paths": [], "granted_tests": [], "granted_new_tests": [{"id": tid, "red_kind": k}]}
                 for k in kinds]
-        return planscope.with_agreed([_l_item(allowed_paths=["stats.py", "test_stats.py"])], rows)
+        return scope.with_agreed([_l_item(allowed_paths=["stats.py", "test_stats.py"])], rows)
 
     def test_agreed_test_not_written_is_not_missing(self):
         """合意で入ったテストは許しで義務でない: 修正役が書かなくても『tests の X が修正の後の木に無い』の欠けにしない"""
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py"]}]
-        self.assertEqual(planscope.problems(self.agreed_items("red"), rows, _l_STATS)[0], [])
+        self.assertEqual(scope.problems(self.agreed_items("red"), rows, _l_STATS)[0], [])
 
     def test_agreed_test_written_under_other_name_is_overflow_not_missing(self):
         """合意の id と別の名で書いたテストは、案の外のテスト（はみ出し。相談に回る）で、合意の id の欠けにはしない"""
         base = "class TestStats:\n    def test_a(self):\n        pass\n"
         ch = {**_l_STATS, "test_stats.py": (base, base + "    def test_other(self):\n        pass\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "test_stats.py"]}]
-        got, note = planscope.problems(self.agreed_items("red"), rows, ch)
+        got, note = scope.problems(self.agreed_items("red"), rows, ch)
         self.assertFalse([p for p in got if "修正の後の木に無い" in p], got)
         self.assertEqual([o["new_tests"] for o in note["overflow"]], [["test_stats.py::TestStats::test_other"]])
 
@@ -1060,16 +1059,16 @@ class ProblemsCase(_LSrc):
         tid = "test_stats.py::TestStats::test_extra"
         agreed = [{"item": "1", "granted_paths": [], "granted_tests": [],
                    "granted_new_tests": [{"id": tid, "red_kind": "red"}]}]
-        got = planscope.with_agreed([_l_ITEM], agreed)
+        got = scope.with_agreed([_l_ITEM], agreed)
         (row,) = got[0]["tests"]
         self.assertEqual((row["id"], row["red_kind"]), (tid, "red"))
         self.assertTrue(row.get("agreed"), row)
         self.assertEqual(_l_ITEM["tests"], [], "元の項目は変えない")
-        self.assertEqual(planscope.problems(got, rows, ch)[0], [])
+        self.assertEqual(scope.problems(got, rows, ch)[0], [])
 
     def test_named_test_missing_after_fix(self):
         it = _l_item(tests=[{"id": "test_stats.py::TestStats::test_mean_of_two"}])
-        self.assertTrue(any("test_mean_of_two" in p and _l_MEAN in p for p in planscope.problems([it], [_l_ROW], _l_STATS)[0]))
+        self.assertTrue(any("test_mean_of_two" in p and _l_MEAN in p for p in scope.problems([it], [_l_ROW], _l_STATS)[0]))
 
     def test_out_of_scope_wins_over_permits(self):
         """out_of_scope は permits（テストの変更の許し・直す裁定の limits）にも勝つ（案が外したパスが要るのは案の項目の誤りで、
@@ -1077,48 +1076,48 @@ class ProblemsCase(_LSrc):
         it = _l_item(allowed_paths=["*.py"], out_of_scope=[{"glob": "legacy.py", "why": "古い置き場は触らない"}])
         ch = {**_l_STATS, "legacy.py": ("a\n", "b\n")}
         for rows in ([{"unit_key": _l_MEAN, "files": ["stats.py", "legacy.py"]}], [_l_ROW]):
-            got, _ = planscope.problems([it], rows, ch, permits=("legacy.py",))
+            got, _ = scope.problems([it], rows, ch, permits=("legacy.py",))
             self.assertTrue(any("out_of_scope" in p and "legacy.py" in p for p in got), (rows, got))
 
     def test_agreed_paths_join_their_item_only(self):
         """範囲の相談の合意（conflict.agreed の行）は、その項目の allowed_paths に足す（ほかの項目・out_of_scope は変えない）"""
         other = _l_item(item=2, unit_keys=[_l_CLAMP], allowed_paths=["clamp.py"])
         agreed = [{"item": "1", "granted_paths": ["CHANGELOG.md"], "granted_tests": ["test_stats.py:3"]}]
-        got = planscope.with_agreed([_l_ITEM, other], agreed)
+        got = scope.with_agreed([_l_ITEM, other], agreed)
         self.assertEqual(got[0]["allowed_paths"], ["stats.py", "CHANGELOG.md"])
         self.assertEqual(got[1]["allowed_paths"], ["clamp.py"])
         self.assertEqual(_l_ITEM["allowed_paths"], ["stats.py"], "元の項目は変えない")
         ch = {**_l_STATS, "CHANGELOG.md": ("a\n", "b\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "CHANGELOG.md"]}]
-        self.assertTrue(planscope.problems([_l_ITEM], rows, ch)[0], "合意の無い時は拒む")
-        self.assertEqual(planscope.problems(got, rows, ch)[0], [])
+        self.assertTrue(scope.problems([_l_ITEM], rows, ch)[0], "合意の無い時は拒む")
+        self.assertEqual(scope.problems(got, rows, ch)[0], [])
 
     def test_permit_paths_are_in_scope(self):
         ch = {**_l_STATS, "test_stats.py": ("a\n", "b\n")}
-        self.assertEqual(planscope.problems([_l_ITEM], [_l_ROW], ch, permits=("test_stats.py",))[0], [])
+        self.assertEqual(scope.problems([_l_ITEM], [_l_ROW], ch, permits=("test_stats.py",))[0], [])
 
     def test_new_test_ids_only_test_modules(self):
         src = "def test_x():\n    pass\n"
-        self.assertEqual(planscope.new_test_ids("util.py", None, src), [], "試験のモジュールの名でない .py は数えない")
-        self.assertEqual(planscope.new_test_ids("test_util.py", None, src), ["test_util.py::test_x"])
-        self.assertEqual(planscope.new_test_ids("util_test.py", "", src), ["util_test.py::test_x"])
-        self.assertEqual(planscope.new_test_ids("test_util.py", None, "def test_x(:\n"), [], "構文の壊れた now は []")
-        self.assertEqual(planscope.new_test_ids("test_util.md", None, src), [])
+        self.assertEqual(scope.new_test_ids("util.py", None, src), [], "試験のモジュールの名でない .py は数えない")
+        self.assertEqual(scope.new_test_ids("test_util.py", None, src), ["test_util.py::test_x"])
+        self.assertEqual(scope.new_test_ids("util_test.py", "", src), ["util_test.py::test_x"])
+        self.assertEqual(scope.new_test_ids("test_util.py", None, "def test_x(:\n"), [], "構文の壊れた now は []")
+        self.assertEqual(scope.new_test_ids("test_util.md", None, src), [])
 
     def test_added_removed_replace(self):
-        self.assertEqual(planscope.added_removed("a\nb\n", "a\nc\n"), (["c"], ["b"]))
-        self.assertEqual(planscope.added_removed(None, "x\n"), (["x"], []), "None は空の中身")
-        self.assertEqual(planscope.added_removed("x\n", None), ([], ["x"]))
+        self.assertEqual(scope.added_removed("a\nb\n", "a\nc\n"), (["c"], ["b"]))
+        self.assertEqual(scope.added_removed(None, "x\n"), (["x"], []), "None は空の中身")
+        self.assertEqual(scope.added_removed("x\n", None), ([], ["x"]))
 
     def test_note_records_checked_items(self):
-        _, note = planscope.problems([_l_ITEM, _l_item(item=2, unit_keys=[_l_CLAMP])], [_l_ROW], _l_STATS)
+        _, note = scope.problems([_l_ITEM, _l_item(item=2, unit_keys=[_l_CLAMP])], [_l_ROW], _l_STATS)
         self.assertEqual((note["checked"], note["items"]), (True, [1]), "見る項目は rows の単位と重なる項目だけ")
 
     def test_problem_lines_carry_unit_keys_for_binding(self):
         """拒否の行は単位の key か項目の unit_keys の全部を字のまま含める（3 回目の拒否で単位に結ぶ）"""
         it = _l_item(unit_keys=[_l_MEAN, _l_CLAMP], files=[_l_frow("stats.py", _l_add("median"), _l_rm("old_mean"))],
                   tests=[{"id": "test_stats.py::TestStats::test_two"}])
-        got, _ = planscope.problems([it], [{"unit_key": _l_MEAN, "files": ["other.py"]}, {"unit_key": _l_CLAMP, "files": ["stats.py"]}],
+        got, _ = scope.problems([it], [{"unit_key": _l_MEAN, "files": ["other.py"]}, {"unit_key": _l_CLAMP, "files": ["stats.py"]}],
                                     {"other.py": (None, "x\n")})
         unit_lines = [p for p in got if "どの項目の allowed_paths にも無い" not in p]
         self.assertTrue(unit_lines)
@@ -1137,13 +1136,13 @@ class HeldItemCase(_LSrc):
         ch = {**_l_STATS, "mean_util.py": (None, "x = 1\n"),
               "test_stats.py": (base, base + "    def test_mean_of_two(self):\n        pass\n")}
         rows = [{"unit_key": _l_CLAMP, "files": ["stats.py", "test_stats.py"]}]
-        self.assertEqual(planscope.problems([mean, clamp], rows, ch)[0], [], "外れた項目 1 の範囲と tests にも入る")
-        got, _ = planscope.problems([mean, clamp], [{"unit_key": _l_MEAN, "files": ["legacy.py"]}], {"legacy.py": ("a\n", "b\n")})
+        self.assertEqual(scope.problems([mean, clamp], rows, ch)[0], [], "外れた項目 1 の範囲と tests にも入る")
+        got, _ = scope.problems([mean, clamp], [{"unit_key": _l_MEAN, "files": ["legacy.py"]}], {"legacy.py": ("a\n", "b\n")})
         self.assertTrue(any("out_of_scope" in p and "legacy.py" in p for p in got), "外れた項目の単位には今どおり拒む")
-        got, _ = planscope.problems([mean, clamp], [{"unit_key": _l_CLAMP, "files": ["stats.py"]}],
+        got, _ = scope.problems([mean, clamp], [{"unit_key": _l_CLAMP, "files": ["stats.py"]}],
                                     {"stats.py": _l_STATS["stats.py"], "legacy.py": ("a\n", "b\n")})
         self.assertTrue(any("out_of_scope" in p and "legacy.py" in p for p in got), "単位に結べない変更は今どおり拒む")
-        self.assertEqual(planscope.problems([mean, clamp], [{"unit_key": _l_CLAMP, "files": ["legacy.py"]}],
+        self.assertEqual(scope.problems([mean, clamp], [{"unit_key": _l_CLAMP, "files": ["legacy.py"]}],
                                             {"legacy.py": ("a\n", "b\n")})[0], [],
                          "項目 2 が明示に許したパスは、項目 2 の単位では項目 1 の out_of_scope に負けない（run 249b）")
 
@@ -1157,11 +1156,11 @@ class FalseRejectCase(_LSrc):
         it = _l_item(unit_keys=[_l_MEAN, _l_CLAMP], files=[_l_frow("stats.py", _l_add("median"), _l_rm("old_mean"))],
                   tests=[{"id": "test_stats.py::TestStats::test_mean_of_two"}])
         rows = [{"unit_key": _l_CLAMP, "files": ["stats.py"]}]
-        self.assertEqual(planscope.problems([it], rows, _l_STATS)[0], [])
-        got, _ = planscope.problems([it], [{"unit_key": _l_CLAMP, "files": ["other.py"]}], {"other.py": (None, "x\n")})
+        self.assertEqual(scope.problems([it], rows, _l_STATS)[0], [])
+        got, _ = scope.problems([it], [{"unit_key": _l_CLAMP, "files": ["other.py"]}], {"other.py": (None, "x\n")})
         self.assertTrue(any(_l_CLAMP in p and "other.py" in p for p in got), got)
         both = [{"unit_key": _l_MEAN, "files": ["stats.py"]}, {"unit_key": _l_CLAMP, "files": ["stats.py"]}]
-        self.assertTrue(any("median" in p for p in planscope.problems([it], both, _l_STATS)[0]), "全部の単位が生きていれば見る")
+        self.assertTrue(any("median" in p for p in scope.problems([it], both, _l_STATS)[0]), "全部の単位が生きていれば見る")
 
     def test_mentioned_removed_name_is_gone(self):
         """消した名が足した行に定義でなく現れる（消えたことを確かめる hasattr・CHANGELOG の注記）だけなら、残ったと見ない"""
@@ -1170,9 +1169,9 @@ class FalseRejectCase(_LSrc):
               "check_gone.py": (None, "import stats\nassert not hasattr(stats, 'old_mean')\n"),
               "CHANGELOG.md": ("# 変更\n", "# 変更\n- `old_mean` を消した\n")}
         rows = [{"unit_key": _l_MEAN, "files": sorted(ch)}]
-        self.assertEqual(planscope.problems([it], rows, ch)[0], [])
+        self.assertEqual(scope.problems([it], rows, ch)[0], [])
         again = {**ch, "util.py": (None, "def old_mean():\n    pass\n")}
-        got, _ = planscope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(again)}], again)
+        got, _ = scope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(again)}], again)
         self.assertTrue(any("old_mean" in p for p in got), "足した行に定義が在れば残ったと見る")
 
     CONCEPTS_LINE = '  "pattern": "def where_paths|def lead_path",\n'
@@ -1185,7 +1184,7 @@ class FalseRejectCase(_LSrc):
         ch = {"stats.py": ("", "def where_paths(xs):\n    return xs\n"),
               "docs/concepts.json": ("", self.CONCEPTS_LINE),
               "util.py": ("", "    async def where_paths(xs):\n        return xs\n")}
-        got, _ = planscope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(ch)}], ch)
+        got, _ = scope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(ch)}], ch)
         outside = [p for p in got if "足す行の path" in p]
         self.assertTrue(any("util.py" in p for p in outside), got)
         self.assertFalse(any("docs/concepts.json" in p for p in got), got)
@@ -1195,14 +1194,14 @@ class FalseRejectCase(_LSrc):
         it = _l_item(allowed_paths=["stats.py", "docs/**"], files=[_l_frow("stats.py", _l_rm("lead_path"))])
         ch = {"stats.py": ("def lead_path(xs):\n    return xs\n", "def where_paths(xs):\n    return xs\n"),
               "docs/concepts.json": ("", self.CONCEPTS_LINE)}
-        got, _ = planscope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(ch)}], ch)
+        got, _ = scope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(ch)}], ch)
         self.assertEqual(got, [])
 
     def test_dotted_name_found_by_last_segment(self):
         """名は :: と . で割った最後の段で探す。/ を含む名は確かめず unchecked に回す"""
         it = _l_item(files=[_l_frow("stats.py", _l_add("Stats.median"), _l_add("平均の注記"))])
         ch = {"stats.py": ("", "class Stats:\n    def median(self):\n        pass\n")}
-        got, note = planscope.problems([it], [_l_ROW], ch)
+        got, note = scope.problems([it], [_l_ROW], ch)
         self.assertEqual(got, [])
         self.assertEqual(note["unchecked"], ["平均の注記"])
 
@@ -1212,18 +1211,18 @@ class FalseRejectCase(_LSrc):
         it = _l_item(allowed_paths=["*.py", "app/**"], files=[_l_frow("app/receivers.py", op="create")])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "app/receivers.py"]}]
         word_only = {"stats.py": ("a\n", "a\np = \"data.py\"\n")}
-        self.assertTrue(any("app/receivers.py" in p for p in planscope.problems([it], rows, word_only)[0]),
+        self.assertTrue(any("app/receivers.py" in p for p in scope.problems([it], rows, word_only)[0]),
                         "モジュールのファイルが無ければ、足した行の 'py' の語で通さない")
         added = {"stats.py": ("a\n", "b\n"), "app/receivers.py": (None, "def handle():\n    pass\n")}
-        self.assertEqual(planscope.problems([it], rows, added)[0], [], "モジュールのファイルを足せば、中身に自分の名が無くても通る")
+        self.assertEqual(scope.problems([it], rows, added)[0], [], "モジュールのファイルを足せば、中身に自分の名が無くても通る")
         pkg = _l_item(allowed_paths=["*.py", "app/**"], files=[_l_frow("app/receivers/__init__.py", op="create")])
         files = {"stats.py": ("a\n", "b\n"), "app/receivers/__init__.py": (None, "X = 1\n")}
-        self.assertEqual(planscope.problems([pkg], [{"unit_key": _l_MEAN, "files": sorted(files)}], files)[0], [])
+        self.assertEqual(scope.problems([pkg], [{"unit_key": _l_MEAN, "files": sorted(files)}], files)[0], [])
         rm_ = _l_item(allowed_paths=["*.py"], files=[_l_frow("old.py", op="delete", why="呼び手は stats に寄せたので要らない")])
         gone = {"stats.py": ("a\n", "b\n"), "old.py": ("def f():\n    pass\n", None)}
-        self.assertEqual(planscope.problems([rm_], [{"unit_key": _l_MEAN, "files": sorted(gone)}], gone)[0], [])
+        self.assertEqual(scope.problems([rm_], [{"unit_key": _l_MEAN, "files": sorted(gone)}], gone)[0], [])
         kept = {"stats.py": ("a\n", "b\n"), "old.py": ("import x.py\n", "y = 1\n")}
-        self.assertTrue(any("old.py" in p for p in planscope.problems([rm_], [{"unit_key": _l_MEAN, "files": sorted(kept)}], kept)[0]),
+        self.assertTrue(any("old.py" in p for p in scope.problems([rm_], [{"unit_key": _l_MEAN, "files": sorted(kept)}], kept)[0]),
                         "ファイルが残れば、消した行の 'py' の語で通さない")
 
     def test_py_file_name_edge_shapes(self):
@@ -1232,9 +1231,9 @@ class FalseRejectCase(_LSrc):
         it = _l_item(allowed_paths=["*.py", "app/**"],
                   files=[_l_frow("app/receivers/__init__.py", op="create"), _l_frow("app/receivers/core.py", op="create")])
         pkg = {"stats.py": ("a\n", "b\n"), "app/receivers/__init__.py": (None, ""), "app/receivers/core.py": (None, "X = 1\n")}
-        self.assertEqual(planscope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(pkg)}], pkg)[0], [])
+        self.assertEqual(scope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(pkg)}], pkg)[0], [])
         dotted = _l_item(allowed_paths=["*.py"], files=[_l_frow("app.receivers.py", op="create")])
-        got, note = planscope.problems([dotted], [{"unit_key": _l_MEAN, "files": ["stats.py", "app.receivers.py"]}],
+        got, note = scope.problems([dotted], [{"unit_key": _l_MEAN, "files": ["stats.py", "app.receivers.py"]}],
                                        {**_l_STATS, "app.receivers.py": (None, "")})
         self.assertEqual((got, note["unchecked"]), ([], []))
 
@@ -1246,7 +1245,7 @@ class FalseRejectCase(_LSrc):
         （docstring の字は __doc__ を書かない）"""
         it = _l_item(files=[_l_frow("stats.py", _l_add("mode.__doc__"))])
         now = self.SRC.replace("def mode(xs):\n", "def mode(xs):\n    \"\"\"最頻値。空の xs は ValueError\"\"\"\n")
-        got, note = planscope.problems([it], [_l_ROW], {"stats.py": (self.SRC, now)})
+        got, note = scope.problems([it], [_l_ROW], {"stats.py": (self.SRC, now)})
         self.assertEqual((got, note["unchecked"]), ([], []))
 
     def test_doc_attribute_missing_when_owner_gains_no_docstring(self):
@@ -1255,7 +1254,7 @@ class FalseRejectCase(_LSrc):
         body = self.SRC.replace("key=xs.count", "key=xs.count)  # 最頻値\n    (0")
         other = self.SRC.replace("def mean(xs):\n", "def mean(xs):\n    \"\"\"平均\"\"\"\n")
         for now in (body, other):
-            got, _ = planscope.problems([it], [_l_ROW], {"stats.py": (self.SRC, now)})
+            got, _ = scope.problems([it], [_l_ROW], {"stats.py": (self.SRC, now)})
             self.assertTrue(any("mode.__doc__" in p and _l_MEAN in p for p in got), got)
 
     def test_doc_attribute_same_docstring_is_not_added(self):
@@ -1263,9 +1262,9 @@ class FalseRejectCase(_LSrc):
         it = _l_item(files=[_l_frow("stats.py", _l_add("mode.__doc__"))])
         base = self.SRC.replace("def mode(xs):\n", "def mode(xs):\n    \"\"\"最頻値\"\"\"\n")
         same = base.replace("key=xs.count", "key=lambda x: xs.count(x)")
-        self.assertTrue(planscope.problems([it], [_l_ROW], {"stats.py": (base, same)})[0])
+        self.assertTrue(scope.problems([it], [_l_ROW], {"stats.py": (base, same)})[0])
         changed = base.replace("最頻値", "最頻値。空の xs は ValueError")
-        self.assertEqual(planscope.problems([it], [_l_ROW], {"stats.py": (base, changed)})[0], [])
+        self.assertEqual(scope.problems([it], [_l_ROW], {"stats.py": (base, changed)})[0], [])
 
     def test_doc_attribute_of_method_module_and_path_forms(self):
         """クラスの中の def（Stats.median.__doc__）・モジュール（名だけの __doc__）は行の path のファイルで同じに見る。パスは行の
@@ -1273,12 +1272,12 @@ class FalseRejectCase(_LSrc):
         base = "class Stats:\n    def median(self):\n        pass\n"
         meth = _l_item(files=[_l_frow("stats.py", _l_add("Stats.median.__doc__"))])
         now = base.replace("def median(self):\n", "def median(self):\n        \"\"\"中央値\"\"\"\n")
-        self.assertEqual(planscope.problems([meth], [_l_ROW], {"stats.py": (base, now)})[0], [])
+        self.assertEqual(scope.problems([meth], [_l_ROW], {"stats.py": (base, now)})[0], [])
         mod = _l_item(files=[_l_frow("stats.py", _l_add("__doc__"))])
-        self.assertEqual(planscope.problems([mod], [_l_ROW], {"stats.py": (base, "\"\"\"数の道具\"\"\"\n" + base)})[0], [])
-        self.assertTrue(planscope.problems([mod], [_l_ROW], {"stats.py": (base, now)})[0], "def の docstring はモジュールの物でない")
+        self.assertEqual(scope.problems([mod], [_l_ROW], {"stats.py": (base, "\"\"\"数の道具\"\"\"\n" + base)})[0], [])
+        self.assertTrue(scope.problems([mod], [_l_ROW], {"stats.py": (base, now)})[0], "def の docstring はモジュールの物でない")
         other = _l_item(allowed_paths=["*.py"], files=[_l_frow("other.py", _l_add("Stats.median.__doc__"))])
-        got, _ = planscope.problems([other], [{"unit_key": _l_MEAN, "files": ["stats.py", "other.py"]}],
+        got, _ = scope.problems([other], [{"unit_key": _l_MEAN, "files": ["stats.py", "other.py"]}],
                                     {"stats.py": (base, now), "other.py": ("a\n", "b\n")})
         self.assertTrue(any("other.py" in p and "Stats.median.__doc__" in p for p in got), "別の path の docstring では通さない")
 
@@ -1286,7 +1285,7 @@ class FalseRejectCase(_LSrc):
         """__doc__ の字を書いて足す形（mode.__doc__ = ...）は今までどおり足した行の語で通る"""
         it = _l_item(files=[_l_frow("stats.py", _l_add("mode.__doc__"))])
         now = self.SRC + "\n\nmode.__doc__ = \"最頻値\"\n"
-        self.assertEqual(planscope.problems([it], [_l_ROW], {"stats.py": (self.SRC, now)})[0], [])
+        self.assertEqual(scope.problems([it], [_l_ROW], {"stats.py": (self.SRC, now)})[0], [])
 
 
 class LoopFrozenCase(_LSrc):
@@ -1298,15 +1297,15 @@ class LoopFrozenCase(_LSrc):
         it = _l_item(tests=[{"id": "test_stats.py::TestStats::test_new"}])
         ch = {**_l_STATS, "test_stats.py": (self.BASE, self.FROZEN), "data.json": (None, "[]\n")}
         loop = {"test_stats.py": self.FROZEN, "data.json": "[]\n"}
-        self.assertEqual(planscope.problems([it], [_l_ROW], ch, loop=loop)[0], [])
-        got = planscope.problems([it], [_l_ROW], ch)[0]
+        self.assertEqual(scope.problems([it], [_l_ROW], ch, loop=loop)[0], [])
+        got = scope.problems([it], [_l_ROW], ch)[0]
         self.assertTrue(any("data.json" in p for p in got), "輪の無い run なら範囲の外")
 
     def test_test_added_after_freeze_counts(self):
         it = _l_item(tests=[{"id": "test_stats.py::TestStats::test_new"}])
         now = self.FROZEN + "    def test_after(self):\n        pass\n"
         ch = {**_l_STATS, "test_stats.py": (self.BASE, now)}
-        got = planscope.problems([it], [_l_ROW], ch, loop={"test_stats.py": self.FROZEN}, permits=("test_stats.py",))[0]
+        got = scope.problems([it], [_l_ROW], ch, loop={"test_stats.py": self.FROZEN}, permits=("test_stats.py",))[0]
         self.assertTrue(any("test_after" in p for p in got), got)
         self.assertFalse(any("test_new" in p for p in got), got)
 
@@ -1315,15 +1314,15 @@ class LoopFrozenCase(_LSrc):
         base = "class Legacy:\n    def median(self):\n        pass\n\n\nclass Stats:\n    def median(self):\n        pass\n"
         now = "class Legacy:\n    pass\n\n\nclass Stats:\n    def median(self):\n        pass\n"
         ch = {"stats.py": (base, now)}
-        got = planscope.problems([_l_item(files=[_l_frow("stats.py", _l_rm("Stats.median"))])], [_l_ROW], ch)[0]
+        got = scope.problems([_l_item(files=[_l_frow("stats.py", _l_rm("Stats.median"))])], [_l_ROW], ch)[0]
         self.assertTrue(any("Stats.median" in p for p in got), got)
-        self.assertEqual(planscope.problems([_l_item(files=[_l_frow("stats.py", _l_rm("Legacy.median"))])], [_l_ROW], ch)[0], [])
+        self.assertEqual(scope.problems([_l_item(files=[_l_frow("stats.py", _l_rm("Legacy.median"))])], [_l_ROW], ch)[0], [])
 
     def test_removed_call_with_kept_definition_remains(self):
         """呼び出しの行だけを消して定義を残した差分は、消えていない"""
         base = "def old_mean():\n    pass\n\n\nx = old_mean()\n"
         now = "def old_mean():\n    pass\n\n\nx = 1\n"
-        got = planscope.problems([_l_item(files=[_l_frow("stats.py", _l_rm("old_mean"))])], [_l_ROW], {"stats.py": (base, now)})[0]
+        got = scope.problems([_l_item(files=[_l_frow("stats.py", _l_rm("old_mean"))])], [_l_ROW], {"stats.py": (base, now)})[0]
         self.assertTrue(any("old_mean" in p for p in got), got)
 
 
@@ -1335,10 +1334,10 @@ class Round3Case(_LSrc):
         """stats.old_mean（モジュール名の修飾子）・stats.py::old_mean の定義を同じファイルの中で移しただけの差分は拒む"""
         base = "def old_mean():\n    pass\n\n\ndef a():\n    pass\n\n\ndef b():\n    pass\n"
         now = "def a():\n    pass\n\n\ndef b():\n    pass\n\n\ndef old_mean():\n    pass\n"
-        self.assertIn("def old_mean():", planscope.added_removed(base, now)[1], "定義の行は消した行にも出る（移した）")
+        self.assertIn("def old_mean():", scope.added_removed(base, now)[1], "定義の行は消した行にも出る（移した）")
         for raw in ("stats.old_mean", "stats.py::old_mean"):
             with self.subTest(raw):
-                got = planscope.problems([_l_item(files=[_l_frow("stats.py", _l_rm(raw))])], [_l_ROW], {"stats.py": (base, now)})[0]
+                got = scope.problems([_l_item(files=[_l_frow("stats.py", _l_rm(raw))])], [_l_ROW], {"stats.py": (base, now)})[0]
                 self.assertTrue(any(raw in p for p in got), got)
 
     def test_module_qualified_other_module_keeps_own_name(self):
@@ -1347,7 +1346,7 @@ class Round3Case(_LSrc):
         ch = {"legacy.py": ("def median(xs):\n    return 0\n", "x = 1\n"),
               "stats.py": ("def median(xs):\n    return 0\n\n\ny = median([1])\n", "def median(xs):\n    return 0\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["legacy.py", "stats.py"]}]
-        self.assertEqual(planscope.problems([it], rows, ch)[0], [])
+        self.assertEqual(scope.problems([it], rows, ch)[0], [])
 
     def test_unreadable_frozen_content_falls_back_to_base(self):
         """凍った時の中身が無い（None）ファイルは、版からの差分で数える（版から在るテストを足した物と見ない）"""
@@ -1355,7 +1354,7 @@ class Round3Case(_LSrc):
         ch = {**_l_STATS, "test_stats.py": (base, base + "    def test_b(self):\n        pass\n")}
         it = _l_item(allowed_paths=["stats.py", "test_stats.py"], tests=[{"id": "test_stats.py::TestStats::test_b"}])
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "test_stats.py"]}]
-        self.assertEqual(planscope.problems([it], rows, ch, loop={"test_stats.py": None})[0], [])
+        self.assertEqual(scope.problems([it], rows, ch, loop={"test_stats.py": None})[0], [])
 
     def test_definition_outside_add_paths_in_frozen_file(self):
         """輪が書いて凍らせたファイルの同名の定義は足す行の path の外として問わない。凍った後に修正役が足した物は拒む"""
@@ -1363,9 +1362,9 @@ class Round3Case(_LSrc):
         stats = ("", "def median(xs):\n    return xs[0]\n")
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py"]}]
         loop_written = {"stats.py": stats, "helper.py": (None, self.FROZEN_HELPER)}
-        self.assertEqual(planscope.problems([it], rows, loop_written, loop={"helper.py": self.FROZEN_HELPER})[0], [])
+        self.assertEqual(scope.problems([it], rows, loop_written, loop={"helper.py": self.FROZEN_HELPER})[0], [])
         after = {"stats.py": stats, "helper.py": (None, "x = 1\n" + self.FROZEN_HELPER)}
-        got = planscope.problems([it], rows, after, loop={"helper.py": "x = 1\n"})[0]
+        got = scope.problems([it], rows, after, loop={"helper.py": "x = 1\n"})[0]
         self.assertTrue(any("helper.py" in p and "足す行の path" in p for p in got), got)
 
     def test_tdd_shape_with_test_adds_passes(self):
@@ -1375,13 +1374,13 @@ class Round3Case(_LSrc):
         it = _l_item(allowed_paths=["stats.py"], tests=[{"id": "test_stats.py::TestStats::test_mean_of_two"}],
                   files=[_l_frow("test_stats.py", _l_add("TestStats::test_mean_of_two"))])
         ch = {**_l_STATS, "test_stats.py": (base, frozen)}
-        self.assertEqual(planscope.problems([it], [_l_ROW], ch, loop={"test_stats.py": frozen})[0], [])
+        self.assertEqual(scope.problems([it], [_l_ROW], ch, loop={"test_stats.py": frozen})[0], [])
 
     def test_declared_untouched_frozen_file_not_rejected(self):
         """行が凍った後に変わっていないファイル（範囲の外）を申告しても拒まない"""
         ch = {**_l_STATS, "data.json": (None, "[]\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "data.json"]}]
-        self.assertEqual(planscope.problems([_l_ITEM], rows, ch, loop={"data.json": "[]\n"})[0], [])
+        self.assertEqual(scope.problems([_l_ITEM], rows, ch, loop={"data.json": "[]\n"})[0], [])
 
     def test_same_name_in_untouched_lines_of_other_file_is_gone(self):
         """名を含む行に触れていない別の .py に同じ名の定義が在っても、残ったとは見ない"""
@@ -1389,7 +1388,7 @@ class Round3Case(_LSrc):
         ch = {"stats.py": ("def old_mean():\n    pass\n", "def mean():\n    pass\n"),
               "util.py": ("def old_mean():\n    pass\n\n\nA = 1\n", "def old_mean():\n    pass\n\n\nA = 2\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "util.py"]}]
-        self.assertEqual(planscope.problems([it], rows, ch)[0], [])
+        self.assertEqual(scope.problems([it], rows, ch)[0], [])
 
 
 class CrossItemScopeCase(_LSrc):
@@ -1402,45 +1401,45 @@ class CrossItemScopeCase(_LSrc):
 
     def test_owner_item_allowed_path_passes(self):
         rows = [_l_ROW, {"unit_key": _l_CLAMP, "files": ["core/seam.py"]}]
-        self.assertEqual(planscope.problems([self.ONE, self.TWO], rows, self.CH)[0], [])
+        self.assertEqual(scope.problems([self.ONE, self.TWO], rows, self.CH)[0], [])
 
     def test_owner_item_test_file_passes(self):
         two = _l_item(item=2, unit_keys=[_l_CLAMP], allowed_paths=["clamp.py"], tests=[{"id": "core/test_seam.py::test_clamp"}])
         ch = {**_l_STATS, "clamp.py": ("a\n", "b\n"), "core/test_seam.py": ("", "def test_clamp():\n    pass\n")}
         rows = [_l_ROW, {"unit_key": _l_CLAMP, "files": ["clamp.py", "core/test_seam.py"]}]
-        self.assertEqual(planscope.problems([self.ONE, two], rows, ch)[0], [])
+        self.assertEqual(scope.problems([self.ONE, two], rows, ch)[0], [])
 
     def test_owner_item_granted_path_passes(self):
         """範囲の相談で項目 2 に許したパス（with_agreed が allowed_paths に足す）も、項目 2 の単位では項目 1 の out_of_scope に負けない"""
-        items = planscope.with_agreed([self.ONE, self.TWO], [{"item": "2", "granted_paths": ["core/doc.md"]}])
+        items = scope.with_agreed([self.ONE, self.TWO], [{"item": "2", "granted_paths": ["core/doc.md"]}])
         ch = {**self.CH, "core/doc.md": ("a\n", "b\n")}
         rows = [_l_ROW, {"unit_key": _l_CLAMP, "files": ["core/seam.py", "core/doc.md"]}]
-        self.assertEqual(planscope.problems(items, rows, ch)[0], [])
+        self.assertEqual(scope.problems(items, rows, ch)[0], [])
 
     def test_excluding_item_unit_still_rejected(self):
         """項目 1 の単位が同じパスを申告すれば、項目 1 の out_of_scope で拒む"""
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "core/seam.py"]}]
-        got, _ = planscope.problems([self.ONE, self.TWO], rows, self.CH)
+        got, _ = scope.problems([self.ONE, self.TWO], rows, self.CH)
         self.assertTrue(any(_l_MEAN in p and "core/seam.py" in p and "項目 1 の out_of_scope" in p for p in got), got)
 
     def test_path_outside_owner_scope_still_rejected(self):
         """行の単位の項目が許していないパスは、ほかの項目の out_of_scope で今どおり拒む（permits に入っていても）"""
         ch = {**self.CH, "core/other.py": ("a\n", "b\n")}
         rows = [_l_ROW, {"unit_key": _l_CLAMP, "files": ["core/seam.py", "core/other.py"]}]
-        got, _ = planscope.problems([self.ONE, self.TWO], rows, ch, permits=("core/other.py",))
+        got, _ = scope.problems([self.ONE, self.TWO], rows, ch, permits=("core/other.py",))
         self.assertTrue(any(_l_CLAMP in p and "core/other.py" in p and "out_of_scope" in p for p in got), got)
         self.assertFalse(any("core/seam.py" in p for p in got), got)
 
     def test_own_item_out_of_scope_still_wins(self):
         two = _l_item(item=2, unit_keys=[_l_CLAMP], allowed_paths=["core/**"],
                    out_of_scope=[{"glob": "core/seam.py", "why": "項目 2 も継ぎ目は変えない"}])
-        got, _ = planscope.problems([self.ONE, two], [_l_ROW, {"unit_key": _l_CLAMP, "files": ["core/seam.py"]}], self.CH)
+        got, _ = scope.problems([self.ONE, two], [_l_ROW, {"unit_key": _l_CLAMP, "files": ["core/seam.py"]}], self.CH)
         self.assertTrue(any(_l_CLAMP in p and "項目 2 の out_of_scope" in p for p in got), got)
 
     def test_unattributed_change_still_rejected_and_names_owner(self):
         """どの行も申告していない変わったパスは単位に結べないので、全部の項目の out_of_scope で拒む。行は許す項目を名指し、
         その項目の単位の files に申告する道を言う"""
-        got, _ = planscope.problems([self.ONE, self.TWO], [_l_ROW], self.CH)
+        got, _ = scope.problems([self.ONE, self.TWO], [_l_ROW], self.CH)
         hit = [p for p in got if "core/seam.py" in p]
         self.assertTrue(hit and "項目 1 の out_of_scope" in hit[0] and "項目 2" in hit[0] and "files" in hit[0], got)
 
@@ -1456,41 +1455,41 @@ class AgreedOverridesOutOfScopeCase(_LSrc):
     ROWS = [{"unit_key": _l_MEAN, "files": ["stats.py", "CHANGELOG.md"]}]
 
     def test_without_agreement_still_rejected(self):
-        got, _ = planscope.problems(planscope.with_agreed([self.ONE], []), self.ROWS, self.CH)
+        got, _ = scope.problems(scope.with_agreed([self.ONE], []), self.ROWS, self.CH)
         self.assertTrue(any("CHANGELOG.md" in p and "out_of_scope" in p for p in got), got)
 
     def test_granted_path_overrides_own_out_of_scope(self):
-        items = planscope.with_agreed([self.ONE], [{"item": "1", "granted_paths": ["CHANGELOG.md"]}])
-        self.assertEqual(planscope.problems(items, self.ROWS, self.CH)[0], [])
-        self.assertEqual(planscope.problems(items, [_l_ROW], self.CH)[0], [], "申告の無い変更も、外した項目の out_of_scope では拒まない")
+        items = scope.with_agreed([self.ONE], [{"item": "1", "granted_paths": ["CHANGELOG.md"]}])
+        self.assertEqual(scope.problems(items, self.ROWS, self.CH)[0], [])
+        self.assertEqual(scope.problems(items, [_l_ROW], self.CH)[0], [], "申告の無い変更も、外した項目の out_of_scope では拒まない")
         self.assertEqual(self.ONE["out_of_scope"][0]["glob"], "CHANGELOG.md", "元の項目は変えない")
 
     def test_override_is_exact_path_only(self):
         """docs/a.md を許しても、同じ glob docs/** の docs/b.md は外さない"""
-        items = planscope.with_agreed([self.ONE], [{"item": "1", "granted_paths": ["docs/a.md"]}])
+        items = scope.with_agreed([self.ONE], [{"item": "1", "granted_paths": ["docs/a.md"]}])
         ch = {**_l_STATS, "docs/a.md": ("a\n", "b\n"), "docs/b.md": ("a\n", "b\n")}
-        got, _ = planscope.problems(items, [{"unit_key": _l_MEAN, "files": ["stats.py", "docs/a.md", "docs/b.md"]}], ch)
+        got, _ = scope.problems(items, [{"unit_key": _l_MEAN, "files": ["stats.py", "docs/a.md", "docs/b.md"]}], ch)
         self.assertFalse(any("docs/a.md" in p for p in got), got)
         self.assertTrue(any("docs/b.md" in p and "out_of_scope" in p for p in got), got)
 
     def test_granted_test_file_overrides_own_out_of_scope(self):
         """書き換えを許したテスト（granted_tests。permits に入る）のファイルも、その項目の out_of_scope から外す"""
         one = _l_item(allowed_paths=["stats.py"], out_of_scope=[{"glob": "test_old.py", "why": "古い試験は触らない"}])
-        items = planscope.with_agreed([one], [{"item": "1", "granted_paths": [], "granted_tests": ["test_old.py:3"]}])
+        items = scope.with_agreed([one], [{"item": "1", "granted_paths": [], "granted_tests": ["test_old.py:3"]}])
         ch = {**_l_STATS, "test_old.py": ("a\n", "b\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "test_old.py"]}]
-        self.assertTrue(planscope.problems([one], rows, ch, permits=("test_old.py",))[0])
-        self.assertEqual(planscope.problems(items, rows, ch, permits=("test_old.py",))[0], [])
+        self.assertTrue(scope.problems([one], rows, ch, permits=("test_old.py",))[0])
+        self.assertEqual(scope.problems(items, rows, ch, permits=("test_old.py",))[0], [])
 
     def test_other_item_out_of_scope_is_not_lifted(self):
         """項目 2 に許したパスは項目 1 の out_of_scope を外さない: 項目 2 の単位では通り（e7906845）、項目 1 の単位と申告の無い
         変更は項目 1 の out_of_scope で今どおり拒む"""
         two = _l_item(item=2, unit_keys=[_l_CLAMP], allowed_paths=["clamp.py"])
-        items = planscope.with_agreed([self.ONE, two], [{"item": "2", "granted_paths": ["CHANGELOG.md"]}])
+        items = scope.with_agreed([self.ONE, two], [{"item": "2", "granted_paths": ["CHANGELOG.md"]}])
         ch = {**self.CH, "clamp.py": ("a\n", "b\n")}
         ok = [_l_ROW, {"unit_key": _l_CLAMP, "files": ["clamp.py", "CHANGELOG.md"]}]
-        self.assertEqual(planscope.problems(items, ok, ch)[0], [])
-        got, _ = planscope.problems(items, [_l_ROW, {"unit_key": _l_CLAMP, "files": ["clamp.py"]}], ch)
+        self.assertEqual(scope.problems(items, ok, ch)[0], [])
+        got, _ = scope.problems(items, [_l_ROW, {"unit_key": _l_CLAMP, "files": ["clamp.py"]}], ch)
         self.assertTrue(any("CHANGELOG.md" in p and "項目 1 の out_of_scope" in p for p in got), got)
 
 
@@ -1504,7 +1503,7 @@ class NameOverlapCase(_LSrc):
         it = _l_item(allowed_paths=["deploy/values.yaml", ".env.sample"], files=[_l_frow("deploy/values.yaml", _l_add("APP_NOTICE_FILE"))])
         ch = {"deploy/values.yaml": ("env:\n", "env:\n  APP_NOTICE_FILE: /data/notice.json\n"),
               ".env.sample": ("", "APP_NOTICE_FILE=./notice.json\n")}
-        self.assertEqual(planscope.problems([it], self.UNIT, ch)[0], [])
+        self.assertEqual(scope.problems([it], self.UNIT, ch)[0], [])
 
     def test_same_type_name_in_other_language_is_not_outside_add_paths(self):
         model, iface = ("api/models.py", "class Notice(BaseModel):\n    title: str\n"), \
@@ -1514,14 +1513,14 @@ class NameOverlapCase(_LSrc):
                 it = _l_item(allowed_paths=["api/**", "web/**"], files=[_l_frow(path, _l_add("Notice"))])
                 ch = {model[0]: ("", model[1]), iface[0]: ("", iface[1])}
                 rows = [{"unit_key": _l_MEAN, "files": sorted(ch)}]
-                self.assertEqual(planscope.problems([it], rows, ch)[0], [], other)
+                self.assertEqual(scope.problems([it], rows, ch)[0], [], other)
 
     def test_test_function_named_like_product_function_is_rejected_until_ruled(self):
         it = _l_item(allowed_paths=["stats.py", "test_stats.py"], files=[_l_frow("stats.py", _l_add("median"))])
         ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "test_stats.py": ("", "def median():\n    pass\n")}
         rows = [{"unit_key": _l_MEAN, "files": sorted(ch)}]
-        self.assertTrue(any("test_stats.py" in p and "足す行の path" in p for p in planscope.problems([it], rows, ch)[0]))
-        self.assertEqual(planscope.problems([it], rows, ch, ruled=("test_stats.py",))[0], [])
+        self.assertTrue(any("test_stats.py" in p and "足す行の path" in p for p in scope.problems([it], rows, ch)[0]))
+        self.assertEqual(scope.problems([it], rows, ch, ruled=("test_stats.py",))[0], [])
 
     def test_removed_name_redefined_in_test_file_is_rejected(self):
         """案が stats.py から _parse を消すと決めたのに、修正役が書き換えを許されたテストのファイルに def _parse を足して古い
@@ -1530,7 +1529,7 @@ class NameOverlapCase(_LSrc):
         ch = {"stats.py": ("def _parse(s):\n    return s\n", "def mean():\n    pass\n"),
               "tests/test_stats.py": ("from stats import _parse\n", "def _parse(s):\n    return s\n")}
         rows = [{"unit_key": _l_MEAN, "files": sorted(ch)}]
-        got, _ = planscope.problems([it], rows, ch, permits=("tests/test_stats.py",))
+        got, _ = scope.problems([it], rows, ch, permits=("tests/test_stats.py",))
         self.assertTrue(any("_parse" in p and "消えていない" in p for p in got), got)
 
     def test_permit_other_than_ruling_does_not_waive_name_check(self):
@@ -1540,19 +1539,19 @@ class NameOverlapCase(_LSrc):
         ch = {"tests/test_a.py": ("def _h():\n    pass\n", "def _g():\n    pass\n"),
               "tests/test_b.py": ("from tests.test_a import _h\n", "def _h():\n    pass\n")}
         rows = [{"unit_key": _l_MEAN, "files": sorted(ch)}]
-        got, _ = planscope.problems([it], rows, ch, permits=("tests/test_b.py",))
+        got, _ = scope.problems([it], rows, ch, permits=("tests/test_b.py",))
         self.assertTrue(any("_h" in p and "消えていない" in p for p in got), got)
-        self.assertEqual(planscope.problems([it], rows, ch, permits=("tests/test_b.py",), ruled=("tests/test_b.py",))[0], [])
+        self.assertEqual(scope.problems([it], rows, ch, permits=("tests/test_b.py",), ruled=("tests/test_b.py",))[0], [])
 
     def test_same_kind_other_file_still_rejected_until_ruled(self):
         """種類の同じ別のファイルの同名の定義は拒み、ほかの許し（permits）でも拒み、直す裁定のパス（ruled）なら別の物と裁いた物として通す"""
         it = _l_item(allowed_paths=["*.py"], files=[_l_frow("stats.py", _l_add("median"))])
         ch = {"stats.py": ("", "def median(xs):\n    pass\n"), "util.py": ("", "def median(xs):\n    pass\n")}
         rows = [{"unit_key": _l_MEAN, "files": ["stats.py", "util.py"]}]
-        self.assertTrue(any("util.py" in p and "足す行の path" in p for p in planscope.problems([it], rows, ch)[0]))
+        self.assertTrue(any("util.py" in p and "足す行の path" in p for p in scope.problems([it], rows, ch)[0]))
         self.assertTrue(any("util.py" in p and "足す行の path" in p
-                            for p in planscope.problems([it], rows, ch, permits=("util.py",))[0]))
-        self.assertEqual(planscope.problems([it], rows, ch, ruled=("util.py",))[0], [])
+                            for p in scope.problems([it], rows, ch, permits=("util.py",))[0]))
+        self.assertEqual(scope.problems([it], rows, ch, ruled=("util.py",))[0], [])
 
     def test_unrelated_local_helper_with_removed_name(self):
         """消す名と同じ字の局所の助け手を別のファイルに足した: 種類の同じファイルは拒み、裁定が許せば通す。種類の違う文書の
@@ -1561,12 +1560,12 @@ class NameOverlapCase(_LSrc):
         gone = ("def _entry():\n    pass\n", "def mean():\n    pass\n")
         ch = {"stats.py": gone, "report.py": (None, "def _entry(row):\n    return row\n")}
         rows = [{"unit_key": _l_MEAN, "files": sorted(ch)}]
-        self.assertTrue(any("_entry" in p for p in planscope.problems([it], rows, ch)[0]))
-        self.assertEqual(planscope.problems([it], rows, ch, ruled=("report.py",))[0], [])
+        self.assertTrue(any("_entry" in p for p in scope.problems([it], rows, ch)[0]))
+        self.assertEqual(scope.problems([it], rows, ch, ruled=("report.py",))[0], [])
         doc = {"stats.py": gone, "docs/howto.md": (None, "例:\n\n    def _entry():\n        pass\n")}
-        self.assertEqual(planscope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(doc)}], doc)[0], [])
+        self.assertEqual(scope.problems([it], [{"unit_key": _l_MEAN, "files": sorted(doc)}], doc)[0], [])
         kept = {"stats.py": ("def _entry():\n    pass\n", "def _entry():\n    return 1\n")}
-        self.assertTrue(any("_entry" in p for p in planscope.problems([it], [_l_ROW], kept, ruled=("stats.py",))[0]))
+        self.assertTrue(any("_entry" in p for p in scope.problems([it], [_l_ROW], kept, ruled=("stats.py",))[0]))
 
 
 
@@ -2106,7 +2105,7 @@ class DutyCase(_LSrc):
         _l_put_rulings(self.tmp)
 
     def duty(self, withheld_by=None):
-        return fixboard.fix_duty(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY if withheld_by is None else withheld_by,
+        return board.fix_duty(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY if withheld_by is None else withheld_by,
                                  returned=_l_RETURNED)
 
 
@@ -2119,7 +2118,7 @@ class TestFixDuty(DutyCase):
         self.assertIn(_l_FORK["key"], excused[_l_FORK_UNIT])
         self.assertIn(_l_ESC["key"], excused[_l_ESC_UNIT])
         self.assertIn("ask_human の裁定 c1-1", excused[_l_ASKED_UNIT])
-        self.assertEqual(fixboard.nothing_owed_but_excused(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY, returned=_l_RETURNED), {},
+        self.assertEqual(board.nothing_owed_but_excused(self.tmp, _l_OWED, withheld_by=_l_WITHHELD_BY, returned=_l_RETURNED), {},
                          "義務が残る置き場は空の changes を通さない")
 
     def test_excused_reason_reads_withheld_by_not_a_copy(self):
@@ -2170,19 +2169,19 @@ class DutySets(DutyCase):
 
     # ---- 集合を、消費する所の入口から作る
     def promised(self) -> set:
-        got = fixrules.owed_values(self.tmp, {"open_units": json.dumps(_l_IS_OPEN, ensure_ascii=False)}, owed=_l_OWED, **self.kw())
+        got = rules.owed_values(self.tmp, {"open_units": json.dumps(_l_IS_OPEN, ensure_ascii=False)}, owed=_l_OWED, **self.kw())
         return set(json.loads(got["open_units"]))
 
     def accepted(self) -> tuple:
-        owed, excused = fixboard.fix_duty(self.tmp, _l_OWED, **self.kw())
+        owed, excused = board.fix_duty(self.tmp, _l_OWED, **self.kw())
         return set(owed), dict(excused)
 
     def tdd_owed(self) -> tuple:
         suite = self.tmp / "suite.py"
         suite.write_text("", encoding="utf-8")
         with mock.patch.object(basecase, "run_suite", return_value=([], 0, [])), \
-                mock.patch.object(tddloop, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
-            got = tddloop.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
+                mock.patch.object(tdd, "snapshot", return_value=""), mock.patch.object(common, "snapshot", return_value=""):
+            got = tdd.start(self.tmp, self.tmp, str(suite), json.dumps(_l_IS_OPEN, ensure_ascii=False), owed=_l_OWED,
                                 **self.kw())
         self.assertTrue(got["go"], got)
         st = json.loads(pathlib.Path(got["state_file"]).read_text(encoding="utf-8"))
@@ -2194,7 +2193,7 @@ class DutySets(DutyCase):
                    "tests": [{"id": f"test_x.py::T::test_{n}", "behavior": "b", "path": "p", "red_kind": "assertion", "red_why": "w"}]}
                   for n, k in enumerate(_l_ALL_UNITS)]
         planmarks.save(self.tmp, 1, fields)
-        tests, _ = fixgates._accept_tests(self.tmp, fields, None, owed=_l_OWED, withheld=set(_l_WITHHELD_BY),
+        tests, _ = gates._accept_tests(self.tmp, fields, None, owed=_l_OWED, withheld=set(_l_WITHHELD_BY),
                                           returned=_l_RETURNED)
         return {k for t in tests for k in t["unit_keys"]}
 
@@ -2213,11 +2212,11 @@ class DutySets(DutyCase):
         self.assertEqual(self.gated_items(), owed, "事後の関門が見る項目の単位 = 受け付けの義務")
 
     def test_nothing_owed_only_when_owed_is_empty_and_excused_is_not(self):
-        self.assertEqual(fixboard.nothing_owed_but_excused(self.tmp, _l_OWED, **self.kw()), {}, "義務が残る置き場は空の申告を通さない")
+        self.assertEqual(board.nothing_owed_but_excused(self.tmp, _l_OWED, **self.kw()), {}, "義務が残る置き場は空の申告を通さない")
         shrunk = _l_OWED - {_l_OTHER_UNIT}
-        owed, excused = fixboard.fix_duty(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=())
+        owed, excused = board.fix_duty(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=())
         self.assertEqual((owed, bool(excused)), (set(), True))
-        self.assertEqual(fixboard.nothing_owed_but_excused(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=()), excused,
+        self.assertEqual(board.nothing_owed_but_excused(self.tmp, shrunk, withheld_by=_l_WITHHELD_BY, returned=()), excused,
                          "義務が空で外れた単位が在る時だけ通し、外れた単位を並べる")
 
 
@@ -2331,46 +2330,46 @@ class ScopeTextSeamCase(SeamTemp):
         conflict.apply_rulings(self.place, {"c1-1": {"decision": "fix_code_as", "text": "設定のファイルも直してよい",
                                                      "limits": ["conf.ini"]}}, by="t")
 
-    def test_fix_scope_text_lists_what_planscope_lets_through(self):
+    def test_fix_scope_text_lists_what_scope_lets_through(self):
         import planrange as pr
-        planscope = self.m.scope
+        scope = self.m.scope
         text = self.m.rules.scope_rows(pr.fix_scope(self.place, "first", items=self.ITEMS)[0])
         self.assertIn("`docs/x.md`", text)
         self.assertNotIn("conf.ini", text, "段 first は直す裁定のパスを許さない")
-        lines, rec = planscope.check([], self.place, self.repo, self.rev, ["docs/x.md"], pass_="first", items=self.ITEMS)
+        lines, rec = scope.check([], self.place, self.repo, self.rev, ["docs/x.md"], pass_="first", items=self.ITEMS)
         self.assertEqual((lines, rec.get("checked", True)), ([], True))
-        lines, _ = planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="first", items=self.ITEMS)
+        lines, _ = scope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="first", items=self.ITEMS)
         self.assertTrue(any("conf.ini" in x for x in lines), lines)
         self.assertIn("`conf.ini`", self.m.rules.scope_rows(pr.fix_scope(self.place, "ruled", items=self.ITEMS)[0]))
-        self.assertEqual(planscope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
+        self.assertEqual(scope.check([], self.place, self.repo, self.rev, ["conf.ini"], pass_="ruled", items=self.ITEMS)[0], [])
 
     def test_ruled_paths_waive_the_name_check_after_ruling(self):
         """直す裁定が limits に挙げたパス（conf.ini）の同じ言語の同名の定義は、裁定の後の照らしで足す行の path の外に数えない"""
-        planscope = self.m.scope
+        scope = self.m.scope
         items = [{**self.ITEMS[0], "allowed_paths": ["stats.py", "app.ini"],
                   "files": [{"path": "app.ini", "op": "create", "symbols": [{"name": "LIMIT", "change": "add"}]}]}]
         for path, text in (("app.ini", "LIMIT = 1\n"), ("conf.ini", "LIMIT = 2\n")):
             (self.repo / path).write_text(text, encoding="utf-8")
         rows = [{"unit_key": KEY_A, "files": ["app.ini", "conf.ini"]}]
-        lines, _ = planscope.check(rows, self.place, self.repo, self.rev, ["app.ini", "conf.ini"], pass_="ruled", items=items)
+        lines, _ = scope.check(rows, self.place, self.repo, self.rev, ["app.ini", "conf.ini"], pass_="ruled", items=items)
         self.assertEqual(lines, [])
 
     def test_each_stage_applies_its_out_of_scope_rule(self):
         """修正の段は申告した単位の項目が明示に許したパスをその項目の out_of_scope だけで照らし、手直しの段は全部の項目で照らす"""
         import planrange as pr
-        planscope = self.m.scope
+        scope = self.m.scope
         items = [{"item": 1, "unit_keys": [KEY_A], "allowed_paths": ["shared/x.py"], "tests": [], "rewrite_tests": [],
                   "out_of_scope": []},
                  {"item": 2, "unit_keys": [KEY_B], "allowed_paths": ["stats.py"], "tests": [], "rewrite_tests": [],
                   "out_of_scope": [{"glob": "shared/**", "why": "別の項目の物"}]}]
-        lines, _ = planscope.problems(items, [{"unit_key": KEY_A, "files": ["shared/x.py"]}],
+        lines, _ = scope.problems(items, [{"unit_key": KEY_A, "files": ["shared/x.py"]}],
                                       {"shared/x.py": ("A = 1\n", "A = 2\n")})
         self.assertFalse([x for x in lines if "shared/x.py" in x], lines)
         self.assertTrue(pr.outside(items, ["shared/x.py"]), "手直しの段は別の項目の out_of_scope でも拒む")
 
 
 class FactchecksSeamCase(SeamTemp):
-    """factchecks の継ぎ目: 事前の確かめと受け付けの事実の確かめは、置き場（board）のファイルと引数の値で回り、置き場を書かない
+    """facts の継ぎ目: 事前の確かめと受け付けの事実の確かめは、置き場（board）のファイルと引数の値で回り、置き場を書かない
     （元 works/tests/test_fix_precheck.py の PrecheckCase の場合を写した。盤面の代わりに承認済みの修正案の項目 items を値で渡し、
     合意は置き場の trace.jsonl に置く）。直す義務は board.fix_duty、書き込みの記録は引数 log、除くパスの頭は skip"""
 
@@ -2379,8 +2378,7 @@ class FactchecksSeamCase(SeamTemp):
 
     def setUp(self):
         super().setUp()
-        factchecks = self.m.facts
-        self.fc = factchecks
+        self.fc = self.m.facts
         path = self.repo / "stats.py"
         text = path.read_text(encoding="utf-8")
         for old, new in R_FIXED.items():
@@ -2400,13 +2398,13 @@ class FactchecksSeamCase(SeamTemp):
                        granted_paths=paths, granted_tests=[], reason="直しに伴うので足してよい")
 
     def test_scope_reject_listed_and_place_untouched(self):
-        planscope = self.m.scope
+        scope = self.m.scope
         before = self.shas()
         got = self.fc.precheck(self.cfg, self.reply, items=[self.ITEM])
         self.assertFalse(got["ok"])
-        scope = [r["text"] for r in got["rejects"] if r["check"] == "scope"]
-        self.assertTrue(any("stats.py" in t for t in scope), got)
-        self.assertTrue(scope[0].startswith(planscope.REJECT_ASK), "事前の確かめは相談の節の道具なので、拒否の頭は相談を先の道に言う")
+        rejects = [r["text"] for r in got["rejects"] if r["check"] == "scope"]
+        self.assertTrue(any("stats.py" in t for t in rejects), got)
+        self.assertTrue(rejects[0].startswith(scope.REJECT_ASK), "事前の確かめは相談の節の道具なので、拒否の頭は相談を先の道に言う")
         self.assertEqual(self.shas(), before, "置き場を書かない")
 
     def test_precheck_rejects_the_wrote_refs_the_acceptance_rejects(self):
@@ -2473,24 +2471,24 @@ class FactchecksSeamCase(SeamTemp):
                 (self.place / name).unlink()
 
     def test_fixer_head_rejects_a_pass_outside_the_passes(self):
-        """#357: 段の頭のファイルは fixrules.PASSES を鍵にした表から引く。表に無い段は 1 回目の段の頭に黙って落とさず例外"""
-        fixrules = self.m.rules
+        """#357: 段の頭のファイルは rules.PASSES を鍵にした表から引く。表に無い段は 1 回目の段の頭に黙って落とさず例外"""
+        rules = self.m.rules
         (self.place / self.b.FIX_HEAD_FILE).write_text(json.dumps({"tree": "1 回目の段の頭"}), encoding="utf-8")
         self.assertEqual(self.b.fixer_head(self.place, "first"), "1 回目の段の頭")
         with self.assertRaises(ValueError):
             self.b.fixer_head(self.place, "refix")
-        self.assertEqual(tuple(fixrules.HEAD_FILES), fixrules.PASSES)
+        self.assertEqual(tuple(rules.HEAD_FILES), rules.PASSES)
 
     def test_scope_head_follows_the_consult_place(self):
         consult = self.m.consult
-        planscope = self.m.scope
+        scope = self.m.scope
         args = (self.reply, [R_MEAN], self.place, self.rev, self.repo, "", "first")
         lines, _ = self.fc.check_plan_scope(*args, items=[self.ITEM])
-        self.assertTrue(lines[0].startswith(planscope.REJECT), "相談の控えが無ければ申し出の道")
+        self.assertTrue(lines[0].startswith(scope.REJECT), "相談の控えが無ければ申し出の道")
         consult.write_config(self.place, {"board": str(self.place), "repo": str(self.repo), "pass": "first",
                                           "items": {"1": {"unit_keys": [R_MEAN]}}})
         lines, _ = self.fc.check_plan_scope(*args, items=[self.ITEM], consult_place=self.place)
-        self.assertTrue(lines[0].startswith(planscope.REJECT_ASK), lines)
+        self.assertTrue(lines[0].startswith(scope.REJECT_ASK), lines)
 
     def test_writes_use_the_log_and_skip(self):
         log = self.place / writelog.LOG
@@ -2546,7 +2544,7 @@ class FactchecksSeamCase(SeamTemp):
 
     def run_main(self, allowed):
         """置き場に修正案の控え（planmarks.save の欄・p2.fix_plan.json・judgment.json）と相談の控えを置き、下書きの返答で main を
-        子のプロセスで回す（修正役の指示書に書くコマンド `<python> factchecks.py <相談の控え> --reply <下書き>` の形）"""
+        子のプロセスで回す（修正役の指示書に書くコマンド `<python> facts.py <相談の控え> --reply <下書き>` の形）"""
 
         consult = self.m.consult
         import planmarks
@@ -2564,11 +2562,11 @@ class FactchecksSeamCase(SeamTemp):
         return r.returncode, r.stdout, r.stderr
 
     def test_main_reads_the_plan_in_the_place(self):
-        planscope = self.m.scope
+        scope = self.m.scope
         code, out, err = self.run_main(["docs/**"])
         self.assertEqual(code, 1, out + err)
         got = json.loads(out)
-        self.assertTrue(any(r["check"] == "scope" and "stats.py" in r["text"] and r["text"].startswith(planscope.REJECT_ASK)
+        self.assertTrue(any(r["check"] == "scope" and "stats.py" in r["text"] and r["text"].startswith(scope.REJECT_ASK)
                             for r in got["rejects"]), got)
 
     def test_main_passes_inside_the_plan(self):
@@ -2577,7 +2575,7 @@ class FactchecksSeamCase(SeamTemp):
 
 
 class FixgatesSeamCase(SeamTemp):
-    """fixgates の継ぎ目: 盤面の b.work・b.dir/r<周> を置き場のパスに、writes.base_rev を board.base_rev に、
+    """gates の継ぎ目: 盤面の b.work・b.dir/r<周> を置き場のパスに、writes.base_rev を board.base_rev に、
     conflict.owed_units_but_asked を board.owed_units_but_asked（値で受ける）に、entry.open_board を置き場のパスに替えた所"""
 
     MEAN = "stats.py mean: 分母が len(xs) - 1 になっている"
@@ -2596,41 +2594,41 @@ class FixgatesSeamCase(SeamTemp):
 
     def test_ledger_cache_and_logs_live_in_the_place(self):
         """帳面・base の木の控え・一式のログは置き場の中だけに書き、skipped・guards・unchecked は置き場の帳面を読む"""
-        fixgates = self.m.gates
-        self.assertEqual(fixgates.problems(self.place, self.repo, self.rev, str(self.suite), 1), [])
-        self.assertTrue((self.place / fixgates.BASE_CACHE).is_file())
-        self.assertTrue((self.place / f"{fixgates.RUN}-first-1").is_dir())
+        gates = self.m.gates
+        self.assertEqual(gates.problems(self.place, self.repo, self.rev, str(self.suite), 1), [])
+        self.assertTrue((self.place / gates.BASE_CACHE).is_file())
+        self.assertTrue((self.place / f"{gates.RUN}-first-1").is_dir())
         self.assertFalse((self.place / "r1").exists(), "盤面の周のフォルダは作らない")
-        self.assertEqual(fixgates.problems(self.place, self.repo, self.rev, "", 2), [])
-        self.assertEqual(json.loads((self.place / fixgates.LEDGER).read_text(encoding="utf-8"))["skipped"],
-                         [{"pass": "first", "attempt": 2, "why": fixgates.NO_SUITE}])
-        self.assertEqual(fixgates.skipped(self.place, pass_="first", attempt=2), [fixgates.NO_SUITE])
-        self.assertEqual(fixgates.unchecked(self.place, pass_="first", attempt=2), [fixgates.NO_SUITE])
+        self.assertEqual(gates.problems(self.place, self.repo, self.rev, "", 2), [])
+        self.assertEqual(json.loads((self.place / gates.LEDGER).read_text(encoding="utf-8"))["skipped"],
+                         [{"pass": "first", "attempt": 2, "why": gates.NO_SUITE}])
+        self.assertEqual(gates.skipped(self.place, pass_="first", attempt=2), [gates.NO_SUITE])
+        self.assertEqual(gates.unchecked(self.place, pass_="first", attempt=2), [gates.NO_SUITE])
         self.assertEqual(git(self.repo, "status", "--porcelain"), "M stats.py", "作業ツリーに走らせた跡を残さない")
 
     def test_base_rev_and_duty_come_from_arguments(self):
         """修正前の版は board.base_rev(state, base_rev) の順、直す義務は owed・withheld・returned の値で受ける"""
-        fixgates = self.m.gates
-        with mock.patch.object(fixgates.fixboard, "base_rev", wraps=self.b.base_rev) as rev, \
-                mock.patch.object(fixgates.fixboard, "owed_units_but_asked", wraps=self.b.owed_units_but_asked) as duty:
-            fixgates.problems(self.place, self.repo, "HEAD", "", 1, state={"inputs": {"review_rev": self.rev}},
+        gates = self.m.gates
+        with mock.patch.object(gates.board, "base_rev", wraps=self.b.base_rev) as rev, \
+                mock.patch.object(gates.board, "owed_units_but_asked", wraps=self.b.owed_units_but_asked) as duty:
+            gates.problems(self.place, self.repo, "HEAD", "", 1, state={"inputs": {"review_rev": self.rev}},
                               owed=[self.MEAN], withheld=[self.MEAN], returned=())
         rev.assert_called_once_with({"inputs": {"review_rev": self.rev}}, "HEAD")
         duty.assert_called_once_with(self.place, [self.MEAN], withheld=[self.MEAN], returned=(), back={})
-        why = fixgates.skipped(self.place, pass_="first", attempt=1)
-        self.assertTrue(why and why[0].startswith(fixgates.OUT_OF_DUTY), why)
+        why = gates.skipped(self.place, pass_="first", attempt=1)
+        self.assertTrue(why and why[0].startswith(gates.OUT_OF_DUTY), why)
 
     def test_broken_fields_are_a_value_error(self):
         """凍結の印と食い違う欄の控えは、盤面を止める BoardGap でなく ValueError（止めるのは呼び手）"""
-        fixgates = self.m.gates
+        gates = self.m.gates
         self.b.marks_path(self.place).write_text("{}", encoding="utf-8")
         with self.assertRaises(ValueError):
-            fixgates.problems(self.place, self.repo, self.rev, "", 1)
-        self.assertFalse((self.place / fixgates.LEDGER).exists())
+            gates.problems(self.place, self.repo, self.rev, "", 1)
+        self.assertFalse((self.place / gates.LEDGER).exists())
 
 
 class FixAcceptSeamCase(SeamTemp):
-    """修正役の受け付けと範囲の相談の部品（fixboard の check_*_units・fix_reject_text・undeclared_writes・reply_marks・unit_outcomes・
+    """修正役の受け付けと範囲の相談の部品（board の check_*_units・fix_reject_text・undeclared_writes・reply_marks・unit_outcomes・
     allowed_tests・ruled_owed・ruled_reply_line・consult_ask・accept_reply）。元 works/blk-fix/scripts/accept.py の単位の行の照らしと
     元 works/blk-fix/lib/consult.py:522 の頼みの節を、置き場と値で回す"""
 
@@ -3473,9 +3471,9 @@ class OverflowTraceSeamCase(SeamTemp):
         self.assertEqual(self.overflow_rows(), [])
 
     def test_accepted_guard_test_is_named_in_the_overflow_trace(self):
-        fixgates = self.m.gates
+        gates = self.m.gates
         import impact
-        (self.place / fixgates.LEDGER).write_text(json.dumps({"rows": [], "skipped": [], "guards": [
+        (self.place / gates.LEDGER).write_text(json.dumps({"rows": [], "skipped": [], "guards": [
             {"pass": "first", "attempt": 1, "id": self.GATE_ID, "base": "passed"},
             {"pass": "first", "attempt": 2, "id": self.GONE_ID, "base": "passed"}]}), encoding="utf-8")
         (row,) = self.overflow_rows()

@@ -10,7 +10,7 @@
   赤・走らないなら off にして理由を test_cmd_note に残す（元から赤の test_cmd で毎単位を拒まない）。test_cmd は baseline_red.run_suite と
   同じ起こし方（tree_run.reuse_run・優先度は baseline_red.lowered）で走らせ、既存のファイルを書き換えた回はいつも赤（書き換えた物は戻す。_cmd_run）。関門が on なら
   直し・整えの段の指示書にそのコマンドを書く。
-- tdd-loop の中: tdd-prep → prep（今の段の指示書を fixrules で組んで書く。頭に brief の節: 振り分けの段は
+- tdd-loop の中: tdd-prep → prep（今の段の指示書を rules_mod（src/rules.py）で組んで書く。頭に brief の節: 振り分けの段は
   直す義務の単位の全部、ほかの段は今の単位の brief。brief の控えの無い置き場・平の run は無し。単位が替わった周かを new_unit で返す）→
   役 tdd（修正役。同じ単位の段は前の周の会話を継ぎ、単位が替わる周だけ新しい会話で起きる。前の単位と今の単位のこれまで（段・
   前の段の結果）は引き継ぎの節（handoff_rows）も状態から書く。振り分け・テスト・直し・整えを返す）→
@@ -93,15 +93,15 @@ import time
 
 sys.dont_write_bytecode = True
 
-from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。fixgates・fixboard が tddloop の名で読む）
+from baseline_red import _failure_attrs, exe_path, run_suite  # noqa: E402,F401  （定義はここに持たない。gates・board が tdd の名で読む）
 import conflict  # noqa: E402  （lib。食い違いの申し出の確かめ・直す義務から外れた単位）
-from src import board as fixboard  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
-from src import files as fixnames  # noqa: E402
-from src import rules as fixrules  # noqa: E402  （同じ block の src。指示書の組み立て）
+from src import board  # noqa: E402  （同じ block の src。直す義務 fix_duty。元 conflict.fix_duty の値で受ける形）
+from src import files as files_mod  # noqa: E402
+from src import rules as rules_mod  # noqa: E402  （同じ block の src。指示書の組み立て）
 import impact  # noqa: E402  （lib/。変更に当たる試験の選び）
 import planbrief  # noqa: E402  （lib/。承認済みの修正案の項目ごとの brief の凍結）
 import planmarks  # noqa: E402  （lib/。修正案の項目の works の欄。単位の約束）
-from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。fixgates・fixboard が tddloop.test_functions の名で読む）
+from planmarks import test_functions  # noqa: E402,F401  （lib/。テストの関数の id（pytest の node id の形）→ 源の引き。gates・board が tdd.test_functions の名で読む）
 import writelog  # noqa: E402
 import writes  # noqa: E402  （lib/。書き込みの出どころの突き合わせ）
 import oneline  # noqa: E402
@@ -114,7 +114,7 @@ from src.common import (  # noqa: E402
     base_synth_of, red_check, restore, retry_max, rules, snapshot, touched)
 
 MAX_ITERATIONS = 40   # YAML の tdd-loop の max_iterations と同じ値（試験が縛る）。この周に届いたら残りを direct にして抜ける
-ROUTES = fixnames.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
+ROUTES = files_mod.ROUTES   # 入力 routes の語（src/files.py の 1 か所）
 PLAN_NO_TDD = "承認済みの修正案に route が tdd の単位が無い（入力 routes: plan）——TDD の輪を回さず、ほかの型の注文で直す"
 PLAN_DIRECT = "承認済みの修正案の route が direct（入力 routes: plan。行の route_why が無い）"
 PLAN_NO_ROW = "承認済みの修正案にこの単位を持つ行が無い（入力 routes: plan は案の route に従い、行の無い単位は direct）"
@@ -139,7 +139,7 @@ class _CmdDown(_RunnerDown):
 
 # ---------------------------------------------------------------- 一式を走らせる（run_suite・_failure_attrs は baseline_red の物）
 # 走る前の失敗（読み込み・組み立ての失敗で名指しが一式の結末に居ない・error）の拒否に _test だけが足す 1 行。red_check と写しの
-# red_problems の文は事実だけで、事後の関門（fixgates）の行にもこの言い足しは入らない
+# red_problems の文は事実だけで、事後の関門（gates）の行にもこの言い足しは入らない
 NOT_RAN = ("赤に数えない。テストの中の検査で落ちる形に書き直せるならそうし、これから足す名前の欠けで書き直せないなら最小の仮の実装を"
            "足し、テスト自身の誤りならテストを直して、走らせ直せ")
 
@@ -155,13 +155,13 @@ def _open_units(raw: str) -> list:
 
 
 def _duty(board_dir: pathlib.Path, owed=None, withheld_by=None, returned=()):
-    """(直す義務 owed か None, 直す義務から外れた単位 {key: 理由})（fixboard.fix_duty。受け付けと同じ 1 つの集合）。owed は写しの
+    """(直す義務 owed か None, 直す義務から外れた単位 {key: 理由})（board.fix_duty。受け付けと同じ 1 つの集合）。owed は写しの
     規則の直す義務の単位、withheld_by・returned は問いの台帳の値（どれも呼び手が渡す。元は盤面 board_dir を開いて読んだ）。
     owed が None（渡されない run）は (None, {})。読めなければ Broken（開いた単位のまま黙って続けない）"""
     if owed is None:
         return None, {}
     try:
-        got, excused = fixboard.fix_duty(board_dir, owed, withheld_by=withheld_by, returned=returned)
+        got, excused = board.fix_duty(board_dir, owed, withheld_by=withheld_by, returned=returned)
         return set(got), dict(excused)
     except Exception as e:
         raise Broken(f"置き場 {board_dir} の直す義務が読めない: {e}") from None
@@ -171,12 +171,12 @@ def plan_contract(board_dir: pathlib.Path, keys: list[str], round_: int = 1) -> 
     """単位 → 承認済みの修正案の約束（planmarks.unit_contract。約束の無い単位は載せない）。置き場 board_dir に凍結した欄の控え
     （plan-fields.json と trace.jsonl の凍結の印）が無い run は {}。欄の控えが凍結の印と食い違う（conflict.frozen_fields の
     ValueError）なら、理由の文のまま Broken（約束を黙って空にしない）。返した段で前の段の人に回した裁定から直しへ戻した単位は、
-    裁定が名指した受け入れの試験を約束の tests から外す（fixboard.stopped_tests）。元は盤面を開いて読んだ"""
+    裁定が名指した受け入れの試験を約束の tests から外す（board.stopped_tests）。元は盤面を開いて読んだ"""
     try:
         fields = conflict.frozen_fields(pathlib.Path(board_dir), round_)
     except ValueError as e:
         raise Broken(str(e)) from None
-    stops = fixboard.stopped_tests(board_dir)   # 返した段で、人に回した裁定が名指した試験の赤の義務は止めたまま
+    stops = board.stopped_tests(board_dir)   # 返した段で、人に回した裁定が名指した試験の赤の義務は止めたまま
     return {k: {**c, "tests": [t for t in c.get("tests") or [] if t.get("id") not in stops.get(k, ())],
                 "creates": _plan_creates(fields, k)}
             for k in keys if (c := planmarks.unit_contract(fields, k)) is not None}
@@ -296,7 +296,7 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
     （src/route.step が回す。輪の状態は振り分けの後に注文の node orders が置く）。
     narrow・reuse・suite_made・test_cmd は元の結末の取り方（basecase.take）へ。narrow は related.applies の代わりに渡す"""
     from src import basecase
-    from src import route as router
+    from src import route
     if routes not in ROUTES:
         raise Broken(f"入力 routes は {'・'.join(ROUTES)} のどれか（{routes!r}）")
     keys = _open_units(open_units)
@@ -314,13 +314,13 @@ def start(board_dir, repo, suite: str, open_units: str, test_cmd: str = "", unit
             return {**head, "go": False, "reason": PLAN_NO_TDD}
     light = _light_units(unit_depths)
     if routes != "plan":   # 振り分けの状態 route.json を置く（輪の状態は注文の node orders が振り分けの後に作る。試験の助けは steps.loop_step）
-        state_file = router.open_route(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by,
+        state_file = route.open_route(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by,
                                        returned=returned, round_=round_, light=light)
         return {**head, "go": True, "state_file": state_file, "summary_file": ""}
     state_file = open_state(board_dir, repo, head["base_file"], keys, owed=owed, withheld_by=withheld_by, returned=returned,
                             round_=round_, light=light)
     st = _load(state_file)
-    whys = router.plan_whys(board_dir, keys, round_)
+    whys = route.plan_whys(board_dir, keys, round_)
     routed = {k: "tdd" if (_contract(st, k) or {}).get("route") == "tdd" else "direct" for k in _owed(st)}
     assign(state_file, repo, routed, {k: whys.get(k) or (PLAN_DIRECT if _contract(st, k) else PLAN_NO_ROW) for k in routed})
     return {**head, "go": True, "state_file": state_file, "summary_file": str(pathlib.Path(state_file).parent / SUMMARY)}
@@ -354,11 +354,11 @@ def _test_cmd_problems(st, repo) -> list[str]:
 # ---------------------------------------------------------------- 指示書（節 tdd-prep）
 def _briefs(board_dir: pathlib.Path, **sources) -> list:
     """置き場の brief（planbrief.cut_at。sources は cut の材料。控えが在ればそれを返す。置き場が無い・材料の無い run は []）。
-    控えが壊れていれば理由の Broken（fixrules.brief_halt の文。brief の無い指示書として続けない。止めるのは呼び手）"""
+    控えが壊れていれば理由の Broken（rules_mod.brief_halt の文。brief の無い指示書として続けない。止めるのは呼び手）"""
     try:
         return planbrief.cut_at(board_dir, **sources)
     except planbrief.LedgerBroken as e:
-        raise Broken(fixrules.brief_halt(e)) from None
+        raise Broken(rules_mod.brief_halt(e)) from None
 
 
 # 引き継ぎ（依頼 243 の 2）。輪の役は周ごとに新しい会話で起きる（同じ単位の段の間も会話を継がない）ので、前の単位が何を変えたかと、
@@ -477,8 +477,8 @@ def _over(st: dict) -> bool:
 
 
 def _paths(v, name) -> tuple:
-    """空でない文字列の配列 → (要素の決まり fixboard.test_file で整えたパスの一覧, 問題)"""
-    out = [fixboard.test_file(x) for x in v] if isinstance(v, list) else []
+    """空でない文字列の配列 → (要素の決まり board.test_file で整えたパスの一覧, 問題)"""
+    out = [board.test_file(x) for x in v] if isinstance(v, list) else []
     if not out or None in out:
         return [], [f"{name} は空でない文字列の配列"]
     bad = [x for x in out if x.startswith(("/", "../")) or x == ".."]
@@ -596,7 +596,7 @@ def declared_test_files(st, named=()) -> set[str]:
     （impact.is_test_file）の宣言の正本。純粋"""
     out = set()
     for u in (st.get("units") or {}).values():
-        out |= set(fixboard.unit_test_files(u))
+        out |= set(board.unit_test_files(u))
     for c in (st.get("contract") or {}).values():
         ids = [t.get("id") for t in (c or {}).get("tests") or [] if isinstance(t, dict)] + list((c or {}).get("rewrites") or [])
         out |= {id_path(i) for i in ids if isinstance(i, str) and i.strip()}

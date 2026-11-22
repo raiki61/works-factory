@@ -167,12 +167,13 @@ def pointers(secs, doc) -> dict:
 
 def compute():
     raw = raw_inputs()
-    from src import eyesback, facts, sections
+    from src import eyesback, facts, fixedfiles, sections
     from src import fixture, specrounds
     values = specrounds.collect_values({**values_of(raw), **returned()})   # 仕様駆動の run の値を今の欄の名に重ねる（依頼の文の run は values のまま）
     values = fixture.collect_values(values)   # 直す前で止まった写しの run の続きの修正前の承認ノードの値も同じく重ねる
     values["fixed"], values["test_gate_final"], values["eyes"] = eyesback.current(
         values.get("eyes_back"), values.get("fixed"), values.get("test_gate_final"), values.get("eyes"))
+    values["fixed"] = fixedfiles.opened(values["fixed"])   # 合わせの返りの伸びる欄（段の返り・単位など）は place のファイルを指すので中身を読む
     values["back_costs"] = eyesback.costs_now()   # 返した周ごとの費用（返した周の節が読む。run の記録から）
     record, why = record_of(values.get("start"))
     built = facts.build(values, record, why, cwd=Path.cwd())

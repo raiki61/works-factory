@@ -1,0 +1,14 @@
+{
+  "description": "修正の段の合わせ fixed の段ごとの返り（段の番号 stage・種類 kind と、段の修正・観点・差分の審査の返り。走らなかった物は null）。返りの中の欄は Archon が各 block の返す節の形で照らした物",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "stage": {"type": "integer"},
+      "kind": {"type": "string", "enum": ["first", "refix", "returned"], "description": "段の種類（段の名は lib/report.py の stage_name がこれで引く）"},
+      "fix": {"type": ["object", "null"], "description": "段の修正の出力（works-factory-fix の返り）", "properties": {"ok": {"type": "boolean"}}},
+      "lens": {"type": ["object", "null"], "description": "段の観点の出力（works-factory-lens の返り）", "properties": {"ok": {"type": "boolean"}}},
+      "delta": {"type": ["object", "null"], "description": "段の差分の審査の出力（works-factory-delta-review の返り）", "properties": {"ok": {"type": "boolean"}}}
+    }
+  }
+}

@@ -170,6 +170,32 @@ class ReturnedRulingCase(unittest.TestCase):
         owed, _ = self.owed(place)
         self.assertNotIn(U1, owed)
 
+    def records(self, place, *docs):
+        """輪の記録 tdd-<k>/record.json を docs の順に置き直す（place が置いた前の段の記録も上書きする）"""
+        for k, doc in enumerate(docs, 1):
+            (place / f"tdd-{k}").mkdir(exist_ok=True)
+            (place / f"tdd-{k}" / "record.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def test_a_give_up_at_both_red_and_green_holds_the_whole_unit(self):
+        """前の段で赤の段と緑の段の両方で諦めた単位（諦めた段の集まりが {red, green}）は、赤だけの諦めでないので単位ごと止める"""
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named(), gave_up="")
+        self.records(place, {"prior_pass": True, "order": [U1], "units": {U1: {"route": "parked", "gave_up": "red"}}},
+                     {"prior_pass": True, "order": [U1], "units": {U1: {"route": "parked", "gave_up": "green"}}})
+        owed, excused = self.owed(place)
+        self.assertNotIn(U1, owed, "緑の段でも諦めた単位を機械が直しへ戻さない")
+        self.assertIn("ask_human の裁定 c1-1", excused[U1])
+
+    def test_only_records_marked_prior_tell_the_give_up_stage(self):
+        """諦めた段は前の段の輪の記録（印 prior_pass）だけから読む。今の段の輪の記録が赤で諦めたと書いても、前の段の記録が無ければ
+        単位ごと止める"""
+        place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named(), gave_up="")
+        self.records(place, {"order": [U1], "units": {U1: {"route": "parked", "gave_up": "red"}}})
+        owed, _ = self.owed(place)
+        self.assertNotIn(U1, owed, "今の段の記録の諦めで、前の段の裁定の単位を直しへ戻さない")
+        self.records(place, {"prior_pass": True, "order": [U1], "units": {U1: {"route": "parked", "gave_up": "red"}}})
+        owed, _ = self.owed(place)
+        self.assertIn(U1, owed, "同じ記録に印 prior_pass が在れば赤の段の諦めとして戻す")
+
     def test_an_unreadable_return_holds_every_unit(self):
         """返した段の控えが読めなければ、どの単位も戻さない（ValueError を素通りさせると、義務を減らさない側の読みが単位を戻す）"""
         place = self.place([{"item": 1, "kind": "trim"}, {"item": 2, "kind": "unfinished"}], self.named())

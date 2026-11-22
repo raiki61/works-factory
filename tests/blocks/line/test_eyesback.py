@@ -322,8 +322,9 @@ class TurnCase(_Case):
         for key in ("plan", "fix_plan", "ripple", "plan_review", "answers", "skip_rerun"):
             self.assertEqual(second[key], first[key], key)
         self.assertEqual(second["more"], [], "more は合わせが運ぶ返した段の並び")
-        more = self.run_turn(fixed=fixed(more=[{"ok": True}]))
-        self.assertEqual(more["more"], [{"ok": True}])
+        pointer = {"type": "archon_artifact", "run_id": kit.RUN_ID, "path": "fixed/1/more.json"}
+        more = self.run_turn(fixed=fixed(more=pointer))
+        self.assertEqual(more["more"], pointer, "合わせの more の指し先を開かずにそのまま運ぶ")
 
     def test_no_fix_run_does_not_return(self):
         """直す物が無い run（合わせの no_fix が真）は、目が作り残しを言っても修正の段へ返さずに抜ける（計画の無いまま修正役を起こさない）"""
