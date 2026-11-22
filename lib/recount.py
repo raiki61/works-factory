@@ -9,7 +9,7 @@
 ここに在る物:
 - ROLE: 役の名前（印の名）
 - SITE_PATH: 修正役の返答の closure.sites[] の欄 path
-- accept_fix(reply, place, base_rev, repo, *, judged=, owed=, ...): 受け付けの時の数え直し。1 本目の出口のための changes を足す（v1_changes）
+- accept_fix(reply, place, base_rev, repo, *, judged=, owed=, ...): 受け付けの時の数え直し。1 本目の出口のための changes を足す（_v1_changes）
 - recount_problems の照らし: 直す義務の覆い・返答の自己申告の形（閉鎖の状態・interactions・bypass_tried・breaks.result・先行例・
   root_or_symptom）・coverage の数え直し・赤を見ない clean・修正が書いた指し（wrote_refs）・差分が足した Markdown のリンク
   （md_link_errors）。元の写しの fix_covers_open_units の照らしの全部
@@ -52,7 +52,7 @@ _PREV_UNREADABLE = ("同じ周の前の書き手の数え直しの控え {file} 
 REJECT_HEADING = "数え直しで拒んだ行:"   # 直し方は共通の断片 rejected.md が言う
 
 
-def v1_changes(rows) -> list:
+def _v1_changes(rows) -> list:
     """1 本目の出口のための changes（[{unit_key, files, what}]）"""
     return [{k: c[k] for k in V1_CHANGE_KEYS} for c in rows]
 
@@ -374,4 +374,4 @@ def accept_fix(reply: dict, place, base_rev: str, repo, *, judged=None, owed=Non
             now = {a.get("unit_key") for a in afters}
             afters = [a for a in prev["items"] if isinstance(a, dict) and a.get("unit_key") not in now] + afters
     jsonfile.write(path, {"round": round_, "items": afters})
-    return {"ok": True, "problems": [], "changes": v1_changes(reply.get("changes") or []), "coverage_file": str(path)}
+    return {"ok": True, "problems": [], "changes": _v1_changes(reply.get("changes") or []), "coverage_file": str(path)}

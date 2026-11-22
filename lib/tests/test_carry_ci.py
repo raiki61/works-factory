@@ -1,8 +1,8 @@
 """run の後の CI の赤を次の run の依頼の prior_failures へ載せる口（lib/carry.py の carry_ci と carry-ci）の検査。
 
 重い試験は run の外の CI で回るので、run が見ない赤が在る。前の run の報告が書いた next-request.json に、CI が赤と言った
-試験の id を prior_failures の行として足し、次の run の判定役と修正案の役へ届ける（計画 docs/plans/2026-10-06-carry-prior-failures.md の
-「run の後の CI の赤」）。関数を直に呼ぶのと、carry.py を python3 -I で 1 本起こすだけ（git・盤面なし）。
+試験の id を prior_failures の行として足し、次の run の判定役と修正案の役へ届ける（元の works の計画 2026-10-06-carry-prior-failures の
+「run の後の CI の赤」。工場の木には無い）。関数を直に呼ぶのと、carry.py を python3 -I で 1 本起こすだけ（git・盤面なし）。
 """
 import json
 import pathlib

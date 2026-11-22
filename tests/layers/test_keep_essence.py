@@ -13,6 +13,7 @@ import re
 import unittest
 
 from tests.layers import scan
+from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 README = ROOT / "docs" / "design" / "README.md"
@@ -105,6 +106,36 @@ class KeepEssenceCase(unittest.TestCase):
         self.assertEqual(guards(found[1]), [("tests/x/test_a.py", "Case.test_b"), ("w/g.yaml", "ask-final")])
         self.assertEqual(guards(found[2]), [])
         self.assertEqual(sorted(python_definitions("X = 1\nclass C:\n    def m(self): pass\n")), ["C", "C.m", "X"])
+
+
+# keep-essence の 3 の許す元を直に読む呼び（修正案の rewrite_tests・案の直しで直した項目・範囲の相談の合意・裁定 fix_test_scope の範囲）
+PERMIT_SOURCE = re.compile(r"\b(?:planmarks\.rewrites|amended_rows_by_unit|agreed_permits|ruled_limits)\(")
+# 許す元の住処（ここだけは直に読んでよい）
+PERMIT_HOMES = ("lib/conflict.py", "lib/planmarks.py")
+
+
+def permit_source_reads(root: pathlib.Path) -> list[str]:
+    """lib/（試験を除く）と、どの block・graph の src/・scripts/ の .py で、許す元を直に読む行 `<パス>:<行>`"""
+    paths = [p for p in scan._files(root, "lib") if p.suffix == ".py" and p.relative_to(root).parts[1] != "tests"]
+    paths += [p for p in scan._files(root, "workflows") if p.suffix == ".py" and {"src", "scripts"} & set(p.relative_to(root).parts[2:3])]
+    return [f"{rel}:{n}" for p in paths if (rel := p.relative_to(root).as_posix()) not in PERMIT_HOMES
+            for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if PERMIT_SOURCE.search(line)]
+
+
+class PermitSourcesCase(unittest.TestCase):
+    """keep-essence の 3: テストの変更を許す元を読むのは lib の conflict.test_permits の 1 か所。凍結の検査・事後の関門・範囲の照らし・
+    最後の関所（lib と、どの block の src・scripts も）はその行を読み、元を直に読まない"""
+
+    def test_real_tree_clean(self):
+        self.assertEqual(permit_source_reads(ROOT), [])
+
+    def test_direct_read_is_red_outside_the_homes(self):
+        files = {"lib/conflict.py": "x = agreed_permits(b)\n", "lib/planmarks.py": "y = rewrites(b)\n",
+                 "lib/tests/test_a.py": "planmarks.rewrites(b)\n", "lib/x.py": "rows = planmarks.rewrites(b)\n",
+                 "workflows/fix/src/a.py": "got = conflict.ruled_limits(b)\n", "workflows/fix/scripts/b.py": "amended_rows_by_unit(b)\n",
+                 "workflows/fix/prompts/c.md": "agreed_permits(b)\n"}
+        with tree(files) as root:
+            self.assertEqual(permit_source_reads(root), ["lib/x.py:1", "workflows/fix/scripts/b.py:1", "workflows/fix/src/a.py:1"])
 
 
 if __name__ == "__main__":

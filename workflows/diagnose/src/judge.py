@@ -346,8 +346,8 @@ def judge_output(out, place, root, rev, materials, request_files=()):
 
 
 def world_ref_problems(reply, rows) -> list:
-    """先行例の出どころ `world:<類の id>` が、世界の解の行 rows に在るか（worldmark.ref_problems を、控えのフォルダでなく行の並びで
-    受ける形にした写し）。world: の無い出どころは見ない。行が無い run の world: は全部宙に浮いた参照"""
+    """先行例の出どころ `world:<類の id>` が、世界の解の行 rows に在るか（元の worldmark.ref_problems〔今は消した〕を、控えのフォルダでなく
+    行の並びで受ける形にした写し）。world: の無い出どころは見ない。行が無い run の world: は全部宙に浮いた参照"""
     got = reply.get("precedents") if isinstance(reply, dict) else None
     sources = [p.get("source") for p in got if isinstance(p, dict)] if isinstance(got, list) else []
     known = {r["class_id"] for r in rows or []}

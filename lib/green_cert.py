@@ -46,12 +46,12 @@ HEAD_LIMIT = 10   # summary に並べる鍵の数
 
 def diff_bytes(repo, rev, *, skip=()) -> bytes:
     """unittrees.fresh_tree(repo)（追跡のファイルと .gitignore に当たらない未追跡のファイルの中身・実行ビット・シンボリックリンクの木。
-    本物の index・HEAD は動かさない）と rev の間の `git diff <unittrees._DIFF の旗> <rev> <その木>` のバイト（--binary・--no-renames・--no-ext-diff・--no-textconv・
+    本物の index・HEAD は動かさない）と rev の間の `git diff <unittrees.DIFF_ARGS の旗> <rev> <その木>` のバイト（--binary・--no-renames・--no-ext-diff・--no-textconv・
     --no-color と、a/・b/ の頭を固める旗。利用者の git の設定で字が変わらない）。除くパスの頭 skip（writes.check と同じ形）の下は載せない。
     git の木でない・rev が引けなければ ValueError。fingerprint・合わせの封印・累積差分が同じこの関数を使う"""
     try:
         tree = unittrees.fresh_tree(repo)
-        return unittrees._git(repo, *unittrees._DIFF, rev, tree, "--", *unittrees.pathspec_without(skip)).stdout
+        return unittrees.run_git(repo, *unittrees.DIFF_ARGS, rev, tree, "--", *unittrees.pathspec_without(skip)).stdout
     except (unittrees.UnitTreeError, OSError) as e:
         raise ValueError(f"差分を組めない（{repo}・{rev}）: {e}") from e
 
@@ -60,7 +60,7 @@ def diff_between(repo, before, after, *, skip=()) -> bytes:
     """commit または木の sha before から after までの差分のバイト（旗と除くパスの頭 skip は diff_bytes と同じ。作業ツリーを読まない）。
     周の鎖の最後の差分と、周ごとの差分が使う。git の木でない・rev が引けなければ ValueError"""
     try:
-        return unittrees._git(repo, *unittrees._DIFF, before, after, "--", *unittrees.pathspec_without(skip)).stdout
+        return unittrees.run_git(repo, *unittrees.DIFF_ARGS, before, after, "--", *unittrees.pathspec_without(skip)).stdout
     except (unittrees.UnitTreeError, OSError) as e:
         raise ValueError(f"差分を組めない（{repo}・{before}..{after}）: {e}") from e
 
@@ -69,7 +69,7 @@ def fingerprint(repo) -> dict:
     """{"head": HEAD の commit の sha, "diff_hash": diff_bytes(repo, "HEAD") の sha256 の 16 進}。差分が無ければ空のバイトの sha256。
     git の木でない・HEAD が引けなければ ValueError"""
     try:
-        head = unittrees._out(repo, "rev-parse", "--verify", "HEAD^{commit}")
+        head = unittrees.git_out(repo, "rev-parse", "--verify", "HEAD^{commit}")
     except (unittrees.UnitTreeError, OSError) as e:
         raise ValueError(f"HEAD が引けない（{repo}）: {e}") from e
     return {"head": head, "diff_hash": hashlib.sha256(diff_bytes(repo, "HEAD")).hexdigest()}
@@ -95,7 +95,7 @@ def matches(cert_fingerprint, repo) -> bool:
 
 
 def _keys(cases) -> str:
-    keys = [baseline_red._key(c) for c in cases]
+    keys = [baseline_red.case_key(c) for c in cases]
     more = f" ほか {len(keys) - HEAD_LIMIT} 件" if len(keys) > HEAD_LIMIT else ""
     return "・".join(keys[:HEAD_LIMIT]) + more
 
@@ -104,11 +104,12 @@ def classify(*, material, runs, cases, baseline_cases, junit_steps, junit_unran,
     """赤の原因を事実だけで分ける ——（red_cause, summary）。red_cause は ""・environment・incomplete・introduced・inherited。順:
     1. 素材の status が clean → ("", "")
     2. 赤の段（exit が 0 でない段）が 1 つ以上在り、全部が起こせない段（tree_run.launch_kind が broken）→ environment
-       （今の works の entry.env_only_red。entry.py:768-772。素材が not_run でもこちらが先）
+       （元の works〔pack.json の works.commit の版〕の .shared/core/entry.py:768-772 の env_only_red。工場の lib/entry.py には無い。
+       素材が not_run でもこちらが先）
     3. status が測った結果（MEASURED）でない素材の語（NOT_DONE。not_run・awaiting_human・not_applicable・carried_over）か、
        junit_unran が空でなく走った赤の段（declared_checks.ran_reds。走った赤が走らなかった段より勝つ決めの持ち主）が無い → incomplete。
        走った赤の段が在れば 4.〜6. で分け、走らなかった段は summary に添える
-    4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red._must_pass）が在る → introduced
+    4. baseline_cases が在り、今の落ちた物（failure・error）に、元で通っていたか元に無かった物（baseline_red.must_pass）が在る → introduced
     5. baseline_cases が在り、落ちた物が 1 つ以上在って全部が元でも落ちていて、broken を除く赤の段が全部 junit_steps に在って junit_unran に無い → inherited
     6. ほか（JUnit の無い赤の段・shell の test_cmd の赤・baseline_cases が None・今か元の結末に落ちた予約の行（baseline_red.synth_reds）が
        在って、落ちた本物の行が元に無いか全部元でも落ちている回）→ ""（原因の無い赤。予約の行が在った回は summary に SYNTH_CAUSE を添える）。
@@ -142,11 +143,11 @@ def _red_cause(reds, broken, cases, baseline_cases, read_steps, narrow=False) ->
     if baseline_cases is not None:
         base = baseline_red.outcomes(baseline_cases)
         unmeasured = narrow or base_blind   # 元の結末に無い試験の赤は、比べる事実が無い
-        introduced = [c for c in failed if baseline_red._must_pass(c, base) and not (unmeasured and baseline_red._key(c) not in base)]
+        introduced = [c for c in failed if baseline_red.must_pass(c, base) and not (unmeasured and baseline_red.case_key(c) not in base)]
         if introduced:
             return INTRODUCED, (f"今回落ちて元で通っていたか元に無かった {len(introduced)} 件: {_keys(introduced)}"
                                   f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")
-        inherited = failed and all(base.get(baseline_red._key(c)) in baseline_red.FAILED for c in failed)
+        inherited = failed and all(base.get(baseline_red.case_key(c)) in baseline_red.FAILED for c in failed)
         if inherited and not blind and all(r.get("name") in read_steps for r in reds if r not in broken):
             return INHERITED, (f"落ちた {len(failed)} 件は全部元でも落ちていた: {_keys(failed)}"
                                  f"（赤の段: {names}。元の結末の 1 件ごとの結末と比べた）")

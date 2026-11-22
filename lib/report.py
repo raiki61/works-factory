@@ -162,7 +162,7 @@ OUTCOME_WORDS = {"fixed": "直して、最後のテストまで通った",
                  "interrupted": "run が途中で終わった"}
 
 
-def _time(s):
+def parse_ts(s):
     try:
         t = datetime.datetime.fromisoformat(str(s).replace("Z", "+00:00"))
     except ValueError:

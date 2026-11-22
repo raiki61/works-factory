@@ -19,7 +19,6 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 - write(board_dir, …)・stage_rows(board_dir): 控えを書く（線の境）・控えが指す行（段が行を出さなかった周を None で分ける＝関所の軸。
   盤面の根から読む判定の支度・修正案の頭・関所が使う。呼び手は None と [] の違いを `stage_rows(d) or []` の 1 式で書く）。
   read・write・stage_rows の name は控えのファイルの名（既定は判定の STATE_FILE。事前審査の盤面の写しは COPY_STATE）
-- ref_problems(reply, board_dir): 判定の返答の先例の出どころ world:<類の id> が控えの指す行に無い誤りの文（判定の受け付けが拒む）
 - need(rows)・challenges(rows): 修正案の受け付けに渡す答えの要る行の表（planmarks.Need。答えの仕組みは構造の目の汚れる
   行と同じ 1 つ。行は項目に場所で結ばず、どの項目も答えていない行だけを欠けにする）・類ごとの依頼の解き方との比べの文（事前審査の
   外れの訳に添える）
@@ -35,16 +34,13 @@ knowledge の行は、頭の節・関所の行に NOT_WEB と名指して並べ�
 依頼の解き方（足し欄 means。計画の W6・5.3 節の 1）: 目的の役は目的の文に解き方を書かず、依頼が示した解き方（手段）を役の型の
 足し欄 MEANS に分ける。欄の意味（型・読んだ後の使い方）と控えの名 MEANS_FILE をここが持つ。
 目的の文の型は写しのまま。控えは世界の解の段の入力（言い直す役が依頼の解き方として見る）で、独立設計には渡さない（目的だけから設計する）。
-- split_means(reply): （欄を外した返答の写し, 手段の並び）
 - means_hints(means)・means_need(means): {M<n>: 文}（番号は並びの順の 1 始まり）と、修正案の受け付けに渡す頼みの解き方の答えの要る
   表（planmarks.Need。行の鍵 MEANS。どの項目も答えていない M<n> を欠けにする。計画 means-answers）
-- write_means(board_dir, means)・means_of(board_dir, name): 控えを置く（空なら置かない）・読む（無い・読めなければ []。name は写しの名）
-- copy_means(src_file, board_dir): 控えのファイル（判定の外の読み手は判定の出力の欄 purpose_means のパス）を別の置き場に写しの名
-  COPY_MEANS で写す（事前審査の置き場の関所が世界の解の外れの出どころを照らす）
+- means_of(board_dir, name): 控えを読む（無い・読めなければ []。name は写しの名。事前審査の置き場の写し COPY_MEANS を関所が
+  世界の解の外れの出どころとして読む）
 """
 import json
 import pathlib
-import shutil
 import sys
 
 _HERE = pathlib.Path(__file__).resolve().parent
@@ -136,16 +132,6 @@ def stage_rows(board_dir, name: str = STATE_FILE) -> list | None:
         return None
 
 
-def ref_problems(reply, board_dir) -> list:
-    """判定の返答（reply）の先例 precedents の出どころ source の world:<類の id> が、盤面の根の控えが指す行の class_id に在るかの
-    誤りの文の並び（通れば空）。段の行が無い周（控えが無い・落ちた・行が空）の world: は全部宙に浮いた参照として数える。
-    world: の無い出どころは見ない"""
-    got = reply.get("precedents") if isinstance(reply, dict) else None
-    sources = [p.get("source") for p in got if isinstance(p, dict)] if isinstance(got, list) else []
-    known = {r["class_id"] for r in stage_rows(board_dir) or []}
-    return [p for s in sources for p in cite.ref_problem(s, SOURCE_PREFIX, known)]
-
-
 # ---------------------------------------------------------------- 依頼の解き方（足し欄 means）
 
 
@@ -156,31 +142,6 @@ def _means_path(board_dir) -> pathlib.Path:
 def _texts(xs) -> list:
     """空でない字だけを残した並び"""
     return [m for m in xs or [] if isinstance(m, str) and m.strip()]
-
-
-def split_means(reply) -> tuple:
-    """（欄を外した返答の写し, 手段の並び。欄が無ければ []）。dict でない返答はそのまま"""
-    if not isinstance(reply, dict):
-        return reply, []
-    out, got = jsonfile.split(reply, (), (MEANS,))
-    return out, _texts(got.get(MEANS))
-
-
-def write_means(board_dir, means) -> None:
-    """手段の並びを盤面の根の控えに置く（空なら置かない）"""
-    got = _texts(means)
-    if got:
-        jsonfile.dump(_means_path(board_dir), {MEANS: got})
-
-
-def copy_means(src_file, board_dir) -> None:
-    """目的の役が置いた控えのファイル src_file（None 可）を board_dir に写しの名 COPY_MEANS で写す（無ければ board_dir の前の写しを消す）"""
-    dest = pathlib.Path(board_dir) / COPY_MEANS
-    src = pathlib.Path(src_file) if src_file is not None else None
-    if src is not None and src.is_file():
-        shutil.copyfile(src, dest)
-    else:
-        dest.unlink(missing_ok=True)
 
 
 def means_of(board_dir, name: str | None = None) -> list:
@@ -214,7 +175,7 @@ def need(rows) -> planmarks.Need:
 
 
 def means_hints(means) -> dict:
-    """{M<n>: 頼みの解き方の文}（n は並びの順の 1 始まり。空の文は数えない。split_means と同じ読み）"""
+    """{M<n>: 頼みの解き方の文}（n は並びの順の 1 始まり。空の文は数えない）"""
     got = _texts(means)
     return {f"{MEANS_KEY_HEAD}{n}": m for n, m in enumerate(got, 1)}
 

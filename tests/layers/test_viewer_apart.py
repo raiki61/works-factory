@@ -39,6 +39,13 @@ class ViewerApartTest(unittest.TestCase):
         with tree(files) as root:
             self.assertEqual(scan.problems("E25", root), [])
 
+    def test_git_ignored_files_are_not_read(self):
+        """git が無視する置き場（道具の控え .ruff_cache/ など）は工場の物でなく、読まない。無視されない未追跡の物は今までどおり照らす"""
+        files = {".gitignore": ".ruff_cache/\nbuild/\n", ".ruff_cache/0/a": b"\xff\xfe viewer/\n", "lib/build/b": b"\xff viewer/\n",
+                 "lib/c.py": "import viewer\n"}
+        with tree(files, git_init=True) as root:
+            self.assertEqual(scan.problems("E25", root), ["lib/c.py:1: 見る道具を名指す import viewer"])
+
 
 if __name__ == "__main__":
     unittest.main()

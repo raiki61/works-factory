@@ -538,7 +538,7 @@ issue #802 の受け入れ「本線の振る舞いは変わらない」は、依
 2. `lib/gatemarks.py` の `narrow_asks` が受ける材料。値だけを受ける形にし、place も Archon の port も読まない。
    - `narrow_asks(plan, marks, facts)`: `plan` は計画の行の並び（計画の部品の返りの `plan` の先の `plan[]`）、`marks` は計画の審査の block の入口 `intake` が narrows の行から外して控えた決め手の欄（`decided_by` などの欄。形は 2 重の並びで、`marks[i][j]` が計画の項目 `i` の `narrows` の `j` 番目の行から外した欄の dict。無ければ None で、行に残った欄を読む）、`facts` は 4 つの軸の材料 `AxisFacts`。
    - `AxisFacts`: 出どころの照らしの口 `cite_ok`・世界の解の行が在るか `world_rows`・構造の目が人に上げた単位 `ups`・汚れると見た単位 `dirty`・修正案の欄 `structure` に答えのある行の単位 `answered`（None は照らさない）・計画の単位 `planned`。レビューが挙げた「答えのある行の単位」と「計画の単位」は `answered` と `planned` に当たる。
-   - 軸の訳を付ける所 `axis_why(facts, mark, units)` と、行 1 つを組む `ask_row(facts, kind, text, mark, node, units)` も `lib/` に置き、計画の審査の block は事前審査の穴の行（`faces`）にも同じ口で軸の訳を付ける（block に軸の訳の写しを残さない。憲法の 4）。盤面を読む古い口 `gatemarks.axis_reasons` も、盤面から材料を集めて `axis_why` を呼ぶ形にした（軸の決まりの持ち主は 1 か所）。
+   - 軸の訳を付ける所 `axis_why(facts, mark, units)` と、行 1 つを組む `ask_row(facts, kind, text, mark, node, units)` も `lib/` に置き、計画の審査の block は事前審査の穴の行（`faces`）にも同じ口で軸の訳を付ける（block に軸の訳の写しを残さない。憲法の 4）。盤面を読む古い口 `gatemarks.axis_reasons`（今は無い）も、盤面から材料を集めて `axis_why` を呼ぶ形にした（軸の決まりの持ち主は 1 か所）。
    - 仕様駆動の run の `spec-rounds` が渡す材料: `cite_ok` は依頼の引用の元を表と設計書の本文にした `cite.sources_problem`、`world_rows` は偽、`ups`・`dirty` は空、`answered` は None、`planned` は計画の行の単位（`converge.planned_units`）。
 3. 独立の目に見せる事前審査の結論: 今のまま「読めない」（`verdict: unread`・訳「往復の記録が渡されていない」）と出す。`eyes-in` は変えない。
    - 訳: 独立の目の欄 `review` は「修正が使った修正案を審査した最後の往復の結論」（`shared:plan-verdict.schema.json`）。仕様駆動の run で修正が使う計画の行は、run の中で計画の AI が起こした物で、計画の審査は通っていない。表の `reviews` が持つのは、会話の中で設計書（方針の文）を審査した記録で、修正が使った計画の行の審査ではない。表から `accepted` などを組むと、審査していない行を審査済みと見せることになる。

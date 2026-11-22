@@ -27,6 +27,13 @@ class NoOwnerEnvTest(unittest.TestCase):
             got = scan.problems("E14", root)
         self.assertTrue(any("bin/y" in line for line in got), got)
 
+    def test_git_ignored_files_are_not_read(self):
+        """git が無視するファイルは読まない（UTF-8 で読めなくても数えない）。無視されない未追跡の物は今までどおり照らす"""
+        files = {".gitignore": "*.cache\n", "bin/y.cache": b"\x81 /Users/example/\n", "bin/z": "/Users/example/\n"}
+        with tree(files, git_init=True) as root:
+            got = scan.problems("E14", root)
+        self.assertEqual([line.partition(":")[0] for line in got], ["bin/z"], got)
+
 
 if __name__ == "__main__":
     unittest.main()

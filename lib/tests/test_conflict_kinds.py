@@ -3,7 +3,7 @@
 - kind は申し出の必須の欄（conflict.FIELDS の末尾）。語の外の値は拒み、文に種類の名を並べる
 - 対: kind query_hits_fixed ⇔ which_is_right query、kind needs_context なら which_is_right unknown。外れは両方の欄を名指して拒む
 - 語の定数 conflict.WORD（216 の seams.json の words と同じ綴り）
-- 控えの行と trace の行に kind が載り、種類の内訳（kind_counts）が数える。kind の無い前の形の行も読めて「無し」と出る
+- 控えの行と trace の行に kind が載り、種類の内訳（kind_counts_of）が数える。kind の無い前の形の行も読めて「無し」と出る
 - brief_vs_judgment は、その単位の brief の行（planbrief.by_unit_at の形）を between に名指す時だけ通す。brief の無い run・
   ほかの項目の brief だけの名指しは拒む。brief の控えが壊れていれば brief は無い側（通さない側）に倒す
 - 裁定 fix_plan_item（案の項目そのものの誤り）は直す裁定でなく、範囲 limits を持たず、grounds にその単位の brief の行を
@@ -144,13 +144,13 @@ class KindRowsCase(_ItemsBoardCase):
         conflict.park(self.b, [ITEM], source="fix")
         self.assertEqual(conflict.items(self.b)[0]["kind"], "unnamed_test_broke")
         self.assertEqual(self.b.traced[0][1]["kind"], "unnamed_test_broke")
-        self.assertEqual(conflict.kind_counts(self.b)["unnamed_test_broke"], 1)
+        self.assertEqual(conflict.kind_counts_of(conflict.items(self.b))["unnamed_test_broke"], 1)
 
     def test_rows_without_kind_still_read(self):
         legacy = {k: ITEM[k] for k in ("unit_key", "between", "why_both_cannot_hold", "which_is_right")}
         self.write_items([{"id": "c1-1", "round": 1, "source": "fix", **legacy, "status": "ruled",
                            "ruling": {"decision": "ask_human", "text": "方針の変更で人が決める", "limits": [], "by": "x"}}])
-        self.assertEqual(conflict.kind_counts(self.b)["unset"], 1)
+        self.assertEqual(conflict.kind_counts_of(conflict.items(self.b))["unset"], 1)
         self.assertIn("種類 無し", conflict.human_lines(self.b)[0])
 
 
@@ -255,15 +255,15 @@ class TestReplanState(unittest.TestCase):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="waiting")])
         conflict.set_replan(b, ["c1-1"], conflict.AMENDED)
         self.assertEqual(conflict.held_by_rulings(b), {})
-        self.assertEqual(conflict.amended_keys(b), {MEAN})
+        self.assertEqual(set(conflict.amended_rows_by_unit(b)), {MEAN})
         self.assertEqual(conflict.waiting(b), [])
         self.assertEqual(conflict.asked(b), [])
         self.assertEqual(b.traced, [(conflict.REPLAN_OP, {"id": "c1-1", "unit_key": MEAN, "state": "amended", "why": ""})])
 
-    def test_amended_keys_cover_the_items_units(self):
+    def test_amended_units_cover_the_items_units(self):
         b = fake_with_rows([row("c1-1", MEAN, "fix_plan_item", state="amended", plan_units=[MEAN, CLAMP]),
                             row("c1-2", "u-wait", "fix_plan_item", state="waiting")])
-        self.assertEqual(conflict.amended_keys(b), {MEAN, CLAMP})
+        self.assertEqual(set(conflict.amended_rows_by_unit(b)), {MEAN, CLAMP})
         self.assertEqual(set(conflict.held_by_rulings(b)), {"u-wait"})
 
     def test_amended_units_are_one_of_the_test_permits(self):
@@ -278,16 +278,6 @@ class TestReplanState(unittest.TestCase):
         self.assertEqual(conflict.ruled_test_limits(b), [])
         self.assertIsNone(conflict.ruled_test_doc(b))
         self.assertEqual(conflict.permitted_units(b), {MEAN, CLAMP})
-
-    def test_permit_sources_are_read_in_one_place(self):
-        """keep-essence の 3: 許す元（修正案の rewrite_tests・範囲の相談の合意・裁定 fix_test_scope・案の直しで直した項目）を読むのは
-        conflict.test_permits の 1 か所。凍結の検査・事後の関門・範囲の照らしはその行を読み、元を直に読まない"""
-        root = LIB
-        direct = re.compile(r"\b(?:planmarks\.rewrites|amended_keys|agreed_permits|ruled_limits)\(")
-        found = [f"{p.relative_to(root)}:{i}" for p in sorted(root.rglob("*.py"))
-                 if p.relative_to(root).parts[0] != "tests" and p.name not in ("conflict.py", "planmarks.py")
-                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if direct.search(line)]
-        self.assertEqual(found, [])
 
     def test_gave_up_rows_join_ask_human_verbatim(self):
         text = "受け入れのテストの id を\nクラス付きにする（test_tiers.py:136-143）"

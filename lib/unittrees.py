@@ -38,7 +38,7 @@ import changemap
 _GIT_PLACE = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
               "GIT_COMMON_DIR", "GIT_PREFIX")
 # 利用者の設定に左右されない差分の形（apply が読める a/・b/ の頭・外の diff と textconv なし）
-_DIFF = ["-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false", "diff", "--binary", "--no-renames", "--no-ext-diff",
+DIFF_ARGS = ["-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false", "diff", "--binary", "--no-renames", "--no-ext-diff",
          "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/"]
 
 
@@ -58,7 +58,7 @@ def _env(index: str | None = None) -> dict:
     return env
 
 
-def _git(cwd, *args, index: str | None = None, data: bytes | None = None, env: dict | None = None,
+def run_git(cwd, *args, index: str | None = None, data: bytes | None = None, env: dict | None = None,
          check: bool = True) -> subprocess.CompletedProcess:
     """cwd で git を起こす（バイトのまま）。check なら落ちた時に UnitTreeError"""
     r = subprocess.run(["git", "-C", str(cwd), *args], input=data, capture_output=True,
@@ -68,20 +68,20 @@ def _git(cwd, *args, index: str | None = None, data: bytes | None = None, env: d
     return r
 
 
-def _out(cwd, *args, **kw) -> str:
-    return _git(cwd, *args, **kw).stdout.decode("utf-8", "replace").strip()
+def git_out(cwd, *args, **kw) -> str:
+    return run_git(cwd, *args, **kw).stdout.decode("utf-8", "replace").strip()
 
 
 def _tree_now(tree, tmp: str) -> str:
     """tree の作業ツリーの今の姿の木（一時の index に本物の index を写して add -A。本物の index は動かさない）"""
     index = os.path.join(tmp, "index")
-    real = _out(tree, "rev-parse", "--path-format=absolute", "--git-path", "index")
+    real = git_out(tree, "rev-parse", "--path-format=absolute", "--git-path", "index")
     if os.path.isfile(real):   # 写すと stat の控えが効き、変わったファイルだけを読み直す。写しの mtime は本物に揃える
         # （git は index の mtime と同じ秒に書かれたファイルを stat で信じずに中身を読む。写しの mtime が今になると、
         # 同じ秒・同じ大きさで書き換えたファイルを変わっていないと読み、直しを落とす）
         shutil.copy2(real, index)
-    _git(tree, "add", "-A", index=index)
-    return _out(tree, "write-tree", index=index)
+    run_git(tree, "add", "-A", index=index)
+    return git_out(tree, "write-tree", index=index)
 
 
 def fresh_tree(repo) -> str:
@@ -91,10 +91,10 @@ def fresh_tree(repo) -> str:
     本物の index・HEAD・枝は動かさない。git の木でなければ UnitTreeError"""
     with tempfile.TemporaryDirectory(prefix="works-unit-") as tmp:
         index = os.path.join(tmp, "index")
-        if _git(repo, "rev-parse", "--verify", "--quiet", "HEAD^{commit}", check=False).returncode == 0:
-            _git(repo, "read-tree", "HEAD", index=index)
-        _git(repo, "add", "-A", "--", ":/", index=index)
-        return _out(repo, "write-tree", index=index)
+        if run_git(repo, "rev-parse", "--verify", "--quiet", "HEAD^{commit}", check=False).returncode == 0:
+            run_git(repo, "read-tree", "HEAD", index=index)
+        run_git(repo, "add", "-A", "--", ":/", index=index)
+        return git_out(repo, "write-tree", index=index)
 
 
 def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
@@ -111,7 +111,7 @@ def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
     with tempfile.TemporaryDirectory(prefix="works-unit-") as tmp:
         before = _tree_now(repo, tmp)
         index = os.path.join(tmp, "index")
-        r = _git(repo, "apply", "--cached", "--3way", "--whitespace=nowarn", index=index, data=data, check=False)
+        r = run_git(repo, "apply", "--cached", "--3way", "--whitespace=nowarn", index=index, data=data, check=False)
         left = _unmerged(repo, index)
         err = r.stderr.decode("utf-8", "replace").strip()
         settled = _settle(repo, index, left, set(union), tmp, check, marked is not None) if left else ([], {})
@@ -123,11 +123,11 @@ def apply(repo, patch: str, union=(), unioned: list | None = None, check=None,
             unioned.extend(merged)
         if put:
             marked.update(put)
-        after = _out(repo, "write-tree", index=index)
+        after = git_out(repo, "write-tree", index=index)
         if after == before:
             return True, ""
-        step = _git(repo, *_DIFF, before, after).stdout
-    r = _git(repo, "apply", "--whitespace=nowarn", data=step, check=False)
+        step = run_git(repo, *DIFF_ARGS, before, after).stdout
+    r = run_git(repo, "apply", "--whitespace=nowarn", data=step, check=False)
     if r.returncode != 0:   # 試してから当てるまでの間に作業ツリーが変わった
         return False, r.stderr.decode("utf-8", "replace").strip()
     return True, ""
@@ -193,7 +193,7 @@ def patch_names(patch: str) -> list:
 def _unmerged(repo, index: str) -> dict:
     """一時の index の未解決のパス → {段: (mode, sha)}"""
     out = {}
-    for ln in _out(repo, "ls-files", "-u", "-z", index=index).split("\0"):   # -z: 名を引用符で包まない
+    for ln in git_out(repo, "ls-files", "-u", "-z", index=index).split("\0"):   # -z: 名を引用符で包まない
         if not ln:
             continue
         head, _, path = ln.partition("\t")
@@ -257,12 +257,12 @@ def _merged(repo, stages: dict, tmp: str, labels) -> tuple[bytes, int] | None:
     files, texts = [], []
     for n in (2, 1, 3):
         f = os.path.join(tmp, f"merge-{n}")
-        text = _git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b""
+        text = run_git(repo, "cat-file", "blob", stages[n][1]).stdout if n in stages else b""
         pathlib.Path(f).write_bytes(text)
         files.append(f)
         texts.append(text)
     size = _marker_size(texts)
-    r = _git(repo, "merge-file", "-p", "--diff3", f"--marker-size={size}", *(a for name in labels for a in ("-L", name)),
+    r = run_git(repo, "merge-file", "-p", "--diff3", f"--marker-size={size}", *(a for name in labels for a in ("-L", name)),
              *files, check=False)
     return (r.stdout, size) if 0 <= r.returncode <= 127 else None   # 食い違いの数は 127 まで。その外と負（シグナル）は落ちた
 
@@ -270,8 +270,8 @@ def _merged(repo, stages: dict, tmp: str, labels) -> tuple[bytes, int] | None:
 def _put(repo, index: str, plan: list) -> list:
     """[(パス, mode, 中身)] を一時の index に置く。置いたパスの並び"""
     for path, mode, text in plan:
-        sha = _out(repo, "hash-object", "-w", "--stdin", data=text)
-        _git(repo, "update-index", "--cacheinfo", f"{mode},{sha},{path}", index=index)
+        sha = git_out(repo, "hash-object", "-w", "--stdin", data=text)
+        run_git(repo, "update-index", "--cacheinfo", f"{mode},{sha},{path}", index=index)
     return [p for p, _, _ in plan]
 
 

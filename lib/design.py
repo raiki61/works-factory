@@ -1,11 +1,10 @@
 """修正の前に作る独立設計（写しの graph の節 r2.design）の先行。役に貼る前提と、起こすかの決めと、控えの読みと照らしを 1 か所に置く。
 実行基盤を知らない関数だけを出す。役を起こす支度・受け付け・盤面への渡しは、ブロックの script が持つ。
 
-写しの graph の r2.design は deps に p4.assemble を持つので、盤面では修正と最後のテストの後にしか待たない。周を重ねない線では、
-そこで出た作り直しの要否（R2 の redesign-needed）を拾う周が無い。graph は写しのまま（graph_sha を固めた手本と実物の盤面が
-それに乗る）にして、設計の役だけを修正の前に先に起こし、受け付けた返答を盤面の根の design.json に控える。盤面が r2.design を
-待った時（p4.assemble の後）に、線がその控えを渡す（目的の文の purpose.json と同じ形）。設計の役の入力は目的の文と実測した
-制約・人の方針・人の関所の答え・依頼が名指した設計書の節なので、先に起こしても独立は崩れない（修正案・差分を読む口が無い）。
+元の works では、写しの graph の節 r2.design が修正と最後のテストの後にしか起きず、周を重ねない線では作り直しの要否
+（R2 の redesign-needed）を拾う周が無かった。工場では独立設計を block にして修正の前に起こす（どこで起こすかは
+docs/design/independent-design.md）。設計の役の入力は目的の文と実測した制約・人の方針・人の関所の答え・依頼が名指した設計書の節なので、先に起こしても独立は崩れない
+（修正案・差分を読む口が無い）。
 
 - 前提の材料:    R2 の 2 つの役（r2.design・r2.compare）に貼る材料の本文（見出しと頼みの文は持たない。共通の断片 design-premises.md が持つ）と、貼った入力の控え {given, withheld, seen}（kind は PREMISE_KINDS の中だけ）。
                  human_answers（人の関所の答え。asked は写さず、answer の無い機械の行は withheld。seen は貼った答えの数と
@@ -511,7 +510,7 @@ def element_gaps(reply) -> list:
     if not (isinstance(reply, dict) and reply.get("question_stands") is True):
         return []
     elements = reply.get("elements")
-    ids = element_ids(elements)
+    ids = _element_ids(elements)
     out = []
     if not ids:
         out.append("elements が空（問いが立つ設計は、設計の要素を id（D1…）と足す物・消す物の字を持つ行で 1 つ以上並べる。"
@@ -603,7 +602,7 @@ def _label(item, path, symbol) -> str:
     return f"項目 {item} の {path}" + (f"::{symbol}" if symbol is not None else "（行）")
 
 
-def element_ids(elements) -> list:
+def _element_ids(elements) -> list:
     """独立設計の要素 elements（{id, adds, removes} の行の並び。役の返答の欄 elements）の id の並び（字の物だけ・現れた順）"""
     return [e["id"] for e in elements if isinstance(e, dict) and isinstance(e.get("id"), str)] if isinstance(elements, list) else []
 
@@ -620,7 +619,7 @@ def coverage_gaps(elements, refs) -> list:
     だけでは、ほかの項目が受ける要素を『どの項目も受けない』と見分けられない）"""
     have = set(refs)
     return [f"独立設計の要素 {i} が、どの行の design_ref にも出ない（受ける鍵の行の design_ref に {i} を書くか、鍵の一覧に対の行が無いなら item・"
-            f"path・symbol を null にした行に design_ref {i} を書け）" for i in element_ids(elements) if i not in have]
+            f"path・symbol を null にした行に design_ref {i} を書け）" for i in _element_ids(elements) if i not in have]
 
 
 def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
@@ -635,7 +634,7 @@ def _map_gaps(source, rows, design_map, elements=None, kept=()) -> list:
     在る（null は対が無い）。要素の網羅はここで照らさない（一部の項目の答えでは、ほかの項目が受ける要素を「どの項目も受けない」と
     見分けられない。呼び手が全部の答えを合わせて coverage_gaps を当てる）"""
     entries = [e for e in design_map if isinstance(e, dict)] if isinstance(design_map, list) else []
-    ids = set(element_ids(elements))
+    ids = set(_element_ids(elements))
     every = _wanted(rows)
     wanted = [k for k in every if k not in kept]
     counts = {}

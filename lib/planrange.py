@@ -17,13 +17,10 @@
   out_of_scope に当たる）。hint なら、ほかの項目の out_of_scope に当たるがある項目の範囲には入るパスに OWNER_HINT を足す
 - approved(items, *, by): 承認済みの修正案の項目の値 items（planmarks.approved_items の形。呼び手が渡す）を照らせるか
 - scope(b, *, items, ruled, by, agreed, round_): 受け付けが照らす値 ({items: 合意を足した項目, permits: 許しのパス,
-  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（check_paths・fix の scope の照らし）と役の指示の範囲の行
+  agreed: 足した合意の行}, "")。照らさない項目なら (None, 理由)。照らし（fix の scope の照らし）と役の指示の範囲の行
   （fix の src/rules.py の scope_rows）と役の brief の範囲の欄（fixboard.scope_brief）が同じ値を引く 1 か所
 - fix_scope(b, pass_, *, items, agreed, round_): 修正の段（pass_ first・ruled）の引数で scope を引く
 - test_ids(it): 項目の足してよい新しいテストの id（修正の段の受け付けの fix の scope.problems と指示書が同じ値を引く）
-- check_paths(b, paths, *, items, ruled, by, round_): 承認済みの修正案の項目 items で paths を outside で照らす (行, 記録)。
-  合意と裁定は置き場 b から読む。照らさない項目（修正案の無い・範囲の欄の無い控え）は ([], {"checked": False, "why": 理由})。
-  欄の控えが凍結の印と食い違えば conflict.fields_broken の道（ValueError）
 """
 from __future__ import annotations
 
@@ -199,13 +196,3 @@ def fix_scope(b, pass_: str, *, items, agreed=None, round_: int = 1) -> tuple[di
     """修正の段（pass_ first・ruled）の受け付けが照らす値（scope。裁定の後は直す裁定のパスも許しに入る）"""
     return scope(b, items=items, ruled=pass_ == "ruled", agreed=agreed, round_=round_)
 
-
-def check_paths(b, paths, *, items, ruled: bool = True, by: str = stopby.FIX, round_: int = 1) -> tuple[list[str], dict]:
-    """承認済みの修正案の項目 items（approved に渡す値か口）で、単位に結べない変わったパス paths を、scope の値の outside で照らす
-    （hint なし: 結ぶ単位を申告する欄の無い役）。合意・許し・裁定は置き場 b（conflict の置き場）から読む。
-    返り (外れの行, 記録 {checked, items | why})"""
-    got, why = scope(b, items=items, ruled=ruled, by=by, round_=round_)
-    if got is None:
-        return [], {"checked": False, "why": why}
-    lines = outside(got["items"], sorted(paths), got["permits"], hint=False)
-    return lines, {"checked": True, "items": [it.get("item") for it in got["items"]]}

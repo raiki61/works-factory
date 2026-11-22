@@ -159,7 +159,7 @@ class ConflictSeamCase(unittest.TestCase):
                         by="t")
         self.assertEqual([r["id"] for r in c.asked(self.place)], ["c1-1"])
         c.set_replan(self.place, ["c1-2"], c.AMENDED)
-        self.assertEqual(c.amended_keys(self.place), {KEY_B})
+        self.assertEqual(set(c.amended_rows_by_unit(self.place)), {KEY_B})
         self.assertEqual(board.fix_duty(self.place, {KEY_A, KEY_B})[0], {KEY_B})
         self.assertEqual(_trace_rows(self.place)[-1], {"op": c.REPLAN_OP, "id": "c1-2", "unit_key": KEY_B,
                                                        "state": c.AMENDED, "why": ""})

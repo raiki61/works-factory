@@ -30,9 +30,8 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
 - clash_claims(unit_ids, between, why)・mark_clash_patch(b, ids, patch): 組どうしの合わせの申し出（JOIN_SOURCE）の行の形と、
   その行に組の直しの控えの差分を置く口（直しの在りかは REVERTED）。積むのは fix の block の clash（`workflows/fix/src/clash.py`）
 - rejudge_texts(rows): 裁定 rejudge の文（修正の出力の異議に足す）
-- items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b)・
-  kind_counts(b): 読む口。asked・waiting・counts・kind_counts の述語は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・
-  counts_of(rows)・kind_counts_of(rows) が持つ（置き場を開かずに読んだ行にも同じ読みを当てる）。decision(row) は裁定の語（裁定が
+- items(b)・unruled(b)・asked(b)・ruled_fix(b)・replaced_queries(b)・counts(b): 読む口。asked・waiting・counts の述語と
+  種類の内訳は行の並びを受ける asked_rows(rows)・waiting_rows(rows)・counts_of(rows)・kind_counts_of(rows) が持つ（置き場を開かずに読んだ行にも同じ読みを当てる）。decision(row) は裁定の語（裁定が
   dict でない行は None）
 - held_by_rulings(b)・ruled_units(row): 直す義務から外す単位と理由。決まりは「直す裁定（FIX_DECISIONS）でない裁定は、それが外す
   単位（申し出の単位と、fix_plan_item ならその項目に載る単位の全部）を直させない」の 1 つ
@@ -70,7 +69,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   在り」でなく控えを名指す。段の頭より前の行の直しは頭の木に在り、戻しても差分に残る）
 - 案の直しの状態（依頼 226。裁定 fix_plan_item の行の欄 REPLAN_STATE）: apply_rulings が WAITING に置き、set_replan の 1 か所だけが
   AMENDED（項目を直した。held_by_rulings が外さず直す義務に戻す）か GAVE_UP（諦めた。asked に入り ask_human の行として並ぶ）に
-  移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_keys(b)
+  移す（trace の行 REPLAN_OP）。読む口は replan_state(row)・waiting(b)・amended_rows_by_unit(b)
 - 2 回目の修正の段（同じブロックの 2 度目の差し込み。置き場が分かれる）は、1 回目の段の行を adopt_prior(b, prior, items) で自分の
   置き場に写して読む（元は 1 つの盤面に両方の段の行が在った。second_pass・amended_rows_by_unit・test_permits が
   1 回目の裁定と案を直した行を見る）。写した行は印 PRIOR を持ち、this_pass(b) はそれを外した今の段の行（組の子の結果に載せる行）
@@ -137,7 +136,7 @@ BRIEF_VS_JUDGMENT, _, NOT_RED, SCOPE_NEEDED, QUERY_HITS_FIXED, NEEDS_CONTEXT, RE
 WHICH = tuple(ROW["properties"][WHICH_FIELD]["enum"])
 _, TEST, _, UNKNOWN, QUERY = WHICH
 RED_AT_BASE_DECISIONS = (REPLAN, ASK)   # red_at_base の申し出に許す裁定（fix_code_as は変えない段の注文でコードを変えさせるので許さない）
-UNSET = "unset"                         # kind_counts の鍵: kind の無い前の形の行
+UNSET = "unset"                         # kind_counts_of の鍵: kind の無い前の形の行
 WORD = "divergence"                     # superpowers の状態の語を読み替える works の語（216 の seams.json の words と同じ綴り）
 HEAD = "食い違いの申し出"                # 最後の関所の文の節の見出し・報告の行の頭
 RULED_TEST_ID = "conflict-ruling"       # 裁定が許したテストの変更を守りのファイルの行にする時の id の頭
@@ -414,11 +413,6 @@ def amended_rows_by_unit(b) -> dict:
     return out
 
 
-def amended_keys(b) -> set:
-    """項目を直した行（状態 AMENDED）が外していた単位の全部（直す義務に戻った単位）"""
-    return set(amended_rows_by_unit(b))
-
-
 def set_replan(b, ids, state: str, *, why: str = "") -> None:
     """fix_plan_item の行 ids の案の直しの状態を、WAITING から state（AMENDED か GAVE_UP）へ移す唯一の口。GAVE_UP は why
     （諦めた理由）が要る。在れば why を欄 REPLAN_WHY に置き、移した行ごとに trace の行 REPLAN_OP。同じ状態への移りは何もしない
@@ -530,10 +524,6 @@ def counts_of(rows) -> dict:
 
 def counts(b) -> dict:
     return counts_of(items(b))
-
-
-def kind_counts(b) -> dict:
-    return kind_counts_of(items(b))
 
 
 def kind_counts_of(rows) -> dict:
@@ -785,10 +775,10 @@ def agreed_permits(rows, *, source=None, base=None) -> list[dict]:
 def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_rows=None, base=None,
                  round_: int = 1) -> list[dict]:
     """既存のテストの変更の許しの唯一の元（keep-essence の 3。許す元を読むのはここだけで、凍結の検査・事後の関門・範囲の照らし・
-    最後の関所はこの行を読む）。許す元は 6 つ（6 つ目は関わる試験で直す前から壊れていた物のファイル〔broken_tests。行は broken: true〕。
+    最後の関所はこの行を読む）。許す元は 6 つ（6 つ目は関わる試験で直す前から壊れていた物のファイル〔_broken_tests。行は broken: true〕。
     docs/design/fix.md の 19 節）。ほかの 5 つ: 承認済みの修正案の rewrite_tests（いつも。planmarks.rewrites の順）・範囲の相談の
     合意（agreed_permits）・承認済みの修正案の項目の files の change=remove の symbol（消す名）と op=delete の path・op=rename の元のパス from の .py のモジュールの名をコードで使う既存テスト（planmarks.removes_permits。書き換えも関数の
-    丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_keys。
+    丸ごとの消しも許す）・rulings が真なら裁定 fix_test_scope の範囲（ruled_fix の順）・案の直しで直した項目の単位（amended_rows_by_unit。
     前の輪の受け入れのテストの関数を、直した案で書き直してよい）。
     行は {limit: 範囲の文字列, id: 守りのファイルの行の id の頭, why: 許した理由, source: 許しの出どころの語（fixboard.ALLOWED_SOURCES。
     fixboard.allowed_test_rows の行の source）}。修正案の行は名指しのテストの id（test）も持つ
@@ -822,7 +812,7 @@ def test_permits(b, *, rulings: bool = True, source=None, skip_ids=(), agreed_ro
     out += [{"limit": r["path"], "id": f"{BROKEN_TEST_ID}-{n}", "source": broken, "broken": True,
              "why": f"関わる試験で直す前から壊れていた（TDD のループの頭の元の結末で {'・'.join(r['ids'][:5])} が落ちていた）: 修正役が"
                     "直しと一緒に直してよい。最後の承認ノードに「ついでに直した試験」として出る"}
-            for n, r in enumerate(broken_tests(b), 1)]
+            for n, r in enumerate(_broken_tests(b), 1)]
     out += [{"units": sorted(ruled_units(i)), "id": f"{AMENDED_TEST_ID}-{i['id']}",
              "why": f"案の直し {i['id']} で直した項目の単位の、前のループの受け入れのテスト（直した案で書き直してよい）"}
             for i in items(b) if replan_state(i) == AMENDED and ruled_units(i)]
@@ -866,7 +856,7 @@ def edit_rulings(b, pass_: str) -> bool:
     return pass_ == "ruled" or second_pass(b)
 
 
-def broken_tests(b) -> list:
+def _broken_tests(b) -> list:
     """置き場 b の BROKEN_TESTS_FILE の行 [{path, ids}]（関わる試験で直す前から壊れていた物のファイルと落ちていた試験の鍵。fix の TDD の
     輪の頭が書く）。無い・読めない・形の違う行は捨てる"""
     doc = jsonfile.read_or(pathlib.Path(b) / BROKEN_TESTS_FILE)
@@ -959,7 +949,7 @@ def unit_rows(rows, key) -> list:
     return [r for r in rows if key in ruled_units(r)]
 
 
-def ask_why_words(ruling: dict) -> str:
+def _ask_why_words(ruling: dict) -> str:
     """裁定の人に回す訳（ASK_WHY）の関所の言い方「人に回す訳（<変わる物>） <line>・」。訳の無い裁定（機械が人に回した物）は空"""
     why = ruling.get(ASK_WHY)
     if not isinstance(why, dict):
@@ -975,7 +965,7 @@ def human_lines(b) -> list:
     return [f"{r['unit_key']}: {r['ruling']['text']}（名指し {', '.join(r['between'])}・種類 {r.get(KIND_FIELD) or '無し'}・"
             f"正しいと見た側 {r[WHICH_FIELD]}・"
             + (f"依頼で探したこと {r['ruling']['request_searched']}・" if r["ruling"].get("request_searched") else "")
-            + ask_why_words(r["ruling"])
+            + _ask_why_words(r["ruling"])
             + f"{r['id']}"
             + (f"・案の直し: {r[REPLAN_WHY]}" if r.get(REPLAN_WHY) else "")
             + f"・{place_words(unit_rows(rows, r['unit_key']))}）" for r in rows]

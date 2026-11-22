@@ -147,7 +147,8 @@ class PushRecCase(unittest.TestCase):
         return gatemarks._push({gatemarks.RECOMMEND: {**self.REC, **rec}})
 
     def test_item_draft_answers_from_the_recommend_field(self):
-        """欄 recommend が在る項目は推しが下書きの答えになり（question は文のまま）、欄が無い・崩れた項目は text が空。文の末尾が推しの形でも答えにしない"""
+        """欄 recommend が在る項目は推しが下書きの答えになり（question は文のまま）、欄が無い・崩れた項目は text が空（文の末尾が推しの形の時は
+        test_item_draft_without_a_field_does_not_answer_from_a_tail_shaped_text）"""
         self.assertIn("recommend", inspect.signature(gatemarks.item_draft).parameters, "呼び手が行の欄を渡す口")
         self.assertNotIn("read_tail", inspect.signature(gatemarks.item_draft).parameters)
         got = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, recommend=self.REC)
@@ -159,10 +160,6 @@ class PushRecCase(unittest.TestCase):
         self.assertEqual((bare["question"], bare["text"]), (self.BODY, ""))
         self.assertIn("推しの欄が無い", bare["source"])
         self.assertNotIn("役が書いていない", bare["note"])
-        tailed = gatemarks.item_draft(self.BODY + self.tail(), gatemarks.GATE_NODE, recommend=None)
-        self.assertEqual(tailed["text"], "", "文の末尾の字は推しの欄ではない")
-        self.assertEqual(tailed["question"], self.BODY + self.tail(), "question は文の全体のまま")
-        self.assertNotIn("文に書かれた推し", tailed["note"], "note は文から推しを拾わない")
         short = gatemarks.item_draft(self.BODY, gatemarks.GATE_NODE, recommend={**self.REC, "note": "短"})
         self.assertEqual(short["text"], "")
         self.assertIn("推しの欄が無い", short["source"])

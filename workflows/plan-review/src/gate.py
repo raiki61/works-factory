@@ -178,7 +178,7 @@ def axis_facts(place, intake: dict, b) -> gatemarks.AxisFacts:
 
 
 def world_items(place, intake: dict, b) -> list:
-    """世界の解の外れの行 [(項目の番号, 文, 決め手の欄の形, 揃わない訳の並び)]（控えの無い run・外れの無い案は []。今の
+    """世界の解の外れの行 [(項目の番号, 文, 決め手の欄の形, 揃わない訳の並び)]（控えの無い run・外れの無い案は []。元の
     gatemarks.world_items に項目の番号を足した物）"""
     world = _world_rows(place)
     if world is None:

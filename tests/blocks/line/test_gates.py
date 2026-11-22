@@ -67,7 +67,7 @@ class AskBeforeFixCase(_BeforeFixCase):
         out = self.ask(rounds(asks=[ask_row()]))
         self.assertTrue(out["open"])
         self.assertEqual(out["items"][0][0], "regression")
-        self.assertEqual(out["asked"], [NARROW], "決め手の欄が揃わない行は訳の尾を付けずに聞く（今の gatemarks._item の呼び）")
+        self.assertEqual(out["asked"], [NARROW], "決め手の欄が揃わない行は訳の尾を付けずに聞く（元の gatemarks._item の呼び。今は無い）")
 
     def test_decided_row_passes_with_its_source(self):
         """L-G18・L-G19: decided が真で why の無い行は聞かずに通し、出どころつきで passes に返す"""
