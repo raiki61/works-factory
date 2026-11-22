@@ -18,8 +18,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-import conceptfence   # lib/
 import concepthome    # lib/
+
+from src import conceptfence
 
 MEASURE = Path(importlib.util.find_spec("measure").origin)   # lib/measure.py をコマンドとして起こす（import しない）
 REASON_TAIL = 2000

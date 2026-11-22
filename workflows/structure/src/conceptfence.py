@@ -1,4 +1,4 @@
-"""考えの住処の柵の道具（run の中の構造のブロックが対象の表に当てる。試験 lib/tests/test_concept_fences.py は仮の置き場で道具の振る舞いだけを見る）。
+"""考えの住処の柵の道具（run の中の構造のブロックが対象の表に当てる。試験 tests/blocks/structure/test_concept_fences.py は仮の置き場で道具の振る舞いだけを見る）。
 
 表 docs/concepts.json（地図 docs/concepts.md の隣）が、住処の在る考えごとに柵を持つ: 語の形（pattern。正規表現）・
 知ってよい所（allowed。fnmatch の形で `*` は `/` もまたぐ）・既知の漏れ（known。"<表の持ち主のフォルダからのパス>" → [行の数, 理由]）・
@@ -38,7 +38,7 @@ import pathlib
 import re
 import subprocess
 
-import concepthome
+import concepthome   # lib/
 
 TABLE = concepthome.TABLE_NAME
 MAIN_REF = "origin/main"   # 表の件数を比べる相手（CI の tests の job は全履歴で取るので在る）

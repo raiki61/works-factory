@@ -1,4 +1,4 @@
-"""考えの住処の柵の道具 lib/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、main の表を引く main_table と
+"""考えの住処の柵の道具 workflows/structure/src/conceptfence.py の試験（仮の置き場で数え方・歯止め・地図の読みを見る Synthetic、main の表を引く main_table と
 分かれ目の fork_ref の MainTableCase）。
 
 works-factory 自身の地図と表の全部を本物の木に当てる試験（tests/layers の同じ名のファイル）は #765 で、工場自身の表 docs/concepts.json の
@@ -6,23 +6,17 @@ works-factory 自身の地図と表の全部を本物の木に当てる試験（
 """
 import json
 import pathlib
-import sys
 import tempfile
 import unittest
 
-LIB = pathlib.Path(__file__).resolve().parents[1]
-sys.dont_write_bytecode = True
-if str(LIB) not in sys.path:
-    sys.path.append(str(LIB))
-
-from tests.bin.gitkit import git  # noqa: E402
+from tests.bin.gitkit import git
+from tests.blocks import kit
 
 PATH_HEADS = (".shared/", "blk-", "darkfactory/", "dev/", "tests/", "skills/")   # works の地図の行のパスの頭（works の並べ方）
 
 
 def cf():
-    import conceptfence   # 柵の中身（遅らせて読む。無ければその試験だけが落ちる）
-    return conceptfence
+    return kit.load("structure", "conceptfence")   # 柵の中身（遅らせて読む。無ければその試験だけが落ちる）
 
 
 class Synthetic(unittest.TestCase):
