@@ -750,6 +750,11 @@ class ReportCase(_Case):
         self.assertEqual(len(self.e.asked(rows, record["eyes"])), 1)
         chose = [line for line in self.e.record_lines(record) if self.e.OUTCOMES["choose"] in line]
         self.assertEqual(len(chose), 1, chose)
+        # 2 つ目の項目（a.py:90）の結末の行も消えない（人が選ぶとは言わず確かめていない物）
+        second = [line for line in self.e.record_lines(record) if "1 周目に返した" in line and "a.py:90" in line]
+        self.assertEqual(len(second), 1, second)
+        self.assertNotIn(self.e.OUTCOMES["choose"], second[0])
+        self.assertIn(self.e.OUTCOMES["same_ask"], second[0])
 
     def test_one_pick_from_two_rounds_eyes_is_one_question_and_one_line(self):
         """同じ X（同じ目・同じ字）を 2 つの周の目が choose にした時、問いは 1 件・『人が選ぶ』の行は 1 行"""

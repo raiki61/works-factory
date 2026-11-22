@@ -290,7 +290,7 @@ Return only JSON that matches the output schema.
 
 ### 2.9 試験
 
-10 節に全部を書いた。この node に当たる物: 筋書き `standalone`・`two-rounds`・元の `gave-up`（今は無い。541 行）・受け付けの試験（10.2 の `ReviewAcceptCase`・`VerdictsCase`）・古い指示の残す決まり（10.3 の review-1 の行）。守る keep-essence は 9 節。
+10 節に全部を書いた。この node に当たる物: 筋書き `standalone`・`two-rounds`・元の `gave-up`（今は無い。10.1 の `gave-up.stubs.yaml` の行）・受け付けの試験（10.2 の `ReviewAcceptCase`・`VerdictsCase`）・古い指示の残す決まり（10.3 の review-1 の行）。守る keep-essence は 9 節。
 
 ## 3 node の設計シート: refix-1（1 回目の手直しの役）
 

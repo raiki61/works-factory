@@ -92,6 +92,7 @@ OUTCOMES = {
     "cap": f"上限 {LIMIT} 回まで返して残った",
     "choose": "人が選ぶ（独立の目が人が選ぶ物とし、修正の段へ返さず最後の承認ノードの問いへ回した）",
     "unseen": "直ったかを確かめていない（次の独立の目のその目の判定が無いか、返す前の状態を封じた）",
+    "same_ask": "直ったかを確かめていない（同じ目・同じファイルの人が選ぶ物 1 件へ回し、この項目だけの直りは見ていない）",
     "unchanged": f"直ったかを確かめていない（{EXITS['unchanged']}ので、最後の独立の目が挙げなかったのは直したからでない）",
 }
 ASKED_AT = "最後の独立の目が挙げた"   # 返していない人が選ぶ物の結末の行の頭（出どころが最後の目の物）
@@ -493,10 +494,11 @@ def outcome_lines(rows, exit_: str = "", left=(), checkpoint=None, eyes=None, re
                 word = OUTCOMES["again"] if not final else OUTCOMES["cap"] if exit_ == CAP_WHY else OUTCOMES["left"]
             elif _key(item) in picked:
                 if _key(item) in chose_lined:
-                    continue   # 同じ鍵の項目をもう 1 つ返していても、問いの指摘は 1 つなので『人が選ぶ』の行は 1 行
-                chose_lined.add(_key(item))
-                word = OUTCOMES["choose"]
-                said.add((r.get("round"), picked[_key(item)][0]))   # 行 1 つが言うのは指摘 1 つ（同じファイルの字の違う指摘は足す行で言う）
+                    word = OUTCOMES["same_ask"]   # 同じ鍵の 2 つ目以降も結末の行は出す。ただ問いの指摘は 1 つなので『人が選ぶ』は 1 行だけ
+                else:
+                    chose_lined.add(_key(item))
+                    word = OUTCOMES["choose"]
+                    said.add((r.get("round"), picked[_key(item)][0]))   # 行 1 つが言うのは指摘 1 つ（同じファイルの字の違う指摘は足す行で言う）
             elif final and _unchanged(exit_):
                 word = OUTCOMES["unchanged"]
             else:
