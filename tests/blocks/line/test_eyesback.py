@@ -694,6 +694,52 @@ class ReportCase(_Case):
         for want in ("見出しの色を変えるか", "方針 A", "方針 B"):
             self.assertEqual(sum(want in t for t in texts), 1, (want, texts))
 
+    def _record(self, rows, last_eyes, **over):
+        return {"rows": rows, "exit": self.e.EXITS["settled"], "left": [], "checkpoint": None, "fixed": {"go": True}, "tests": {}, "eyes": last_eyes, **over}
+
+    def test_sealed_run_says_choose_for_a_pick_in_a_returned_file(self):
+        """返す前の状態を封じた run（checkpoint が在る）では、返した項目の結末の行が『確かめていない物』で、人が選ぶ物と言わない。
+        返した項目と同じファイルの choose の指摘も、問いに出るなら結末の行にも『人が選ぶ』で出す（行と問いは asked の 1 か所が決める）"""
+        pick = {"eye": "r1", "where": "src/a.py:40", "text": "写しを残すか選ぶ", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A])]
+        last_eyes = {**self.PASSED, "findings": [pick], "questions": []}
+        record = self._record(rows, last_eyes, checkpoint={"round": 1, "tree": "t"}, exit=self.e.EXITS["fell"])
+        _, _, now = self.e.current(record, None, None, None)
+        self.assertEqual(len(now["questions"]), 0, "最後の目の物は目のまとめが questions に置く")
+        out = self.e.record_lines(record)
+        self.assertIn(f"{self.e.ASKED_AT} {self.e.item_text(pick)}——{self.e.OUTCOMES['choose']}", out)
+        self.assertIn(f"1 周目に返した {self.e.item_text(self.A)}——{self.e.OUTCOMES['unseen']}", out)
+
+    def test_a_pick_reissued_as_fix_is_not_carried_from_the_earlier_round(self):
+        """前の周に choose だった指摘を最後の目が needs: fix で出し直したら（作り残しにも在る）、最後の目の判定を優先し、前の周の choose は
+        問いにも結末の行にも運ばない（直す物と選ぶ物の両方に出さない）。字の違う別の choose は今までどおり残す"""
+        pick = {"eye": "r2", "where": "docs/a.md:3", "text": "色を当てるか", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        other = {**pick, "text": "配色を選ぶか"}
+        fix = {"eye": "r2", "where": "docs/a.md:3", "text": "色を当てるか", "needs": "fix"}
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A]), self.e.row(2, eyes(items=[self.B, pick, other]), [self.B])]
+        last_eyes = {"r1": {"status": "pass"}, "r2": {"status": "fix-needed"}, "findings": [fix], "route": "stay", "questions": []}
+        record = self._record(rows, last_eyes, left=[fix], exit=self.e.EXITS["settled"])
+        self.assertEqual([i["text"] for _, i in self.e.asked(rows, last_eyes)], ["配色を選ぶか"])
+        texts = [q["text"] for q in self.e.current(record, None, None, None)[2]["questions"]]
+        self.assertEqual(len(texts), 1, texts)
+        self.assertIn("配色を選ぶか", texts[0])
+        out = self.e.record_lines(record)
+        self.assertFalse(any(pick["text"] in line and self.e.OUTCOMES["choose"] in line for line in out), out)
+
+    def test_lines_and_questions_agree_when_the_record_has_no_fixed(self):
+        """記録の fixed が null（状態が欠けた記録）の時、current は問いを運ばない。結末の行も前の周・最後の目の choose を『人が選ぶ』の行に出さない
+        （行と問いは carried の 1 か所の結果から作る）"""
+        pick = {"eye": "r2", "where": "docs/a.md:3", "text": "色を当てるか", "needs": "choose", "options": ["a", "b"], "recommend": "a"}
+        rows = [self.e.row(1, eyes(items=[self.A]), [self.A]), self.e.row(2, eyes(items=[self.B, pick]), [self.B])]
+        last_eyes = {**self.PASSED, "findings": [], "questions": []}
+        record = self._record(rows, last_eyes, fixed=None)
+        first = ("f", "t", "e")
+        self.assertEqual(self.e.current(record, *first), first)
+        out = self.e.record_lines(record)
+        self.assertFalse(any(self.e.OUTCOMES["choose"] in line and "選ぶ" in line and self.e.ASKED_BEFORE.format(round=2) in line for line in out), out)
+        with_fixed = self.e.record_lines({**record, "fixed": {"go": True}})
+        self.assertTrue(any(self.e.ASKED_BEFORE.format(round=2) in line for line in with_fixed), "fixed が在れば同じ行が出る（試験の対照）")
+
     def test_cap_word_matches_the_head(self):
         """結末の上限の字は、頭の文の『上限 LIMIT 回』と同じ字で言う"""
         self.assertIn(f"上限 {self.e.LIMIT} 回", self.e.OUTCOMES["cap"])
