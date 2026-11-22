@@ -1204,7 +1204,7 @@ bin/works-factory workflow run works-factory-fix --cwd <対象> \
 - 語の注意: 22 節と 19.5 の「9.1 の N」は、下書きの 9.1（持ち主の答え）の番。持ち主の言葉つきの答えは `docs/owner-decisions.md` に写してある（`no-run-way-ask`〔8〕・`route-new-words`〔10〕・`group-head-base`〔11〕・`no-tests-by-list`〔12〕）。13・14 は窓口の決めで、持ち主の言葉ではないので写さず、19.5 に決めと訳を書いた。
 - 語の注意: 22 節の「控えの N 節」は、段 1 の PR A の実装の部署が書いた控え（docs/plans に置いて、終えて消した。git の履歴が持つ）の節の番。
 - 境目（実装の部署の決め。持ち主が覆せる。控えの 1 節）: 書き手は今の修正役 1 つのまま。型ごとの書き手の指示は PR B。書き手が返す証拠（`evidence.named`・`kinds`・`sites` の `at`・`fixed_by`・`test`・`na`）が要る照らしは、関数と試験だけ置いて受け付けに効かせない（指示なしに求めると拒否が続いて単位が諦めに倒れる）。今の照らし（凍ったファイル・試験の変更の許し・試験の無い時の止め方）は外さず、新しい口の分を足して、厳しい側（両方を通る物だけ）で読む。
-- 形（`workflows/.shared/schemas/weapon-order.schema.json`・`workflows/fix/schemas/weapon-return.schema.json`）: 注文は `{weapon, group, stage, since, base, units, scope, permits[, why_untested]}`。段 2 でこの形がそのまま型の block の port になる。
+- 形（`workflows/.shared/schemas/weapon-order.schema.json`。返しの形 weapon-return は読み手が無く、書き手の返しは `workflows/.shared/schemas/writer-reply.schema.json` が照らすので消した）: 注文は `{weapon, group, stage, since, base, units, scope, permits[, why_untested]}`。段 2 でこの形がそのまま型の block の port になる。
 
 ### 22.1 振り分け（`src/route.py`・`route-go`・`route-loop`）
 
