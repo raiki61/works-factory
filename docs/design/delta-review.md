@@ -9,6 +9,8 @@
 - 深さ: run と直す単位ごとの厚み。軽量・標準・重厚の段がある。run の頭の深さ（頭）は run の始めに決まり、単位ごとの深さは修正案が決める。上げ直し: 修正の後の信号（食い違いの申し出・止めた単位など）で、軽量の単位を標準に上げること（今は fix の中、新しい形は line が fix と差分の審査の間で 1 回行う）。頭が軽量で上げ直しの後も全部の単位が軽量の run は、差分の審査を省く（持ち主の決め `dynamic-depth`）。
 - 戻せない組: 修正を組ごとに子の run で直して親の作業ツリーへ戻す時に、戻せず当たったままになった組。作業ツリーが信用できないので、在れば先へ進まない。
 - 案の直し: 修正の段の裁定が「修正案の項目が誤り」とした時に、同じ run の中で修正案を直して 2 度目の修正の段を回すこと。
+- pointer と form: pointer は大きい中身を入れたファイルを指す欄の値（Archon の `{type: archon_artifact, run_id, path}`。README の 4.1）。form は入力・出力の欄の `description` の頭に書く値の種類の語（`text`・`file`〔字の文書のファイル〕・`json(<名>)`〔JSON の値。`<名>` は形のファイルの名で、頭の無い名は block の `schemas/` の物〕など。README の 4.1）。`json(delta-holes.schema.json)` は `workflows/delta-review/schemas/delta-holes.schema.json` を指す。
+- `finish`: この block の最後の script の node（`finish.py`。1.3 の 9）。`returns: finish` でこの block の返りを決める。
 - 今: 作り直す前の、今動いている工場（`workflows/fix/` と `lib/`）。元の works: 工場の移植元（README の頭の語）。graphloops: 工場の形の元。
 - 審査役（review-1・review-2）: 修正（2 回目は手直し）だけの差分と作業ツリーの今の姿を読み、修正が新しく作った穴（faces）と、塞いだと言われた穴の検算（checks）を返す AI の役。読むだけ（Read・Grep・Glob）。1 回目は承認済みの修正案の項目への準拠（compliance）と品質（quality）の 2 判定も返す。
 - 手直しの役（refix-1・refix-2）: 審査が挙げた穴と塞がっていなかった検算（義務 owed）の全部に 1 度ずつ、直す（fixed）か残す（declared）かで答え、直す AI の役。作業ツリーを書く（Edit・Write・Bash）。

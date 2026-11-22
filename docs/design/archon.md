@@ -32,6 +32,7 @@
 
 2026-10-11 に公開版 v0.11.1 の binary とソースを読み、手元で確かめた事実。同じ日に、どの項目も止めた Archon（`d97d00ef`）で読み直し、在り処を書いた（パスは源の `packages/workflows/src/` からの相対。`cli.ts` は `packages/cli/src/`、文書は `packages/docs-web/src/content/docs/` から）。2026-11-04 に止めた Archon を `2886e883d` に上げた時と、2026-11-09 に `442c90f1` に上げた時、上流のファイルの分け直しで在り処が移った物は新しいファイルに直した。頭に版の名を置く行と、行番号の付いた在り処は、その版で確かめた時の記録のまま。
 
+- workflow の YAML は `packages/workflows/src/loader.ts` の `parseYaml`（`Bun.YAML.parse`。CRLF は先に LF にする）で読み、anchor・alias・merge key（`<<`）を解く。工場の層の検査（`tests/layers/scan.py` の `_pairs`）も merge key を同じ形に解く（字で書いた鍵が勝つ）。2026-11-22 に `442c90f1` の源で確かめた。
 - `include:` は読み込みの時に展開され、子のノードの id は `<include の id>__<子の id>` になる（`include/inline.ts` の `prefix`。`d97d00ef` では `include-expander.ts` 1-9 行）。
 - `returns:` は 1 つのノードの出力を `$<include の id>.output` として見せる。書かなければ定義の順で最初の終わりのノード（`include-expander.ts` 14-19 行・857 行）。
 - 型つきの成果物は、ノードの id と繰り返しの道（`loopGroupPath`）で鍵が付き、`$TYPED_ARTIFACTS_FILE` の一覧（`{runId, artifactsByType, errors}`）で引く（`artifacts-index.ts` 44-57 行・366-377 行）。
