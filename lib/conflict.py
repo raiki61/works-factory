@@ -43,7 +43,7 @@ fix_plan_item は承認済みの修正案の項目そのものの誤りで、そ
   scope の周の置き場の物（2 回目の修正の段は 1 回目と分かれる）。
   fix_plan_item の裁定は、受け付けた機械が欄 plan_items（その単位の brief の項目の番号）と plan_units（その項目に載る単位の全部）を
   足して渡す
-- owed_units_but_asked・fix_duty・nothing_owed_but_excused: 盤面の記録を読んだので、値を引数で受ける形に書き直して fixboard に置いた
+- owed_units_but_asked・fix_duty・nothing_owed_but_excused: 盤面の記録を読んだので、値を引数で受ける形に書き直して fix の block の src/board.py に置いた
 - test_permits(b, rulings=, source=, skip_ids=, base=): テストの変更の許し（承認済みの修正案の rewrite_tests・範囲の相談の合意・裁定 fix_test_scope の範囲・
   案の直しで直した項目の単位。keep-essence の 3 の 1 本の道）の唯一の元。凍結の検査・事後の関門・範囲の照らし・最後の関所は
   ここから引く。permitted_units(b) はそのうち単位で許す行の単位。source を渡すと、修正案の行の範囲をその木でテストの id から引き直し、
