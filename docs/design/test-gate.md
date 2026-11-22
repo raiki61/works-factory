@@ -398,7 +398,7 @@ test-gate と fix の 2 つの block が使うので `lib/` に置く（憲法�
 
 - `applies(root, test_cmd)`: 走らせ方が決まらない対象か。`test_cmd` の前後の空白を除いた字が空で、`declared_checks.checks_plan(root)` が `fallback`（宣言が無い）を返す時だけ真。fix が (3) の道かを自分で決めるのに使う（`by` を fix へ運ばない）。
 - `pick(repo, *, rev, seeds, cache_dir)` → `{whole, reasons, files, left, far}`:
-  - `impact.map(repo, rev=rev, seeds=seeds, diff=True, cache_dir=cache_dir)` で `rev` から作業ツリーまでに触ったファイルと `seeds` を起点にした地図を引き、`impact.select_tests(m, direct_only=True)` で選ぶ。fix の受け付けが回す試験の選び（`selected_problems`）と同じ決め（直に関わる試験だけ。起点か深さ 1）。
+  - `impact.map(repo, rev=rev, seeds=seeds, diff=True, cache_dir=cache_dir)` で `rev` から作業ツリーまでに触ったファイルと `seeds` を起点にした地図を引き、`impact.select_tests(m, direct_only=True)` で選ぶ。fix の受け付けが回す試験の選び（`selected_problems`）と同じ決め（直に関わる試験だけ。起点か深さ 1。辿りが選んだ道が助けの試験などを経る深さ 2 以上でも、起点から辺 1 本の道が別に在れば直に関わる。`reach` の `seed_edge`）。
   - `whole`: 真なら選べない。地図が引けない（git の誤りなど）か、分からない物が直に関わる所に在る（`select_tests` の `run_all`）時で、今までどおり一式を走らせる。理由は `reasons`。
   - `files`: 回す試験のファイル（根からの相対）。作業ツリーに在る物だけ。`left`: 届いただけで直には関わらず回さない試験。`far`: 深さ 2 以上の分からない物（理由の形）。
 - `args(repo, picked)`: `files` を絶対パスにした並び。TDD の実行器の約束（4.3・`baseline_red.run_suite` の `args`）の「第 1 引数の後ろに足す試験のファイル」と、環境変数 `TDD_SUITE_ONLY=1`（`only=True`）で走らせる。引数を解かない実行器は一式を走らせる（実行器の書き手の指示が決めている。同じ事を確かめる）。
