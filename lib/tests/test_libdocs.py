@@ -275,7 +275,7 @@ class SourcesCase(Base):
         libdocs.section(self.board.work(""), self.repo, [f], get=ok_http(), env={}, now=1_800_000_000.0, shared=home)
         self.board.round = 2
         http = FakeHttp()
-        text = libdocs.section(self.board.work(""), self.repo, [f], get=http, env={}, now=1_800_000_060.0, shared=home)
+        libdocs.section(self.board.work(""), self.repo, [f], get=http, env={}, now=1_800_000_060.0, shared=home)
         self.assertEqual(http.calls, [], "次の周は前の周の置き場を読まず、run をまたぐ控えを読む")
         self.assertIn("Use `requests.Session` to keep cookies", self.saved("official-1-readme.md", rnd=2))
         other = FakeBoard(self.tmp / "board2")
