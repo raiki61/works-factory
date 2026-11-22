@@ -25,7 +25,7 @@ import unittest
 from unittest import mock
 
 from tests.bin import gitkit
-from tests.layers import trees
+from tests.layers import scan, trees
 from tests.layers.trees import tree
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -42,9 +42,8 @@ def _roots(root: pathlib.Path) -> list[str]:
 def _scanned(root: pathlib.Path):
     seen = set()
     for scope in SCOPES:
-        base = root / scope
-        if base.is_dir():
-            seen.update(p for p in base.rglob("*") if p.is_file())
+        if (root / scope).is_dir():
+            seen.update(scan._files(root, scope))   # git が無視する置き場（道具の控え）は読まない
     seen.update(trees.agents_files(root))
     for path in sorted(seen):
         rel = path.relative_to(root).as_posix()
@@ -99,6 +98,12 @@ class PathsExistTest(unittest.TestCase):
         }
         with tree(files, git_init=True) as root:
             self.assertEqual(problems(root), ["AGENTS.md:1: docs/gone2.md", "lib/a.py:1: lib/gone.py", "lib/a.py:1: docs/gone.md"])
+
+    def test_git_ignored_files_are_not_read(self):
+        """git が無視する置き場（道具の控え .ruff_cache/ など）の字は読まない。無視されない未追跡の物は読む"""
+        files = {".gitignore": ".ruff_cache/\n", "lib/.ruff_cache/x.md": "docs/gone.md\n", "lib/b.md": "docs/gone2.md\n", "docs/here.md": ""}
+        with tree(files, git_init=True) as root:
+            self.assertEqual(problems(root), ["lib/b.md:1: docs/gone2.md"])
 
     def test_present_paths_and_patterns_pass(self):
         files = {
