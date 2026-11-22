@@ -155,10 +155,6 @@ def web_searches(rows) -> list:
     return _distinct(tool_inputs(rows, "WebSearch"))
 
 
-def _write_json(path: pathlib.Path, doc) -> pathlib.Path:
-    return jsonfile.write(path, doc, indent=2)
-
-
 def _real(p: str, repo: pathlib.Path) -> str:
     return os.path.realpath(p if os.path.isabs(p) else str(repo / p))
 
@@ -201,8 +197,8 @@ def collect(place, role: str, must_read: list, log, *, own: list, since: str, re
                 missing.append(p)
         web = {"fetches": web_fetches(got), "searches": web_searches(got)}
     name = role_key(role, replan)
-    out = _write_json(pathlib.Path(place) / evidence_name(name),
-                      {"role": name, "since": since, "rows": rows, "sources": sources, "missing": missing, "web": web})
+    out = jsonfile.write(pathlib.Path(place) / evidence_name(name),
+                         {"role": name, "since": since, "rows": rows, "sources": sources, "missing": missing, "web": web}, indent=2)
     return {"ok": True, "sources": sources, "missing": missing, "reads_file": str(out), "records": got}
 
 
@@ -225,8 +221,8 @@ def guarded(collect, *, owner: str, place, replan: bool = False, unread: str = "
     p.mkdir(parents=True, exist_ok=True)
     name = role_key(owner, replan)
     why = f"{reason}（{UNREAD_PASS}: {oneline.one_line(unread)}）" if unread else reason
-    _write_json(p / failure_name(name), {"role": name, "since": stamp(), "rows": [], "sources": {"hook": FAILED, "why": why},
-                                         "missing": [], "web": None})
+    jsonfile.write(p / failure_name(name), {"role": name, "since": stamp(), "rows": [], "sources": {"hook": FAILED, "why": why},
+                                            "missing": [], "web": None}, indent=2)
     return {"ok": False, "missing": [], "index_file": "", "reason": reason}
 
 
