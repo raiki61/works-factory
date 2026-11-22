@@ -529,6 +529,11 @@ def tdd_slots(stages: list) -> list:
     return [*first, *(refix or [[]] if returned else refix), *returned]
 
 
+def _stage(no: int, kind: str, fix, lens=None, delta=None) -> dict:
+    """修正の段 1 つの行 {stage, kind, fix, lens, delta}（lens・delta は段の差分の審査。返しの段は審査を持たず None）"""
+    return {"stage": no, "kind": kind, "fix": fix, "lens": lens, "delta": delta}
+
+
 def fixed(values: dict) -> dict:
     """2 つの修正の段と段ごとの差分の審査を合わせる（docs/design/line.md の 4.3。今の fixed.py の決まりのまま）。止めの語（stop_reason）と
     組の止めた訳を stop_why に上げる（_stop_why）。values の鍵は
@@ -562,10 +567,10 @@ def fixed(values: dict) -> dict:
         held, go, done = True, False, False
     scalars = {k: v for f in fixes for k, v in _d(f.get("x_scalars")).items()}
     again = values.get("replan") if refix is not None and isinstance(values.get("replan"), dict) else None
-    stages = [{"stage": 1, "kind": report.FIRST, "fix": values.get("fix"), "lens": values.get("lens"), "delta": values.get("delta")}]
+    stages = [_stage(1, report.FIRST, values.get("fix"), values.get("lens"), values.get("delta"))]
     if refix is not None:
-        stages.append({"stage": 2, "kind": report.REFIX, "fix": refix, "lens": values.get("lens_2"), "delta": values.get("delta_2")})
-    stages += [{"stage": len(stages) + 1, "kind": report.RETURNED, "fix": m, "lens": None, "delta": None} for m in more]
+        stages.append(_stage(2, report.REFIX, refix, values.get("lens_2"), values.get("delta_2")))
+    stages += [_stage(len(stages) + 1, report.RETURNED, m) for m in more]
     carry = union(*(_d(s.get(k)).get("carry") for s in stages for k in ("lens", "delta")))
     if isinstance(raise_, dict):
         checks, eyes_due, skip_why = raise_.get("checks") is True, raise_.get("eyes_due") is True, str(raise_.get("skip_why") or "")
