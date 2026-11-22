@@ -5,7 +5,7 @@
 2. AI の node ごとに prompts/<node-id>.md が在り、prompts/ の直下の md はどれもどれかの AI の node の物（<node-id>.md か
    <node-id>.system.md）。prompts/parts/ の md はどれも同じ block のどれかの md から {part:…} で差し込まれるか、同じ block の
    scripts/・src/ の prompt.render_part("<name>" の呼び（コメントと文の字の中は数えない）が名指す。md の
-   {shared:…}・{part:…} の先が在る
+   {shared:…}・{part:…} の先が在る。.shared/prompts/ の md はどれも、どれかの md の {shared:…} か、どれかの .py の文字列 "<名>"・"<名>.md" で使われる
 3. 指示が筋書きの値で md から組める: standalone の筋書きは exec-code: true。どの AI の node も、exec-code: true でその prep を
    差し替えない筋書きのどれかで reached に在り、その筋書きの resolved-text-contains が、その node の md の決まった文（断片を
    入れ、差し込み口と段落の印で割った字）の一続きの中に在る（prep が md を prompt.render で本当に組んだ証）。standalone の筋書きの
@@ -199,7 +199,19 @@ def check_prompt_files(pack: pathlib.Path) -> list[str]:
             where = pack / SHARED / "prompts" if kind == "shared" else prompts / "parts"
             if not (where / f"{name}.md").is_file():
                 out.append(f"{folder.name}: {{{kind}:{name}}} の先 {where.relative_to(pack)}/{name}.md が無い")
-    return out
+    return out + unused_shared_parts(pack)
+
+
+def unused_shared_parts(pack: pathlib.Path) -> list[str]:
+    """.shared/prompts/ の md はどれも、pack のどれかの md の {shared:<名>} か、pack のどれかの .py の文字列 "<名>"・"<名>.md" で使われる
+    （コードが名で読む物・AI に Read させる物はこちらで数える。外す物の表は持たない）"""
+    shared = pack / SHARED
+    texts = [p.read_text(encoding="utf-8") for f in [*folders(pack), shared] for p in files_under(f, suffix=".md")]
+    refs = {m.group(2) for text in texts for m in FRAGMENT.finditer(text) if m.group(1) == "shared"}
+    code = "\n".join(p.read_text(encoding="utf-8") for f in [*folders(pack), shared] for p in files_under(f, suffix=".py"))
+    return [f"{SHARED}/prompts/{p.stem}.md はどの md からも {{shared:{p.stem}}} で差し込まれず、どの .py にも文字列 \"{p.stem}\" の名指しが無い"
+            for p in sorted((shared / "prompts").glob("*.md"))
+            if p.stem not in refs and not re.search(rf"[\"']{re.escape(p.stem)}(\.md)?[\"']", code)]
 
 
 def fixed_text(pack: pathlib.Path, folder: pathlib.Path, node_id: str) -> list[str]:
@@ -897,6 +909,15 @@ class SeedCase(unittest.TestCase):
         got = self.broken(check_prompt_files, {"demo/prompts/parts/my_brief.md": "x\n",
                                                "demo/src/x.py": "prompt.render_part('my_brief', {})\n"})
         self.assertTrue(any("{part:my_brief} で差し込まれない" in line for line in got), got)
+
+    def test_unused_shared_part_is_red(self):
+        """.shared/prompts/ の断片を、どの md も {shared:…} で差し込まず、どの .py も名の字で指さないなら赤。名の字で読む物は通る"""
+        got = self.broken(check_prompt_files, {".shared/prompts/orphan.md": "x\n"})
+        self.assertTrue(any("{shared:orphan} で差し込まれず" in line for line in got), got)
+        for code in ('P = "orphan.md"\n', "P = 'orphan'\n"):
+            with self.subTest(code=code):
+                self.assertEqual(self.broken(check_prompt_files, {".shared/prompts/orphan.md": "x\n", "demo/src/x.py": code}), [])
+        self.assertEqual(self.broken(check_prompt_files, {".shared/prompts/orphan.md": "x\n", "demo/prompts/parts/rules.md": "{shared:orphan}\n"}), [])
 
     def test_role_in_a_nested_loop_owns_its_prompt(self):
         """入れ子の輪（loop_group の本体の loop_group）の中の AI の node も、自分の prompts/<id>.md を持つ役に数える"""
